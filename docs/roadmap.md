@@ -331,7 +331,9 @@ answered. Update as items resolve.
 | Item | Answered by | Status |
 |---|---|---|
 | F-1 special-register encoding | Step 0 | **open — blocks Step 3** |
-| F-2 predicate spill path / `unballot` (O-14) | Step 0 | **open — blocks Step 4** |
+| F-2 predicate spill path / `unballot` (O-14) | Step 0 | **open — proposal in `proposals/predicate-transfer.md`; blocks Step 4** |
+| F-8 predicated write to a predicate destination — preserve or clear? | Step 0 | **open — blocks if-conversion** |
+| F-9 Format D carries two contradictory opcode maps (editorial) | — | **open — second map is stale, should be deleted** |
 | O-8 compressed-form density | Step 1 instrumentation + Step 5 | not started |
 | O-9 compressed ld/st offset distribution | Step 1 instrumentation + Step 5 | not started |
 | GPR count 16 vs. 32 | Step 5, both configurations | not started |
