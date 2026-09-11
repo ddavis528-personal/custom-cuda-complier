@@ -9,7 +9,8 @@ Three additions, no new formats, no new fields, nothing above 32 bits:
 | Addition | Format | Cost |
 |---|---|---|
 | `ld.pred` / `st.pred` with a 4-bit predicate mask | D | 4 opcode points |
-| `pand` / `por` / `pxor`, dual-negate sources | K | 3 opcode points |
+| `pand` / `por` / `pxor` / `pmov`, dual-negate sources | K | 4 opcode points |
+| `packi.z` — clearing variant of `packi` | B | 1 opcode point |
 | `unballot pd, rs` (O-14, unchanged from the spec's own sketch) | G | 1 opcode point |
 
 ---
@@ -189,10 +190,61 @@ sources do the rest:
 | `xnor` | `pxor` with one negated |
 | `pmov pd, ps` | `pand pd, ps, ps` |
 | `pnot pd, ps` | `pand pd, !ps, !ps` |
+| **all-zeros** | `pand pd, ps, !ps` |
+| **all-ones** | `por pd, ps, !ps` |
 
-Every useful two-input function, plus move and negate, in three points. Format K
-has four reserved at 60–63, so this fits with one to spare and needs nothing
-else.
+**The set is complete.** All sixteen two-input boolean functions are reachable,
+verified by enumeration — including both constants, which fall out of the negate
+bit without a dedicated opcode. Dropping `pxor` would cost exactly `XOR` and
+`XNOR`, which nothing else reaches; it earns its point.
+
+Two consequences worth recording:
+
+- **Constant predicates drop from 48 bits to 16.** `pmov pd, #lanemask`
+  (Format I) is 48-bit-only and is currently the sole path from a constant to a
+  predicate. `pand pd, ps, !ps` and `por pd, ps, !ps` give the two constants that
+  actually matter at 16 bits. This does **not** undo §1's "no hardwired
+  always-true predicate" — an unpredicated instruction still cannot be expressed
+  as predicated-on-true, because the encodings differ — but it does make a
+  materialized all-true predicate cheap enough to serve as the identity element
+  when combining predicates in if-conversion.
+- **Both idioms need dependency breaking at rename.** `pand pd, ps, !ps` reads
+  `ps` only to ignore it; without recognition it inherits a false dependency on
+  whatever last wrote `ps`. This is the x86 `xor eax, eax` case exactly, and the
+  same fix applies: recognize the both-fields-equal-with-opposite-negate pattern
+  at decode and break the dependency. Cheap — it is a 2-bit comparator plus an
+  XOR of the negate bits, on a path that already decodes the opcode.
+
+**One further point is worth spending: `pmov pd, ps` as its own opcode.** Not for
+functional coverage — `pand pd, ps, ps` already covers it — but because a
+predicate-to-predicate move is a **rename-time no-op**, the same argument ISA
+spec §3 makes for the compressed GPR `mov`. For the renamer to elide it, it has
+to recognize it, and recognizing `pand pd, ps, ps` means comparing two source
+fields *and* checking both negate bits are clear *and* checking the opcode. A
+dedicated point makes it a single opcode compare. Copy coalescing does not
+eliminate every move, so this fires on real code.
+
+No mnemonic collision with Format I's `pmov pd, #lanemask`: register-operand and
+immediate-operand forms of one mnemonic are standard, and Format K already does
+exactly this for `mov`, which appears in both the reg-reg (0–23) and reg-imm
+(32–47) ranges.
+
+**Recommend stopping there — four points, not more.** The hardware argument for
+filling out the set is sound in isolation: predicate bitwise logic is 32 gates
+and the ALU cost of another function is nil. But the scarce resource is not gate
+area, it is **Format K opcode points**. K has 64 total, carrying the entire
+compressed ALU set, compressed load/store, short branches, calls, barriers,
+fences, votes and `reconv.hint` — the highest-value encoding real estate in the
+ISA. Free points are 28–31, 60–63, and five inside the reg-imm range: thirteen,
+and they are the only headroom the compressed forms have. Spending them on
+functions already reachable in one instruction buys nothing and forecloses
+compressed forms not yet designed.
+
+A three-input predicate op (`if (a && b && c)` wants `P3 = P0 & P1 & P2`) is the
+one genuinely unreachable shape, and it should also be declined: `pd` plus three
+qualifier-style sources is 11 bits against Format K's 8, so it would need a
+32-bit Format I encoding — which is exactly break-even against two 16-bit
+two-input ops. Invariant 7 says no.
 
 The field positions do not align with Format K's GPR geometry (`rd` at `[11:8]`,
 `rs` at `[15:12]`) because the 8-bit budget is exact and leaves no freedom. That
@@ -200,7 +252,96 @@ is consistent with invariant 8 rather than an exception to it: predicates have a
 separate RAT (invariant 5), so the predicate rename path reads its own fixed
 wires, and these positions are fixed across all three ops.
 
-## 6. Open question this surfaced — predicated writes to a predicate destination
+## 6. `packi` — preserve the unwritten slots, and add a clearing variant
+
+Separate question, same shape: on a **partial write**, is the untouched part of
+the destination preserved (making `rd` an implicit source) or cleared?
+
+The general instinct is right, and the canonical evidence is on the x86 side:
+legacy SSE writes to `xmm` preserve the upper `ymm` bits and create a
+partial-register dependency, VEX-encoded writes zero them and do not, and the
+`AL`-writes-into-`EAX` partial-register stalls were bad enough to be worth
+architectural surgery. Preserve semantics on a partial write are a known trap.
+
+**It does not apply here, for three reasons.**
+
+*One — the machine already pays for dest-as-implicit-source universally, because
+predication requires it.* For `@P0 add R1, R2, R3`, lanes where `P0` is false
+must leave `R1` unchanged; that is what predication *is*. So every instruction in
+A′, A″, B′, B″, C, C′, D′ and G already reads its destination. Format K's
+destructive range adds 24 more reg-reg points and 16 reg-imm. `packi` reading
+`rd` introduces no mechanism the machine does not already have everywhere.
+
+*Two — `packi` is not a partial physical write.* The x86 problem was a genuinely
+narrow physical write into a wider architectural register, needing either a merge
+uop or partial-register tracking. `packi` is read-full-lane, merge in the ALU,
+write-full-lane — an ordinary two-source ALU op with a full-width result. There
+is no partial-register hazard to avoid because there is no partial write. The
+rename cost is one RAT read port on a rare instruction, and ISA spec §3 already
+notes the renamer takes this from the opcode it decodes anyway.
+
+*Three — clearing costs `packi` its only break-even use case.* With preserve,
+composing a packed FP8 lane is four dependent `packi` and a store. With clearing,
+each `packi` wipes its predecessor, so composition becomes four independent
+`packi` into four temporaries plus a three-deep OR tree:
+
+| | Instructions | Temporaries | Dependency depth |
+|---|---|---|---|
+| Preserve | 4 `packi` + 1 store | 1 | 4 |
+| Clear | 4 `packi` + 3 `or` + 1 store | 4 | 3 |
+| Four narrow stores (the alternative) | 4 stores | — | 1 |
+
+O-16 already rates packing-for-a-wide-store "a wash" at 5 instructions against 4
+narrow stores. At 8 instructions and 4 live temporaries it is a clear loss, on a
+16-GPR machine, in an epilogue where pressure is already highest. Clearing would
+leave `packi` with no profitable use at all — and O-16 keeps it on type-system
+completeness grounds, not performance ones, so removing its last break-even case
+is worse than it sounds.
+
+**Recommendation: preserve, plus a `packi.z` variant that clears the other
+slots.** One Format B opcode point, out of a 5-bit space the spec itself calls
+ample. It buys the one thing preserve genuinely costs:
+
+The *first* `packi` of a full-lane compose reads an `rd` whose contents are all
+about to be overwritten, so it carries a false dependency on `rd`'s previous
+writer. The compiler knows the lane will be fully written; the hardware cannot.
+`packi.z` lets the compiler say so — head the chain with `packi.z`, follow with
+three ordinary `packi`, and the chain starts clean:
+
+```
+    packi.z  rd, ra, #0        ; clears slots 1-3, no dependency on old rd
+    packi    rd, rb, #1
+    packi    rd, rc, #2
+    packi    rd, rd_src, #3
+```
+
+Same instruction count as preserve-only, no extra temporaries, and the false
+dependency gone. This is the VEX-zeroing lesson applied where it actually helps —
+as an *available* semantic rather than the only one. `packi.z rd, rs, #0` is also
+independently useful as a raw zero-extending narrow-to-wide placement, which
+nothing else expresses (`cvt` converts format, not bit position).
+
+`unpacki` needs no such treatment: its destination is a narrow register written
+in full, so it is already a clean single-source op. ISA spec §8 O-16 is right
+that `packi` is the only `rd`-as-source deviation in Format B.
+
+## 7. The general rule this implies — answer partial-write semantics once
+
+Three places in the ISA ask the same question and it should get one deliberate
+answer, not three incidental ones:
+
+| Site | Partial write | Current spec |
+|---|---|---|
+| Predicated write to a GPR destination | lanes where the guard is false | **must preserve** — this is what predication means |
+| `packi` slots | slots not named by the immediate | preserve (§8 O-16) |
+| Predicated write to a *predicate* destination | lanes where the guard is false | **unstated** — see below |
+
+The first is forced and the second is recommended above, so **preserve** is
+already the machine's rule in two of three sites. Consistency argues the third
+should follow, and the objection recorded below dissolves once the predicate
+logic ops exist.
+
+## 8. Open question — predicated writes to a predicate destination
 
 Underspecified in the current spec, and it has to be answered before if-conversion
 can be implemented either way.
@@ -217,9 +358,20 @@ predicate destination at `[31:30]`. For `@P0 setp P1, Ra, Rb` — in lanes where
 - **Cleared** gives `P1 = P0 & (Ra<Rb)` directly, which is what if-conversion
   wants, but destroys any merge idiom.
 
-Either answer leaves §5's predicate logic ops worth having; the cleared reading
-makes them slightly less urgent. The point is that the semantics are currently
-unstated and the compiler cannot proceed on either reading without knowing which.
+**The pre-clear objection dissolves.** It rested on `pmov` being the only constant
+write and 48 bits wide. With `pand pd, ps, !ps` clearing a predicate in 16 bits,
+the AND-combine under preserve semantics costs a 16-bit clear plus a 32-bit
+predicated compare — 48 bits, identical to an unpredicated 32-bit compare
+followed by a 16-bit `pand`. The two readings are now cost-equivalent for the
+combining idiom, and preserve additionally gives the per-lane merge, which clear
+cannot express at all.
+
+**Recommend preserve**, consistent with §7. It is free — the predicate RAT
+already handles dest-as-source for every predicated GPR write — it matches the
+rule at the other two sites, and it is strictly more expressive at equal cost.
+
+The point stands that the semantics are currently unstated, and the compiler
+cannot proceed on either reading without knowing which.
 
 ## 7. Editorial — Format D has two contradictory opcode maps
 
