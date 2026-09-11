@@ -330,7 +330,10 @@ answered. Update as items resolve.
 
 | Item | Answered by | Status |
 |---|---|---|
-| F-1 special-register encoding | Step 0 | **open — blocks Step 3** |
+| F-1a special-register encoding (thread/CTA/lane indices) | Step 0 | **open — blocks Step 3** |
+| F-1b kernel parameter passing — no `.param` equivalent exists | Step 0 | **open — blocks Step 3** |
+| F-1c entry register state / ABI (param base, local base) | Step 0 | **open — blocks Step 3** |
+| F-11 address width is unstated; a GPR lane is at most 32 bits | Step 0 | **open — blocks Step 3, possibly larger than F-1** |
 | F-2 predicate spill path / `unballot` (O-14) | Step 0 | **open — proposal in `proposals/predicate-transfer.md`; blocks Step 4** |
 | F-8 predicated write to a predicate destination — preserve or clear? | Step 0 | **open — preserve recommended, see proposal §7–8; blocks if-conversion** |
 | F-10 `packi` partial-write semantics — preserve + `packi.z` variant | Step 0 | **open — see proposal §6** |
