@@ -330,9 +330,9 @@ answered. Update as items resolve.
 
 | Item | Answered by | Status |
 |---|---|---|
-| F-1a special-register encoding (thread/CTA/lane indices) | Step 0 | **open — blocks Step 3** |
-| F-1b kernel parameter passing — no `.param` equivalent exists | Step 0 | **open — blocks Step 3** |
-| F-1c entry register state / ABI (param base, local base) | Step 0 | **open — blocks Step 3** |
+| F-1a identity primitive (`%ctatid`) — uniform half settled by launch block | Step 0 | **open — the only opcode F-1 still needs; see `proposals/launch-abi.md`** |
+| F-1b kernel parameter passing | Step 0 | **direction settled (launch block); layout blocked on F-11** |
+| F-1c entry register state / ABI | — | **resolved — fixed address + Format F materialization; entry state stays undefined** |
 | F-11 address width is unstated; a GPR lane is at most 32 bits | Step 0 | **open — blocks Step 3, possibly larger than F-1** |
 | F-2 predicate spill path / `unballot` (O-14) | Step 0 | **open — proposal in `proposals/predicate-transfer.md`; blocks Step 4** |
 | F-8 predicated write to a predicate destination — preserve or clear? | Step 0 | **open — preserve recommended, see proposal §7–8; blocks if-conversion** |
