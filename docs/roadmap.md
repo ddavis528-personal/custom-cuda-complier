@@ -1,7 +1,7 @@
 # Bring-up Roadmap and Compiler-Side ISA Findings
 
 **Status:** Phase 0 (contract definition). No code yet.
-**Companions:** `isa-v1.4-operation-map-and-encoding.md` (encoding ground truth),
+**Companions:** `isa-v1.5-operation-map-and-encoding.md` (encoding ground truth),
 `backend-context.md` (scope and rationale ground truth).
 
 This file is the working plan. It tracks two things: the order work is being
@@ -353,16 +353,23 @@ Adds shared memory, Format J accumulate, and serious register pressure.
 **Produces:** the spill data that decides 16 vs. 32 GPRs, and the destructive-form
 hit rate for O-8.
 
-**Report aligned and unaligned kernels separately.** Pointer alignment is settled
-as a per-argument attribute (v1.4 O-23), and the two shapes differ by three live
-registers on the simplest kernel there is — 23 instructions and 8 live GPRs
-unaligned, against 16 and 5 aligned. Two of the four GPR arguments rest on the
-unaligned shape, so an undifferentiated number cannot be interpreted. See
-`proposals/pointer-alignment.md` §6.
+**The GPR count is no longer the question.** Settled at 16 (v1.5 O-25), so this
+step is not a 16-vs-32 experiment. What it measures instead:
 
-**And it is not a flag flip.** Per F-12, a 32-register machine is a second encoding
-— the compressed forms cannot name more than 16 registers. Restricted allocation
-order gives comparable spill counts; a working 32-GPR target does not come free.
+1. **Spill by cause, not volume.** Separate accumulator spill — the live risk —
+   from pointer and index spill, which O-23 already addresses. A total is not
+   interpretable.
+2. **Accumulator tile sweep.** 2×2, 2×4, 4×4; report where spill traffic overtakes
+   the arithmetic-intensity gain. **FP32 and INT8 separately** — `dp4.acc` performs
+   four MACs per accumulator register, so it changes the answer for INT8 and not
+   for FP32. FP32 accumulation is the case with no mitigation.
+3. **Aligned and unaligned shapes separately** (O-23). The unaligned prologue
+   overstates both register pressure and compressed-form density — four of the
+   seven instructions alignment removes are 16-bit.
+4. **Warp-invariance reporting.** How many warp-invariant values are simultaneously
+   live at peak. LLVM's divergence analysis already computes this; it is reporting,
+   not new analysis, and it is the only evidence that would size the warp-uniform
+   register file that v1.5 §1 names as the response if the GEMM data is bad.
 
 **Note on framing:** per `backend-context.md` §4, ambiguous spill data tips
 toward 32 because of the span/MMA register-group argument. F-3 adds a second
@@ -396,9 +403,9 @@ answered. Update as items resolve.
 | F-8 predicated write to a predicate destination — preserve or clear? | Step 0 | **open — preserve recommended, see proposal §7–8; blocks if-conversion** |
 | F-10 `packi` partial-write semantics — preserve + `packi.z` variant | Step 0 | **open — see proposal §6** |
 | F-9 Format D carries two contradictory opcode maps (editorial) | — | resolved in v1.3 |
-| F-12 32 GPRs is an encoding fork, not a subtarget flag | Step 5 | recorded in v1.4 §1/§11; still open as a *decision*, pending GEMM spill data |
+| F-12 32 GPRs is an encoding fork, not a subtarget flag | — | **closed — 16 settled in v1.5 O-25.** `GPRC` and R16–R31 removed from the machine description; one encoding path, two allocator objectives not three |
 | F-17 §5.5 figures were wrong (23 not 22 instructions, 27.1 not 28.4 b/instr, 8 not ~10 live) | — | fixed in v1.4; `tools/check-listings.py` now re-derives them |
-| F-19 Every compare is predicated; a kernel must manufacture a true predicate | Step 2 | resolved in v1.4 O-24 — idiom documented, no encoding change |
+| F-19 Every compare is predicated; a kernel must manufacture a true predicate | Step 2 | resolved in v1.4 O-24, refined in v1.5 — self-guarding form costs one predicate, not two; regression test in `test/predicate-remat.s` |
 | F-18 Two of the four GPR arguments are contingent on kernel-pointer alignment | Step 0 | resolved — per-argument attribute, v1.4 O-23; see `proposals/pointer-alignment.md`. Step 5 must report both shapes |
 | F-13 Format G is several field layouts presented as one table | Step 1 | resolved in v1.4 — written out as four tables |
 | F-14 Format B′/B″ move the predicate qualifier off `[29:27]` | Step 1 | resolved in v1.4 — O-22; checker now reports 0 deviations |

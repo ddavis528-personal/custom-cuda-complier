@@ -1,6 +1,6 @@
 //===-- CCGInstrFormats.td - CCG instruction formats --------*- tablegen -*-===//
 //
-// One class per format in docs/isa-v1.4-operation-map-and-encoding.md §3.
+// One class per format in docs/isa-v1.5-operation-map-and-encoding.md §3.
 // Bit assignments below are transcribed directly from that section's tables and
 // are the mechanical check on them: TableGen rejects any double-assigned bit,
 // and tools/check-encoding.py rejects any gap. Field positions are load-bearing

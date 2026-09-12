@@ -1,6 +1,6 @@
 //===-- CCGInstrInfo.td - CCG instruction definitions -------*- tablegen -*-===//
 //
-// Instruction set for docs/isa-v1.4-operation-map-and-encoding.md.
+// Instruction set for docs/isa-v1.5-operation-map-and-encoding.md.
 // Coverage goal for Step 1 is one instruction per format plus everything the
 // worked prologue in §5.5 needs -- not full opcode-map coverage. Opcode values
 // are taken from §3 and §4; where the spec lists a range without fixing points,
@@ -184,13 +184,13 @@ def PMOV_IMM : FormatIpmov<(outs PR:$pd), (ins uimm32:$lanemask),
 // Format J -- compressed accumulate. rd is read and written.
 // ---------------------------------------------------------------------------
 let Constraints = "$rd = $rd_in" in {
-def FFMA_ACC_F0 : FormatJ<0b00, (outs GPRC:$rd), (ins GPRC:$rd_in, GPRC:$rs0, GPRC:$rs1),
+def FFMA_ACC_F0 : FormatJ<0b00, (outs GPR:$rd), (ins GPR:$rd_in, GPR:$rs0, GPR:$rs1),
                           "ffma.acc.f0 $rd, $rs0, $rs1">;
-def FFMA_ACC_F1 : FormatJ<0b01, (outs GPRC:$rd), (ins GPRC:$rd_in, GPRC:$rs0, GPRC:$rs1),
+def FFMA_ACC_F1 : FormatJ<0b01, (outs GPR:$rd), (ins GPR:$rd_in, GPR:$rs0, GPR:$rs1),
                           "ffma.acc.f1 $rd, $rs0, $rs1">;
-def DP4_ACC     : FormatJ<0b10, (outs GPRC:$rd), (ins GPRC:$rd_in, GPRC:$rs0, GPRC:$rs1),
+def DP4_ACC     : FormatJ<0b10, (outs GPR:$rd), (ins GPR:$rd_in, GPR:$rs0, GPR:$rs1),
                           "dp4.acc $rd, $rs0, $rs1">;
-def MAD_ACC     : FormatJ<0b11, (outs GPRC:$rd), (ins GPRC:$rd_in, GPRC:$rs0, GPRC:$rs1),
+def MAD_ACC     : FormatJ<0b11, (outs GPR:$rd), (ins GPR:$rd_in, GPR:$rs0, GPR:$rs1),
                           "mad.acc $rd, $rs0, $rs1">;
 }
 
@@ -198,21 +198,21 @@ def MAD_ACC     : FormatJ<0b11, (outs GPRC:$rd), (ins GPRC:$rd_in, GPRC:$rs0, GP
 // Format K -- compressed. Opcode map from §3.
 // ---------------------------------------------------------------------------
 let Constraints = "$rd = $rd_in" in {
-def C_ADD  : FormatKrr<0,  (outs GPRC:$rd), (ins GPRC:$rd_in, GPRC:$rs), "add $rd, $rs">;
-def C_SHL  : FormatKrr<7,  (outs GPRC:$rd), (ins GPRC:$rd_in, GPRC:$rs), "shl $rd, $rs">;
-def C_FADD : FormatKrr<18, (outs GPRC:$rd), (ins GPRC:$rd_in, GPRC:$rs), "fadd $rd, $rs">;
-def C_ADDI : FormatKri<32, (outs GPRC:$rd), (ins GPRC:$rd_in, uimm4:$imm), "add $rd, $imm">;
-def C_SHLI : FormatKri<37, (outs GPRC:$rd), (ins GPRC:$rd_in, uimm4:$imm), "shl $rd, $imm">;
+def C_ADD  : FormatKrr<0,  (outs GPR:$rd), (ins GPR:$rd_in, GPR:$rs), "add $rd, $rs">;
+def C_SHL  : FormatKrr<7,  (outs GPR:$rd), (ins GPR:$rd_in, GPR:$rs), "shl $rd, $rs">;
+def C_FADD : FormatKrr<18, (outs GPR:$rd), (ins GPR:$rd_in, GPR:$rs), "fadd $rd, $rs">;
+def C_ADDI : FormatKri<32, (outs GPR:$rd), (ins GPR:$rd_in, uimm4:$imm), "add $rd, $imm">;
+def C_SHLI : FormatKri<37, (outs GPR:$rd), (ins GPR:$rd_in, uimm4:$imm), "shl $rd, $imm">;
 }
-def C_MOV  : FormatKrr<14, (outs GPRC:$rd), (ins GPRC:$rs), "mov $rd, $rs">;
+def C_MOV  : FormatKrr<14, (outs GPR:$rd), (ins GPR:$rs), "mov $rd, $rs">;
 
 // Compressed load/store, implicit zero offset (points 24-27).
-def C_LD_GLOBAL : FormatKmem<24, (outs GPRC:$rd), (ins GPRC:$rbase), "ld.global $rd, [$rbase]">;
-def C_ST_GLOBAL : FormatKmem<25, (outs), (ins GPRC:$rd, GPRC:$rbase), "st.global $rd, [$rbase]">;
+def C_LD_GLOBAL : FormatKmem<24, (outs GPR:$rd), (ins GPR:$rbase), "ld.global $rd, [$rbase]">;
+def C_ST_GLOBAL : FormatKmem<25, (outs), (ins GPR:$rd, GPR:$rbase), "st.global $rd, [$rbase]">;
 
 // srd -- identity / dynamic state read (v1.3, O-18). Point 28.
 let isReMaterializable = 1 in
-def SRD : FormatKsrd<28, (outs GPRC:$rd), (ins srdsel:$sel), "srd $rd, $sel">;
+def SRD : FormatKsrd<28, (outs GPR:$rd), (ins srdsel:$sel), "srd $rd, $sel">;
 
 // Small-operand control ops (points 48-56).
 def C_CHWIDTH : FormatKraw<48, (outs), (ins uimm8:$payload), "chwidth $payload">;

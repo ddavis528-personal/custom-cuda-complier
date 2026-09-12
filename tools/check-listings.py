@@ -7,7 +7,7 @@ bits per instruction, and peak live registers -- while the bit total was right.
 Prose review does not catch that. This does: it re-derives every stated figure
 from the listing itself and fails if the text disagrees.
 
-Usage: check-listings.py docs/isa-v1.4-operation-map-and-encoding.md
+Usage: check-listings.py docs/isa-v1.5-operation-map-and-encoding.md
 """
 import re, sys
 

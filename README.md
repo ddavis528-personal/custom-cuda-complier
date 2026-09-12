@@ -13,7 +13,7 @@ generated documentation.
 
 | File | Role |
 |---|---|
-| [`docs/isa-v1.4-operation-map-and-encoding.md`](docs/isa-v1.4-operation-map-and-encoding.md) | **Current.** Ground truth for encoding. Formats, opcode maps, execution environment and launch ABI, design invariants, open items. |
+| [`docs/isa-v1.5-operation-map-and-encoding.md`](docs/isa-v1.5-operation-map-and-encoding.md) | **Current.** Ground truth for encoding. Formats, opcode maps, execution environment and launch ABI, design invariants, open items. |
 | [`docs/isa-v1.3-operation-map-and-encoding.md`](docs/isa-v1.3-operation-map-and-encoding.md) | Superseded by 1.4. Kept for the decision trail. |
 | [`docs/isa-v1.2-operation-map-and-encoding.md`](docs/isa-v1.2-operation-map-and-encoding.md) | Superseded by 1.3. |
 | [`llvm/CCG/`](llvm/CCG/) | TableGen machine description. `tools/verify.sh` checks it against the invariants above. |

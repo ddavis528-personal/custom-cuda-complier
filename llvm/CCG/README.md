@@ -1,7 +1,7 @@
 # CCG — TableGen machine description
 
 Target description for the ISA in
-[`../../docs/isa-v1.4-operation-map-and-encoding.md`](../../docs/isa-v1.4-operation-map-and-encoding.md).
+[`../../docs/isa-v1.5-operation-map-and-encoding.md`](../../docs/isa-v1.5-operation-map-and-encoding.md).
 
 `CCG` is a placeholder name. Renaming is mechanical — the string appears only as
 a namespace and a def prefix:

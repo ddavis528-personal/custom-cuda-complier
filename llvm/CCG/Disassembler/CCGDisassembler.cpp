@@ -32,8 +32,8 @@ public:
 };
 } // namespace
 
-// §1: R0-R15 are the architectural file. R16-R31 exist as register defs but
-// are not reachable from any 4-bit field, so a 4-bit encoding never names one.
+// §1: sixteen registers, settled (O-25). Every register field in the ISA is
+// 4 bits, compressed forms included, so this table is exhaustive.
 static const MCPhysReg GPRDecoderTable[] = {
     CCG::R0,  CCG::R1,  CCG::R2,  CCG::R3,  CCG::R4,  CCG::R5,
     CCG::R6,  CCG::R7,  CCG::R8,  CCG::R9,  CCG::R10, CCG::R11,
@@ -47,14 +47,6 @@ static DecodeStatus DecodeGPRRegisterClass(MCInst &MI, uint64_t RegNo,
     return MCDisassembler::Fail;
   MI.addOperand(MCOperand::createReg(GPRDecoderTable[RegNo]));
   return MCDisassembler::Success;
-}
-
-// The compressed forms carry 4-bit register fields, so GPRC is the same set.
-// It stays a distinct class so the constraint remains expressed -- see F-12.
-static DecodeStatus DecodeGPRCRegisterClass(MCInst &MI, uint64_t RegNo,
-                                            uint64_t Address,
-                                            const MCDisassembler *D) {
-  return DecodeGPRRegisterClass(MI, RegNo, Address, D);
 }
 
 static DecodeStatus DecodePRRegisterClass(MCInst &MI, uint64_t RegNo, uint64_t,

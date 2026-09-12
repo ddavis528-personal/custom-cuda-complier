@@ -50,6 +50,27 @@ run_elementwise 32 "elementwise, all 32 lanes active"        || fail=1
 run_elementwise 20 "elementwise, 20 of 32 lanes (divergence)" || fail=1
 run_elementwise  1 "elementwise, 1 of 32 lanes (max divergence)" || fail=1
 
+# --- O-24 addendum: por Pd, !Pd, Pd re-materialises from a MIXED mask -------
+# The in-loop case. A second compare in a loop body faces a predicate already
+# holding a partial mask; all 32 lanes must come back true.
+run_remat() {
+  python3 "$AS" "$JSON" test/predicate-remat.s "$TMP/rm.bin" >/dev/null || return 1
+  local args=(-poke 0x20000=16)
+  for i in $(seq 0 31); do args+=(-peek $((0x50000 + i*4))); done
+  local out; out=$("$SIM" "$TMP/rm.bin" "${args[@]}" 2>&1) || { echo "$out"; return 1; }
+  local bad=0
+  for i in $(seq 0 31); do
+    local got
+    got=$(echo "$out" | grep -oP "\[0x$(printf %x $((0x50000 + i*4)))\] = \K\d+")
+    [ "$got" = "99" ] || { echo "    lane $i: got $got, want 99"; bad=1; }
+  done
+  [ $bad -eq 0 ] && echo "  PASS  predicate re-materialisation from a mixed mask" \
+                 || { echo "  FAIL  predicate re-materialisation"; return 1; }
+}
+echo
+echo "  --- predicate idiom (O-24) ---"
+run_remat || fail=1
+
 # --- assembler / encoder cross-check --------------------------------------
 # ccg-as.py encodes from the TableGen JSON; the C++ MCCodeEmitter encodes from
 # gen-emitter. Two independent paths over one description (roadmap F-6).

@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-class CCGReg<bits<5> enc, string n> : Register<n> {
-  let HWEncoding{4-0} = enc;
+class CCGReg<bits<4> enc, string n> : Register<n> {
+  let HWEncoding{3-0} = enc;
   let Namespace = "CCG";
 }
 
@@ -25,13 +25,13 @@ class CCGPredReg<bits<2> enc, string n> : Register<n> {
 // ---------------------------------------------------------------------------
 // General-purpose registers.
 //
-// R0-R15 are the architectural file at the settled 16-GPR parameter. R16-R31
-// are defined but not in any allocatable class -- see llvm/CCG/README.md and
-// roadmap F-12 for why 32 GPRs is an encoding fork rather than a subtarget
-// flag, and why they cannot simply be added to GPR here.
+// Sixteen, settled (§1, O-25). Every register field in the ISA is 4 bits --
+// including the compressed forms, which is what makes the count structural
+// rather than a parameter: at 5-bit fields Format J overruns 16 bits outright.
+// There is one register class because there is one encoding path.
 // ---------------------------------------------------------------------------
 
-foreach i = 0-31 in {
+foreach i = 0-15 in {
   def R#i : CCGReg<i, "r"#i>;
 }
 
@@ -44,14 +44,6 @@ foreach i = 0-3 in {
 // chwidth=4 (v32i4) has no MVT and is deferred; see README.
 def GPR : RegisterClass<"CCG", [v32i32, v32i16, v32i8], 1024,
                         (sequence "R%u", 0, 15)>;
-
-// The compressed forms (J, K) carry 4-bit register fields and so can only
-// name R0-R15. At 16 GPRs that is the whole file and the class is identical
-// to GPR; it exists as a distinct class so the constraint stays expressed
-// rather than implied, and so a future 32-GPR encoding does not silently
-// widen the compressed forms. See roadmap F-12.
-def GPRC : RegisterClass<"CCG", [v32i32, v32i16, v32i8], 1024,
-                         (sequence "R%u", 0, 15)>;
 
 // A predicate is 32 lanes x 1 bit, at every chwidth.
 def PR : RegisterClass<"CCG", [v32i1], 32, (sequence "P%u", 0, 3)>;

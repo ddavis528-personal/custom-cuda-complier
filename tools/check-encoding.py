@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Mechanical check of the CCG encoding against the invariants stated in
-docs/isa-v1.4-operation-map-and-encoding.md.
+docs/isa-v1.5-operation-map-and-encoding.md.
 
 TableGen already rejects a double-assigned bit. This adds the checks it does
 not make:
