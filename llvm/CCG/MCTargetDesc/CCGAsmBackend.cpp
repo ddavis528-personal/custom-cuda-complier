@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CCGFixupKinds.h"
 #include "CCGMCTargetDesc.h"
 #include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFObjectWriter.h"
@@ -24,11 +26,29 @@ class CCGAsmBackend : public MCAsmBackend {
 public:
   CCGAsmBackend() : MCAsmBackend(llvm::endianness::little) {}
 
-  unsigned getNumFixupKinds() const override { return 1; }
+  unsigned getNumFixupKinds() const override {
+    return CCG::NumTargetFixupKinds;
+  }
 
-  void applyFixup(const MCAssembler &, const MCFixup &, const MCValue &,
-                  MutableArrayRef<char>, uint64_t, bool,
-                  const MCSubtargetInfo *) const override {}
+  const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override {
+    // Offsets and widths here describe the *contiguous* case; bra.pred's field
+    // is split and is scattered by hand in applyFixup, so its entry only has to
+    // carry the PC-relative flag.
+    static const MCFixupKindInfo Infos[CCG::NumTargetFixupKinds] = {
+        // name                    offset  size  flags
+        {"fixup_ccg_bra21",        11,     21,   MCFixupKindInfo::FKF_IsPCRel},
+        {"fixup_ccg_brapred18",    0,      32,   MCFixupKindInfo::FKF_IsPCRel},
+        {"fixup_ccg_call17",       15,     17,   MCFixupKindInfo::FKF_IsPCRel},
+    };
+    if (Kind < FirstTargetFixupKind)
+      return MCAsmBackend::getFixupKindInfo(Kind);
+    return Infos[Kind - FirstTargetFixupKind];
+  }
+
+  void applyFixup(const MCAssembler &, const MCFixup &Fixup,
+                  const MCValue &Target, MutableArrayRef<char> Data,
+                  uint64_t Value, bool IsResolved,
+                  const MCSubtargetInfo *) const override;
 
   bool fixupNeedsRelaxation(const MCFixup &, uint64_t,
                             const MCRelaxableFragment *,
@@ -49,6 +69,25 @@ public:
   }
 };
 
+/// §3: branch offsets are measured from the instruction *after* the branch and
+/// are 16-bit granular. LLVM computes a PC-relative fixup value relative to the
+/// fixup location, which is the start of the instruction, so the instruction's
+/// own size comes off before the halfword division.
+static int64_t branchDisplacement(uint64_t Value, unsigned InstrSize) {
+  return (int64_t(Value) - int64_t(InstrSize)) / 2;
+}
+
+static void write32le(MutableArrayRef<char> Data, uint64_t Off, uint32_t V) {
+  for (unsigned I = 0; I != 4; ++I)
+    Data[Off + I] = char((V >> (8 * I)) & 0xff);
+}
+static uint32_t read32le(MutableArrayRef<char> Data, uint64_t Off) {
+  uint32_t V = 0;
+  for (unsigned I = 0; I != 4; ++I)
+    V |= uint32_t(uint8_t(Data[Off + I])) << (8 * I);
+  return V;
+}
+
 class CCGELFObjectWriter : public MCELFObjectTargetWriter {
 public:
   CCGELFObjectWriter()
@@ -59,6 +98,48 @@ public:
     return 0;
   }
 };
+
+void CCGAsmBackend::applyFixup(const MCAssembler &, const MCFixup &Fixup,
+                               const MCValue &, MutableArrayRef<char> Data,
+                               uint64_t Value, bool IsResolved,
+                               const MCSubtargetInfo *) const {
+  if (!Value)
+    return;
+  const unsigned Kind = Fixup.getKind();
+  const uint64_t Off = Fixup.getOffset();
+  // Every branch fixup in §3 sits on a 32-bit instruction.
+  const int64_t D = branchDisplacement(Value, /*InstrSize=*/4);
+  uint32_t Word = read32le(Data, Off);
+
+  switch (Kind) {
+  case CCG::fixup_ccg_bra21:
+    if (!isInt<21>(D))
+      report_fatal_error("CCG: bra target out of range (±2 MB, §3 Format E)");
+    Word |= uint32_t(D & 0x1fffff) << 11;
+    break;
+
+  case CCG::fixup_ccg_brapred18: {
+    // Split around the predicate qualifier, which stays at [29:27]: low 16
+    // bits at [26:11], high 2 at [31:30]. Same technique as Format D′ (O-10).
+    if (!isInt<18>(D))
+      report_fatal_error("CCG: bra.pred target out of range (±256 KB, §3)");
+    uint32_t U = uint32_t(D) & 0x3ffff;
+    Word |= (U & 0xffff) << 11;
+    Word |= ((U >> 16) & 0x3) << 30;
+    break;
+  }
+
+  case CCG::fixup_ccg_call17:
+    if (!isInt<17>(D))
+      report_fatal_error("CCG: call target out of range (±128 KB, §3)");
+    Word |= uint32_t(D & 0x1ffff) << 15;
+    break;
+
+  default:
+    report_fatal_error("CCG: unknown fixup kind");
+  }
+  write32le(Data, Off, Word);
+}
 
 } // namespace
 

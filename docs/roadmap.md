@@ -328,101 +328,47 @@ Two things it demonstrated that the encoding work could not:
 **Not yet:** shared memory, barriers, atomics, and the `chwidth` narrow-width
 paths. Added as the reduction and GEMM kernels need them.
 
-### Step 3 — Instruction selection, elementwise kernel at 32-bit width *(in progress)*
+### Step 3 — Instruction selection, elementwise kernel at 32-bit width *(complete)*
 
-**Done — the frontend half, validated end to end.** `tools/cuda-to-ir.sh` compiles
-CUDA to NVVM IR with clang unmodified, and **no CUDA toolkit is required**:
-`-nocudainc -nocudalib` skip the SDK, and the builtin variables come from clang's
-own `__clang_cuda_builtin_vars.h`. That closes F-7 in practice rather than in
-principle — the output carries exactly what was predicted:
-`llvm.nvvm.read.ptx.sreg.{tid,ntid,ctaid}.x`, `getelementptr inbounds`, and the
-`!nvvm.annotations` `"kernel"` marker.
-
-**Done — kernel ABI lowering.** `llvm/CCG/IR/CCGLowerKernelArgs.cpp`, an
-out-of-tree pass plugin modelled on `AMDGPULowerKernelArguments`. It rewrites
-kernel parameters into invariant loads from the launch block (§5.2) and
-materialises the address model (§5.1) as explicit IR arithmetic.
-
-Expressing the address model in IR rather than in the backend has a payoff worth
-recording: an **aligned** pointer has a zero in-window offset, so the add
-constant-folds away on its own and the one-register form of §5.6 arrives from the
-optimiser with no backend special case. Measured on real clang output: 7
-launch-block loads unaligned against 4 aligned, for three pointers and a scalar —
-exactly the §5.5/§5.6 split. `tools/check-kernel-args.sh` is the regression test.
-
-**Done — the `TargetMachine`.** `CCGSubtarget`, `CCGTargetMachine`,
-`CCGISelLowering`, `CCGISelDAGToDAG`, register and frame info, `CCGAsmPrinter`,
-`CCGAsmBackend`, and `ccg-llc` — a driver, since stock `llc` only knows targets
-linked into it. It builds, registers, and runs the codegen pipeline on real IR.
-
-Working: **NVVM sreg intrinsics select to `srd`** (§5.3) — `srd r0, 1` / `srd
-r0, 0` emitted from `read.ptx.sreg.{ctaid,tid}.x`; integer and FP arithmetic
-patterns; the compressed destructive `fadd`; `exit` for a void return; inline-asm
-`r` constraints.
-
-**Memory works.** F-20 is resolved without a 64-bit register class — the address
-is consumed in a DAGCombine at `BeforeLegalizeTypes`, before the type legalizer
-sees it, and rewritten to a target node taking two i32 operands. Both Format D
-addressing modes are covered. No register holds an address at any point, so
-invariant 11 survives into generated code:
+**Exit criterion met — and with it the `backend-context.md` §5.1 Phase 1
+milestone.** A CUDA kernel compiles from source and executes correctly:
 
 ```
-	f48        r0, 2                ; launch base >> 16
-	ld.global  r1, [r0 + 32]        ; a.rbase
-	srd        r2, 0                ; %ctatid
-	ld.global  r1, [r1, r2, 1, 0]   ; a[i]
-	ld.global  r0, [r0 + 40]        ; c.rbase
-	st.global  r1, [r0, r2, 1, 0]   ; c[i]
-	exit
+vadd.cu → clang → NVVM IR → CCGLowerKernelArgs → ccg-llc → ELF
+        → .text → ccg-sim
 ```
 
-**Compares and branches work.** The predicate qualifier is an immediate *field*
-in the encoding (§3, `[29:27]`) but a register *read* semantically. Rather than
-make it a compound MC operand — which would have changed the operand shape and
-rippled into the assembler, encoder, disassembler, round-trip and simulator, all
-of which are verified — codegen uses **pseudos carrying predicate registers**,
-expanded after register allocation, where the allocated register number becomes
-the immediate. O-24's guard is a pseudo whose result is **tied to the compare's
-destination**, so the allocator is what enforces the self-guarding form.
-
-**`vadd.cu` compiles end to end, from CUDA source to native instructions:**
+Nothing in that chain is hand-written. `tools/run-e2e.sh`:
 
 ```
-_Z4vaddPfPKfS1_i:
-	f48        r0, 2                ; launch base >> 16
-	ld.global  r1, [r0 + 0]         ; blockDim.x, from the launch block (§5.3)
-	srd        r2, 0                ; %ctatid
-	srd        r3, 1                ; %ctaid
-	mad.lo     r1, r3, r1, r2       ; i = ctaid*ntid + tid
-	ld.global  r2, [r0 + 56]        ; n
-	por        p0, 4, 0             ; O-24 bootstrap: P0 = all ones
-	@p0 setp.le p0, r2, r1          ; self-guarding, one predicate not two
-	@p0 bra    LBB0_2
-	bra        LBB0_1
-LBB0_1:
-	ld.global  r2, [r0 + 48]        ; b.rbase
-	ld.global  r2, [r2, r1, 1, 0]   ; b[i] -- scale-enable set
-	ld.global  r3, [r0 + 40]        ; a.rbase
-	ld.global  r3, [r3, r1, 1, 0]   ; a[i]
-	fadd       r3, r2               ; compressed destructive
-	ld.global  r0, [r0 + 32]        ; c.rbase
-	st.global  r3, [r0, r1, 1, 0]   ; c[i]
-LBB0_2:
-	exit
+  PASS  n=32: 32 lanes correct (18 issue groups)
+  PASS  n=20: 32 lanes correct (18 issue groups)
+  PASS  n= 1: 32 lanes correct (18 issue groups)
+  PASS  n= 0: 32 lanes correct (10 issue groups)
 ```
 
-Three things worth noting in that output. `mad.lo` picks up the three-source
-form for `ctaid*ntid + tid`, exactly as the §5.5 listing predicted. Scale-enable
-is set on all three array accesses, so **O-7's chwidth-derived scaling is
-actually firing** — which only happens for aligned pointers (O-23). And the
-compare guards itself, so the effective predicate file stays at four.
+`n=0` is worth its own line: every lane takes the compiled guard branch and the
+body is skipped, so the group count drops. Inactive lanes are checked to be
+*untouched*, not merely wrong-free.
 
-**Exit criterion: not yet met — it compiles but does not execute.** The
-simulator takes a flat binary, and object emission needs branch relocations:
-§3's branch offsets are PC-relative and halfword-granular, and the `bra.pred`
-offset is split around the qualifier, so each needs its own fixup kind. Tracked
-as **F-25**. That is the last step between here and a CUDA kernel producing a
-correct answer on the simulator.
+**What the pieces are.**
+
+- *Frontend* — clang unmodified, no CUDA toolkit (F-7 in practice).
+- *Kernel ABI* — parameters become invariant launch-block loads; the address
+  model is explicit IR arithmetic, so the aligned case constant-folds and O-23
+  falls out of the optimiser.
+- *Address lowering* — consumed in a DAGCombine before type legalization, so no
+  register ever holds an address (invariant 11, F-20).
+- *Predicates* — codegen pseudos carry predicate registers and are expanded
+  after register allocation, where the register number becomes the qualifier
+  immediate. O-24's guard is tied to the compare's destination, so the allocator
+  enforces the self-guarding form.
+- *Branch fixups* — §3's offsets are PC-relative, halfword-granular, and
+  measured from the next instruction; `bra.pred`'s is **split around the
+  qualifier**, so it is scattered by hand in `applyFixup` (F-25).
+
+**Deliberately not done:** unsigned and FP compares (F-24), calls (F-21, F-22),
+`i32`/`f32` bitcasts, inline asm. Each is diagnosed rather than miscompiled.
 
 ### Step 4 — Reduction kernel
 
@@ -497,7 +443,7 @@ answered. Update as items resolve.
 | F-22 Pointers escaping an addressing mode have no lowering convention | Step 4 | open — diagnosed at compile time, not silently miscompiled; needs an (rbase, roffset) pair convention |
 | F-23 The <4 GiB allocation precondition is implicit in the lowering | Step 5 | open — belongs with O-23's launch-time validation; the compiler cannot check it |
 | F-24 Unsigned and FP compares not selected | Step 4 | open — signed integer set is complete; diagnosed rather than miscompiled |
-| F-25 Branch relocations not implemented, so no object emission | Step 3 | **open — the last gap between compiling and executing** |
+| F-25 Branch relocations | Step 3 | resolved — three fixup kinds; `bra.pred`'s split field scattered in `applyFixup` |
 | F-19 Every compare is predicated; a kernel must manufacture a true predicate | Step 2 | resolved in v1.4 O-24, refined in v1.5 — self-guarding form costs one predicate, not two; regression test in `test/predicate-remat.s` |
 | F-18 Two of the four GPR arguments are contingent on kernel-pointer alignment | Step 0 | resolved — per-argument attribute, v1.4 O-23; see `proposals/pointer-alignment.md`. Step 5 must report both shapes |
 | F-13 Format G is several field layouts presented as one table | Step 1 | resolved in v1.4 — written out as four tables |

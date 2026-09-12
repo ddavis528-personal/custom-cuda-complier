@@ -117,12 +117,21 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     });
     break;
   }
-  case CCG::SETP_LT: {
+  case CCG::SETP_LT:
+  case CCG::SETP_LE:
+  case CCG::SETP_EQ:
+  case CCG::SETP_NE: {
+    // Format C: (pd, rd, pq, rs0, rs1). rd is always allocated and the opcode
+    // selects whether it is written (§3); it is not written here.
     unsigned P = regOf(MI, 0), A = regOf(MI, 3), B = regOf(MI, 4);
     uint32_t G = guardMask(W, uint32_t(MI.getOperand(2).getImm())) & Mask;
     forEachLane([&](unsigned L) {
       if (!((G >> L) & 1)) return;   // invariant 10: excluded lanes preserved
-      bool T = int32_t(W.GPR[A][L]) < int32_t(W.GPR[B][L]);
+      int32_t X = int32_t(W.GPR[A][L]), Y = int32_t(W.GPR[B][L]);
+      bool T = Op == CCG::SETP_LT   ? X <  Y
+               : Op == CCG::SETP_LE ? X <= Y
+               : Op == CCG::SETP_EQ ? X == Y
+                                    : X != Y;
       W.Pred[P] = (W.Pred[P] & ~(1u << L)) | (uint32_t(T) << L);
     });
     break;

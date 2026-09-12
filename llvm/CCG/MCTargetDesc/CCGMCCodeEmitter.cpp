@@ -5,6 +5,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CCGFixupKinds.h"
 #include "CCGMCTargetDesc.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
@@ -38,6 +39,18 @@ public:
   unsigned getMachineOpValue(const MCInst &MI, const MCOperand &MO,
                              SmallVectorImpl<MCFixup> &Fixups,
                              const MCSubtargetInfo &STI) const;
+
+  // Generated code calls these by name for the branch-target operands.
+  unsigned getBranch21OpValue(const MCInst &MI, unsigned OpNo,
+                              SmallVectorImpl<MCFixup> &Fixups,
+                              const MCSubtargetInfo &STI) const;
+  unsigned getBranch18OpValue(const MCInst &MI, unsigned OpNo,
+                              SmallVectorImpl<MCFixup> &Fixups,
+                              const MCSubtargetInfo &STI) const;
+
+private:
+  unsigned branchOpValue(const MCInst &MI, unsigned OpNo,
+                         SmallVectorImpl<MCFixup> &Fixups, unsigned Kind) const;
 };
 
 } // namespace
@@ -49,15 +62,35 @@ unsigned CCGMCCodeEmitter::getMachineOpValue(const MCInst &, const MCOperand &MO
     return Ctx.getRegisterInfo()->getEncodingValue(MO.getReg());
   if (MO.isImm())
     return static_cast<unsigned>(MO.getImm());
-  if (MO.isExpr()) {
-    // A branch target. Assembly output resolves these through the streamer;
-    // object emission needs relocations, which are not implemented -- §3's
-    // branch offsets are halfword-granular and PC-relative, so each needs its
-    // own fixup kind. See roadmap F-25.
-    report_fatal_error("CCG: branch relocations are not implemented; emit "
-                       "assembly rather than an object file (roadmap F-25)");
-  }
+  // Branch targets go through the per-operand encoders above, which create
+  // fixups; anything else reaching here with an expression is a bug.
   llvm_unreachable("CCG: unhandled operand kind in getMachineOpValue");
+}
+
+/// A resolved target is encoded directly; an unresolved one becomes a fixup at
+/// offset 0 of the instruction, so applyFixup sees the whole word and can
+/// scatter a split field.
+unsigned CCGMCCodeEmitter::branchOpValue(const MCInst &MI, unsigned OpNo,
+                                         SmallVectorImpl<MCFixup> &Fixups,
+                                         unsigned Kind) const {
+  const MCOperand &MO = MI.getOperand(OpNo);
+  if (MO.isImm())
+    return unsigned(MO.getImm());
+  assert(MO.isExpr() && "branch target must be an immediate or an expression");
+  Fixups.push_back(MCFixup::create(0, MO.getExpr(), MCFixupKind(Kind)));
+  return 0;
+}
+
+unsigned CCGMCCodeEmitter::getBranch21OpValue(const MCInst &MI, unsigned OpNo,
+                                              SmallVectorImpl<MCFixup> &Fixups,
+                                              const MCSubtargetInfo &) const {
+  return branchOpValue(MI, OpNo, Fixups, CCG::fixup_ccg_bra21);
+}
+
+unsigned CCGMCCodeEmitter::getBranch18OpValue(const MCInst &MI, unsigned OpNo,
+                                              SmallVectorImpl<MCFixup> &Fixups,
+                                              const MCSubtargetInfo &) const {
+  return branchOpValue(MI, OpNo, Fixups, CCG::fixup_ccg_brapred18);
 }
 
 void CCGMCCodeEmitter::encodeInstruction(const MCInst &MI,

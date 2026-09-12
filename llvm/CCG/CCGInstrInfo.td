@@ -33,8 +33,8 @@ def uimm33  : Operand<i32>;
 // 2-bit predicate address + negate (§1). Printed as @p1 / @!p1 rather than as
 // a raw field value -- these listings are the verification artifact.
 def pqual   : Operand<i32> { let PrintMethod = "printPredQual"; }
-def brtarget21 : Operand<OtherVT>;
-def brtarget18 : Operand<OtherVT>;
+def brtarget21 : Operand<OtherVT> { let EncoderMethod = "getBranch21OpValue"; }
+def brtarget18 : Operand<OtherVT> { let EncoderMethod = "getBranch18OpValue"; }
 def psrc    : Operand<i32>;   // same shape, used by predicate logic
 def pmask4  : Operand<i32>;   // 4-bit predicate bitmask for ld.pred/st.pred
 def srdsel  : Operand<i32>;   // srd selector
