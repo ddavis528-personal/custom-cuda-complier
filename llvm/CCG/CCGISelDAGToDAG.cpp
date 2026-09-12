@@ -101,6 +101,58 @@ void CCGDAGToDAGISel::Select(SDNode *N) {
                        N->getOperand(0)));
     return;
   }
+  case CCGISD::LD_BASEIDX:
+  case CCGISD::ST_BASEIDX: {
+    // (rbase << 16) + (idx << scale) is exactly Format D base+index, with the
+    // base shift coming from the address space rather than a field (§5.1). The
+    // 48-bit width therefore exists only in the AGU -- invariant 11 holds all
+    // the way down, and no register ever holds an address.
+    bool IsLoad = N->getOpcode() == CCGISD::LD_BASEIDX;
+    SmallVector<SDValue, 6> Ops;
+    if (IsLoad) {
+      Ops.push_back(N->getOperand(1));                              // rbase
+      Ops.push_back(N->getOperand(2));                              // rindex
+    } else {
+      Ops.push_back(N->getOperand(1));                              // value
+      Ops.push_back(N->getOperand(2));                              // rbase
+      Ops.push_back(N->getOperand(3));                              // rindex
+    }
+    // scale-enable: the index is an element index, so chwidth supplies the
+    // shift (O-7). Only valid because the in-window offset is zero, which is
+    // the aligned case (O-23).
+    Ops.push_back(CurDAG->getTargetConstant(1, DL, MVT::i32));
+    Ops.push_back(CurDAG->getTargetConstant(0, DL, MVT::i32));      // disp
+    Ops.push_back(N->getOperand(0));                                // chain
+
+    MachineSDNode *MN =
+        IsLoad ? CurDAG->getMachineNode(CCG::LD_GLOBAL_IDX, DL,
+                                        N->getValueType(0), MVT::Other, Ops)
+               : CurDAG->getMachineNode(CCG::ST_GLOBAL_IDX, DL, MVT::Other, Ops);
+    CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
+    ReplaceNode(N, MN);
+    return;
+  }
+  case CCGISD::LD_BASEOFF:
+  case CCGISD::ST_BASEOFF: {
+    bool IsLoad = N->getOpcode() == CCGISD::LD_BASEOFF;
+    SmallVector<SDValue, 5> Ops;
+    if (IsLoad) {
+      Ops.push_back(N->getOperand(1));   // rbase
+      Ops.push_back(N->getOperand(2));   // offset
+    } else {
+      Ops.push_back(N->getOperand(1));   // value
+      Ops.push_back(N->getOperand(2));   // rbase
+      Ops.push_back(N->getOperand(3));   // offset
+    }
+    Ops.push_back(N->getOperand(0));     // chain
+    MachineSDNode *MN =
+        IsLoad ? CurDAG->getMachineNode(CCG::LD_GLOBAL, DL, N->getValueType(0),
+                                        MVT::Other, Ops)
+               : CurDAG->getMachineNode(CCG::ST_GLOBAL, DL, MVT::Other, Ops);
+    CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
+    ReplaceNode(N, MN);
+    return;
+  }
   case ISD::INTRINSIC_WO_CHAIN: {
     // §5.3: the launch block supplies anything known at launch; only thread and
     // CTA identity need an instruction. ntid comes from the block and is

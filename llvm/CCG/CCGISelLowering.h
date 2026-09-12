@@ -10,8 +10,12 @@ class CCGSubtarget;
 namespace CCGISD {
 enum NodeType : unsigned {
   FIRST_NUMBER = ISD::BUILTIN_OP_END,
-  RET,   ///< kernel/function return
-  SRD,   ///< identity / dynamic state read (§5.3)
+  RET,       ///< kernel/function return
+  SRD,       ///< identity / dynamic state read (§5.3)
+  LD_BASEIDX, ///< load  from (rbase << 16) + idx  -- chain, rbase, idx
+  ST_BASEIDX, ///< store to   (rbase << 16) + idx  -- chain, value, rbase, idx
+  LD_BASEOFF, ///< load  from (rbase << 16) + off  -- chain, rbase, off
+  ST_BASEOFF, ///< store to   (rbase << 16) + off  -- chain, value, rbase, off
 };
 } // namespace CCGISD
 
@@ -29,6 +33,7 @@ public:
                       const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
                       SelectionDAG &DAG) const override;
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+  SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
   const char *getTargetNodeName(unsigned Opcode) const override;
 
   /// 'r' is a GPR. Predicates are a separate namespace (invariant 5) and get

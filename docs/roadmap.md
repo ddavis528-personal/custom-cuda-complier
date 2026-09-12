@@ -360,16 +360,28 @@ r0, 0` emitted from `read.ptx.sreg.{ctaid,tid}.x`; integer and FP arithmetic
 patterns; the compressed destructive `fadd`; `exit` for a void return; inline-asm
 `r` constraints.
 
-**Blocked on F-20** — see `proposals/pointer-representation.md`. Anything
-touching memory fails in type legalization, because LLVM requires a pointer to be
-a value in a register and invariant 11 says no register holds an address.
-Confirmed by experiment rather than inferred: declaring 32-bit pointers makes the
-error vanish and loads reach selection. The resolution is a 64-bit register class
-over GPR pairs, present only to satisfy the type legalizer, with the address
-matcher consuming addresses before any pair is allocated.
+**Memory works.** F-20 is resolved without a 64-bit register class — the address
+is consumed in a DAGCombine at `BeforeLegalizeTypes`, before the type legalizer
+sees it, and rewritten to a target node taking two i32 operands. Both Format D
+addressing modes are covered. No register holds an address at any point, so
+invariant 11 survives into generated code:
 
-**Also remaining:** `i32`/`f32` bitcast patterns (trivial), the O-24 predicate
-bootstrap on every compare, and value-returning device functions (F-21).
+```
+	f48        r0, 2                ; launch base >> 16
+	ld.global  r1, [r0 + 32]        ; a.rbase
+	srd        r2, 0                ; %ctatid
+	ld.global  r1, [r1, r2, 1, 0]   ; a[i]
+	ld.global  r0, [r0 + 40]        ; c.rbase
+	st.global  r1, [r0, r2, 1, 0]   ; c[i]
+	exit
+```
+
+**Remaining: compares and branches.** `i1` now lives in `PR`, which
+type-legalizes a branch; the selection patterns are not written. `setcc` is the
+substantial one — the predicate qualifier is an immediate field in the encoding
+but a register read semantically, so it needs to be a register operand with a
+custom encoder, and O-24's bootstrap means every compare needs a guard. Also
+inline asm, and value-returning device functions (F-21).
 
 **Exit criterion:** a CUDA elementwise kernel compiled from source through the
 backend, executed on the simulator, correct result. Frontend and ABI lowering are
@@ -448,7 +460,7 @@ answered. Update as items resolve.
 | F-9 Format D carries two contradictory opcode maps (editorial) | — | resolved in v1.3 |
 | F-12 32 GPRs is an encoding fork, not a subtarget flag | — | **closed — 16 settled in v1.5 O-25.** `GPRC` and R16–R31 removed from the machine description; one encoding path, two allocator objectives not three |
 | F-17 §5.5 figures were wrong (23 not 22 instructions, 27.1 not 28.4 b/instr, 8 not ~10 live) | — | fixed in v1.4; `tools/check-listings.py` now re-derives them |
-| F-20 LLVM requires a pointer in a register; invariant 11 says there is none | Step 3 | **open — blocks memory ops; resolution in `proposals/pointer-representation.md`** |
+| F-20 LLVM requires a pointer in a register; invariant 11 says there is none | Step 3 | **resolved — consumed in a pre-type-legalization DAGCombine; no 64-bit register class. Severity was overstated; see `proposals/pointer-representation.md`** |
 | F-21 Value-returning device functions need a variadic return pseudo | Step 4 | open — kernels return void, so not blocking |
 | F-19 Every compare is predicated; a kernel must manufacture a true predicate | Step 2 | resolved in v1.4 O-24, refined in v1.5 — self-guarding form costs one predicate, not two; regression test in `test/predicate-remat.s` |
 | F-18 Two of the four GPR arguments are contingent on kernel-pointer alignment | Step 0 | resolved — per-argument attribute, v1.4 O-23; see `proposals/pointer-alignment.md`. Step 5 must report both shapes |
