@@ -12,6 +12,14 @@ opt -load-pass-plugin=build/CCGLowerKernelArgs.so \
     -passes='ccg-lower-kernel-args,instcombine,gvn,simplifycfg' \
     -S "$OUT/2-clang.ll" -o "$OUT/3-lowered.ll" 2>/dev/null
 build/ccg-llc "$OUT/3-lowered.ll" -o "$OUT/4-asm.s"
+
+# The unaligned shape as well: §5.5 is generated from it, and it is the only
+# thing exercising the roffset fold (F-27). Same source, no alignment attribute.
+./tools/cuda-to-ir.sh test/cuda/vadd.cu "$OUT/2-clang-unaligned.ll" >/dev/null
+opt -load-pass-plugin=build/CCGLowerKernelArgs.so \
+    -passes='ccg-lower-kernel-args,instcombine,gvn,simplifycfg' \
+    -S "$OUT/2-clang-unaligned.ll" -o "$OUT/3-lowered-unaligned.ll" 2>/dev/null
+build/ccg-llc "$OUT/3-lowered-unaligned.ll" -o "$OUT/4-asm-unaligned.s"
 build/ccg-llc "$OUT/3-lowered.ll" -o "$OUT/5-object.o" -obj
 llvm-objcopy -O binary --only-section=.text "$OUT/5-object.o" "$OUT/5-text.bin"
 

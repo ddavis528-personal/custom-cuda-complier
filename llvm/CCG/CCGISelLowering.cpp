@@ -75,59 +75,101 @@ const char *CCGTargetLowering::getTargetNodeName(unsigned Opcode) const {
   }
 }
 
-/// Match (rbase << 16) + (idx << scale), the shape CCGLowerKernelArgs leaves
-/// for a global pointer once a getelementptr has scaled the element index
-/// (§5.1).
+/// Reduce an i64 address term to the 32-bit register it is built from, or a
+/// null SDValue. Extends are transparent: every index in this machine is a
+/// 32-bit value widened only because LLVM's pointer type is 64 bits.
+static SDValue narrowTo32(SDValue V) {
+  while (V.getOpcode() == ISD::ZERO_EXTEND || V.getOpcode() == ISD::SIGN_EXTEND ||
+         V.getOpcode() == ISD::ANY_EXTEND)
+    V = V.getOperand(0);
+  return V.getValueType() == MVT::i32 ? V : SDValue();
+}
+
+/// Is this (zext rbase) << 16 -- the window half of an address?
+static SDValue matchWindow(SDValue V) {
+  if (V.getOpcode() != ISD::SHL)
+    return SDValue();
+  auto *C = dyn_cast<ConstantSDNode>(V.getOperand(1));
+  if (!C || C->getZExtValue() != 16)
+    return SDValue();
+  return narrowTo32(V.getOperand(0));
+}
+
+/// Match an address onto Format D base+index: (rbase << 16) + (rindex << scale).
 ///
-/// The scale is the interesting part. O-7 derives the index shift from the
-/// destination's chwidth so that A[i] is one instruction at any element width;
-/// a GEP has already applied exactly that shift, so matching it and setting
-/// scale-enable hands the work back to the AGU. If the index is a raw byte
-/// offset instead -- which is what the unaligned case produces, since the
-/// in-window offset has to be folded into it -- scale-enable stays clear.
-static bool matchBaseIdx(SDValue Addr, EVT MemVT, SDValue &Base, SDValue &Idx,
+/// Two shapes arrive, and they are §5.6 and §5.5 respectively:
+///
+///   aligned   (rbase << 16) + (i << log2 elem)
+///             -- two addends. The shift is exactly what O-7's scale-enable
+///                does, so it is handed to the AGU and the index register
+///                carries an ELEMENT index.
+///
+///   unaligned ((rbase << 16) + roffset) + (i << log2 elem)
+///             -- THREE addends against a three-input AGU whose third input is
+///                an immediate displacement, so it does not fit. §5.5 resolves
+///                it by folding: the compiler computes roffset + (i << scale)
+///                into one register, which then carries a BYTE offset, and
+///                scale-enable stays clear. That fold is the extra `add` per
+///                pointer in §5.5, and the reason O-7 does not pay off there.
+///
+/// The fold is sound only because a single allocation is smaller than
+/// 4 GiB − 2^16, so roffset + byte-index cannot overflow 32 bits. That is F-23,
+/// and it is a precondition the compiler cannot check.
+static bool matchBaseIdx(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
+                         EVT MemVT, SDValue &Base, SDValue &Idx,
                          bool &ScaleEnable) {
   if (Addr.getOpcode() != ISD::ADD)
     return false;
-  auto window = [](SDValue V, SDValue &Out) {
-    if (V.getOpcode() != ISD::SHL)
-      return false;
-    auto *C = dyn_cast<ConstantSDNode>(V.getOperand(1));
-    if (!C || C->getZExtValue() != 16)
-      return false;
-    SDValue In = V.getOperand(0);
-    while (In.getOpcode() == ISD::ZERO_EXTEND || In.getOpcode() == ISD::ANY_EXTEND)
-      In = In.getOperand(0);
-    if (In.getValueType() != MVT::i32)
-      return false;
-    Out = In;
-    return true;
-  };
-  SDValue Other;
-  if (window(Addr.getOperand(0), Base))
-    Other = Addr.getOperand(1);
-  else if (window(Addr.getOperand(1), Base))
-    Other = Addr.getOperand(0);
-  else
-    return false;
+  SDValue A = Addr.getOperand(0), B = Addr.getOperand(1);
 
-  // A shift by log2(element size) is the GEP's scaling, which the AGU can do.
-  ScaleEnable = false;
+  SDValue Win, Other, ROff;
+  if ((Win = matchWindow(A)))      Other = B;
+  else if ((Win = matchWindow(B))) Other = A;
+  else {
+    // Unaligned: one side is itself (window + roffset).
+    for (auto [X, Y] : {std::pair{A, B}, std::pair{B, A}}) {
+      if (X.getOpcode() != ISD::ADD)
+        continue;
+      SDValue W2 = matchWindow(X.getOperand(0));
+      SDValue R2 = W2 ? narrowTo32(X.getOperand(1)) : SDValue();
+      if (!W2) {
+        W2 = matchWindow(X.getOperand(1));
+        R2 = W2 ? narrowTo32(X.getOperand(0)) : SDValue();
+      }
+      if (W2 && R2) { Win = W2; ROff = R2; Other = Y; break; }
+    }
+    if (!Win)
+      return false;
+  }
+
+  // Peel the element scaling, if present.
   unsigned ElemLog2 = Log2_32(MemVT.getStoreSize());
+  bool Scaled = false;
   if (Other.getOpcode() == ISD::SHL)
     if (auto *C = dyn_cast<ConstantSDNode>(Other.getOperand(1)))
       if (C->getZExtValue() == ElemLog2) {
         Other = Other.getOperand(0);
-        ScaleEnable = true;
+        Scaled = true;
       }
-
-  while (Other.getOpcode() == ISD::ZERO_EXTEND ||
-         Other.getOpcode() == ISD::SIGN_EXTEND ||
-         Other.getOpcode() == ISD::ANY_EXTEND)
-    Other = Other.getOperand(0);
-  if (Other.getValueType() != MVT::i32)
+  SDValue Index = narrowTo32(Other);
+  if (!Index)
     return false;
-  Idx = Other;
+
+  Base = Win;
+  if (!ROff) {                       // aligned: let the AGU do the scaling
+    Idx = Index;
+    ScaleEnable = Scaled;
+    return true;
+  }
+
+  // Unaligned: fold roffset and the byte index into one register. The index
+  // then carries bytes, so the AGU must not scale it again.
+  SDValue Bytes =
+      Scaled ? DAG.getNode(ISD::SHL, DL, MVT::i32, Index,
+                           DAG.getConstant(ElemLog2, DL, MVT::i32))
+             : Index;
+  Idx = DAG.getNode(ISD::ADD, DL, MVT::i32, ROff, Bytes);
+  ScaleEnable = false;
   return true;
 }
 
@@ -165,7 +207,7 @@ SDValue CCGTargetLowering::PerformDAGCombine(SDNode *N,
     SDVTList VTs = DAG.getVTList(LD->getValueType(0), MVT::Other);
     SDValue Base, Idx, New;
     bool Scale = false;
-    if (matchBaseIdx(LD->getBasePtr(), LD->getMemoryVT(), Base, Idx, Scale)) {
+    if (matchBaseIdx(DAG, DL, LD->getBasePtr(), LD->getMemoryVT(), Base, Idx, Scale)) {
       SDValue Ops[] = {LD->getChain(), Base, Idx,
                        DAG.getTargetConstant(Scale, DL, MVT::i32)};
       New = DAG.getMemIntrinsicNode(CCGISD::LD_BASEIDX, DL, VTs, Ops,
@@ -190,7 +232,7 @@ SDValue CCGTargetLowering::PerformDAGCombine(SDNode *N,
     SDVTList VTs = DAG.getVTList(MVT::Other);
     SDValue Base, Idx;
     bool Scale = false;
-    if (matchBaseIdx(ST->getBasePtr(), ST->getMemoryVT(), Base, Idx, Scale)) {
+    if (matchBaseIdx(DAG, DL, ST->getBasePtr(), ST->getMemoryVT(), Base, Idx, Scale)) {
       SDValue Ops[] = {ST->getChain(), ST->getValue(), Base, Idx,
                        DAG.getTargetConstant(Scale, DL, MVT::i32)};
       return DAG.getMemIntrinsicNode(CCGISD::ST_BASEIDX, DL, VTs, Ops,

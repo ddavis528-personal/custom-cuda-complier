@@ -178,14 +178,16 @@ bool llvm::checkCCGModule(Module &M, raw_ostream &Err) {
             W = G->getPointerOperand();
           }
           if (const auto *ITP = dyn_cast<IntToPtrInst>(Base)) {
+            // One window plus at most two register addends: an in-window
+            // offset and an index. Two are folded into one register by the
+            // backend (§5.5); three would not fit.
             int N = baseAddends(ITP->getOperand(0));
-            if (N < 0 || unsigned(N) + GEPIndices > 1)
+            if (N < 0 || unsigned(N) + GEPIndices > 2)
               report(I, "unsupported address shape",
-                     "the address is not (rbase << 16) + index or a constant. "
-                     "An UNALIGNED pointer argument produces (rbase << 16) + "
-                     "roffset + index, which is four addends against a "
-                     "three-input AGU -- codegen does not implement that shape "
-                     "yet (F-27); declare the argument aligned (O-23)",
+                     "the address is not a window plus at most an in-window "
+                     "offset and an index, so it has more register addends "
+                     "than the AGU has inputs (§5.1) "
+                     "and cannot be folded into a Format D addressing mode",
                      Problems);
           }
         }

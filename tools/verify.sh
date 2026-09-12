@@ -33,10 +33,22 @@ python3 tools/check-listings.py docs/isa-v1.5-operation-map-and-encoding.md || f
 # Spec listing against real codegen. check-listings.py only proves the spec is
 # internally consistent; it cannot notice the listing drifting from the machine,
 # which is how an extra branch and a pessimistic register count both survived.
-if [ -x build/ccg-llc ] && [ -f docs/walkthrough/4-asm.s ]; then
-  echo "  spec listing vs codegen"
-  python3 tools/check-spec-vs-codegen.py \
-      docs/isa-v1.5-operation-map-and-encoding.md docs/walkthrough/4-asm.s || fail=1
+# Spec listings against real codegen, regenerated here rather than read from the
+# tree: the .s files are gitignored, so reading them would make this check skip
+# silently on a fresh clone.
+SPEC=docs/isa-v1.5-operation-map-and-encoding.md
+if [ -x build/ccg-llc ] && [ -f build/CCGLowerKernelArgs.so ]; then
+  for pair in "5.5:test/cuda/vadd.cu" "5.6:test/cuda/vadd-aligned.cu"; do
+    sec=${pair%%:*}; src=${pair#*:}
+    echo "  §$sec listing vs codegen"
+    if ./tools/cuda-to-asm.sh "$src" "$OUT/$sec.s"; then
+      python3 tools/check-spec-vs-codegen.py "$SPEC" "$sec" "$OUT/$sec.s" || fail=1
+    else
+      echo "      could not compile $src"; fail=1
+    fi
+  done
+else
+  echo "  (build/ccg-llc or the kernel-arg plugin not built -- skipping listing provenance)"
 fi
 
 # Round trip, if the MC layer has been built. The encoder and the disassembler

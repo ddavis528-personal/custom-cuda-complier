@@ -163,11 +163,12 @@ available for free right now.
 hold three pointers, and one holds the induction variable. This is an elementwise
 add with no tiling, no unrolling, no shared memory, and no reuse.
 
-**Superseded in part.** This figure and the one above it are the *unaligned* case.
-Under a 2^16 allocation guarantee a pointer costs one register rather than two and
-the three offset folds disappear, giving 17 instructions and 5 live GPRs. See ISA
-v1.4 §5.6 — 5 of 16 is not evidence of pressure, so this argument is contingent on
-an ABI decision rather than standing on its own.
+**Superseded.** The 8 was hand-derived and is wrong. Measured against generated
+code, the unaligned prologue peaks at **5 of 16** and the aligned one at **4 of
+16** — the allocator never holds two pointers fully materialised, because each
+base is loaded only when the fold consuming it is ready. See ISA v1.5 §5.5/§5.6,
+both of which are now generated and checked against `ccg-llc` output. The
+argument does not survive its own measurement, alignment aside.
 
 That is the **fourth** independent argument toward 32 GPRs, and unlike the other
 three it is not a projection — it is a count off a fully lowered kernel:

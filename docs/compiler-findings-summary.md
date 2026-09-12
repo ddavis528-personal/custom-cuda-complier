@@ -72,10 +72,13 @@ recovers nothing).
 
 **Consequence for the GPR decision.** Arguments 1 and 2 — span/MMA fragment
 groups and `chwidth` width partitioning — are structural and survive either way.
-Arguments 3 and 4 are alignment-dependent: two GPRs per pointer becomes one, and
-8 of 16 live becomes 5 of 16, which is not evidence of pressure at all. If real
-kernels turn out predominantly aligned, the 32-GPR case rests on two arguments
-rather than four. Step 5 will report both shapes separately.
+Argument 3 is alignment-dependent: two GPRs per pointer becomes one. Argument 4
+did not survive measurement at all — both listings are now generated from real
+codegen, and the peaks are **5 of 16 unaligned, 4 of 16 aligned**, not the 8 the
+argument was built on. The hand-written listing held all six pointer halves live
+simultaneously; the allocator loads each base only when the fold consuming it is
+ready. So the 32-GPR case rests on two arguments rather than four regardless of
+how aligned real kernels turn out to be.
 
 ## 3. O-24 — every compare is predicated, and a kernel cannot open with one
 

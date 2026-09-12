@@ -438,13 +438,15 @@ answered. Update as items resolve.
 | F-9 Format D carries two contradictory opcode maps (editorial) | — | resolved in v1.3 |
 | F-12 32 GPRs is an encoding fork, not a subtarget flag | — | **closed — 16 settled in v1.5 O-25.** `GPRC` and R16–R31 removed from the machine description; one encoding path, two allocator objectives not three |
 | F-17 §5.5 figures were wrong (23 not 22 instructions, 27.1 not 28.4 b/instr, 8 not ~10 live) | — | fixed in v1.4; `tools/check-listings.py` now re-derives them |
+| F-17a Both worked listings were hand-written, so neither tracked codegen | — | resolved — `tools/check-spec-vs-codegen.py` diffs §5.5 and §5.6 against fresh `ccg-llc` output in `verify.sh`; caught peak-live 8→5 and the uncompressed third fold |
 | F-20 LLVM requires a pointer in a register; invariant 11 says there is none | Step 3 | **resolved — consumed in a pre-type-legalization DAGCombine; no 64-bit register class. Severity was overstated; see `proposals/pointer-representation.md`** |
 | F-21 Value-returning device functions need a variadic return pseudo | Step 4 | open — kernels return void, so not blocking |
 | F-22 Pointers escaping an addressing mode have no lowering convention | Step 4 | open — diagnosed at compile time, not silently miscompiled; needs an (rbase, roffset) pair convention |
 | F-23 The <4 GiB allocation precondition is implicit in the lowering | Step 5 | open — belongs with O-23's launch-time validation; the compiler cannot check it |
 | F-24 Unsigned and FP compares not selected | Step 4 | open — signed integer set is complete; diagnosed rather than miscompiled |
 | F-26 No branch-analysis hooks, so fall-through edges became real branches | Step 3 | resolved — `analyzeBranch`/`removeBranch`/`insertBranch`/`reverseBranchCondition`; the kernel went from 18 instructions to 17, matching §5.6 exactly |
-| F-27 Unaligned pointer addressing is not implemented | Step 4 | **open — needs four addends against a three-input AGU. Diagnosed, not miscompiled. §5.5 is a projection until this lands, so O-23's "both shapes supported" is intent, not fact** |
+| F-27 Unaligned pointer addressing is not implemented | Step 3 | **resolved — `matchBaseIdx` folds `roffset + (i << scale)` into one index register with scale-enable clear, trading O-7's scaling for the fourth addend. §5.5 is now generated from codegen, so O-23's "both shapes supported" is fact** |
+| F-29 No compressed-form (Format K) selection path | Step 4 | **open — nothing in the backend tries to land `rd == rs0`. Two of three three-operand ALU ops in §5.5 satisfy it by accident and one does not, costing 16 bits on a 656-bit kernel. Matters in proportion to ALU density, so a GEMM inner loop is the measurement. Blocks O-8 instrumentation, which also does not exist** |
 | F-28 `bra.short` (Format K, ±256 B) has no selection pattern | Step 4 | open — unexercised here; will fire often in loop-heavy code |
 | F-25 Branch relocations | Step 3 | resolved — three fixup kinds; `bra.pred`'s split field scattered in `applyFixup` |
 | F-19 Every compare is predicated; a kernel must manufacture a true predicate | Step 2 | resolved in v1.4 O-24, refined in v1.5 — self-guarding form costs one predicate, not two; regression test in `test/predicate-remat.s` |

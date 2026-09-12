@@ -89,9 +89,12 @@ here:
    FP16 inputs with FP32 accumulators never transition inside the loop. It binds on kernels
    needing three or more live widths at once, not on any two-width kernel.
 3. *Two GPRs per live pointer.* **Dissolved by O-23.** On an aligned pointer it is one.
-4. *8 of 16 live in the elementwise prologue.* **Dissolved by O-23.** Aligned, it is 5 of 16,
-   which is not evidence of pressure. Both arguments were measuring work the alignment
-   attribute removes.
+4. *8 of 16 live in the elementwise prologue.* **Retired — the measurement was wrong.**
+   That figure came from a hand-written listing that held all six pointer halves live at
+   once. Real codegen peaks at **5 of 16 unaligned and 4 of 16 aligned** (§5.5, §5.6): the
+   allocator loads each base only when the fold consuming it is ready, so no two pointers
+   are ever fully materialised. Neither number is evidence of pressure, and O-23 only
+   accounts for the last register of the difference.
 
 **The one live risk is GEMM accumulator blocking**, and it is not addressed by any of the
 above. Register-tile size drives register count on every GPU: a 4×4 per-thread C tile is 16
@@ -1339,42 +1342,56 @@ instruction requires. It is not a new mechanism.
 
 ### 5.5 Worked prologue
 
-The simplest useful CUDA kernel, fully lowered, exercising every decision in this revision.
+The simplest useful CUDA kernel, fully lowered, exercising every decision in this
+revision. The pointer arguments carry no alignment guarantee, so each one costs
+two launch-block slots and an in-window fold — the general case.
+
+**This listing is emitted by the compiler, not written by hand.** It is checked
+against fresh `ccg-llc` output by `tools/check-spec-vs-codegen.py`, which runs in
+`tools/verify.sh`; a divergence is a build failure, not a review catch.
 
 ```
 ;  __global__ void add(float* c, const float* a, const float* b, int n)
 ;  { int i = blockIdx.x*blockDim.x + threadIdx.x; if (i<n) c[i] = a[i] + b[i]; }
 
-    por        P3,  !P0, P0            ; 16  all-true predicate; see below
-    f48        R0,  #LAUNCH_BASE        ; 48  launch block base
-    srd        R1,  #CTATID             ; 16  tid.x      (1-D block)
-    srd        R2,  #CTAID              ; 16  blockIdx.x (1-D grid)
-    ld.global  R3,  [R0 + #NTID_X]      ; 32  blockDim.x
-    mad.lo     R1,  R2, R3, R1          ; 32  i
-    ld.global  R4,  [R0 + #ARG_N]       ; 32  n
-    @P3 setp.ge P0, R1, R4             ; 32
-    @P0 bra    Lexit                    ; 32
-    ld.global  R5,  [R0 + #ARG_C + 0]   ; 32  c.rbase
-    ld.global  R6,  [R0 + #ARG_C + 4]   ; 32  c.roffset
-    ld.global  R7,  [R0 + #ARG_A + 0]   ; 32
-    ld.global  R8,  [R0 + #ARG_A + 4]   ; 32
-    ld.global  R9,  [R0 + #ARG_B + 0]   ; 32
-    ld.global  R10, [R0 + #ARG_B + 4]   ; 32
-    shl        R1,  R1, #2              ; 16  element index -> byte offset
-    add        R6,  R6, R1              ; 16  fold into each in-window offset
-    add        R8,  R8, R1              ; 16
-    add        R10, R10, R1             ; 16
-    ld.global  R11, [(R7<<16) + R8]     ; 32  a[i]
-    ld.global  R12, [(R9<<16) + R10]    ; 32  b[i]
-    fadd       R11, R11, R12            ; 16  destructive, rd == rs0
-    st.global  R11, [(R5<<16) + R6]     ; 32
+    f48        r0, 2                ; 48   launch window
+    ld.global  r1, [r0 + 0]         ; 32   blockDim.x, from the block (§5.3)
+    srd        r2, 0                ; 16   %ctatid
+    srd        r3, 1                ; 16   %ctaid
+    mad.lo     r1, r3, r1, r2       ; 32   i = ctaid*ntid + tid
+    ld.global  r2, [r0 + 56]        ; 32   n
+    por        p0, !p0, p0          ; 16   O-24: manufacture a true predicate
+    @p0 setp.le p0, r2, r1          ; 32   self-guarding: guard IS destination
+    @p0 bra    Lexit                ; 32
+    shl        r1, 2                ; 16   element index -> byte offset, hoisted
+    ld.global  r2, [r0 + 52]        ; 32   b.roffset
+    add        r2, r2, r1           ; 16   fold; rd == rs0, so Format K
+    ld.global  r3, [r0 + 48]        ; 32   b.rbase
+    ld.global  r2, [r3, r2, 0, 0]   ; 32   b[i]; scale-enable CLEAR
+    ld.global  r3, [r0 + 44]        ; 32   a.roffset
+    add        r3, r3, r1           ; 16   fold; Format K
+    ld.global  r4, [r0 + 40]        ; 32   a.rbase
+    ld.global  r3, [r4, r3, 0, 0]   ; 32   a[i]
+    fadd       r3, r2               ; 16   compressed destructive, rd == rs0
+    ld.global  r2, [r0 + 36]        ; 32   c.roffset
+    add        r1, r2, r1           ; 32   fold; rd != rs0 -- NOT compressed, see F-29
+    ld.global  r0, [r0 + 32]        ; 32   c.rbase; r0 reused at the last moment
+    st.global  r3, [r0, r1, 0, 0]   ; 32   c[i]
 Lexit:
-    exit                                ; 16
+    exit                            ; 16
 ```
 
-24 instructions, 640 bits — **26.7 bits per instruction**, against 768 for a fixed-32
-encoding, a 17% saving. The compressed forms fire on the four offset folds, the `fadd` and
-`exit` without the allocator being asked for anything.
+24 instructions, 656 bits — **27.3 bits per instruction**, against 768 for a
+fixed-32 encoding, a 15% saving. The compressed forms fire on `srd`, `por`, the
+index shift, two of the three offset folds, `fadd` and `exit` without the
+allocator being asked for anything.
+
+**The third fold is the interesting one.** `add r1, r2, r1` computes the same
+shape as the two above it and pays 32 bits instead of 16, purely because the
+selector landed on `rd != rs0`. Two of three three-operand ALU ops here already
+satisfy O-8's condition by accident; nothing in the backend is trying to make
+that happen. Sixteen bits on this kernel, and the fraction that matters is the
+one in a GEMM inner loop. See **F-29**.
 
 **Why a kernel opens by manufacturing a predicate.** Formats C and C′ carry a
 **mandatory** predicate qualifier and there is no unpredicated compare tag, so every
@@ -1384,8 +1401,18 @@ never predicated**: `por pd, !ps, ps` yields all-ones whatever `ps` holds, in 16
 that this only became cheap in 1.3 — before the Format K predicate logic of O-20, the only
 constant-to-predicate path was `pmov`, which exists only at 48 bits. See O-24.
 
-Peak live GPRs is **8 of 16**, at the last argument load: `R0` across the argument loads,
-six for three pointers, and the induction variable.
+The compare that follows is **self-guarding**: it consumes that predicate as its
+qualifier and overwrites the same register with its result. The all-true value is
+dead the moment it is used, so the idiom costs no second predicate and the
+effective predicate file stays at 4, not 3.
+
+**Peak live GPRs is 5 of 16**, at `ld.global r4, [r0 + 40]`: the launch window in
+`r0`, the byte offset in `r1`, the partially-consumed `b[i]` chain, and the two
+registers the `a` access needs at once. The hand-written version of this listing
+claimed 8, by holding all six pointer halves live simultaneously; the allocator
+does not do that — it loads each base only when the fold that needs it is ready,
+so no more than one pointer is ever fully materialised.
+
 
 ### 5.6 The same kernel with an aligned pointer argument
 
@@ -1394,9 +1421,10 @@ is zero — so there is nothing to fold, all three arrays share one index regist
 and the index can carry an **element** index rather than a byte offset, which
 re-enables the `chwidth`-derived scaling of O-7.
 
-**This listing is emitted by the compiler, not written by hand.** It is checked
-against fresh `ccg-llc` output by `tools/check-spec-vs-codegen.py`; §5.5's is
-not, and cannot be — see the note at the end of this section.
+**This listing too is emitted by the compiler**, and checked the same way. The
+two sections are the same source file compiled twice: `test/cuda/vadd.cu` and
+`test/cuda/vadd-aligned.cu` differ only in the alignment attribute on the
+pointer arguments.
 
 ```
     f48        r0, 2                ; 48   launch window
@@ -1421,14 +1449,20 @@ Lexit:
 
 | | Instructions | Bits | Peak live GPRs | GPRs per pointer |
 |---|---|---|---|---|
-| Unaligned (§5.5) | 24 | 640 | 8 | 2 |
-| Aligned | 17 | 480 | **4** | 1 |
+| Unaligned (§5.5) | 24 | 656 | 5 | 2 |
+| Aligned (§5.6) | 17 | 480 | **4** | 1 |
+
+The alignment attribute is worth **7 instructions and 176 bits on a 24-instruction
+kernel** — a 27% code-size reduction on the smallest kernel that does anything,
+and it removes a whole GPR of pressure and half the launch-block traffic per
+pointer.
 
 **Peak live is 4, not the 5 this section previously claimed.** The allocator does
 better than the hand-written listing did: `r0` holds the launch window across the
 whole prologue and is overwritten by `c.rbase` at the last possible point, so the
 three pointer bases never coexist. That is a real allocation result, and it was
-only noticed once the listing was compared against codegen.
+only noticed once the listing was compared against codegen — which is why both
+listings are now generated.
 
 **Note what O-7 costs the last row.** Chwidth-derived index scaling was justified
 by "`A[i]` is one instruction whether `A` is FP32, FP16 or INT8." It only fires in
@@ -1437,17 +1471,19 @@ three-input AGU, so the in-window offset must be folded into the index and
 scale-enable stays clear. Alignment is what makes O-7 pay.
 
 **Two of §1's four GPR arguments are contingent on this.** Argument 3 (two
-warp-uniform GPRs per pointer) halves to one. Argument 4 falls from 8 of 16 to 4
-of 16, which is not evidence of pressure. Arguments 1 and 2 are untouched.
+warp-uniform GPRs per pointer) halves to one. Argument 4 falls from 5 of 16 to 4
+of 16 — and the 5 is itself measured, not the 8 the argument was originally built
+on, so the argument was weak before alignment touched it. Arguments 1 and 2 are
+untouched.
 
 **Settled: the guarantee is a per-argument alignment attribute.** See O-23.
 
-**§5.5's listing is currently aspirational.** Codegen does not implement the
-unaligned shape at all: it needs `(rbase << 16) + roffset + index`, four addends
-against a three-input AGU, and the compiler rejects it with a diagnostic rather
-than emitting anything. So §5.5's figures are a hand-derived projection, not
-compiler output, and are marked as such. See F-27 — this makes O-23's "both
-shapes stay supported" a statement of intent rather than of fact today.
+**Both shapes are implemented.** The unaligned form needs
+`(rbase << 16) + roffset + index` — four addends against a three-input AGU — which
+is resolved by folding `roffset` into the index with a separate `add` and leaving
+scale-enable clear. That fold is what §5.5 costs three instructions on, and it is
+why O-7's `chwidth`-derived scaling only fires in the aligned case. O-23's "both
+shapes stay supported" is now a statement of fact: see F-27, closed.
 
 ---
 
@@ -2021,7 +2057,7 @@ rematerializable wherever the self-guarding form does not apply. Hoisting it as 
 loop invariant is wrong in both cases: it costs a quarter of the predicate file across
 the whole body for no benefit.
 
-The compiler emits the self-guarding form today — see §5.6, and
+The compiler emits the self-guarding form today — see §5.5 and §5.6, and
 `docs/walkthrough.md`, where it is read back out of the compiled binary.
 
 ---

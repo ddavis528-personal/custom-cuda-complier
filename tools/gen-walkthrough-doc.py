@@ -18,8 +18,12 @@ dec_f48  = run("python3","tools/decode-one.py","build/generated/CCG.json",str(W/
 trace    = "\n".join(l for l in open(W/"6-trace.txt").read().splitlines()
                      if re.match(r'^\s+[0-9a-f]{4}\s', l))
 e2e      = run("./tools/run-e2e.sh")
-prov     = run("python3","tools/check-spec-vs-codegen.py",
-               "docs/isa-v1.5-operation-map-and-encoding.md", str(W/"4-asm.s"))
+SPEC = "docs/isa-v1.5-operation-map-and-encoding.md"
+prov     = run("python3","tools/check-spec-vs-codegen.py", SPEC, "5.6", str(W/"4-asm.s"))
+prov55   = run("python3","tools/check-spec-vs-codegen.py", SPEC, "5.5",
+               str(W/"4-asm-unaligned.s"))
+asm_un   = "\n".join(l for l in open(W/"4-asm-unaligned.s").read().splitlines()
+                     if not re.match(r'^\s*\.[a-z]', l) and l.strip())
 nbytes = (W/"5-text.bin").stat().st_size
 ninstr = len([l for l in hexd.splitlines() if l.startswith("0x")])
 
@@ -109,6 +113,26 @@ ISA §5.6's worked listing is compared against this output on every build. That
 check exists because the spec's listings were hand-written and drifted: an extra
 branch and a pessimistic register count both passed the internal-consistency
 checker, which by construction could not notice.
+
+### The same kernel without the alignment attribute
+
+`test/cuda/vadd.cu` is the same source with the alignment attribute removed. Each
+pointer then occupies two launch-block slots, and the in-window offset has to be
+folded into the index — a fourth addend the three-input AGU cannot take — so
+scale-enable stays clear and the index carries bytes rather than elements:
+
+```
+{asm_un}
+```
+
+```
+{prov55}
+```
+
+Seven more instructions and 176 more bits for the same arithmetic, which is what
+the per-argument alignment attribute of O-23 buys. Note `add r1, r2, r1`: the
+same fold as the two above it, at 32 bits instead of 16, because the selector
+landed on `rd != rs0` and nothing tries to prevent that (F-29).
 
 ## 5. The binary
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Compare ISA §5.6's worked listing against what ccg-llc actually emits.
+Compare an ISA worked listing against what ccg-llc actually emits.
 
 check-listings.py verifies that the spec's prose matches the spec's listings.
 That is internal consistency: it cannot notice when the listing stops matching
@@ -10,7 +10,7 @@ and a pessimistic register count -- and passed straight through it.
 This closes that gap by deriving the same figures from real output and diffing
 them. A divergence is a build failure, not a review catch.
 
-Usage: check-spec-vs-codegen.py <spec.md> <codegen.s>
+Usage: check-spec-vs-codegen.py <spec.md> <section> <codegen.s>
 """
 import re, sys
 
@@ -25,8 +25,30 @@ def parse_spec(path, section="5.6"):
                          for l in body.splitlines()
                          if re.search(r';\s*(16|32|48)\b', l)])
 
-SIZES = {"f48": 48, "movi48": 48, "srd": 16, "por": 16, "pand": 16, "pxor": 16,
-         "pmov": 16, "fadd": 16, "add": 16, "shl": 16, "exit": 16, "mov": 16}
+# Mnemonics with a 16-bit form. The two-operand ALU ops (Format K) only take it
+# when the operand shape allows: two operands, or three with rd == rs0. Sizing
+# them 16 unconditionally would credit the encoding for compression the selector
+# has not actually performed -- see F-29.
+ALWAYS16 = {"srd", "por", "pand", "pxor", "pnot", "pmov", "exit", "ret",
+            "chwidth", "reconv.hint", "bra.short"}
+COMPRESSIBLE = {"add", "sub", "and", "or", "xor", "shl", "shr", "mul",
+                "fadd", "fsub", "fmul", "max", "min", "mov"}
+
+def size_of(text):
+    """Instruction length in bits, per §2."""
+    mnem = re.sub(r'^@\S+\s+', '', text).split()[0]
+    if mnem in ("f48", "movi48") or mnem.endswith("48"):
+        return 48
+    if mnem in ALWAYS16:
+        return 16
+    if mnem in COMPRESSIBLE:
+        ops = [o.strip() for o in text.split(None, 1)[1].split(',')] \
+              if len(text.split(None, 1)) > 1 else []
+        if len(ops) == 2:
+            return 16                       # already two-operand
+        if len(ops) == 3 and ops[0] == ops[1]:
+            return 16                       # destructive: rd == rs0
+    return 32
 
 def parse_asm(path):
     """Figures from emitted assembly. Sizes follow §2: the compressed forms are
@@ -40,8 +62,7 @@ def parse_asm(path):
         text = raw.strip()
         if text.startswith('.'):
             continue
-        mnem = re.sub(r'^@\S+\s+', '', text).split()[0]
-        sizes.append(SIZES.get(mnem, 32))
+        sizes.append(size_of(text))
         lines.append(text)
     return derive(lines, sizes)
 
@@ -55,9 +76,9 @@ def derive(lines, sizes):
                 for t in range(len(lines))), default=0)
     return {"instructions": len(sizes), "bits": sum(sizes), "peak_live": peak}
 
-def main(spec, asm):
-    a, b = parse_spec(spec), parse_asm(asm)
-    print(f"  {'figure':<14} {'§5.6 listing':>14} {'ccg-llc':>10}")
+def main(spec, section, asm):
+    a, b = parse_spec(spec, section), parse_asm(asm)
+    print(f"  {'figure':<14} {'§'+section+' listing':>14} {'ccg-llc':>10}")
     print("  " + "-" * 42)
     bad = 0
     for k in ("instructions", "bits", "peak_live"):
@@ -73,4 +94,4 @@ def main(spec, asm):
     return 0
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1], sys.argv[2]))
+    sys.exit(main(sys.argv[1], sys.argv[2], sys.argv[3]))

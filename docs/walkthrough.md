@@ -178,6 +178,58 @@ check exists because the spec's listings were hand-written and drifted: an extra
 branch and a pessimistic register count both passed the internal-consistency
 checker, which by construction could not notice.
 
+### The same kernel without the alignment attribute
+
+`test/cuda/vadd.cu` is the same source with the alignment attribute removed. Each
+pointer then occupies two launch-block slots, and the in-window offset has to be
+folded into the index — a fourth addend the three-input AGU cannot take — so
+scale-enable stays clear and the index carries bytes rather than elements:
+
+```
+_Z4vaddPfPKfS1_i:
+	f48 r0, 2
+	ld.global r1, [r0 + 0]
+	srd r2, 0
+	srd r3, 1
+	mad.lo r1, r3, r1, r2
+	ld.global r2, [r0 + 56]
+	por p0, 4, 0
+	@p0 setp.le p0, r2, r1
+	@p0 bra LBB0_2
+	shl r1, 2
+	ld.global r2, [r0 + 52]
+	add r2, r2, r1
+	ld.global r3, [r0 + 48]
+	ld.global r2, [r3, r2, 0, 0]
+	ld.global r3, [r0 + 44]
+	add r3, r3, r1
+	ld.global r4, [r0 + 40]
+	ld.global r3, [r4, r3, 0, 0]
+	fadd r3, r2
+	ld.global r2, [r0 + 36]
+	add r1, r2, r1
+	ld.global r0, [r0 + 32]
+	st.global r3, [r0, r1, 0, 0]
+LBB0_2:
+	exit
+Lfunc_end0:
+```
+
+```
+  figure           §5.5 listing    ccg-llc
+  ------------------------------------------
+  instructions               24         24
+  bits                      656        656
+  peak_live                   5          5
+
+  spec listing matches codegen
+```
+
+Seven more instructions and 176 more bits for the same arithmetic, which is what
+the per-argument alignment attribute of O-23 buys. Note `add r1, r2, r1`: the
+same fold as the two above it, at 32 bits instead of 16, because the selector
+landed on `rd != rs0` and nothing tries to prevent that (F-29).
+
 ## 5. The binary
 
 17 instructions in 60 bytes. Each length comes from bits `[1:0]` of
