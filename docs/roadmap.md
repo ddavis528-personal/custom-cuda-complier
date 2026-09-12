@@ -462,6 +462,8 @@ answered. Update as items resolve.
 | F-17 §5.5 figures were wrong (23 not 22 instructions, 27.1 not 28.4 b/instr, 8 not ~10 live) | — | fixed in v1.4; `tools/check-listings.py` now re-derives them |
 | F-20 LLVM requires a pointer in a register; invariant 11 says there is none | Step 3 | **resolved — consumed in a pre-type-legalization DAGCombine; no 64-bit register class. Severity was overstated; see `proposals/pointer-representation.md`** |
 | F-21 Value-returning device functions need a variadic return pseudo | Step 4 | open — kernels return void, so not blocking |
+| F-22 Pointers escaping an addressing mode have no lowering convention | Step 4 | open — diagnosed at compile time, not silently miscompiled; needs an (rbase, roffset) pair convention |
+| F-23 The <4 GiB allocation precondition is implicit in the lowering | Step 5 | open — belongs with O-23's launch-time validation; the compiler cannot check it |
 | F-19 Every compare is predicated; a kernel must manufacture a true predicate | Step 2 | resolved in v1.4 O-24, refined in v1.5 — self-guarding form costs one predicate, not two; regression test in `test/predicate-remat.s` |
 | F-18 Two of the four GPR arguments are contingent on kernel-pointer alignment | Step 0 | resolved — per-argument attribute, v1.4 O-23; see `proposals/pointer-alignment.md`. Step 5 must report both shapes |
 | F-13 Format G is several field layouts presented as one table | Step 1 | resolved in v1.4 — written out as four tables |

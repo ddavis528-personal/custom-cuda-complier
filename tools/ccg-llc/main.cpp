@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CCGCheckIR.h"
 #include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -47,6 +48,11 @@ int main(int argc, char **argv) {
     Err.print(argv[0], errs());
     return 1;
   }
+
+  // Before codegen: constructs the target cannot lower become diagnostics here
+  // rather than crashes inside the type legalizer (F-20, F-22).
+  if (!checkCCGModule(*M, errs()))
+    return 1;
 
   std::string Error;
   Triple TT("ccg-unknown-unknown");

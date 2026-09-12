@@ -75,6 +75,37 @@ echo
 echo "  --- predicate idiom (O-24) ---"
 run_remat || fail=1
 
+# --- backend: what it accepts, and what it refuses LOUDLY ------------------
+# Invariant 11 means no register holds an address, so the backend consumes
+# address arithmetic before type legalization (F-20). That combine is a
+# whitelist; anything outside it used to reach the legalizer and crash with
+# SIGSEGV or a stack-smash abort and no diagnostic. These assert that every
+# such case is a diagnostic (exit 1) instead -- a crash is indistinguishable
+# from a compiler bug and tells the user nothing.
+echo
+echo "  --- backend accept / reject ---"
+if [ -x build/ccg-llc ]; then
+  for f in test/accept/*.ll; do
+    if build/ccg-llc "$f" -o "$TMP/a.s" >/dev/null 2>&1; then
+      echo "  PASS  accepts $(basename "$f")"
+    else
+      echo "  FAIL  rejects $(basename "$f") -- should compile"; fail=1
+    fi
+  done
+  for f in test/reject/*.ll; do
+    out=$(build/ccg-llc "$f" -o "$TMP/r.s" 2>&1); rc=$?
+    if [ $rc -eq 1 ] && echo "$out" | grep -q "cannot be lowered"; then
+      echo "  PASS  diagnoses $(basename "$f")"
+    elif [ $rc -eq 0 ]; then
+      echo "  FAIL  $(basename "$f") compiled -- should be rejected"; fail=1
+    else
+      echo "  FAIL  $(basename "$f") crashed (rc=$rc) instead of diagnosing"; fail=1
+    fi
+  done
+else
+  echo "  (ccg-llc not built; skipping)"
+fi
+
 # --- assembler / encoder cross-check --------------------------------------
 # ccg-as.py encodes from the TableGen JSON; the C++ MCCodeEmitter encodes from
 # gen-emitter. Two independent paths over one description (roadmap F-6).

@@ -144,20 +144,72 @@ k:
 	exit
 ```
 
-and the pure base+offset case:
+and the pure base+offset case — reading the launch block in `.const` and
+writing to a `.global` window:
 
 ```
 k:
-	f48        r0, 2
-	ld.global  r1, [r0 + 56]
-	st.global  r1, [r0 + 60]
+	f48        r0, 2                ; .const window: the launch block
+	ld.global  r0, [r0 + 56]
+	f48        r1, 3                ; a different, writable window
+	st.global  r0, [r1 + 8]
 	exit
 ```
+
+An earlier version of this listing stored back into the launch block at
+`0x2003C`. That was a hand-written test of the base+offset *store* path and not
+output from kernel-argument lowering, but it should not have been shown as
+verification: §5.2 maps the launch block to `.const`, so it was a write to
+read-only memory. **The backend now rejects that at compile time** — see §5.
 
 **No register holds an address at any point.** Invariant 11 survives from the
 encoding through to generated code.
 
-## 5. What it cost, honestly
+## 5. Failure modes, and what the compiler refuses
+
+The DAGCombine is a **whitelist of two IR shapes**, and invariant 11 means there
+is nothing to materialise a pointer into when it escapes an addressing mode. Both
+are real limits, and both were previously **crashes** — SIGSEGV, or a
+stack-smashing abort, with no diagnostic, because a live `i64` reached a type
+legalizer with no register class to expand into.
+
+A crash is not an acceptable failure mode: it is indistinguishable from a bug in
+the compiler and tells the user nothing. `CCGCheckIR` now runs before codegen and
+turns each into a diagnostic naming the construct and the reason:
+
+| Construct | Now reports |
+|---|---|
+| pointer stored to memory (an array of pointers) | invariant 11: no register holds an address |
+| pointer compared against a pointer | would need both halves materialised, two compares |
+| pointer passed across a call | the calling convention cannot pass an address |
+| pointer `phi` across a merge | cannot live in a register across control flow |
+| an address outside the whitelist | not `(rbase << 16) + index` or a constant |
+| store to `addrspace(4)` | `.const` is read-only by contract (§3, §5.2) |
+
+`test/reject/` asserts each is a diagnostic rather than a crash, and
+`test/accept/` asserts the supported shapes still compile. These run in
+`tools/run-tests.sh`, so the property is checked rather than believed.
+
+**The escaping-pointer cases are a real gap, not just a diagnostic.** Each needs a
+lowering convention that does not exist yet: the `(rbase, roffset)` pair as two
+32-bit values, with comparison lowered to two compares and the pair passed in two
+argument registers. Arrays of pointers and any non-inlined call both hit it.
+Tracked as **F-22**; no kernel in the bootstrap set reaches it.
+
+### The precondition that makes the missing add-with-carry a non-issue
+
+The model reaches **4 GiB − 64 KiB from a single `rbase`**, so any allocation
+smaller than that never needs the base recomputed — which is exactly why §11's
+absent carry-producing add has not bound on anything. That is a **precondition,
+not a property**: a buffer at or above 4 GiB would need the base touched
+mid-access, and the ISA cannot express the carry.
+
+Written down here because it is currently implicit in the lowering, and an
+implicit precondition is invisible on the day someone maps a larger buffer. The
+compiler cannot check it — allocation sizes are not known at compile time — so
+it belongs with the launch-time validation that O-23 already calls for.
+
+## 6. What it cost, honestly
 
 **In the encoding: nothing.** No bit map changed, no field moved, no format was
 added. The base+index form is unchanged from v1.2; only its semantics widened,
@@ -176,12 +228,27 @@ class, and a `copyPhysReg` that reports a fatal error rather than emitting a
 32-bit move for a 64-bit copy — that last being the only path that could silently
 miscompile.
 
-## 6. The one observation worth carrying back
+## 7. The one observation worth carrying back
 
 **Every other LLVM target with 64-bit pointers has 64-bit registers.** This
 machine is outside the shape LLVM's type system assumes, and the consequence is
 that address arithmetic must be *recognised and consumed early* rather than
 legalized.
+
+**AMDGPU is the near-miss, and it sharpens the point.** It also has 64-bit
+pointers over 32-bit physical registers, and it solved this the orthodox way —
+64-bit register classes over register pairs. What made that available is that
+AMDGPU has real 64-bit *instructions* to build on: 64-bit moves, `flat_load_dwordx2`,
+64-bit address arithmetic. A pair class there is something instructions can
+consume.
+
+Here there is no 64-bit instruction at all — span and multi-register transfers
+are deferred (§10) — so a pair class would have nothing to operate on it. Every
+operation would decompose into sub-register operations, which is another way of
+saying the class would exist only to satisfy the type system. **The divergence
+from the orthodox approach is forced by the ISA, not chosen for style.** That is
+a stronger statement than the first draft of this section made, and it is the
+right one.
 
 That is a constraint on how the backend is written, not a defect in the ISA, and
 it does not appear in generated code. But it is the kind of thing that would have
