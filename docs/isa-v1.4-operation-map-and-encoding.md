@@ -39,6 +39,12 @@ sentence is gone.
 clauses.** No bit assignment changes. The merged table required a decoder implementer to
 reconstruct the split unaided, and different readers would reconstruct it differently.
 
+*Settled.* **Kernel-pointer alignment is a per-argument attribute** (O-23), and §5.6 works
+the aligned case: 16 instructions and 5 live GPRs against 23 and 8. Two of §1's four
+GPR-count arguments are contingent on it, so it had to be settled before register-pressure
+data is worth collecting. It also turns out to be what makes O-7's index scaling fire at
+all.
+
 *Corrected.* **§5.5's worked prologue was miscounted.** It is 23 instructions, not 22, so
 the density figure is 27.1 bits per instruction against a fixed-32 equivalent of 736 — a 15%
 saving, slightly better than the 28.4 previously claimed. Peak live GPRs is 8 of 16, not the
@@ -1381,12 +1387,13 @@ encoding, a 15% saving. The compressed forms fire on the four offset folds, the 
 Peak live GPRs is **8 of 16**, at the last argument load: `R0` across the argument loads,
 six for three pointers, and the induction variable.
 
-### 5.6 The same kernel under a 2^16 allocation guarantee
+### 5.6 The same kernel with an aligned pointer argument
 
-The listing above is the **unaligned** case, and it is not the only one. §11 carries an
-optional `cudaMalloc`-level 2^16 alignment guarantee. If that holds, every allocation begins
-at in-window offset zero, so there is nothing to fold — and because all three arrays are
-indexed by the same `i`, they share **one** offset register instead of needing three:
+The listing above is the **unaligned** case, and it is not the only one. Where a kernel
+pointer argument is known to be 2^16-aligned, its in-window offset is zero — so there is
+nothing to fold, all three arrays share one index register, and the index can carry an
+**element** index rather than a byte offset, which re-enables the `chwidth`-derived scaling
+of O-7:
 
 ```
     f48        R0,  #LAUNCH_BASE        ; 48
@@ -1397,14 +1404,13 @@ indexed by the same `i`, they share **one** offset register instead of needing t
     ld.global  R4,  [R0 + #ARG_N]       ; 32
     setp.ge    P0,  R1, R4              ; 32
     @P0 bra    Lexit                    ; 32
-    ld.global  R5,  [R0 + #ARG_C]       ; 32   one slot per pointer, not two
+    ld.global  R5,  [R0 + #ARG_C]       ; 32   one slot loaded per pointer, not two
     ld.global  R6,  [R0 + #ARG_A]       ; 32
     ld.global  R7,  [R0 + #ARG_B]       ; 32
-    shl        R1,  R1, #2              ; 16   shared byte offset
-    ld.global  R8,  [(R6<<16) + R1]     ; 32
-    ld.global  R9,  [(R7<<16) + R1]     ; 32
+    ld.global  R8,  [(R6<<16) + R1, x4] ; 32   scale-enable set; R1 is an element index
+    ld.global  R9,  [(R7<<16) + R1, x4] ; 32
     fadd       R8,  R8, R9              ; 16
-    st.global  R8,  [(R5<<16) + R1]     ; 32
+    st.global  R8,  [(R5<<16) + R1, x4] ; 32
 Lexit:
     exit                                ; 16
 ```
@@ -1412,10 +1418,15 @@ Lexit:
 | | Instructions | Bits | Peak live GPRs | GPRs per pointer |
 |---|---|---|---|---|
 | Unaligned (§5.5) | 23 | 624 | **8** | 2 |
-| 2^16-aligned | 17 | 480 | **5** | 1 |
+| Aligned | 16 | 464 | **5** | 1 |
 
-Six fewer instructions, 23% fewer bits, and three fewer live registers — from an ABI
-decision, with no ISA change at all.
+Seven fewer instructions, 26% fewer bits, three fewer live registers — from an ABI decision,
+with no ISA change at all.
+
+**Note what the last line of the table means for O-7.** Chwidth-derived index scaling was
+justified by "`A[i]` is one instruction whether `A` is FP32, FP16 or INT8." It only actually
+fires in the aligned case: unaligned, the index register has to carry bytes in order to
+absorb the in-window offset, and scale-enable stays clear. Alignment is what makes O-7 pay.
 
 **This makes two of §1's four GPR arguments contingent.** Argument 3 (two warp-uniform GPRs
 per live pointer) halves to one. Argument 4 (peak live on the trivial kernel) falls from 8
@@ -1423,17 +1434,7 @@ of 16 to 5 of 16, which is no longer evidence of pressure at all. Arguments 1 an
 span/MMA alignment limit and `chwidth` width partitioning — are untouched, because neither
 involves pointers.
 
-So the allocation guarantee has to be settled **before** register-pressure data is
-collected, or the GEMM tile gets measured against a prologue shape the runtime could have
-eliminated. See §11.
-
-**The resolution is per-argument, not global.** A blanket ABI requirement would force
-framework sub-allocators to pad every tensor to 64 KiB, which is unacceptable for many small
-tensors; no requirement at all leaves the cheap form unreachable. The mechanism that fits is
-an **alignment attribute on each kernel pointer parameter** — the frontend marks the ones
-the runtime can vouch for, and the backend emits the one-register form for exactly those.
-Real kernels will carry a mix, so both shapes have to be supported and both have to be
-measured.
+**Settled: the guarantee is a per-argument alignment attribute.** See O-23.
 
 ---
 
@@ -1904,6 +1905,45 @@ disassembler still build. Prose review had passed this encoding across three rev
 
 ---
 
+**O-23 — Kernel-pointer alignment — settled as a per-argument attribute.**
+
+§5.6 shows a 2^16-aligned pointer argument costing one GPR instead of two, removing the
+in-window offset fold, and re-enabling O-7's index scaling: 16 instructions and 5 live GPRs
+against 23 and 8. The question was how a kernel comes to know.
+
+**Rejected: a blanket ABI requirement** that every device pointer be 2^16-aligned. Framework
+sub-allocators would have to pad every tensor to 64 KiB, which is untenable when a model
+holds thousands of small ones.
+
+**Rejected: a runtime check with two code paths.** It sounds like it gets both cases, and it
+gets neither. Register allocation is static and occupancy is set by a kernel's *maximum*
+register count, so a kernel carrying both paths pays the unaligned peak regardless of which
+path runs. The saving that matters is not recovered.
+
+**Adopted: alignment is a property of each kernel pointer parameter.** The frontend marks
+the arguments the runtime can vouch for — clang's existing `align_value` attribute lowers to
+LLVM's `align` parameter attribute — and the backend emits the one-register form for exactly
+those. Mixed kernels degrade per argument rather than per kernel.
+
+Three consequences worth fixing here rather than leaving to the ABI document:
+
+- **The launch block layout does not change.** A pointer argument occupies two 32-bit slots
+  whether or not it is aligned, and the runtime always writes `addr >> 16` and
+  `addr & 0xFFFF`. The attribute changes only what the *prologue loads*: an aligned argument
+  skips the second load because the value is known zero. Keeping the layout
+  attribute-independent means the runtime never needs to know which kernels declared what.
+- **The backend should not read the attribute directly.** It should ask whether the address's
+  low 16 bits are known zero, which is the standard alignment query and is strictly more
+  general — it also fires where alignment is provable for other reasons, and it inherits
+  LLVM's existing propagation through `getelementptr`. The attribute is one source of that
+  knowledge, not the mechanism.
+- **A false attribute is a silent wrong answer**, not a fault: the low bits are simply
+  ignored and the access lands elsewhere. This is the failure mode that warrants a
+  validation harness rather than a compile-time check — the runtime can verify declared
+  alignment at launch, cheaply, and compile the check out of release builds.
+
+---
+
 ## 10. Explicitly out of scope for V1
 
 - **Format H (tensor/MMA)** — register-group operand model undesigned. The `11` length escape
@@ -1967,21 +2007,13 @@ disassembler still build. Prose review had passed this encoding across three rev
 - **Launch-block layout** — the byte-level contract for the block described in §5.2: header
   field offsets, the argument area, alignment, and the reciprocal-constant slots. An ABI
   document, not an encoding question. Blocked on nothing.
-- **Kernel-pointer alignment — settle before collecting register-pressure data.** An
-  allocation aligned to the 2^16 window stride has an in-window offset of zero, which makes a
-  pointer cost one register instead of two, removes the per-pointer offset fold, and restores
-  chwidth-derived index scaling on the `.global` path. §5.6 shows the difference on the
-  elementwise kernel: 23 instructions and 8 live GPRs against 17 and 5.
+- **Kernel-pointer alignment — settled in 1.4 as a per-argument attribute (O-23).** What
+  remains is the ABI document's job: naming the attribute spelling kernels should use, and
+  specifying the launch-time validation that catches a false declaration. Neither is
+  encoding-blocking. The measurement consequence stands: register-pressure data has to
+  report aligned and unaligned kernels separately, since the two shapes differ by three live
+  registers on the simplest kernel there is.
 
-  Previously carried here as "optional, and free to adopt." That understated it. Two of the
-  four GPR-count arguments in §1 rest on the unaligned shape, so leaving this open means the
-  16-vs-32 experiment measures a prologue the runtime could have eliminated.
-
-  A blanket ABI requirement is wrong — framework sub-allocators would have to pad every
-  tensor to 64 KiB. The mechanism that fits is an **alignment attribute per kernel pointer
-  parameter**: the frontend marks the arguments the runtime can vouch for, the backend emits
-  the one-register form for exactly those, and mixed kernels degrade per-argument. Both
-  shapes stay supported, and both get measured.
 - **Carry-producing add.** §4's integer range has 6 unallocated points in the low 32, which
   is the A″-reachable range where a carry-out predicate destination would live. Only needed
   if window-crossing pointer arithmetic (§5.1) shows up hot. Deferred pending codegen data.
