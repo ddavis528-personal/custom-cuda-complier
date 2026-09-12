@@ -43,6 +43,10 @@ run_elementwise() {
   fi
 }
 
+echo "  --- frontend and kernel ABI ---"
+./tools/check-kernel-args.sh || fail=1
+
+echo
 echo "  --- functional simulator ---"
 run_elementwise 32 "elementwise, all 32 lanes active"        || fail=1
 # n < 32 makes lanes n..31 take the guard branch. They diverge from the rest and

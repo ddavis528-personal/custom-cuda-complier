@@ -80,5 +80,10 @@ add_dependencies(ccg-sim CCGTableGen)
 target_include_directories(ccg-sim PRIVATE ${CMAKE_SOURCE_DIR}/tools/ccg-sim)
 target_link_libraries(ccg-sim PRIVATE CCGMC)
 
+add_library(CCGLowerKernelArgs MODULE llvm/CCG/IR/CCGLowerKernelArgs.cpp)
+target_include_directories(CCGLowerKernelArgs PRIVATE ${LLVM_INCLUDE_DIRS})
+target_compile_definitions(CCGLowerKernelArgs PRIVATE ${LLVM_DEFINITIONS})
+set_target_properties(CCGLowerKernelArgs PROPERTIES PREFIX "")
+
 enable_testing()
 add_test(NAME roundtrip COMMAND ccg-roundtrip)

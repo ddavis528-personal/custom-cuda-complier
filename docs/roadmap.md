@@ -328,13 +328,42 @@ Two things it demonstrated that the encoding work could not:
 **Not yet:** shared memory, barriers, atomics, and the `chwidth` narrow-width
 paths. Added as the reduction and GEMM kernels need them.
 
-### Step 3 — Instruction selection, elementwise kernel at 32-bit width
+### Step 3 — Instruction selection, elementwise kernel at 32-bit width *(in progress)*
+
+**Done — the frontend half, validated end to end.** `tools/cuda-to-ir.sh` compiles
+CUDA to NVVM IR with clang unmodified, and **no CUDA toolkit is required**:
+`-nocudainc -nocudalib` skip the SDK, and the builtin variables come from clang's
+own `__clang_cuda_builtin_vars.h`. That closes F-7 in practice rather than in
+principle — the output carries exactly what was predicted:
+`llvm.nvvm.read.ptx.sreg.{tid,ntid,ctaid}.x`, `getelementptr inbounds`, and the
+`!nvvm.annotations` `"kernel"` marker.
+
+**Done — kernel ABI lowering.** `llvm/CCG/IR/CCGLowerKernelArgs.cpp`, an
+out-of-tree pass plugin modelled on `AMDGPULowerKernelArguments`. It rewrites
+kernel parameters into invariant loads from the launch block (§5.2) and
+materialises the address model (§5.1) as explicit IR arithmetic.
+
+Expressing the address model in IR rather than in the backend has a payoff worth
+recording: an **aligned** pointer has a zero in-window offset, so the add
+constant-folds away on its own and the one-register form of §5.6 arrives from the
+optimiser with no backend special case. Measured on real clang output: 7
+launch-block loads unaligned against 4 aligned, for three pointers and a scalar —
+exactly the §5.5/§5.6 split. `tools/check-kernel-args.sh` is the regression test.
+
+**Remaining:** the `TargetMachine` and instruction selection — `CCGSubtarget`,
+`CCGTargetMachine`, `CCGISelLowering`, `CCGISelDAGToDAG`, frame and register info,
+and `CCGAsmPrinter`. Plus three lowerings specific to this ISA: the NVVM sreg
+intrinsics to `srd` (§5.3), address-mode matching that folds `(rbase << 16) + idx`
+back into Format D base+index, and the O-24 predicate bootstrap on every compare.
+The CodeGen libraries needed for an out-of-tree target are present.
+
+**Exit criterion:** a CUDA elementwise kernel compiled from source through the
+backend, executed on the simulator, correct result. Frontend and ABI lowering are
+done; instruction selection is not.
 
 The Phase 1 pipeline validator. Fixed width throughout — no `chwidth`
 transitions, so none of F-3 is needed yet.
 
-**Exit criterion:** a CUDA elementwise kernel compiled from source through
-clang, through the backend, executed on the simulator, correct result.
 This is the `backend-context.md` §5.1 Phase 1 milestone.
 
 ### Step 4 — Reduction kernel
