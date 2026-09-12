@@ -16,6 +16,9 @@ class MCTargetOptions;
 class Target;
 
 MCCodeEmitter *createCCGMCCodeEmitter(const MCInstrInfo &MCII, MCContext &Ctx);
+MCAsmBackend *createCCGAsmBackend(const Target &T, const MCSubtargetInfo &STI,
+                                  const MCRegisterInfo &MRI,
+                                  const MCTargetOptions &Options);
 } // namespace llvm
 
 // Generated declarations.

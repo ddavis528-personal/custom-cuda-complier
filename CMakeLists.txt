@@ -24,7 +24,9 @@ set(CCG_TABLEGEN
     gen-subtarget          CCGGenSubtargetInfo.inc
     gen-emitter            CCGGenMCCodeEmitter.inc
     gen-asm-writer         CCGGenAsmWriter.inc
-    gen-disassembler       CCGGenDisassemblerTables.inc)
+    gen-disassembler       CCGGenDisassemblerTables.inc
+    gen-callingconv        CCGGenCallingConv.inc
+    gen-dag-isel           CCGGenDAGISel.inc)
 
 set(GENERATED_INCS "")
 list(LENGTH CCG_TABLEGEN _n)
@@ -62,18 +64,32 @@ add_library(CCGMC STATIC
   llvm/CCG/MCTargetDesc/CCGMCTargetDesc.cpp
   llvm/CCG/MCTargetDesc/CCGMCCodeEmitter.cpp
   llvm/CCG/MCTargetDesc/CCGInstPrinter.cpp
-  llvm/CCG/Disassembler/CCGDisassembler.cpp)
+  llvm/CCG/Disassembler/CCGDisassembler.cpp
+  llvm/CCG/CCGRegisterInfo.cpp
+  llvm/CCG/CCGInstrInfo.cpp
+  llvm/CCG/CCGISelLowering.cpp
+  llvm/CCG/CCGSubtarget.cpp
+  llvm/CCG/CCGTargetMachine.cpp
+  llvm/CCG/CCGISelDAGToDAG.cpp
+  llvm/CCG/CCGAsmPrinter.cpp
+  llvm/CCG/MCTargetDesc/CCGAsmBackend.cpp)
 add_dependencies(CCGMC CCGTableGen)
 target_include_directories(CCGMC PUBLIC
   ${GEN_DIR} ${TD_DIR} ${CMAKE_SOURCE_DIR}/llvm/CCG ${LLVM_INCLUDE_DIRS})
 target_compile_definitions(CCGMC PUBLIC ${LLVM_DEFINITIONS})
 
-llvm_map_components_to_libnames(LLVM_LIBS mc mcdisassembler support)
+llvm_map_components_to_libnames(LLVM_LIBS mc mcdisassembler support
+                                codegen selectiondag asmprinter target analysis
+                                irreader core bitreader mcparser)
 target_link_libraries(CCGMC PUBLIC ${LLVM_LIBS})
 
 add_executable(ccg-roundtrip tools/ccg-roundtrip/main.cpp)
 add_dependencies(ccg-roundtrip CCGTableGen)
 target_link_libraries(ccg-roundtrip PRIVATE CCGMC)
+
+add_executable(ccg-llc tools/ccg-llc/main.cpp)
+add_dependencies(ccg-llc CCGTableGen)
+target_link_libraries(ccg-llc PRIVATE CCGMC)
 
 add_executable(ccg-sim tools/ccg-sim/main.cpp tools/ccg-sim/Interp.cpp)
 add_dependencies(ccg-sim CCGTableGen)

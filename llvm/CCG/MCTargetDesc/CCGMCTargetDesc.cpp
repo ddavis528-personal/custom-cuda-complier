@@ -75,6 +75,7 @@ extern "C" void LLVMInitializeCCGTargetMC() {
   TargetRegistry::RegisterMCRegInfo(T, createCCGMCRegisterInfo);
   TargetRegistry::RegisterMCSubtargetInfo(T, createCCGMCSubtargetInfo);
   TargetRegistry::RegisterMCInstPrinter(T, createCCGMCInstPrinter);
+  TargetRegistry::RegisterMCAsmBackend(T, createCCGAsmBackend);
   TargetRegistry::RegisterMCCodeEmitter(T, [](const MCInstrInfo &MCII,
                                               MCContext &Ctx) {
     return createCCGMCCodeEmitter(MCII, Ctx);

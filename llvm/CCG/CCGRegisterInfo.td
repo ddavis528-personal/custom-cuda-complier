@@ -39,11 +39,8 @@ foreach i = 0-3 in {
   def P#i : CCGPredReg<i, "p"#i>;
 }
 
-// v32i32 = 32 lanes x 32b = 1024b, the full physical row.
-// v32i16 / v32i8 are the same 32 lanes at narrower chwidth.
-// chwidth=4 (v32i4) has no MVT and is deferred; see README.
-def GPR : RegisterClass<"CCG", [v32i32, v32i16, v32i8], 1024,
-                        (sequence "R%u", 0, 15)>;
+// chwidth=32 only, for now. See the note above on the narrow widths.
+def GPR : RegisterClass<"CCG", [i32, f32], 32, (sequence "R%u", 0, 15)>;
 
-// A predicate is 32 lanes x 1 bit, at every chwidth.
-def PR : RegisterClass<"CCG", [v32i1], 32, (sequence "P%u", 0, 3)>;
+// One bit per lane in hardware; i1 per thread in the type system.
+def PR : RegisterClass<"CCG", [i1], 32, (sequence "P%u", 0, 3)>;

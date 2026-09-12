@@ -10,6 +10,8 @@ include "llvm/Target/Target.td"
 include "CCGRegisterInfo.td"
 include "CCGInstrFormats.td"
 include "CCGInstrInfo.td"
+include "CCGCallingConv.td"
+include "CCGInstrPatterns.td"
 
 def CCGInstrInfo : InstrInfo;
 

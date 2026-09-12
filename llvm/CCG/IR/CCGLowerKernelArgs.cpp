@@ -88,9 +88,13 @@ PreservedAnalyses LowerKernelArgs::run(Module &M, ModuleAnalysisManager &) {
   Type *I32 = Type::getInt32Ty(Ctx);
   Type *I64 = Type::getInt64Ty(Ctx);
 
-  for (Function &F : M) {
-    if (F.isDeclaration() || !isKernel(F) || F.arg_empty())
-      continue;
+  SmallVector<Function *, 4> Kernels;
+  for (Function &F : M)
+    if (!F.isDeclaration() && isKernel(F) && !F.arg_empty())
+      Kernels.push_back(&F);
+
+  for (Function *FP : Kernels) {
+    Function &F = *FP;
 
     IRBuilder<> B(&*F.getEntryBlock().getFirstInsertionPt());
 
@@ -143,6 +147,32 @@ PreservedAnalyses LowerKernelArgs::run(Module &M, ModuleAnalysisManager &) {
       }
       Changed = true;
     }
+
+    // A kernel takes no register arguments -- its parameters arrive in the
+    // launch block, and every use has just been rewritten. Strip them from the
+    // signature so that fact is expressed in the IR rather than left for
+    // instruction selection to work around. LLVM cannot remove arguments in
+    // place, so the body moves to a new function.
+    auto *NewTy = FunctionType::get(F.getReturnType(), {}, /*isVarArg=*/false);
+    Function *NF = Function::Create(NewTy, F.getLinkage(), F.getAddressSpace());
+    NF->copyAttributesFrom(&F);
+    NF->setAttributes(AttributeList());
+    NF->setComdat(F.getComdat());
+    F.getParent()->getFunctionList().insert(F.getIterator(), NF);
+    NF->takeName(&F);
+    NF->splice(NF->begin(), &F);
+
+    // Re-point the !nvvm.annotations kernel marker at the new function, or the
+    // kernel stops being a kernel.
+    if (NamedMDNode *Annos = M.getNamedMetadata("nvvm.annotations"))
+      for (MDNode *N : Annos->operands())
+        if (N->getNumOperands() >= 1)
+          if (auto *V = dyn_cast_or_null<ValueAsMetadata>(N->getOperand(0)))
+            if (V->getValue() == &F)
+              N->replaceOperandWith(0, ValueAsMetadata::get(NF));
+
+    F.replaceAllUsesWith(ConstantExpr::getBitCast(NF, F.getType()));
+    F.eraseFromParent();
   }
   return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
