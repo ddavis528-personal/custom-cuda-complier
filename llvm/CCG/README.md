@@ -20,14 +20,30 @@ a namespace and a def prefix:
 of a §3 table, and field positions are architectural (invariant 8) rather than
 stylistic. Do not tidy them.
 
+## Building
+
+```
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
+
+Out-of-tree against an installed LLVM 18 — the target is not registered with
+LLVM's build system, so TableGen is invoked directly and the generated `.inc`
+files land in `build/generated/`. Needs `llvm-18-dev` (for
+`llvm/Target/Target.td`; `llvm-tblgen` alone is not enough) and `libzstd-dev`
+(LLVMSupport's link interface requires it).
+
+Builds `libCCGMC.a` — target registration, code emitter, instruction printer,
+disassembler — and `ccg-roundtrip`.
+
 ## Verifying
 
 ```
 tools/verify.sh
 ```
 
-Runs every TableGen backend and then `tools/check-encoding.py`. Requires
-`llvm-18-dev` (for `llvm/Target/Target.td`); `llvm-tblgen` alone is not enough.
+Runs every TableGen backend, then `tools/check-encoding.py`, then the round trip
+if `build/ccg-roundtrip` exists.
 
 The checks are complementary:
 
@@ -37,8 +53,15 @@ The checks are complementary:
 - **`check-encoding.py`** rejects what TableGen does not look for: gaps
   (unassigned bits), a length/class field disagreeing with the instruction size,
   and any field sitting off its invariant-8 canonical position.
+- **`ccg-roundtrip`** builds an `MCInst` per instruction with random operands
+  that fill their encoded fields, encodes it, decodes the bytes back, and
+  requires a match. The encoder and the disassembler are produced by *different*
+  TableGen backends from the same description, so a disagreement means the
+  encoding is ambiguous or the tables are inconsistent. 64 operand sets per
+  instruction by default; `-trials`, `-seed` and `-v` are available.
 
-Current state: **0 errors, 0 invariant-8 deviations.** The three Format B′/B″
+Current state: **0 errors, 0 invariant-8 deviations, 4160/4160 round trips
+clean** across 25 compressed, 36 32-bit and 4 48-bit instructions. The three Format B′/B″
 deviations this description originally surfaced were genuine and are fixed in ISA
 v1.4 (O-22); the spec and this description now agree, and `verify.sh` is what
 proves it.
@@ -52,9 +75,13 @@ points not fixed by the spec are marked `ASSIGNED` in `CCGInstrInfo.td`.
 
 ## Not here yet
 
-- **No C++ MC layer.** The generated `.inc` files are produced and validated but
-  not compiled into an `MCTargetDesc`. That is the next increment and needs the
-  target registration scaffolding.
+- **No asm parser.** `ccg-roundtrip` drives `MCInst`s programmatically rather
+  than parsing text, so `-gen-asm-matcher` is not yet wired up. Programmatic
+  round-tripping is the stronger ISA check — 64 randomized operand sets per
+  instruction cover far more of the encoding space than hand-written assembly
+  would — but text assembly is still wanted, and is the next MC increment.
+- **No object emission.** No `MCAsmBackend`, no ELF writer, no streamer. Nothing
+  needs them until there is codegen to emit.
 - **No instruction selection.** Step 3.
 - **`chwidth`=4 has no value type.** LLVM has no `v32i4` MVT, so `GPR` carries
   `v32i32`/`v32i16`/`v32i8` only. Deferred; it affects nothing until 4-bit

@@ -13,6 +13,12 @@ include "CCGInstrInfo.td"
 
 def CCGInstrInfo : InstrInfo;
 
+// No subtarget features are defined. The GPR count is deliberately NOT one:
+// per §1 and roadmap F-12, a 32-register file is a second encoding rather than
+// a feature flip -- Format J overruns 16 bits at 5-bit register fields. A
+// SubtargetFeature here would misrepresent that.
+def : ProcessorModel<"generic", NoSchedModel, []>;
+
 def CCGAsmParser : AsmParser { let ShouldEmitMatchRegisterName = 1; }
 
 def CCG : Target {

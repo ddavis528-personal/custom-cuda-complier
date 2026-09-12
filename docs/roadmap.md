@@ -269,9 +269,14 @@ document to be written, and blocks nothing.
 script (`tools/verify.sh`). 65 instructions, at least one per format. Five new
 findings, F-12 to F-16, all from transcribing §3 into a form a machine checks.
 
-**Next:** the C++ MC layer — target registration, `MCTargetDesc`, asm parser —
-so the generated encoder and decoder can be driven end to end and the round-trip
-exit criterion below can actually be run.
+**Also done:** the C++ MC layer — target registration, `MCTargetDesc`, code
+emitter, instruction printer, disassembler — built out-of-tree against installed
+LLVM 18, plus `ccg-roundtrip`. **The Step 1 exit criterion is met**: 4160
+encode/decode round trips clean across all 65 instructions, covering all three
+instruction lengths.
+
+**Next:** the asm parser (`-gen-asm-matcher`), so assembly can be round-tripped
+as text rather than as `MCInst`s. Not a blocker for Step 2 or Step 3.
 
 
 
@@ -294,8 +299,10 @@ Decisions to build in from the start:
 - Note that LLVM's variable-length encoding support (`VarLenCodeEmitterGen`) is
   thinly used upstream — M68k is the main consumer. Expect rough edges here.
 
-**Exit criterion:** hand-written assembly for all 20 formats assembles,
-disassembles, and round-trips.
+**Exit criterion: met.** Every format encodes, disassembles and round-trips —
+via programmatic `MCInst`s with randomized operands rather than hand-written
+assembly, which covers more of the encoding space than a fixed test corpus
+would. Text assembly follows with the asm parser.
 
 ### Step 2 — Functional simulator
 

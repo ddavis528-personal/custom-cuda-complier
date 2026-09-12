@@ -5,3 +5,4 @@ build/
 *.s
 .cache/
 compile_commands.json
+/build/
