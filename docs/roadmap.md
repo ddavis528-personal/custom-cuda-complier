@@ -1,7 +1,7 @@
 # Bring-up Roadmap and Compiler-Side ISA Findings
 
 **Status:** Phase 0 (contract definition). No code yet.
-**Companions:** `isa-v1.2-operation-map-and-encoding.md` (encoding ground truth),
+**Companions:** `isa-v1.3-operation-map-and-encoding.md` (encoding ground truth),
 `backend-context.md` (scope and rationale ground truth).
 
 This file is the working plan. It tracks two things: the order work is being
@@ -256,8 +256,10 @@ Format G point, 1 Format B point. No new formats, no moved fields, nothing above
 | F-10 `packi` partial writes | preserve + `packi.z` | `predicate-transfer.md` |
 | F-11 address width | `(rbase << 16) + roffset`, 64 bits only in the AGU | `address-model.md` |
 
-**Exit criterion: met.** The remaining items are ISA-spec edits and an ABI
-document, neither of which blocks Step 1.
+**Exit criterion: met.** All of it is folded into
+`isa-v1.3-operation-map-and-encoding.md`, which is now the encoding ground truth;
+v1.2 is kept for the decision trail. The launch-block byte layout remains an ABI
+document to be written, and blocks nothing.
 
 ### Step 1 — Machine description and MC layer
 
