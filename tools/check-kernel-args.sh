@@ -31,11 +31,15 @@ ro=$(grep -c 'roffset'        "$TMP/al.low.ll" 2>/dev/null)
 [ "$al" = 4 ] || { echo "  FAIL  aligned: $al launch-block loads, expected 4"; fail=1; }
 [ "$ro" = 0 ] || { echo "  FAIL  aligned kernel still loads an in-window offset"; fail=1; }
 
-# The kernel's own parameters must be dead: every use rewritten to a load.
+# The kernel must end up with NO parameters at all: they arrive in the launch
+# block, so the signature should say so. Checking the signature rather than
+# hunting for uses -- an earlier version of this test grepped for %0..%3 and
+# produced false positives once stripping the parameters renumbered the
+# instruction results into that range.
 for f in un al; do
-  if grep -qE '%[0-9]+ = (add|mul|icmp|getelementptr).*(%0|%1|%2|%3)([,)]|$)' \
-       "$TMP/$f.low.ll"; then
-    echo "  FAIL  $f: a kernel parameter still has uses"; fail=1
+  if ! grep -qE '^define[^@]*@_Z4vadd[A-Za-z0-9_]*\(\)' "$TMP/$f.low.ll"; then
+    sig=$(grep -oE '^define.*@_Z4vadd[^{]*' "$TMP/$f.low.ll" | head -1)
+    echo "  FAIL  $f: kernel still takes parameters: $sig"; fail=1
   fi
 done
 
