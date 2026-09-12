@@ -1,7 +1,7 @@
 # Bring-up Roadmap and Compiler-Side ISA Findings
 
 **Status:** Phase 0 (contract definition). No code yet.
-**Companions:** `isa-v1.3-operation-map-and-encoding.md` (encoding ground truth),
+**Companions:** `isa-v1.4-operation-map-and-encoding.md` (encoding ground truth),
 `backend-context.md` (scope and rationale ground truth).
 
 This file is the working plan. It tracks two things: the order work is being
@@ -363,11 +363,11 @@ answered. Update as items resolve.
 | F-8 predicated write to a predicate destination — preserve or clear? | Step 0 | **open — preserve recommended, see proposal §7–8; blocks if-conversion** |
 | F-10 `packi` partial-write semantics — preserve + `packi.z` variant | Step 0 | **open — see proposal §6** |
 | F-9 Format D carries two contradictory opcode maps (editorial) | — | resolved in v1.3 |
-| F-12 32 GPRs is an encoding fork, not a subtarget flag | Step 1 | **open — Format J overruns 16 bits; A″ drops to a 1-bit opcode** |
-| F-13 Format G is three field layouts presented as one table | Step 1 | **open — editorial; split in the `.td`** |
-| F-14 Format B′/B″ move the predicate qualifier off `[29:27]` | Step 1 | **open — genuine invariant 8 violation; zero-cost fix verified** |
-| F-15 Invariant 8 claims a shared J/K compressed geometry that does not exist | Step 1 | **open — editorial** |
-| F-16 Invariant 8's "no exceptions" claim does not cover Format I | Step 1 | **open — editorial** |
+| F-12 32 GPRs is an encoding fork, not a subtarget flag | Step 5 | recorded in v1.4 §1/§11; still open as a *decision*, pending GEMM spill data |
+| F-13 Format G is several field layouts presented as one table | Step 1 | resolved in v1.4 — written out as four tables |
+| F-14 Format B′/B″ move the predicate qualifier off `[29:27]` | Step 1 | resolved in v1.4 — O-22; checker now reports 0 deviations |
+| F-15 Invariant 8 claims a shared J/K compressed geometry that does not exist | Step 1 | resolved in v1.4 |
+| F-16 Invariant 8's "no exceptions" claim does not cover Format I | Step 1 | resolved in v1.4 — exclusions named |
 | O-8 compressed-form density | Step 1 instrumentation + Step 5 | not started |
 | O-9 compressed ld/st offset distribution | Step 1 instrumentation + Step 5 | not started |
 | GPR count 16 vs. 32 | Step 5, both configurations | not started |

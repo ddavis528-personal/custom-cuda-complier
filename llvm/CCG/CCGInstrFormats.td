@@ -1,6 +1,6 @@
 //===-- CCGInstrFormats.td - CCG instruction formats --------*- tablegen -*-===//
 //
-// One class per format in docs/isa-v1.3-operation-map-and-encoding.md §3.
+// One class per format in docs/isa-v1.4-operation-map-and-encoding.md §3.
 // Bit assignments below are transcribed directly from that section's tables and
 // are the mechanical check on them: TableGen rejects any double-assigned bit,
 // and tools/check-encoding.py rejects any gap. Field positions are load-bearing
@@ -106,8 +106,9 @@ class FormatBp<bits<5> opc, dag outs, dag ins, string asm>
   let Inst{10-6}  = opc;
   let Inst{14-11} = rd;
   let Inst{18-15} = rs0;
-  let Inst{21-19} = pq;
-  let Inst{31-22} = imm;
+  let Inst{26-19} = imm{7-0};
+  let Inst{29-27} = pq;          // canonical position as of v1.4 (O-22)
+  let Inst{31-30} = imm{9-8};    // immediate split around the qualifier, as D'
 }
 
 class FormatBpp<bits<5> opc, dag outs, dag ins, string asm>
@@ -116,9 +117,9 @@ class FormatBpp<bits<5> opc, dag outs, dag ins, string asm>
   let Inst{10-6}  = opc;
   let Inst{14-11} = rd;
   let Inst{18-15} = rs0;
-  let Inst{21-19} = pq;
-  let Inst{23-22} = pd;
-  let Inst{31-24} = imm;
+  let Inst{26-19} = imm;         // MSB at 26; layout identical to C' as of v1.4
+  let Inst{29-27} = pq;
+  let Inst{31-30} = pd;
 }
 
 // 48-bit sibling of Format B: [31:6] identical, 16 more immediate bits.
@@ -287,10 +288,9 @@ class FormatF48<bits<5> opc, dag outs, dag ins, string asm>
 // ---------------------------------------------------------------------------
 // Format G -- warp-collective. §3. Carries unballot as of v1.3 (O-14).
 //
-// §3 presents Format G as one table whose fields carry "or" clauses: [23:19] is
-// a shuffle lane index "or ps at [21:19] for vote/ballot", and [31:30] is a vote
-// destination "or reserved". Those are three distinct field layouts sharing a
-// tag, not one layout, and they are split here accordingly. See roadmap F-13.
+// v1.4 writes Format G out as four field layouts rather than one table with "or"
+// clauses; these classes match those tables one for one. See O-22's neighbours
+// in the v1.4 change list, and roadmap F-13 for how the split was found.
 // ---------------------------------------------------------------------------
 
 // Shuffles: rd, rs, 5-bit lane index. No predicate destination.

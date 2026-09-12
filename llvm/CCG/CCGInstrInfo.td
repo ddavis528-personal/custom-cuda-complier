@@ -1,6 +1,6 @@
 //===-- CCGInstrInfo.td - CCG instruction definitions -------*- tablegen -*-===//
 //
-// Instruction set for docs/isa-v1.3-operation-map-and-encoding.md.
+// Instruction set for docs/isa-v1.4-operation-map-and-encoding.md.
 // Coverage goal for Step 1 is one instruction per format plus everything the
 // worked prologue in §5.5 needs -- not full opcode-map coverage. Opcode values
 // are taken from §3 and §4; where the spec lists a range without fixing points,

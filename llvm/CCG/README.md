@@ -1,7 +1,7 @@
 # CCG — TableGen machine description
 
 Target description for the ISA in
-[`../../docs/isa-v1.3-operation-map-and-encoding.md`](../../docs/isa-v1.3-operation-map-and-encoding.md).
+[`../../docs/isa-v1.4-operation-map-and-encoding.md`](../../docs/isa-v1.4-operation-map-and-encoding.md).
 
 `CCG` is a placeholder name. Renaming is mechanical — the string appears only as
 a namespace and a def prefix:
@@ -38,8 +38,10 @@ The checks are complementary:
   (unassigned bits), a length/class field disagreeing with the instruction size,
   and any field sitting off its invariant-8 canonical position.
 
-Current state: **0 errors, 3 invariant-8 deviations**, all three in Format B′/B″
-and all three genuine — see roadmap F-14.
+Current state: **0 errors, 0 invariant-8 deviations.** The three Format B′/B″
+deviations this description originally surfaced were genuine and are fixed in ISA
+v1.4 (O-22); the spec and this description now agree, and `verify.sh` is what
+proves it.
 
 ## Coverage
 

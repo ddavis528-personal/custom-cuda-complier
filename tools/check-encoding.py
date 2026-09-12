@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Mechanical check of the CCG encoding against the invariants stated in
-docs/isa-v1.3-operation-map-and-encoding.md.
+docs/isa-v1.4-operation-map-and-encoding.md.
 
 TableGen already rejects a double-assigned bit. This adds the checks it does
 not make:
@@ -39,16 +39,16 @@ ALIAS = {"rdata": "rd", "rbase": "rs0", "rindex": "rs1"}
 # Compressed forms have their own geometry, and J and K do NOT share it:
 # Format J needs three 4-bit register fields in the 12 bits left after the
 # class code and subop, so its rd sits lower than K's. Invariant 8 states a
-# single shared J/K geometry, which is not what §3's bit maps say -- see
-# roadmap F-15.
+# single shared J/K geometry, which is not what §3's bit maps say; v1.4 corrects
+# the invariant's wording to match the bit maps.
 CANON_J = {"rd": (7, 4), "rs0": (11, 8), "rs1": (15, 12)}
 CANON_K = {"rd": (11, 8), "rs": (15, 12)}
 
-# Formats invariant 8 does not enumerate. It names A/A'/A", C/C', B/B'/B",
-# D/D' and M/M', then claims "no exceptions among the 32/48-bit formats",
-# which Format I contradicts. Listed explicitly so the gap is visible rather
-# than silently skipped -- see roadmap F-16.
-EXEMPT = {"PMOV_IMM": "Format I metadata: pd at [9:8], outside invariant 8's list",
+# Formats invariant 8 does not enumerate. As of v1.4 the invariant names its
+# exclusions rather than claiming a blanket "no exceptions": Format G conforms,
+# Format I deliberately does not. Listed here so the exclusion stays visible in
+# the check output rather than being silently skipped.
+EXEMPT = {"PMOV_IMM": "Format I metadata: pd at [9:8], excluded by invariant 8 (v1.4)",
           "CHWIDTH_MULTI": "Format I metadata: register mask, no canonical slots"}
 
 def bit_span(inst, var):
