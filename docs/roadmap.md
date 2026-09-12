@@ -334,9 +334,19 @@ which opens the O-4 join-PC question.
 
 Adds shared memory, Format J accumulate, and serious register pressure.
 
-**Produces:** the spill data that decides 16 vs. 32 GPRs (O-8's companion
-question in §10), and the destructive-form hit rate for O-8. Run both subtarget
-configurations — the whole point of building the flag in at Step 1.
+**Produces:** the spill data that decides 16 vs. 32 GPRs, and the destructive-form
+hit rate for O-8.
+
+**Blocked on an ABI decision, not on code.** Two of the four GPR arguments rest on
+pointers costing two registers each, which is only true when allocations are not
+2^16-aligned. ISA v1.4 §5.6 works both cases on the elementwise kernel: 23
+instructions and 8 live GPRs unaligned, against 17 and 5 aligned. Settle the
+per-argument alignment attribute first, or this step measures a prologue shape the
+runtime could have eliminated.
+
+**And it is not a flag flip.** Per F-12, a 32-register machine is a second encoding
+— the compressed forms cannot name more than 16 registers. Restricted allocation
+order gives comparable spill counts; a working 32-GPR target does not come free.
 
 **Note on framing:** per `backend-context.md` §4, ambiguous spill data tips
 toward 32 because of the span/MMA register-group argument. F-3 adds a second
@@ -371,6 +381,8 @@ answered. Update as items resolve.
 | F-10 `packi` partial-write semantics — preserve + `packi.z` variant | Step 0 | **open — see proposal §6** |
 | F-9 Format D carries two contradictory opcode maps (editorial) | — | resolved in v1.3 |
 | F-12 32 GPRs is an encoding fork, not a subtarget flag | Step 5 | recorded in v1.4 §1/§11; still open as a *decision*, pending GEMM spill data |
+| F-17 §5.5 figures were wrong (23 not 22 instructions, 27.1 not 28.4 b/instr, 8 not ~10 live) | — | fixed in v1.4; `tools/check-listings.py` now re-derives them |
+| F-18 Two of the four GPR arguments are contingent on kernel-pointer alignment | Step 0 | **open — blocks the Step 5 measurement; per-argument attribute proposed, v1.4 §5.6/§11** |
 | F-13 Format G is several field layouts presented as one table | Step 1 | resolved in v1.4 — written out as four tables |
 | F-14 Format B′/B″ move the predicate qualifier off `[29:27]` | Step 1 | resolved in v1.4 — O-22; checker now reports 0 deviations |
 | F-15 Invariant 8 claims a shared J/K compressed geometry that does not exist | Step 1 | resolved in v1.4 |

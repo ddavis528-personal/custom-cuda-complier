@@ -39,6 +39,12 @@ sentence is gone.
 clauses.** No bit assignment changes. The merged table required a decoder implementer to
 reconstruct the split unaided, and different readers would reconstruct it differently.
 
+*Corrected.* **§5.5's worked prologue was miscounted.** It is 23 instructions, not 22, so
+the density figure is 27.1 bits per instruction against a fixed-32 equivalent of 736 — a 15%
+saving, slightly better than the 28.4 previously claimed. Peak live GPRs is 8 of 16, not the
+"roughly ten" stated; the bit total, 624, was right. §5.6 is new and works the same kernel
+under the 2^16 allocation guarantee, which changes the register conclusion materially.
+
 *Recorded.* **The GPR count is an encoding fork, not a subtarget parameter.** §1 and §11 now
 say so. A 32-register file needs 5-bit register fields; Format J then overruns 16 bits
 outright and Format A″ falls to a 1-bit opcode. This does not decide the question, but it
@@ -75,7 +81,13 @@ Four independent arguments now point at 32, and only the last is visible in spil
 3. Under the address model of §5.1 every live pointer occupies **two** GPRs, and both are
    warp-uniform — 32 bits of real information in a 1024-bit row.
 4. A fully lowered elementwise kernel — no tiling, no unrolling, no shared memory, no
-   reuse — peaks at roughly ten live registers of sixteen. See §5.5.
+   reuse — peaks at 8 live registers of 16. See §5.5.
+
+**Arguments 3 and 4 are contingent on an unsettled ABI decision**, and both weaken sharply
+if it goes the other way: under the 2^16 allocation guarantee in §11 a pointer costs one
+register rather than two, and the same kernel peaks at 5 of 16 rather than 8. Arguments 1
+and 2 do not involve pointers and are unaffected. §5.6 works both cases; settle the
+guarantee before collecting pressure data.
 
 The first three are invisible to spill counting. The decision still waits on the GEMM tile,
 but the prior has moved.
@@ -1362,14 +1374,66 @@ Lexit:
     exit                                ; 16
 ```
 
-22 instructions, 624 bits — **28.4 bits per instruction**, against 704 for a fixed-32
-encoding. The compressed forms fire on the four offset folds, the `fadd` and `exit` without
-the allocator being asked for anything.
+23 instructions, 624 bits — **27.1 bits per instruction**, against 736 for a fixed-32
+encoding, a 15% saving. The compressed forms fire on the four offset folds, the `fadd` and
+`exit` without the allocator being asked for anything.
 
-Peak live registers is about **ten of sixteen**, on a kernel with no tiling, no unrolling,
-no shared memory and no reuse: `R0` across the argument loads, six for three pointers, two
-for the loaded values. That is the fourth argument in §1, and the only one that is a count
-rather than a projection.
+Peak live GPRs is **8 of 16**, at the last argument load: `R0` across the argument loads,
+six for three pointers, and the induction variable.
+
+### 5.6 The same kernel under a 2^16 allocation guarantee
+
+The listing above is the **unaligned** case, and it is not the only one. §11 carries an
+optional `cudaMalloc`-level 2^16 alignment guarantee. If that holds, every allocation begins
+at in-window offset zero, so there is nothing to fold — and because all three arrays are
+indexed by the same `i`, they share **one** offset register instead of needing three:
+
+```
+    f48        R0,  #LAUNCH_BASE        ; 48
+    srd        R1,  #CTATID             ; 16
+    srd        R2,  #CTAID              ; 16
+    ld.global  R3,  [R0 + #NTID_X]      ; 32
+    mad.lo     R1,  R2, R3, R1          ; 32
+    ld.global  R4,  [R0 + #ARG_N]       ; 32
+    setp.ge    P0,  R1, R4              ; 32
+    @P0 bra    Lexit                    ; 32
+    ld.global  R5,  [R0 + #ARG_C]       ; 32   one slot per pointer, not two
+    ld.global  R6,  [R0 + #ARG_A]       ; 32
+    ld.global  R7,  [R0 + #ARG_B]       ; 32
+    shl        R1,  R1, #2              ; 16   shared byte offset
+    ld.global  R8,  [(R6<<16) + R1]     ; 32
+    ld.global  R9,  [(R7<<16) + R1]     ; 32
+    fadd       R8,  R8, R9              ; 16
+    st.global  R8,  [(R5<<16) + R1]     ; 32
+Lexit:
+    exit                                ; 16
+```
+
+| | Instructions | Bits | Peak live GPRs | GPRs per pointer |
+|---|---|---|---|---|
+| Unaligned (§5.5) | 23 | 624 | **8** | 2 |
+| 2^16-aligned | 17 | 480 | **5** | 1 |
+
+Six fewer instructions, 23% fewer bits, and three fewer live registers — from an ABI
+decision, with no ISA change at all.
+
+**This makes two of §1's four GPR arguments contingent.** Argument 3 (two warp-uniform GPRs
+per live pointer) halves to one. Argument 4 (peak live on the trivial kernel) falls from 8
+of 16 to 5 of 16, which is no longer evidence of pressure at all. Arguments 1 and 2 — the
+span/MMA alignment limit and `chwidth` width partitioning — are untouched, because neither
+involves pointers.
+
+So the allocation guarantee has to be settled **before** register-pressure data is
+collected, or the GEMM tile gets measured against a prologue shape the runtime could have
+eliminated. See §11.
+
+**The resolution is per-argument, not global.** A blanket ABI requirement would force
+framework sub-allocators to pad every tensor to 64 KiB, which is unacceptable for many small
+tensors; no requirement at all leaves the cheap form unreachable. The mechanism that fits is
+an **alignment attribute on each kernel pointer parameter** — the frontend marks the ones
+the runtime can vouch for, and the backend emits the one-register form for exactly those.
+Real kernels will carry a mix, so both shapes have to be supported and both have to be
+measured.
 
 ---
 
@@ -1903,11 +1967,21 @@ disassembler still build. Prose review had passed this encoding across three rev
 - **Launch-block layout** — the byte-level contract for the block described in §5.2: header
   field offsets, the argument area, alignment, and the reciprocal-constant slots. An ABI
   document, not an encoding question. Blocked on nothing.
-- **A `cudaMalloc`-level 2^16 alignment guarantee.** Optional, and free to adopt. An
-  allocation aligned to the window stride has an in-window offset of zero, which makes a
-  pointer cost one register instead of two and restores chwidth-derived index scaling on the
-  `.global` path. Framework sub-allocators break the guarantee for suballocated pointers, so
-  the compiler cannot assume it — but the primary allocation path can supply it.
+- **Kernel-pointer alignment — settle before collecting register-pressure data.** An
+  allocation aligned to the 2^16 window stride has an in-window offset of zero, which makes a
+  pointer cost one register instead of two, removes the per-pointer offset fold, and restores
+  chwidth-derived index scaling on the `.global` path. §5.6 shows the difference on the
+  elementwise kernel: 23 instructions and 8 live GPRs against 17 and 5.
+
+  Previously carried here as "optional, and free to adopt." That understated it. Two of the
+  four GPR-count arguments in §1 rest on the unaligned shape, so leaving this open means the
+  16-vs-32 experiment measures a prologue the runtime could have eliminated.
+
+  A blanket ABI requirement is wrong — framework sub-allocators would have to pad every
+  tensor to 64 KiB. The mechanism that fits is an **alignment attribute per kernel pointer
+  parameter**: the frontend marks the arguments the runtime can vouch for, the backend emits
+  the one-register form for exactly those, and mixed kernels degrade per-argument. Both
+  shapes stay supported, and both get measured.
 - **Carry-producing add.** §4's integer range has 6 unallocated points in the low 32, which
   is the A″-reachable range where a carry-out predicate destination would live. Only needed
   if window-crossing pointer arithmetic (§5.1) shows up hot. Deferred pending codegen data.

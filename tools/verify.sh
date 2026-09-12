@@ -27,6 +27,9 @@ echo
 llvm-tblgen -I "$INC" -I llvm/CCG --dump-json "$TD" -o "$OUT/ccg.json" 2>/dev/null
 python3 tools/check-encoding.py "$OUT/ccg.json" || fail=1
 
+echo "  worked-listing arithmetic"
+python3 tools/check-listings.py docs/isa-v1.4-operation-map-and-encoding.md || fail=1
+
 # Round trip, if the MC layer has been built. The encoder and the disassembler
 # come from different TableGen backends, so a disagreement means the encoding is
 # ambiguous or the tables are inconsistent -- not visible from reading §3.

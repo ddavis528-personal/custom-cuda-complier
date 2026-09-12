@@ -130,8 +130,8 @@ Lexit:
     exit                                ; 16
 ```
 
-22 instructions, 624 bits — **28.4 bits per instruction**, against a fixed-32
-encoding's 704. The compressed forms fire on the four offset folds, the `fadd`,
+23 instructions, 624 bits — **27.1 bits per instruction**, against a fixed-32
+encoding's 736, a 15% saving. The compressed forms fire on the four offset folds, the `fadd`,
 and `exit`, all naturally.
 
 ## 5. Two things this surfaces
@@ -158,10 +158,16 @@ so the compiler cannot assume it — but a `cudaMalloc`-level alignment guarante
 would make the common case measurably cheaper, and that is an ABI decision
 available for free right now.
 
-**b. Peak register pressure on the simplest possible CUDA kernel is ~10 of 16.**
+**b. Peak register pressure on the simplest possible CUDA kernel is 8 of 16.**
 `R0` (block base) is live across the whole argument load sequence, six registers
-hold three pointers, and two hold the loaded values. This is an elementwise add
-with no tiling, no unrolling, no shared memory, and no reuse.
+hold three pointers, and one holds the induction variable. This is an elementwise
+add with no tiling, no unrolling, no shared memory, and no reuse.
+
+**Superseded in part.** This figure and the one above it are the *unaligned* case.
+Under a 2^16 allocation guarantee a pointer costs one register rather than two and
+the three offset folds disappear, giving 17 instructions and 5 live GPRs. See ISA
+v1.4 §5.6 — 5 of 16 is not evidence of pressure, so this argument is contingent on
+an ABI decision rather than standing on its own.
 
 That is the **fourth** independent argument toward 32 GPRs, and unlike the other
 three it is not a projection — it is a count off a fully lowered kernel:
@@ -171,7 +177,7 @@ three it is not a projection — it is a count off a fully lowered kernel:
 | Span / MMA fragment operands need register groups | ISA spec §10 | no |
 | Width-affinity partitioning under `chwidth` | roadmap F-3 | no |
 | Two warp-uniform GPRs per live pointer | `address-model.md` §6 | partly |
-| **~10/16 live on the trivial kernel** | **this, §4** | **yes — it is the spill precursor** |
+| **8/16 live on the trivial kernel** (5/16 if allocations are 2^16-aligned) | **this, §4** | **yes — but contingent, see v1.4 §5.6** |
 
 The GEMM tile at Step 5 will settle it with data. The prediction from this
 prologue is that it will not be close.
