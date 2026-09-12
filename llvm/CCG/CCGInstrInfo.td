@@ -269,7 +269,10 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
                                     "# setp."#cc#" $pd, $a, $b">;
   }
 
+  // $neg is the qualifier's negate bit (§1). Carrying it lets the generic
+  // branch folder invert a condition rather than adding an instruction.
   let isBranch = 1, isTerminator = 1 in
-  def PSEUDO_BRA_PRED : CCGInst<0, (outs), (ins PR:$guard, brtarget18:$off),
-                                "# @$guard bra $off">;
+  def PSEUDO_BRA_PRED : CCGInst<0, (outs),
+                                (ins PR:$guard, i32imm:$neg, brtarget18:$off),
+                                "# @$guard($neg) bra $off">;
 }

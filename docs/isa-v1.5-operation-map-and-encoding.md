@@ -1389,53 +1389,65 @@ six for three pointers, and the induction variable.
 
 ### 5.6 The same kernel with an aligned pointer argument
 
-The listing above is the **unaligned** case, and it is not the only one. Where a kernel
-pointer argument is known to be 2^16-aligned, its in-window offset is zero — so there is
-nothing to fold, all three arrays share one index register, and the index can carry an
-**element** index rather than a byte offset, which re-enables the `chwidth`-derived scaling
-of O-7:
+Where a kernel pointer argument is known to be 2^16-aligned, its in-window offset
+is zero — so there is nothing to fold, all three arrays share one index register,
+and the index can carry an **element** index rather than a byte offset, which
+re-enables the `chwidth`-derived scaling of O-7.
+
+**This listing is emitted by the compiler, not written by hand.** It is checked
+against fresh `ccg-llc` output by `tools/check-spec-vs-codegen.py`; §5.5's is
+not, and cannot be — see the note at the end of this section.
 
 ```
-    por        P3,  !P0, P0            ; 16  all-true predicate; see §5.5
-    f48        R0,  #LAUNCH_BASE        ; 48
-    srd        R1,  #CTATID             ; 16
-    srd        R2,  #CTAID              ; 16
-    ld.global  R3,  [R0 + #NTID_X]      ; 32
-    mad.lo     R1,  R2, R3, R1          ; 32
-    ld.global  R4,  [R0 + #ARG_N]       ; 32
-    @P3 setp.ge P0, R1, R4             ; 32
-    @P0 bra    Lexit                    ; 32
-    ld.global  R5,  [R0 + #ARG_C]       ; 32   one slot loaded per pointer, not two
-    ld.global  R6,  [R0 + #ARG_A]       ; 32
-    ld.global  R7,  [R0 + #ARG_B]       ; 32
-    ld.global  R8,  [(R6<<16) + R1, x4] ; 32   scale-enable set; R1 is an element index
-    ld.global  R9,  [(R7<<16) + R1, x4] ; 32
-    fadd       R8,  R8, R9              ; 16
-    st.global  R8,  [(R5<<16) + R1, x4] ; 32
+    f48        r0, 2                ; 48   launch window
+    ld.global  r1, [r0 + 0]         ; 32   blockDim.x, from the block (§5.3)
+    srd        r2, 0                ; 16   %ctatid
+    srd        r3, 1                ; 16   %ctaid
+    mad.lo     r1, r3, r1, r2       ; 32   i = ctaid*ntid + tid
+    ld.global  r2, [r0 + 56]        ; 32   n
+    por        p0, !p0, p0          ; 16   O-24: manufacture a true predicate
+    @p0 setp.le p0, r2, r1          ; 32   self-guarding: guard IS destination
+    @p0 bra    Lexit                ; 32
+    ld.global  r2, [r0 + 48]        ; 32   b.rbase -- one slot, not two
+    ld.global  r2, [r2, r1, x4]     ; 32   b[i], scale-enable set
+    ld.global  r3, [r0 + 40]        ; 32   a.rbase
+    ld.global  r3, [r3, r1, x4]     ; 32   a[i]
+    fadd       r3, r2               ; 16   compressed destructive, rd == rs0
+    ld.global  r0, [r0 + 32]        ; 32   c.rbase -- r0 reused at the last moment
+    st.global  r3, [r0, r1, x4]     ; 32   c[i]
 Lexit:
-    exit                                ; 16
+    exit                            ; 16
 ```
 
 | | Instructions | Bits | Peak live GPRs | GPRs per pointer |
 |---|---|---|---|---|
-| Unaligned (§5.5) | 24 | 640 | **8** | 2 |
-| Aligned | 17 | 480 | **5** | 1 |
+| Unaligned (§5.5) | 24 | 640 | 8 | 2 |
+| Aligned | 17 | 480 | **4** | 1 |
 
-Seven fewer instructions, 25% fewer bits, three fewer live registers — from an ABI decision,
-with no ISA change at all.
+**Peak live is 4, not the 5 this section previously claimed.** The allocator does
+better than the hand-written listing did: `r0` holds the launch window across the
+whole prologue and is overwritten by `c.rbase` at the last possible point, so the
+three pointer bases never coexist. That is a real allocation result, and it was
+only noticed once the listing was compared against codegen.
 
-**Note what the last line of the table means for O-7.** Chwidth-derived index scaling was
-justified by "`A[i]` is one instruction whether `A` is FP32, FP16 or INT8." It only actually
-fires in the aligned case: unaligned, the index register has to carry bytes in order to
-absorb the in-window offset, and scale-enable stays clear. Alignment is what makes O-7 pay.
+**Note what O-7 costs the last row.** Chwidth-derived index scaling was justified
+by "`A[i]` is one instruction whether `A` is FP32, FP16 or INT8." It only fires in
+the aligned case: unaligned, the effective address wants four addends against a
+three-input AGU, so the in-window offset must be folded into the index and
+scale-enable stays clear. Alignment is what makes O-7 pay.
 
-**This makes two of §1's four GPR arguments contingent.** Argument 3 (two warp-uniform GPRs
-per live pointer) halves to one. Argument 4 (peak live on the trivial kernel) falls from 8
-of 16 to 5 of 16, which is no longer evidence of pressure at all. Arguments 1 and 2 — the
-span/MMA alignment limit and `chwidth` width partitioning — are untouched, because neither
-involves pointers.
+**Two of §1's four GPR arguments are contingent on this.** Argument 3 (two
+warp-uniform GPRs per pointer) halves to one. Argument 4 falls from 8 of 16 to 4
+of 16, which is not evidence of pressure. Arguments 1 and 2 are untouched.
 
 **Settled: the guarantee is a per-argument alignment attribute.** See O-23.
+
+**§5.5's listing is currently aspirational.** Codegen does not implement the
+unaligned shape at all: it needs `(rbase << 16) + roffset + index`, four addends
+against a three-input AGU, and the compiler rejects it with a diagnostic rather
+than emitting anything. So §5.5's figures are a hand-derived projection, not
+compiler output, and are marked as such. See F-27 — this makes O-23's "both
+shapes stay supported" a statement of intent rather than of fact today.
 
 ---
 
@@ -1983,10 +1995,10 @@ compares inside loops, and everything if-conversion emits, all need one. So a tr
 held live across a compare-heavy region would occupy a quarter of the file throughout —
 effectively three usable predicates, not four.
 
-Two properties rescue it. The idiom is 16 bits and has **no input dependencies** — the result
-is all-ones whatever the source holds — so it is freely rematerializable and should be
-rematerialized at each use rather than hoisted. And it can target **the compare's own
-destination**:
+Two properties rescue it, and the order matters. **The primary strategy is the
+self-guarding form: guard and destination the same predicate.** The compare consumes
+the all-true value as its qualifier and overwrites that same register with its result,
+so the idiom costs **no additional predicate at all**:
 
 ```
     por        P0, !P0, P0        ; 16   P0 = all ones, whatever it held
@@ -2001,9 +2013,16 @@ Verified on the simulator, including the case that matters: re-materializing fro
 already holding a *mixed* mask, which is what a second compare in a loop body faces. Lanes
 false in the prior mask are correctly restored to true.
 
-**Allocator guidance:** rematerialize at each use, into the destination of the compare being
-guarded. The naive choice — treat it as loop-invariant and hoist — costs a quarter of the
-predicate file across the whole body for no benefit.
+**Allocator guidance, in order.** Prefer the self-guarding form: where the source
+predicate is dead after the compare — which is every semantically unpredicated compare —
+reuse it as the destination. **Rematerialization is the fallback for when it is not
+dead**, not the primary strategy; the idiom has no input dependencies, so it is freely
+rematerializable wherever the self-guarding form does not apply. Hoisting it as a
+loop invariant is wrong in both cases: it costs a quarter of the predicate file across
+the whole body for no benefit.
+
+The compiler emits the self-guarding form today — see §5.6, and
+`docs/walkthrough.md`, where it is read back out of the compiled binary.
 
 ---
 

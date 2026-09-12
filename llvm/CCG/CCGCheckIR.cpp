@@ -43,37 +43,60 @@ void report(const Instruction &I, StringRef What, StringRef Why,
   Out.push_back(OS.str());
 }
 
-/// Does this i64 match a shape CCGTargetLowering::PerformDAGCombine will
-/// consume? Deliberately mirrors that matcher: if the two drift apart, this
-/// check stops protecting anything.
-bool isConsumableAddress(const Value *V) {
+/// Format D base+index computes (rbase << 16) + (rindex << scale) + disp:
+/// ONE window plus ONE index. The AGU has three inputs and the displacement is
+/// an immediate, so there is no room for a second register addend.
+///
+/// Count what the address actually supplies. An aligned pointer argument
+/// lowers to a bare window and the getelementptr contributes the single index;
+/// an unaligned one lowers to window + in-window offset, so the same GEP makes
+/// two register addends and no longer fits (F-27).
+///
+/// Deliberately mirrors CCGTargetLowering::PerformDAGCombine: if the two drift
+/// apart this check stops protecting anything.
+bool isWindow(const Value *V) {
+  const auto *Shl = dyn_cast<BinaryOperator>(V);
+  if (!Shl || Shl->getOpcode() != Instruction::Shl)
+    return false;
+  const auto *C = dyn_cast<ConstantInt>(Shl->getOperand(1));
+  if (!C || C->getZExtValue() != kBaseShift)
+    return false;
+  const Value *In = Shl->getOperand(0);
+  if (const auto *Z = dyn_cast<ZExtInst>(In))
+    In = Z->getOperand(0);
+  return In->getType()->isIntegerTy(32);
+}
+
+/// Register addends the base contributes beyond the window, or -1 if the shape
+/// is not recognised at all.
+int baseAddends(const Value *V) {
   if (isa<ConstantInt>(V) || isa<ConstantExpr>(V))
-    return true; // a constant address -- Format D base+offset
+    return 0; // a constant address -- Format D base+offset
+  if (isWindow(V))
+    return 0;
   const auto *Add = dyn_cast<BinaryOperator>(V);
   if (!Add || Add->getOpcode() != Instruction::Add)
-    return false;
-
-  auto isWindow = [](const Value *X) {
-    const auto *Shl = dyn_cast<BinaryOperator>(X);
-    if (!Shl || Shl->getOpcode() != Instruction::Shl)
-      return false;
-    const auto *C = dyn_cast<ConstantInt>(Shl->getOperand(1));
-    if (!C || C->getZExtValue() != kBaseShift)
-      return false;
-    const Value *In = Shl->getOperand(0);
-    if (const auto *Z = dyn_cast<ZExtInst>(In))
-      In = Z->getOperand(0);
-    return In->getType()->isIntegerTy(32);
-  };
+    return -1;
+  const Value *A = Add->getOperand(0), *B = Add->getOperand(1);
+  // The non-window operand has to be something the AGU can take as an index:
+  // a 32-bit value, possibly extended and possibly scaled. Anything else --
+  // 64-bit arithmetic, a second sum -- is not an addressing mode.
   auto isIndex = [](const Value *X) {
+    if (const auto *Shl = dyn_cast<BinaryOperator>(X))
+      if (Shl->getOpcode() == Instruction::Shl &&
+          isa<ConstantInt>(Shl->getOperand(1)))
+        X = Shl->getOperand(0);
     if (const auto *Z = dyn_cast<ZExtInst>(X))
       X = Z->getOperand(0);
     else if (const auto *Se = dyn_cast<SExtInst>(X))
       X = Se->getOperand(0);
     return X->getType()->isIntegerTy(32);
   };
-  return (isWindow(Add->getOperand(0)) && isIndex(Add->getOperand(1))) ||
-         (isWindow(Add->getOperand(1)) && isIndex(Add->getOperand(0)));
+  if (isWindow(A) && isIndex(B))
+    return 1;
+  if (isWindow(B) && isIndex(A))
+    return 1;
+  return -1;
 }
 
 } // namespace
@@ -137,14 +160,35 @@ bool llvm::checkCCGModule(Module &M, raw_ostream &Err) {
           Ptr = LI->getPointerOperand();
         else if (auto *SI = dyn_cast<StoreInst>(&I))
           Ptr = SI->getPointerOperand();
-        if (Ptr)
-          if (const auto *ITP = dyn_cast<IntToPtrInst>(Ptr))
-            if (!isConsumableAddress(ITP->getOperand(0)))
+        if (Ptr) {
+          // Look through getelementptr to the underlying address computation.
+          // An earlier version checked only a direct inttoptr, so every
+          // GEP-based access -- which is every array access clang emits --
+          // slipped past and crashed in the type legalizer instead.
+          const Value *Base = Ptr;
+          while (const auto *GEP = dyn_cast<GetElementPtrInst>(Base))
+            Base = GEP->getPointerOperand();
+          unsigned GEPIndices = 0;
+          for (const Value *W = Ptr; ;) {
+            const auto *G = dyn_cast<GetElementPtrInst>(W);
+            if (!G)
+              break;
+            if (!G->hasAllZeroIndices())
+              ++GEPIndices;
+            W = G->getPointerOperand();
+          }
+          if (const auto *ITP = dyn_cast<IntToPtrInst>(Base)) {
+            int N = baseAddends(ITP->getOperand(0));
+            if (N < 0 || unsigned(N) + GEPIndices > 1)
               report(I, "unsupported address shape",
-                     "the address is not (rbase << 16) + index or a constant, "
-                     "so it cannot be folded into a Format D addressing mode "
-                     "and would leave a live i64 (F-20)",
+                     "the address is not (rbase << 16) + index or a constant. "
+                     "An UNALIGNED pointer argument produces (rbase << 16) + "
+                     "roffset + index, which is four addends against a "
+                     "three-input AGU -- codegen does not implement that shape "
+                     "yet (F-27); declare the argument aligned (O-23)",
                      Problems);
+          }
+        }
       }
     }
   }

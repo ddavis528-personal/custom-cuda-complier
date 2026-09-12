@@ -87,9 +87,10 @@ bool CCGExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
 
       case CCG::PSEUDO_BRA_PRED: {
         Register Guard = MI.getOperand(0).getReg();
+        bool Neg = MI.getOperand(1).getImm() != 0;
         BuildMI(MBB, MI, DL, TII->get(CCG::BRA_PRED))
-            .addImm(qualFor(Guard, /*Negate=*/false))
-            .add(MI.getOperand(1));
+            .addImm(qualFor(Guard, Neg))
+            .add(MI.getOperand(2));
         break;
       }
 

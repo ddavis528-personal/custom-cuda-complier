@@ -22,9 +22,9 @@ def parse(listing):
         code = line.split(';')[0]
         dest = None
         if not re.match(r'\s*(st\.|setp|@?\S*\s*bra|exit)', code.strip()):
-            d = re.match(r'\s*\S+\s+R(\d+)\s*,', code)
+            d = re.match(r'\s*\S+\s+[Rr](\d+)\s*,', code)
             dest = d.group(1) if d else None
-        rows.append((dest, re.findall(r'\bR(\d+)\b', code)))
+        rows.append((dest, re.findall(r'\b[Rr](\d+)\b', code)))
     return sizes, rows
 
 def peak_live(rows):

@@ -8,15 +8,14 @@
 0x0012  20 10 c0 01        32-bit             D
 0x0016  f6 10              16-bit, Format K   K
 0x0018  58 00 09 00        32-bit             C
-0x001c  68 78 00 00        32-bit             E
-0x0020  28 00 00 00        32-bit             E
-0x0024  20 10 80 01        32-bit             D
-0x0028  20 11 89 00        32-bit             D
-0x002c  20 18 40 01        32-bit             D
-0x0030  20 99 89 00        32-bit             D
-0x0034  4a 23              16-bit, Format K   K
-0x0036  20 00 00 01        32-bit             D
-0x003a  60 19 88 00        32-bit             D
-0x003e  da 00              16-bit, Format K   K
+0x001c  68 68 00 00        32-bit             E
+0x0020  20 10 80 01        32-bit             D
+0x0024  20 11 89 00        32-bit             D
+0x0028  20 18 40 01        32-bit             D
+0x002c  20 99 89 00        32-bit             D
+0x0030  4a 23              16-bit, Format K   K
+0x0032  20 00 00 01        32-bit             D
+0x0036  60 19 88 00        32-bit             D
+0x003a  da 00              16-bit, Format K   K
 
-64 bytes total
+60 bytes total

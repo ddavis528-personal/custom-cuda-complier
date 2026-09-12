@@ -443,6 +443,9 @@ answered. Update as items resolve.
 | F-22 Pointers escaping an addressing mode have no lowering convention | Step 4 | open — diagnosed at compile time, not silently miscompiled; needs an (rbase, roffset) pair convention |
 | F-23 The <4 GiB allocation precondition is implicit in the lowering | Step 5 | open — belongs with O-23's launch-time validation; the compiler cannot check it |
 | F-24 Unsigned and FP compares not selected | Step 4 | open — signed integer set is complete; diagnosed rather than miscompiled |
+| F-26 No branch-analysis hooks, so fall-through edges became real branches | Step 3 | resolved — `analyzeBranch`/`removeBranch`/`insertBranch`/`reverseBranchCondition`; the kernel went from 18 instructions to 17, matching §5.6 exactly |
+| F-27 Unaligned pointer addressing is not implemented | Step 4 | **open — needs four addends against a three-input AGU. Diagnosed, not miscompiled. §5.5 is a projection until this lands, so O-23's "both shapes supported" is intent, not fact** |
+| F-28 `bra.short` (Format K, ±256 B) has no selection pattern | Step 4 | open — unexercised here; will fire often in loop-heavy code |
 | F-25 Branch relocations | Step 3 | resolved — three fixup kinds; `bra.pred`'s split field scattered in `applyFixup` |
 | F-19 Every compare is predicated; a kernel must manufacture a true predicate | Step 2 | resolved in v1.4 O-24, refined in v1.5 — self-guarding form costs one predicate, not two; regression test in `test/predicate-remat.s` |
 | F-18 Two of the four GPR arguments are contingent on kernel-pointer alignment | Step 0 | resolved — per-argument attribute, v1.4 O-23; see `proposals/pointer-alignment.md`. Step 5 must report both shapes |

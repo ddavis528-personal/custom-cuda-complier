@@ -186,7 +186,9 @@ void CCGDAGToDAGISel::Select(SDNode *N) {
   case ISD::BRCOND: {
     ReplaceNode(N, CurDAG->getMachineNode(
                        CCG::PSEUDO_BRA_PRED, DL, MVT::Other,
-                       {N->getOperand(1), N->getOperand(2), N->getOperand(0)}));
+                       {N->getOperand(1),
+                        CurDAG->getTargetConstant(0, DL, MVT::i32),
+                        N->getOperand(2), N->getOperand(0)}));
     return;
   }
   case ISD::INTRINSIC_WO_CHAIN: {

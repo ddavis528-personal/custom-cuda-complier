@@ -18,9 +18,12 @@ llvm-objcopy -O binary --only-section=.text "$OUT/5-object.o" "$OUT/5-text.bin"
 # Disassembly, from the generated decoder, walking the stream by §2's length
 # rule. -max-steps 1 stops after the first group; a full trace is the execution
 # record, so take the disassembly from a run that reaches every instruction.
+# n=20, not 32: the trace has to show the mask narrowing, or §6 asserts
+# something its own evidence does not demonstrate.
 build/ccg-sim "$OUT/5-text.bin" -trace \
     -poke 0x20000=32 -poke 0x20020=5 -poke 0x20028=3 -poke 0x20030=4 \
-    -poke 0x20038=32 > "$OUT/6-trace.txt" 2>&1 || true
+    -poke 0x20038=20 > "$OUT/6-trace.txt" 2>&1 || true
 
 python3 tools/hexdump-ccg.py "$OUT/5-text.bin" > "$OUT/5-hexdump.txt"
 echo "  regenerated $OUT/"
+python3 tools/gen-walkthrough-doc.py

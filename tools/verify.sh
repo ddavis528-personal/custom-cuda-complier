@@ -30,6 +30,15 @@ python3 tools/check-encoding.py "$OUT/ccg.json" || fail=1
 echo "  worked-listing arithmetic"
 python3 tools/check-listings.py docs/isa-v1.5-operation-map-and-encoding.md || fail=1
 
+# Spec listing against real codegen. check-listings.py only proves the spec is
+# internally consistent; it cannot notice the listing drifting from the machine,
+# which is how an extra branch and a pessimistic register count both survived.
+if [ -x build/ccg-llc ] && [ -f docs/walkthrough/4-asm.s ]; then
+  echo "  spec listing vs codegen"
+  python3 tools/check-spec-vs-codegen.py \
+      docs/isa-v1.5-operation-map-and-encoding.md docs/walkthrough/4-asm.s || fail=1
+fi
+
 # Round trip, if the MC layer has been built. The encoder and the disassembler
 # come from different TableGen backends, so a disagreement means the encoding is
 # ambiguous or the tables are inconsistent -- not visible from reading §3.

@@ -6,14 +6,13 @@
   0012  mask=ffffffff  	ld.global r2, [r0 + 56]
   0016  mask=ffffffff  	por p0, 4, 0
   0018  mask=ffffffff  	@p0 setp.le p0, r2, r1
-  001c  mask=ffffffff  	@p0 bra 15
-  0020  mask=ffffffff  	bra 0
-  0024  mask=ffffffff  	ld.global r2, [r0 + 48]
-  0028  mask=ffffffff  	ld.global r2, [r2, r1, 1, 0]
-  002c  mask=ffffffff  	ld.global r3, [r0 + 40]
-  0030  mask=ffffffff  	ld.global r3, [r3, r1, 1, 0]
-  0034  mask=ffffffff  	fadd r3, r2
-  0036  mask=ffffffff  	ld.global r0, [r0 + 32]
-  003a  mask=ffffffff  	st.global r3, [r0, r1, 1, 0]
-  003e  mask=ffffffff  	exit
-  executed 18 issue groups
+  001c  mask=ffffffff  	@p0 bra 13
+  0020  mask=000fffff  	ld.global r2, [r0 + 48]
+  0024  mask=000fffff  	ld.global r2, [r2, r1, 1, 0]
+  0028  mask=000fffff  	ld.global r3, [r0 + 40]
+  002c  mask=000fffff  	ld.global r3, [r3, r1, 1, 0]
+  0030  mask=000fffff  	fadd r3, r2
+  0032  mask=000fffff  	ld.global r0, [r0 + 32]
+  0036  mask=000fffff  	st.global r3, [r0, r1, 1, 0]
+  003a  mask=ffffffff  	exit
+  executed 17 issue groups
