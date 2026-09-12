@@ -15,7 +15,7 @@ Three of the four F-1 gaps close at once, and **none of them costs an opcode**:
 
 | Gap | Resolution |
 |---|---|
-| F-1a, uniform half — `%ntid`, `%ctaid`, `%nctaid`, grid dims | ordinary loads from fixed offsets in the block |
+| F-1a, launch-time half — `%ntid`, `%nctaid`, grid dims | ordinary loads from fixed offsets in the block |
 | F-1b — kernel arguments, no `.param` equivalent | arguments are part of the same block, after the launch header |
 | F-1c — entry register state | dissolves; see §3 |
 
@@ -40,10 +40,18 @@ implementation:
   requires already knowing which warp you are. Circular.
 - **`%tid`** — follows from either of the above.
 
+**Corrected in `identity-primitive.md` §1: `%ctaid` is also in the residue.** It
+was listed above as block-resident, which holds only if the runtime materializes
+a separate block per CTA — 100,000 blocks for a 100,000-CTA grid, for state the
+dispatcher assigns dynamically. CTA index is dispatch-time state. The real
+dividing line is *known at launch* versus *assigned at dispatch or execution*,
+not uniform versus distinguishing.
+
 So exactly one irreducible primitive remains, and it must be an instruction (or a
 structural wire), not a load.
 
-**Minimal form: one flat per-thread index within the CTA.** Call it `%ctatid`,
+**Minimal form: two flat indices** — one per-thread within the CTA, one per-CTA
+within the grid. Taking the thread one first: Call it `%ctatid`,
 in `[0, ntid.x·ntid.y·ntid.z)`. Everything else derives:
 
 | Wanted | From `%ctatid` |

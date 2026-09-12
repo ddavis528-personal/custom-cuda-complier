@@ -54,13 +54,21 @@ Pick `rbase = addr >> S` for any address and the allocation starts at
 touching `rbase`. No alignment constraint on the allocator, no carry, no
 renormalization in the common case.
 
-**Recommend `S = 16`.** 48 bits of reach matches the canonical x86-64 VA width
+**Settled: `S = 16`.** 48 bits of reach matches the canonical x86-64 VA width
 and current GPU VA widths, the window stride is 64 KiB (finer than any plausible
 allocation granularity), and the usable allocation size is 4 GiB less 64 KiB. If
 more reach is wanted later, `S = 20` costs 1 MiB of allocation headroom for
 another 4 bits.
 
-## 3. It composes with O-7 better than either decision anticipated
+## 3. It composes with O-7 — but see the correction in `identity-primitive.md` §5a
+
+**Qualified by codegen.** Writing out a real prologue shows the effective address
+wanted is `(rbase << S) + roffset + (i << scale)` — four addends against a
+three-input AGU — so `roffset` and `rindex` must be the same operand, the
+induction variable carries bytes rather than elements, and scale-enable is left
+clear on the general global-pointer path. The decomposition below holds where
+`roffset` is zero (2^S-aligned allocations) and for `.shared`; it is not the
+general case. See `identity-primitive.md` §5a.
 
 O-7 derived the index scale from `chwidth` on the argument that "the index a
 kernel computes is almost always an *element* index, not a byte index." Under
@@ -190,7 +198,8 @@ computes a shift.
 
 | Item | Kind |
 |---|---|
-| Fix `S` (recommend 16) | ISA parameter |
+| ~~Fix `S`~~ | **settled — S = 16** |
+| `cudaMalloc`-level 2^16 alignment guarantee (halves pointer register cost) | ABI, see `identity-primitive.md` §5a |
 | Confirm `.shared` stays 32-bit flat | ISA, §4 |
 | Whether `addc` (carry-out to predicate) is worth one of the 6 free low-32 points | deferred — needs codegen data |
 | Pointer-base register residency as a Step 5 measurement | backend |

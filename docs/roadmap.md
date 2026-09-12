@@ -238,15 +238,26 @@ Ordered so each step adds one new hard thing, and so the open ISA items get
 answered as a side effect of getting kernels through rather than as separate
 measurement exercises.
 
-### Step 0 — Close the two blockers *(no code)*
+### Step 0 — Close the ISA blockers *(no code)* — **complete**
 
-F-1 (special-register encoding) and F-2 (predicate spill path) are ISA-spec
-decisions, not backend decisions. Both are small. Neither can be routed around
-in codegen — per `backend-context.md` §6, that is the wrong response to this
-class of finding.
+Every finding that blocked codegen now has a settled direction, recorded in
+`proposals/`. Total encoding cost: 4 Format D points, 5 Format K points, 1
+Format G point, 1 Format B point. No new formats, no moved fields, nothing above
+32 bits.
 
-**Exit criterion:** an encoding for reading thread/CTA/lane indices, and a
-decision on `unballot` vs. `%laneid`-synthesized predicate reload.
+| Finding | Resolution | Proposal |
+|---|---|---|
+| F-1a identity primitive | `srd rd, #sel`, Format K, 1 point, 16 selectors | `identity-primitive.md` |
+| F-1b kernel parameters | launch block; pointer argument = two 32-bit slots | `launch-abi.md` |
+| F-1c entry register state | undefined; fixed address + Format F materialization | `launch-abi.md` |
+| F-2 predicate spill path | `ld.pred` / `st.pred`, 4-bit mask, Format D | `predicate-transfer.md` |
+| F-8 predicated predicate-dest writes | preserve | `predicate-transfer.md` |
+| F-9 stale Format D opcode map | delete the second map | `predicate-transfer.md` |
+| F-10 `packi` partial writes | preserve + `packi.z` | `predicate-transfer.md` |
+| F-11 address width | `(rbase << 16) + roffset`, 64 bits only in the AGU | `address-model.md` |
+
+**Exit criterion: met.** The remaining items are ISA-spec edits and an ABI
+document, neither of which blocks Step 1.
 
 ### Step 1 — Machine description and MC layer
 
@@ -330,10 +341,10 @@ answered. Update as items resolve.
 
 | Item | Answered by | Status |
 |---|---|---|
-| F-1a identity primitive (`%ctatid`) — uniform half settled by launch block | Step 0 | **open — the only opcode F-1 still needs; see `proposals/launch-abi.md`** |
+| F-1a identity primitive | Step 0 | **resolved — `srd rd, #sel`, Format K, 1 point; see `proposals/identity-primitive.md`** |
 | F-1b kernel parameter passing | Step 0 | **resolved — launch block; pointer arg = two 32-bit slots** |
 | F-1c entry register state / ABI | — | **resolved — fixed address + Format F materialization; entry state stays undefined** |
-| F-11 address width | Step 0 | **direction settled — `(rbase << S) + roffset`, 64 bits only in the AGU; see `proposals/address-model.md`. Remaining: fix `S` (16 recommended)** |
+| F-11 address width | Step 0 | **resolved — `(rbase << 16) + roffset`, 64 bits only in the AGU** |
 | F-2 predicate spill path / `unballot` (O-14) | Step 0 | **open — proposal in `proposals/predicate-transfer.md`; blocks Step 4** |
 | F-8 predicated write to a predicate destination — preserve or clear? | Step 0 | **open — preserve recommended, see proposal §7–8; blocks if-conversion** |
 | F-10 `packi` partial-write semantics — preserve + `packi.z` variant | Step 0 | **open — see proposal §6** |
