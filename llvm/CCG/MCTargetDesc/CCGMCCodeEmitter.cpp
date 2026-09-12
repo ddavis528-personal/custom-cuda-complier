@@ -49,6 +49,14 @@ unsigned CCGMCCodeEmitter::getMachineOpValue(const MCInst &, const MCOperand &MO
     return Ctx.getRegisterInfo()->getEncodingValue(MO.getReg());
   if (MO.isImm())
     return static_cast<unsigned>(MO.getImm());
+  if (MO.isExpr()) {
+    // A branch target. Assembly output resolves these through the streamer;
+    // object emission needs relocations, which are not implemented -- §3's
+    // branch offsets are halfword-granular and PC-relative, so each needs its
+    // own fixup kind. See roadmap F-25.
+    report_fatal_error("CCG: branch relocations are not implemented; emit "
+                       "assembly rather than an object file (roadmap F-25)");
+  }
   llvm_unreachable("CCG: unhandled operand kind in getMachineOpValue");
 }
 

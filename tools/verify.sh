@@ -45,4 +45,10 @@ if [ -x build/ccg-sim ]; then
   ./tools/run-tests.sh || fail=1
 fi
 
+echo
+if [ $fail -eq 0 ]; then
+  echo "  ================  VERIFY: PASS  ================"
+else
+  echo "  ================  VERIFY: FAIL  ================"
+fi
 exit $fail

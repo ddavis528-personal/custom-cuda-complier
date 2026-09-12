@@ -26,9 +26,15 @@ un=$(grep -c 'invariant.load' "$TMP/un.low.ll" 2>/dev/null)
 al=$(grep -c 'invariant.load' "$TMP/al.low.ll" 2>/dev/null)
 ro=$(grep -c 'roffset'        "$TMP/al.low.ll" 2>/dev/null)
 
-# 3 pointers + 1 scalar: 7 slots unaligned (2 per pointer), 4 aligned.
-[ "$un" = 7 ] || { echo "  FAIL  unaligned: $un launch-block loads, expected 7"; fail=1; }
-[ "$al" = 4 ] || { echo "  FAIL  aligned: $al launch-block loads, expected 4"; fail=1; }
+# Three pointers, so the aligned form must save exactly three slots -- one per
+# pointer. Asserting the DELTA rather than absolute counts: the block also
+# supplies blockDim and grid dimensions (§5.3), and more launch-time values may
+# join them, which would move both totals without changing what O-23 claims.
+delta=$(( un - al ))
+[ "$delta" = 3 ] || {
+  echo "  FAIL  aligned form saved $delta slots for 3 pointers, expected 3"
+  echo "        (unaligned $un, aligned $al)"; fail=1; }
+[ "$un" -gt "$al" ] || { echo "  FAIL  aligned form is not cheaper"; fail=1; }
 [ "$ro" = 0 ] || { echo "  FAIL  aligned kernel still loads an in-window offset"; fail=1; }
 
 # The kernel must end up with NO parameters at all: they arrive in the launch
@@ -44,7 +50,7 @@ for f in un al; do
 done
 
 if [ $fail -eq 0 ]; then
-  echo "  PASS  kernel args lowered to launch block (unaligned $un slots, aligned $al)"
+  echo "  PASS  kernel args lowered to launch block (unaligned $un slots, aligned $al: -$delta, one per pointer)"
   echo "  PASS  aligned pointers carry no in-window offset (O-23)"
 fi
 exit $fail

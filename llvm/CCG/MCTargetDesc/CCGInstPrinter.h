@@ -20,6 +20,7 @@ public:
   void printInstruction(const MCInst *MI, uint64_t Address, raw_ostream &O);
   bool printAliasInstr(const MCInst *MI, uint64_t Address, raw_ostream &O);
   void printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O);
+  void printPredQual(const MCInst *MI, unsigned OpNo, raw_ostream &O);
   static const char *getRegisterName(MCRegister Reg);
 };
 

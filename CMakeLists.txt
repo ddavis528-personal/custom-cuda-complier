@@ -73,6 +73,7 @@ add_library(CCGMC STATIC
   llvm/CCG/CCGISelDAGToDAG.cpp
   llvm/CCG/CCGAsmPrinter.cpp
   llvm/CCG/CCGCheckIR.cpp
+  llvm/CCG/CCGExpandPseudos.cpp
   llvm/CCG/MCTargetDesc/CCGAsmBackend.cpp)
 add_dependencies(CCGMC CCGTableGen)
 target_include_directories(CCGMC PUBLIC

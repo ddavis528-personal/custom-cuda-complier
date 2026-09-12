@@ -11,6 +11,7 @@ using namespace llvm;
 
 namespace llvm {
 FunctionPass *createCCGISelDag(CCGTargetMachine &TM, CodeGenOptLevel OL);
+FunctionPass *createCCGExpandPseudos();
 }
 
 // Pointers are 64 bits wide as clang emits them; no register holds one
@@ -49,6 +50,9 @@ public:
     addPass(createCCGISelDag(getCCGTargetMachine(), getOptLevel()));
     return false;
   }
+  /// After register allocation: predicate registers become qualifier
+  /// immediates, which is only possible once allocation has run.
+  void addPreEmitPass() override { addPass(createCCGExpandPseudos()); }
 };
 } // namespace
 

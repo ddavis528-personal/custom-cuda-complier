@@ -24,6 +24,8 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
@@ -53,8 +55,26 @@ enum : unsigned {
   OffNtidY   = 4,
   OffNtidZ   = 8,
   OffNctaidX = 12,
+  OffNctaidY = 16,
+  OffNctaidZ = 20,
   OffArgs    = 32,
 };
+
+/// §5.3: anything determined when the runtime prepares the launch lives in the
+/// block. Grid and block dimensions are launch-time; only thread and CTA
+/// identity need an instruction, and those stay as intrinsics for the backend
+/// to select to `srd`.
+std::optional<unsigned> launchBlockOffsetFor(Intrinsic::ID ID) {
+  switch (ID) {
+  case Intrinsic::nvvm_read_ptx_sreg_ntid_x:   return OffNtidX;
+  case Intrinsic::nvvm_read_ptx_sreg_ntid_y:   return OffNtidY;
+  case Intrinsic::nvvm_read_ptx_sreg_ntid_z:   return OffNtidZ;
+  case Intrinsic::nvvm_read_ptx_sreg_nctaid_x: return OffNctaidX;
+  case Intrinsic::nvvm_read_ptx_sreg_nctaid_y: return OffNctaidY;
+  case Intrinsic::nvvm_read_ptx_sreg_nctaid_z: return OffNctaidZ;
+  default: return std::nullopt;
+  }
+}
 
 struct LowerKernelArgs : PassInfoMixin<LowerKernelArgs> {
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
@@ -111,6 +131,21 @@ PreservedAnalyses LowerKernelArgs::run(Module &M, ModuleAnalysisManager &) {
       L->setMetadata(LLVMContext::MD_invariant_load, Invariant);
       return L;
     };
+
+    // Dimension intrinsics first: they are launch-time data, so they become
+    // ordinary invariant loads rather than instructions (§5.3).
+    SmallVector<std::pair<CallInst *, unsigned>, 8> DimCalls;
+    for (BasicBlock &BB : F)
+      for (Instruction &I : BB)
+        if (auto *CI = dyn_cast<CallInst>(&I))
+          if (Function *Callee = CI->getCalledFunction())
+            if (auto O = launchBlockOffsetFor(Callee->getIntrinsicID()))
+              DimCalls.emplace_back(CI, *O);
+    for (auto &[CI, O] : DimCalls) {
+      CI->replaceAllUsesWith(loadSlot(O, "ntid"));
+      CI->eraseFromParent();
+      Changed = true;
+    }
 
     unsigned Off = OffArgs;
     for (Argument &A : F.args()) {

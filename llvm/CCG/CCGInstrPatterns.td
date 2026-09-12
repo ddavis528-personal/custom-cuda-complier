@@ -17,6 +17,13 @@ def ccg_ret : SDNode<"CCGISD::RET", SDT_CCGRet,
 // with `exit`; `ret rs` for device functions arrives with the calling sequence.
 
 // ---------------------------------------------------------------------------
+// Control flow. The conditional forms are selected in C++ -- every compare
+// needs a true guard manufactured first (O-24), which is a sequence rather
+// than a tree rewrite.
+// ---------------------------------------------------------------------------
+def : Pat<(br bb:$t), (BRA bb:$t)>;
+
+// ---------------------------------------------------------------------------
 // Integer arithmetic. Format A is three-source; the two-source operations leave
 // rs2 unread, so it is tied to rs0 to avoid an extra live value.
 // ---------------------------------------------------------------------------

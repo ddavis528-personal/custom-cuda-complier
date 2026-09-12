@@ -1,6 +1,7 @@
 //===-- CCGInstPrinter.cpp - CCG assembly printer ------------------------===//
 #include "CCGInstPrinter.h"
 #include "CCGMCTargetDesc.h"
+#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -27,5 +28,17 @@ void CCGInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
     O << Op.getImm();
     return;
   }
-  O << "<expr>";
+  if (Op.isExpr()) {
+    Op.getExpr()->print(O, &MAI);
+    return;
+  }
+  O << "<unknown>";
+}
+
+void CCGInstPrinter::printPredQual(const MCInst *MI, unsigned OpNo,
+                                   raw_ostream &O) {
+  unsigned Q = unsigned(MI->getOperand(OpNo).getImm());
+  if (Q & 4)
+    O << '!';
+  O << 'p' << (Q & 3);
 }

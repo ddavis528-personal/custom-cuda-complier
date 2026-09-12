@@ -109,18 +109,21 @@ void CCGDAGToDAGISel::Select(SDNode *N) {
     // the way down, and no register ever holds an address.
     bool IsLoad = N->getOpcode() == CCGISD::LD_BASEIDX;
     SmallVector<SDValue, 6> Ops;
+    unsigned ScaleOp;
     if (IsLoad) {
       Ops.push_back(N->getOperand(1));                              // rbase
       Ops.push_back(N->getOperand(2));                              // rindex
+      ScaleOp = 3;
     } else {
       Ops.push_back(N->getOperand(1));                              // value
       Ops.push_back(N->getOperand(2));                              // rbase
       Ops.push_back(N->getOperand(3));                              // rindex
+      ScaleOp = 4;
     }
-    // scale-enable: the index is an element index, so chwidth supplies the
-    // shift (O-7). Only valid because the in-window offset is zero, which is
-    // the aligned case (O-23).
-    Ops.push_back(CurDAG->getTargetConstant(1, DL, MVT::i32));
+    // scale-enable, decided by the matcher: set when the index is an element
+    // index, so the AGU supplies the chwidth-derived shift (O-7); clear when
+    // it is a byte offset, which is the unaligned shape (O-23).
+    Ops.push_back(N->getOperand(ScaleOp));
     Ops.push_back(CurDAG->getTargetConstant(0, DL, MVT::i32));      // disp
     Ops.push_back(N->getOperand(0));                                // chain
 
@@ -151,6 +154,39 @@ void CCGDAGToDAGISel::Select(SDNode *N) {
                : CurDAG->getMachineNode(CCG::ST_GLOBAL, DL, MVT::Other, Ops);
     CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
     ReplaceNode(N, MN);
+    return;
+  }
+  case ISD::SETCC: {
+    // O-24: there is no unpredicated compare, and no hardwired always-true
+    // predicate, so a guard has to be manufactured. PSEUDO_PTRUE supplies one
+    // and the tie on PSEUDO_SETP forces it into the compare's own destination
+    // -- the self-guarding form, which costs one predicate rather than two.
+    ISD::CondCode CC = cast<CondCodeSDNode>(N->getOperand(2))->get();
+    SDValue LHS = N->getOperand(0), RHS = N->getOperand(1);
+    unsigned Opc;
+    // gt/ge are lt/le with the operands swapped -- §3 allocates 18 setp points
+    // and there is no reason to spend two of them on reversible predicates.
+    switch (CC) {
+    case ISD::SETLT: Opc = CCG::PSEUDO_SETP_LT; break;
+    case ISD::SETLE: Opc = CCG::PSEUDO_SETP_LE; break;
+    case ISD::SETEQ: Opc = CCG::PSEUDO_SETP_EQ; break;
+    case ISD::SETNE: Opc = CCG::PSEUDO_SETP_NE; break;
+    case ISD::SETGT: Opc = CCG::PSEUDO_SETP_LT; std::swap(LHS, RHS); break;
+    case ISD::SETGE: Opc = CCG::PSEUDO_SETP_LE; std::swap(LHS, RHS); break;
+    default:
+      report_fatal_error("CCG: condition code " + Twine(unsigned(CC)) +
+                         " not implemented (unsigned and FP compares are "
+                         "roadmap F-24)");
+    }
+    SDNode *True = CurDAG->getMachineNode(CCG::PSEUDO_PTRUE, DL, MVT::i1);
+    ReplaceNode(N, CurDAG->getMachineNode(Opc, DL, MVT::i1,
+                                          {SDValue(True, 0), LHS, RHS}));
+    return;
+  }
+  case ISD::BRCOND: {
+    ReplaceNode(N, CurDAG->getMachineNode(
+                       CCG::PSEUDO_BRA_PRED, DL, MVT::Other,
+                       {N->getOperand(1), N->getOperand(2), N->getOperand(0)}));
     return;
   }
   case ISD::INTRINSIC_WO_CHAIN: {

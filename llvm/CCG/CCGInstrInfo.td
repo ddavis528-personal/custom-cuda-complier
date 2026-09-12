@@ -30,7 +30,11 @@ def uimm17  : Operand<i32>;
 def uimm29  : Operand<i32>;
 def uimm32  : Operand<i32>;
 def uimm33  : Operand<i32>;
-def pqual   : Operand<i32>;   // 2-bit predicate address + negate
+// 2-bit predicate address + negate (§1). Printed as @p1 / @!p1 rather than as
+// a raw field value -- these listings are the verification artifact.
+def pqual   : Operand<i32> { let PrintMethod = "printPredQual"; }
+def brtarget21 : Operand<OtherVT>;
+def brtarget18 : Operand<OtherVT>;
 def psrc    : Operand<i32>;   // same shape, used by predicate logic
 def pmask4  : Operand<i32>;   // 4-bit predicate bitmask for ld.pred/st.pred
 def srdsel  : Operand<i32>;   // srd selector
@@ -82,8 +86,17 @@ def UNPACKI : FormatB<22, (outs GPR:$rd), (ins GPR:$rs0, uimm3:$imm),
 // ---------------------------------------------------------------------------
 // Format C / C' -- compare. Predicate destination is mandatory.
 // ---------------------------------------------------------------------------
+// §3: the 5-bit opcode covers {6 comparison predicates} x {signed, unsigned,
+// FP} = 18 points. Signed integer forms; ASSIGNED 0-3. `gt` and `ge` come from
+// swapping the operands rather than spending points on them.
 def SETP_LT : FormatC<0, (outs PR:$pd, GPR:$rd), (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
                       "@$pq setp.lt $pd, $rs0, $rs1">;
+def SETP_LE : FormatC<1, (outs PR:$pd, GPR:$rd), (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
+                      "@$pq setp.le $pd, $rs0, $rs1">;
+def SETP_EQ : FormatC<2, (outs PR:$pd, GPR:$rd), (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
+                      "@$pq setp.eq $pd, $rs0, $rs1">;
+def SETP_NE : FormatC<3, (outs PR:$pd, GPR:$rd), (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
+                      "@$pq setp.ne $pd, $rs0, $rs1">;
 def SETP_GE_I : FormatCp<3, (outs PR:$pd, GPR:$rd),
                          (ins pqual:$pq, GPR:$rs0, simm8:$imm),
                          "@$pq setp.ge $pd, $rs0, $imm">;
@@ -138,10 +151,10 @@ def CAS_G : FormatMp<16, (outs GPR:$rd, PR:$pd),
 // Format E -- control flow, barrier.
 // ---------------------------------------------------------------------------
 let isBranch = 1, isTerminator = 1, isBarrier = 1 in
-def BRA : FormatEbra<0b00000, (outs), (ins simm21:$off), "bra $off">;
+def BRA : FormatEbra<0b00000, (outs), (ins brtarget21:$off), "bra $off">;
 
 let isBranch = 1, isTerminator = 1 in
-def BRA_PRED : FormatEbrap<0b00001, (outs), (ins pqual:$pq, simm18:$off),
+def BRA_PRED : FormatEbrap<0b00001, (outs), (ins pqual:$pq, brtarget18:$off),
                            "@$pq bra $off">;
 
 let isCall = 1 in
@@ -233,3 +246,30 @@ def PAND : FormatKplog<60, (outs PR:$pd), (ins psrc:$ps0, psrc:$ps1), "pand $pd,
 def POR  : FormatKplog<61, (outs PR:$pd), (ins psrc:$ps0, psrc:$ps1), "por $pd, $ps0, $ps1">;
 def PXOR : FormatKplog<62, (outs PR:$pd), (ins psrc:$ps0, psrc:$ps1), "pxor $pd, $ps0, $ps1">;
 def PMOV : FormatKplog<63, (outs PR:$pd), (ins psrc:$ps0, psrc:$ps1), "pmov $pd, $ps0">;
+
+
+// ---------------------------------------------------------------------------
+// Codegen pseudos -- see the note above. None of these encode; each expands to
+// a real instruction in CCGExpandPseudos, after register allocation.
+// ---------------------------------------------------------------------------
+let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
+
+  // O-24: Formats C/C' carry a MANDATORY predicate qualifier and there is no
+  // unpredicated compare, so every compare needs a true guard. Expands to
+  // `por pd, !pd, pd`, which is all-ones whatever pd held.
+  def PSEUDO_PTRUE : CCGInst<0, (outs PR:$pd), (ins), "# ptrue $pd">;
+
+  // The guard is TIED to the destination, which forces the self-guarding form
+  // of the O-24 addendum: `por P0,!P0,P0` then `@P0 setp P0, ...`. One
+  // predicate, not two, so the effective file stays at four.
+  let Constraints = "$pd = $guard" in {
+    foreach cc = ["LT", "LE", "EQ", "NE"] in
+      def PSEUDO_SETP_#cc : CCGInst<0, (outs PR:$pd),
+                                    (ins PR:$guard, GPR:$a, GPR:$b),
+                                    "# setp."#cc#" $pd, $a, $b">;
+  }
+
+  let isBranch = 1, isTerminator = 1 in
+  def PSEUDO_BRA_PRED : CCGInst<0, (outs), (ins PR:$guard, brtarget18:$off),
+                                "# @$guard bra $off">;
+}

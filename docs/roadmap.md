@@ -376,21 +376,53 @@ invariant 11 survives into generated code:
 	exit
 ```
 
-**Remaining: compares and branches.** `i1` now lives in `PR`, which
-type-legalizes a branch; the selection patterns are not written. `setcc` is the
-substantial one — the predicate qualifier is an immediate field in the encoding
-but a register read semantically, so it needs to be a register operand with a
-custom encoder, and O-24's bootstrap means every compare needs a guard. Also
-inline asm, and value-returning device functions (F-21).
+**Compares and branches work.** The predicate qualifier is an immediate *field*
+in the encoding (§3, `[29:27]`) but a register *read* semantically. Rather than
+make it a compound MC operand — which would have changed the operand shape and
+rippled into the assembler, encoder, disassembler, round-trip and simulator, all
+of which are verified — codegen uses **pseudos carrying predicate registers**,
+expanded after register allocation, where the allocated register number becomes
+the immediate. O-24's guard is a pseudo whose result is **tied to the compare's
+destination**, so the allocator is what enforces the self-guarding form.
 
-**Exit criterion:** a CUDA elementwise kernel compiled from source through the
-backend, executed on the simulator, correct result. Frontend and ABI lowering are
-done; instruction selection is not.
+**`vadd.cu` compiles end to end, from CUDA source to native instructions:**
 
-The Phase 1 pipeline validator. Fixed width throughout — no `chwidth`
-transitions, so none of F-3 is needed yet.
+```
+_Z4vaddPfPKfS1_i:
+	f48        r0, 2                ; launch base >> 16
+	ld.global  r1, [r0 + 0]         ; blockDim.x, from the launch block (§5.3)
+	srd        r2, 0                ; %ctatid
+	srd        r3, 1                ; %ctaid
+	mad.lo     r1, r3, r1, r2       ; i = ctaid*ntid + tid
+	ld.global  r2, [r0 + 56]        ; n
+	por        p0, 4, 0             ; O-24 bootstrap: P0 = all ones
+	@p0 setp.le p0, r2, r1          ; self-guarding, one predicate not two
+	@p0 bra    LBB0_2
+	bra        LBB0_1
+LBB0_1:
+	ld.global  r2, [r0 + 48]        ; b.rbase
+	ld.global  r2, [r2, r1, 1, 0]   ; b[i] -- scale-enable set
+	ld.global  r3, [r0 + 40]        ; a.rbase
+	ld.global  r3, [r3, r1, 1, 0]   ; a[i]
+	fadd       r3, r2               ; compressed destructive
+	ld.global  r0, [r0 + 32]        ; c.rbase
+	st.global  r3, [r0, r1, 1, 0]   ; c[i]
+LBB0_2:
+	exit
+```
 
-This is the `backend-context.md` §5.1 Phase 1 milestone.
+Three things worth noting in that output. `mad.lo` picks up the three-source
+form for `ctaid*ntid + tid`, exactly as the §5.5 listing predicted. Scale-enable
+is set on all three array accesses, so **O-7's chwidth-derived scaling is
+actually firing** — which only happens for aligned pointers (O-23). And the
+compare guards itself, so the effective predicate file stays at four.
+
+**Exit criterion: not yet met — it compiles but does not execute.** The
+simulator takes a flat binary, and object emission needs branch relocations:
+§3's branch offsets are PC-relative and halfword-granular, and the `bra.pred`
+offset is split around the qualifier, so each needs its own fixup kind. Tracked
+as **F-25**. That is the last step between here and a CUDA kernel producing a
+correct answer on the simulator.
 
 ### Step 4 — Reduction kernel
 
@@ -464,6 +496,8 @@ answered. Update as items resolve.
 | F-21 Value-returning device functions need a variadic return pseudo | Step 4 | open — kernels return void, so not blocking |
 | F-22 Pointers escaping an addressing mode have no lowering convention | Step 4 | open — diagnosed at compile time, not silently miscompiled; needs an (rbase, roffset) pair convention |
 | F-23 The <4 GiB allocation precondition is implicit in the lowering | Step 5 | open — belongs with O-23's launch-time validation; the compiler cannot check it |
+| F-24 Unsigned and FP compares not selected | Step 4 | open — signed integer set is complete; diagnosed rather than miscompiled |
+| F-25 Branch relocations not implemented, so no object emission | Step 3 | **open — the last gap between compiling and executing** |
 | F-19 Every compare is predicated; a kernel must manufacture a true predicate | Step 2 | resolved in v1.4 O-24, refined in v1.5 — self-guarding form costs one predicate, not two; regression test in `test/predicate-remat.s` |
 | F-18 Two of the four GPR arguments are contingent on kernel-pointer alignment | Step 0 | resolved — per-argument attribute, v1.4 O-23; see `proposals/pointer-alignment.md`. Step 5 must report both shapes |
 | F-13 Format G is several field layouts presented as one table | Step 1 | resolved in v1.4 — written out as four tables |

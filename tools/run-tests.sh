@@ -106,6 +106,34 @@ else
   echo "  (ccg-llc not built; skipping)"
 fi
 
+# --- the whole pipeline: CUDA source -> native instructions ----------------
+echo
+echo "  --- CUDA source to native ISA ---"
+if [ -x build/ccg-llc ] && [ -f build/CCGLowerKernelArgs.so ]; then
+  ./tools/cuda-to-ir.sh test/cuda/vadd-aligned.cu "$TMP/v.ll" >/dev/null 2>&1
+  opt -load-pass-plugin=build/CCGLowerKernelArgs.so \
+      -passes='ccg-lower-kernel-args,instcombine,gvn,simplifycfg' \
+      -S "$TMP/v.ll" -o "$TMP/v.low.ll" 2>/dev/null
+  if build/ccg-llc "$TMP/v.low.ll" -o "$TMP/v.s" 2>"$TMP/v.err"; then
+    n=$(grep -cE '^[[:space:]]+[a-z]' "$TMP/v.s")
+    # The shapes that matter: the O-24 bootstrap, a guarded branch, and
+    # scale-enable set on the array accesses (O-7 firing, which only happens
+    # for aligned pointers -- O-23).
+    ok=1
+    grep -q 'por p0' "$TMP/v.s"                  || { echo "  FAIL  no O-24 predicate bootstrap"; ok=0; }
+    grep -q '@p0 setp' "$TMP/v.s"                || { echo "  FAIL  compare is not guarded"; ok=0; }
+    grep -q '@p0 bra'  "$TMP/v.s"                || { echo "  FAIL  no predicated branch"; ok=0; }
+    grep -qE 'ld.global r[0-9]+, \[r[0-9]+, r[0-9]+, 1, 0\]' "$TMP/v.s" \
+      || { echo "  FAIL  base+index with scale-enable not used"; ok=0; }
+    grep -q 'fadd' "$TMP/v.s"                    || { echo "  FAIL  no fadd"; ok=0; }
+    [ $ok -eq 1 ] && echo "  PASS  vadd.cu compiles to $n native instructions" || fail=1
+  else
+    echo "  FAIL  vadd.cu did not compile: $(head -1 "$TMP/v.err")"; fail=1
+  fi
+else
+  echo "  (backend not built; skipping)"
+fi
+
 # --- assembler / encoder cross-check --------------------------------------
 # ccg-as.py encodes from the TableGen JSON; the C++ MCCodeEmitter encodes from
 # gen-emitter. Two independent paths over one description (roadmap F-6).

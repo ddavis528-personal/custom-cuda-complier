@@ -48,11 +48,19 @@ CCGTargetLowering::CCGTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::ROTR, VT, Expand);
     // Format C compares produce a predicate, not a GPR bit pattern; branches
     // read the predicate directly, so BR_CC / SELECT_CC are the natural forms.
+    // Format C compares write a predicate; branches read one. BR_CC and
+    // SELECT_CC are expanded into setcc + brcond so the predicate is an
+    // explicit value the allocator can see.
     setOperationAction(ISD::BR_CC, VT, Expand);
     setOperationAction(ISD::SELECT_CC, VT, Expand);
+    setOperationAction(ISD::SELECT, VT, Expand);
   }
   setOperationAction(ISD::BR_CC, MVT::f32, Expand);
   setOperationAction(ISD::SELECT_CC, MVT::f32, Expand);
+  setOperationAction(ISD::SELECT, MVT::f32, Expand);
+  // brcond takes an i1; there is no BRCOND over a GPR bit pattern, because a
+  // branch reads the predicate file directly (§3, Format E).
+  setOperationAction(ISD::BRCOND, MVT::Other, Legal);
 }
 
 const char *CCGTargetLowering::getTargetNodeName(unsigned Opcode) const {
@@ -67,9 +75,18 @@ const char *CCGTargetLowering::getTargetNodeName(unsigned Opcode) const {
   }
 }
 
-/// Match (rbase << 16) + idx, the shape CCGLowerKernelArgs leaves for a global
-/// pointer (§5.1). Returns false if the address is not in that form.
-static bool matchBaseIdx(SDValue Addr, SDValue &Base, SDValue &Idx) {
+/// Match (rbase << 16) + (idx << scale), the shape CCGLowerKernelArgs leaves
+/// for a global pointer once a getelementptr has scaled the element index
+/// (§5.1).
+///
+/// The scale is the interesting part. O-7 derives the index shift from the
+/// destination's chwidth so that A[i] is one instruction at any element width;
+/// a GEP has already applied exactly that shift, so matching it and setting
+/// scale-enable hands the work back to the AGU. If the index is a raw byte
+/// offset instead -- which is what the unaligned case produces, since the
+/// in-window offset has to be folded into it -- scale-enable stays clear.
+static bool matchBaseIdx(SDValue Addr, EVT MemVT, SDValue &Base, SDValue &Idx,
+                         bool &ScaleEnable) {
   if (Addr.getOpcode() != ISD::ADD)
     return false;
   auto window = [](SDValue V, SDValue &Out) {
@@ -93,6 +110,17 @@ static bool matchBaseIdx(SDValue Addr, SDValue &Base, SDValue &Idx) {
     Other = Addr.getOperand(0);
   else
     return false;
+
+  // A shift by log2(element size) is the GEP's scaling, which the AGU can do.
+  ScaleEnable = false;
+  unsigned ElemLog2 = Log2_32(MemVT.getStoreSize());
+  if (Other.getOpcode() == ISD::SHL)
+    if (auto *C = dyn_cast<ConstantSDNode>(Other.getOperand(1)))
+      if (C->getZExtValue() == ElemLog2) {
+        Other = Other.getOperand(0);
+        ScaleEnable = true;
+      }
+
   while (Other.getOpcode() == ISD::ZERO_EXTEND ||
          Other.getOpcode() == ISD::SIGN_EXTEND ||
          Other.getOpcode() == ISD::ANY_EXTEND)
@@ -136,8 +164,10 @@ SDValue CCGTargetLowering::PerformDAGCombine(SDNode *N,
       return SDValue();
     SDVTList VTs = DAG.getVTList(LD->getValueType(0), MVT::Other);
     SDValue Base, Idx, New;
-    if (matchBaseIdx(LD->getBasePtr(), Base, Idx)) {
-      SDValue Ops[] = {LD->getChain(), Base, Idx};
+    bool Scale = false;
+    if (matchBaseIdx(LD->getBasePtr(), LD->getMemoryVT(), Base, Idx, Scale)) {
+      SDValue Ops[] = {LD->getChain(), Base, Idx,
+                       DAG.getTargetConstant(Scale, DL, MVT::i32)};
       New = DAG.getMemIntrinsicNode(CCGISD::LD_BASEIDX, DL, VTs, Ops,
                                     LD->getMemoryVT(), LD->getMemOperand());
     } else if (matchBaseOff(DAG, DL, LD->getBasePtr(), Base, Idx)) {
@@ -159,8 +189,10 @@ SDValue CCGTargetLowering::PerformDAGCombine(SDNode *N,
       return SDValue();
     SDVTList VTs = DAG.getVTList(MVT::Other);
     SDValue Base, Idx;
-    if (matchBaseIdx(ST->getBasePtr(), Base, Idx)) {
-      SDValue Ops[] = {ST->getChain(), ST->getValue(), Base, Idx};
+    bool Scale = false;
+    if (matchBaseIdx(ST->getBasePtr(), ST->getMemoryVT(), Base, Idx, Scale)) {
+      SDValue Ops[] = {ST->getChain(), ST->getValue(), Base, Idx,
+                       DAG.getTargetConstant(Scale, DL, MVT::i32)};
       return DAG.getMemIntrinsicNode(CCGISD::ST_BASEIDX, DL, VTs, Ops,
                                      ST->getMemoryVT(), ST->getMemOperand());
     }

@@ -5,6 +5,8 @@
 #include "TargetInfo/CCGTargetInfo.h"
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/TargetRegistry.h"
@@ -34,6 +36,10 @@ void CCGAsmPrinter::emitInstruction(const MachineInstr *MI) {
       break;
     case MachineOperand::MO_Immediate:
       Inst.addOperand(MCOperand::createImm(MO.getImm()));
+      break;
+    case MachineOperand::MO_MachineBasicBlock:
+      Inst.addOperand(MCOperand::createExpr(
+          MCSymbolRefExpr::create(MO.getMBB()->getSymbol(), OutContext)));
       break;
     default:
       report_fatal_error("CCG: unhandled machine operand in asm printing");
