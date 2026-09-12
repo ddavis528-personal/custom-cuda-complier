@@ -1,0 +1,19 @@
+  0000  mask=ffffffff  	f48 r0, 2
+  0006  mask=ffffffff  	ld.global r1, [r0 + 0]
+  000a  mask=ffffffff  	srd r2, 0
+  000c  mask=ffffffff  	srd r3, 1
+  000e  mask=ffffffff  	mad.lo r1, r3, r1, r2
+  0012  mask=ffffffff  	ld.global r2, [r0 + 56]
+  0016  mask=ffffffff  	por p0, 4, 0
+  0018  mask=ffffffff  	@p0 setp.le p0, r2, r1
+  001c  mask=ffffffff  	@p0 bra 15
+  0020  mask=ffffffff  	bra 0
+  0024  mask=ffffffff  	ld.global r2, [r0 + 48]
+  0028  mask=ffffffff  	ld.global r2, [r2, r1, 1, 0]
+  002c  mask=ffffffff  	ld.global r3, [r0 + 40]
+  0030  mask=ffffffff  	ld.global r3, [r3, r1, 1, 0]
+  0034  mask=ffffffff  	fadd r3, r2
+  0036  mask=ffffffff  	ld.global r0, [r0 + 32]
+  003a  mask=ffffffff  	st.global r3, [r0, r1, 1, 0]
+  003e  mask=ffffffff  	exit
+  executed 18 issue groups
