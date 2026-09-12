@@ -18,6 +18,7 @@ generated documentation.
 | [`docs/isa-v1.2-operation-map-and-encoding.md`](docs/isa-v1.2-operation-map-and-encoding.md) | Superseded by 1.3. |
 | [`llvm/CCG/`](llvm/CCG/) | TableGen machine description. `tools/verify.sh` checks it against the invariants above. |
 | [`docs/backend-context.md`](docs/backend-context.md) | Ground truth for *why the backend is built the way it is*. Target strategy, bring-up phasing, the open ISA items that compiler output is meant to resolve. |
+| [`docs/compiler-findings-summary.md`](docs/compiler-findings-summary.md) | Standalone summary of what the compiler work found about the ISA, written for the architecture track. |
 | [`docs/roadmap.md`](docs/roadmap.md) | Bring-up plan, sequencing, and the ISA findings that the compiler-side review has surfaced so far. |
 
 Read the ISA spec for encoding questions and the backend context for scope
