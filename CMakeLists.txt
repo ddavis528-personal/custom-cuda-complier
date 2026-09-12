@@ -75,5 +75,10 @@ add_executable(ccg-roundtrip tools/ccg-roundtrip/main.cpp)
 add_dependencies(ccg-roundtrip CCGTableGen)
 target_link_libraries(ccg-roundtrip PRIVATE CCGMC)
 
+add_executable(ccg-sim tools/ccg-sim/main.cpp tools/ccg-sim/Interp.cpp)
+add_dependencies(ccg-sim CCGTableGen)
+target_include_directories(ccg-sim PRIVATE ${CMAKE_SOURCE_DIR}/tools/ccg-sim)
+target_link_libraries(ccg-sim PRIVATE CCGMC)
+
 enable_testing()
 add_test(NAME roundtrip COMMAND ccg-roundtrip)

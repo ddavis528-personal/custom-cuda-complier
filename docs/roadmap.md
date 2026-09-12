@@ -304,13 +304,29 @@ via programmatic `MCInst`s with randomized operands rather than hand-written
 assembly, which covers more of the encoding space than a fixed test corpus
 would. Text assembly follows with the asm parser.
 
-### Step 2 — Functional simulator
+### Step 2 — Functional simulator *(exit criterion met)*
 
-Per F-6. Consumes the generated decoder. Enough to execute a warp of 32 lanes
-with the memory spaces, barriers and predicates the bootstrap kernels need.
+**Done:** `tools/ccg-sim` executes a warp of 32 lanes with independent
+per-thread PCs, driving the generated disassembler so decoding is not
+re-implemented — the simulator is semantics only, which is the division F-6
+settled on. Plus `tools/ccg-as.py`, a minimal assembler driven from the
+TableGen JSON, so kernels are text rather than hand-built `MCInst`s.
 
-**Exit criterion:** hand-written assembly kernels execute and produce correct
-results.
+**Exit criterion: met.** `test/elementwise.s` assembles, executes and produces
+correct results for all 32 lanes, at three divergence levels (32, 20 and 1 active
+thread). `tools/run-tests.sh` is the gate.
+
+Two things it demonstrated that the encoding work could not:
+
+- **Opportunistic reconvergence works as §1 describes it.** Under divergence the
+  issue mask narrows to the active lanes for the body and returns to `ffffffff`
+  at `exit` — lanes regroup because their PCs coincide, with no bracket
+  instruction and nothing forcing it.
+- **O-24**, below: a kernel cannot execute a single compare without first
+  manufacturing an all-true predicate.
+
+**Not yet:** shared memory, barriers, atomics, and the `chwidth` narrow-width
+paths. Added as the reduction and GEMM kernels need them.
 
 ### Step 3 — Instruction selection, elementwise kernel at 32-bit width
 
@@ -382,6 +398,7 @@ answered. Update as items resolve.
 | F-9 Format D carries two contradictory opcode maps (editorial) | — | resolved in v1.3 |
 | F-12 32 GPRs is an encoding fork, not a subtarget flag | Step 5 | recorded in v1.4 §1/§11; still open as a *decision*, pending GEMM spill data |
 | F-17 §5.5 figures were wrong (23 not 22 instructions, 27.1 not 28.4 b/instr, 8 not ~10 live) | — | fixed in v1.4; `tools/check-listings.py` now re-derives them |
+| F-19 Every compare is predicated; a kernel must manufacture a true predicate | Step 2 | resolved in v1.4 O-24 — idiom documented, no encoding change |
 | F-18 Two of the four GPR arguments are contingent on kernel-pointer alignment | Step 0 | resolved — per-argument attribute, v1.4 O-23; see `proposals/pointer-alignment.md`. Step 5 must report both shapes |
 | F-13 Format G is several field layouts presented as one table | Step 1 | resolved in v1.4 — written out as four tables |
 | F-14 Format B′/B″ move the predicate qualifier off `[29:27]` | Step 1 | resolved in v1.4 — O-22; checker now reports 0 deviations |

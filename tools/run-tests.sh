@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Step 2 gate: kernels assemble, execute, and produce correct results.
+set -uo pipefail
+cd "$(dirname "$0")/.."
+
+AS=tools/ccg-as.py
+JSON=build/generated/CCG.json
+SIM=build/ccg-sim
+TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+fail=0
+
+if [ ! -x "$SIM" ] || [ ! -f "$JSON" ]; then
+  echo "  build not present -- run cmake --build build"; exit 1
+fi
+
+# --- elementwise: c[i] = a[i] + b[i] --------------------------------------
+# a[i] = 10i, b[i] = i+1, so c[i] = 11i + 1.
+run_elementwise() {
+  local n=$1 label=$2
+  python3 "$AS" "$JSON" test/elementwise.s "$TMP/ew.bin" >/dev/null || return 1
+  local args=(-poke 0x20000=32 -poke 0x20004=$n
+              -poke 0x20008=5 -poke 0x2000c=3 -poke 0x20010=4)
+  for i in $(seq 0 31); do
+    args+=(-poke $((0x30000 + i*4))=$((i*10)) -poke $((0x40000 + i*4))=$((i+1)))
+    args+=(-poke $((0x50000 + i*4))=4294967295)      # poison c[]
+  done
+  for i in $(seq 0 31); do args+=(-peek $((0x50000 + i*4))); done
+
+  local out; out=$("$SIM" "$TMP/ew.bin" "${args[@]}" 2>&1) || { echo "$out"; return 1; }
+  local bad=0
+  for i in $(seq 0 31); do
+    local got want
+    got=$(echo "$out" | grep -oP "\[0x$(printf %x $((0x50000 + i*4)))\] = \K\d+")
+    if [ "$i" -lt "$n" ]; then want=$((11*i + 1)); else want=4294967295; fi
+    if [ "$got" != "$want" ]; then
+      echo "    lane $i: got $got, want $want"; bad=1
+    fi
+  done
+  if [ $bad -eq 0 ]; then
+    echo "  PASS  $label ($(echo "$out" | grep -oP 'executed \K\d+') issue groups)"
+  else
+    echo "  FAIL  $label"; return 1
+  fi
+}
+
+echo "  --- functional simulator ---"
+run_elementwise 32 "elementwise, all 32 lanes active"        || fail=1
+# n < 32 makes lanes n..31 take the guard branch. They diverge from the rest and
+# never rejoin -- there is no bracket and nothing forces reconvergence (§1).
+run_elementwise 20 "elementwise, 20 of 32 lanes (divergence)" || fail=1
+run_elementwise  1 "elementwise, 1 of 32 lanes (max divergence)" || fail=1
+
+# --- assembler / encoder cross-check --------------------------------------
+# ccg-as.py encodes from the TableGen JSON; the C++ MCCodeEmitter encodes from
+# gen-emitter. Two independent paths over one description (roadmap F-6).
+echo
+echo "  --- assembler vs generated encoder ---"
+python3 "$AS" "$JSON" test/smoke.s "$TMP/smoke.bin" >/dev/null
+if python3 tools/check-assembler.py "$JSON" test/smoke.s "$TMP/smoke.bin"; then
+  echo "  PASS  independent encoders agree"
+else
+  echo "  FAIL  encoder disagreement"; fail=1
+fi
+
+echo
+[ $fail -eq 0 ] && echo "  all simulator tests pass" || echo "  SIMULATOR TESTS FAILED"
+exit $fail

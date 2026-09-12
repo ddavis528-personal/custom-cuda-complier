@@ -40,4 +40,9 @@ else
   echo "  (build/ccg-roundtrip not built -- see llvm/CCG/README.md; skipping round trip)"
 fi
 
+if [ -x build/ccg-sim ]; then
+  echo
+  ./tools/run-tests.sh || fail=1
+fi
+
 exit $fail

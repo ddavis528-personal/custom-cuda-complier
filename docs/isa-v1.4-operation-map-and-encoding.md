@@ -39,6 +39,12 @@ sentence is gone.
 clauses.** No bit assignment changes. The merged table required a decoder implementer to
 reconstruct the split unaided, and different readers would reconstruct it differently.
 
+*Documented.* **A kernel must open by manufacturing an all-true predicate** (O-24). Formats
+C and C′ carry a mandatory qualifier and there is no unpredicated compare, so the first
+compare in a kernel has no valid guard. Compressed forms are never predicated, so
+`por pd, !ps, ps` supplies one in 16 bits. Both worked listings in §5.5 and §5.6 now open
+with it. No encoding change; found by running a kernel.
+
 *Settled.* **Kernel-pointer alignment is a per-argument attribute** (O-23), and §5.6 works
 the aligned case: 16 instructions and 5 live GPRs against 23 and 8. Two of §1's four
 GPR-count arguments are contingent on it, so it had to be settled before register-pressure
@@ -1354,13 +1360,14 @@ The simplest useful CUDA kernel, fully lowered, exercising every decision in thi
 ;  __global__ void add(float* c, const float* a, const float* b, int n)
 ;  { int i = blockIdx.x*blockDim.x + threadIdx.x; if (i<n) c[i] = a[i] + b[i]; }
 
+    por        P3,  !P0, P0            ; 16  all-true predicate; see below
     f48        R0,  #LAUNCH_BASE        ; 48  launch block base
     srd        R1,  #CTATID             ; 16  tid.x      (1-D block)
     srd        R2,  #CTAID              ; 16  blockIdx.x (1-D grid)
     ld.global  R3,  [R0 + #NTID_X]      ; 32  blockDim.x
     mad.lo     R1,  R2, R3, R1          ; 32  i
     ld.global  R4,  [R0 + #ARG_N]       ; 32  n
-    setp.ge    P0,  R1, R4              ; 32
+    @P3 setp.ge P0, R1, R4             ; 32
     @P0 bra    Lexit                    ; 32
     ld.global  R5,  [R0 + #ARG_C + 0]   ; 32  c.rbase
     ld.global  R6,  [R0 + #ARG_C + 4]   ; 32  c.roffset
@@ -1380,9 +1387,17 @@ Lexit:
     exit                                ; 16
 ```
 
-23 instructions, 624 bits — **27.1 bits per instruction**, against 736 for a fixed-32
-encoding, a 15% saving. The compressed forms fire on the four offset folds, the `fadd` and
+24 instructions, 640 bits — **26.7 bits per instruction**, against 768 for a fixed-32
+encoding, a 17% saving. The compressed forms fire on the four offset folds, the `fadd` and
 `exit` without the allocator being asked for anything.
+
+**Why a kernel opens by manufacturing a predicate.** Formats C and C′ carry a
+**mandatory** predicate qualifier and there is no unpredicated compare tag, so every
+compare is guarded — and with no hardwired always-true predicate (§1) the first compare in
+a kernel has nothing valid to be guarded by. The way out is that **compressed forms are
+never predicated**: `por pd, !ps, ps` yields all-ones whatever `ps` holds, in 16 bits. Note
+that this only became cheap in 1.3 — before the Format K predicate logic of O-20, the only
+constant-to-predicate path was `pmov`, which exists only at 48 bits. See O-24.
 
 Peak live GPRs is **8 of 16**, at the last argument load: `R0` across the argument loads,
 six for three pointers, and the induction variable.
@@ -1396,13 +1411,14 @@ nothing to fold, all three arrays share one index register, and the index can ca
 of O-7:
 
 ```
+    por        P3,  !P0, P0            ; 16  all-true predicate; see §5.5
     f48        R0,  #LAUNCH_BASE        ; 48
     srd        R1,  #CTATID             ; 16
     srd        R2,  #CTAID              ; 16
     ld.global  R3,  [R0 + #NTID_X]      ; 32
     mad.lo     R1,  R2, R3, R1          ; 32
     ld.global  R4,  [R0 + #ARG_N]       ; 32
-    setp.ge    P0,  R1, R4              ; 32
+    @P3 setp.ge P0, R1, R4             ; 32
     @P0 bra    Lexit                    ; 32
     ld.global  R5,  [R0 + #ARG_C]       ; 32   one slot loaded per pointer, not two
     ld.global  R6,  [R0 + #ARG_A]       ; 32
@@ -1417,10 +1433,10 @@ Lexit:
 
 | | Instructions | Bits | Peak live GPRs | GPRs per pointer |
 |---|---|---|---|---|
-| Unaligned (§5.5) | 23 | 624 | **8** | 2 |
-| Aligned | 16 | 464 | **5** | 1 |
+| Unaligned (§5.5) | 24 | 640 | **8** | 2 |
+| Aligned | 17 | 480 | **5** | 1 |
 
-Seven fewer instructions, 26% fewer bits, three fewer live registers — from an ABI decision,
+Seven fewer instructions, 25% fewer bits, three fewer live registers — from an ABI decision,
 with no ISA change at all.
 
 **Note what the last line of the table means for O-7.** Chwidth-derived index scaling was
@@ -1941,6 +1957,39 @@ Three consequences worth fixing here rather than leaving to the ABI document:
   ignored and the access lands elsewhere. This is the failure mode that warrants a
   validation harness rather than a compile-time check — the runtime can verify declared
   alignment at launch, cheaply, and compile the check out of release builds.
+
+---
+
+**O-24 — Every compare is predicated, so a kernel must manufacture a true predicate.**
+
+Found by executing a kernel rather than by reading one.
+
+Formats C and C′ both carry a **mandatory** predicate qualifier at `[29:27]`, and the format
+tag table has no unpredicated compare. So every compare is guarded. Combined with §1's "no
+hardwired always-true predicate," the first compare in a kernel has nothing valid to be
+guarded by — the predicate file's contents at kernel entry are undefined, and there is no
+`PT`.
+
+This is a real gap in §1's own rule. That rule says every predicated operation requires a
+distinct unpredicated encoding, which is why the A and B ladders and the D/D′ pair exist.
+C/C′ are the exception: there is no unpredicated compare, and the tag space is full, so
+there cannot be one.
+
+**It resolves without an encoding change, because compressed forms are never predicated.**
+`por pd, !ps, ps` is all-ones whatever `ps` holds, in 16 bits, and Format K carries no
+qualifier to need satisfying. One instruction per kernel.
+
+Worth noting what this cost before 1.3. The only constant-to-predicate path was `pmov`,
+which exists **only at 48 bits** (Format I, O-13). Every kernel would have opened with a
+48-bit instruction to manufacture something the machine could have hardwired. The Format K
+predicate logic added in O-20 was justified on if-conversion pressure; that it also makes
+the kernel prologue viable was not noticed until a kernel was run.
+
+**Alternatives considered and rejected.** An unpredicated compare format needs a tag, and
+all sixteen are allocated. Reserving `P3` as architecturally all-ones at entry is a soft
+`PT` that spends a quarter of a four-entry file to save one 16-bit instruction per kernel.
+Neither is worth it: the idiom is cheap, and it is now documented rather than something each
+compiler author rediscovers.
 
 ---
 
