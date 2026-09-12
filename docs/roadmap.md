@@ -261,7 +261,19 @@ Format G point, 1 Format B point. No new formats, no moved fields, nothing above
 v1.2 is kept for the decision trail. The launch-block byte layout remains an ABI
 document to be written, and blocks nothing.
 
-### Step 1 — Machine description and MC layer
+### Step 1 — Machine description and MC layer *(in progress)*
+
+**Done:** TableGen target description (`llvm/CCG/`), generating cleanly through
+`-gen-register-info`, `-gen-instr-info`, `-gen-emitter`, `-gen-disassembler` and
+`-gen-asm-writer`; encoding invariant checker (`tools/check-encoding.py`); gate
+script (`tools/verify.sh`). 65 instructions, at least one per format. Five new
+findings, F-12 to F-16, all from transcribing §3 into a form a machine checks.
+
+**Next:** the C++ MC layer — target registration, `MCTargetDesc`, asm parser —
+so the generated encoder and decoder can be driven end to end and the round-trip
+exit criterion below can actually be run.
+
+
 
 TableGen target description, register info, instruction definitions, asm
 printer, asm parser, encoder, disassembler. No instruction selection yet.
@@ -350,7 +362,12 @@ answered. Update as items resolve.
 | F-2 predicate spill path / `unballot` (O-14) | Step 0 | **open — proposal in `proposals/predicate-transfer.md`; blocks Step 4** |
 | F-8 predicated write to a predicate destination — preserve or clear? | Step 0 | **open — preserve recommended, see proposal §7–8; blocks if-conversion** |
 | F-10 `packi` partial-write semantics — preserve + `packi.z` variant | Step 0 | **open — see proposal §6** |
-| F-9 Format D carries two contradictory opcode maps (editorial) | — | **open — second map is stale, should be deleted** |
+| F-9 Format D carries two contradictory opcode maps (editorial) | — | resolved in v1.3 |
+| F-12 32 GPRs is an encoding fork, not a subtarget flag | Step 1 | **open — Format J overruns 16 bits; A″ drops to a 1-bit opcode** |
+| F-13 Format G is three field layouts presented as one table | Step 1 | **open — editorial; split in the `.td`** |
+| F-14 Format B′/B″ move the predicate qualifier off `[29:27]` | Step 1 | **open — genuine invariant 8 violation; zero-cost fix verified** |
+| F-15 Invariant 8 claims a shared J/K compressed geometry that does not exist | Step 1 | **open — editorial** |
+| F-16 Invariant 8's "no exceptions" claim does not cover Format I | Step 1 | **open — editorial** |
 | O-8 compressed-form density | Step 1 instrumentation + Step 5 | not started |
 | O-9 compressed ld/st offset distribution | Step 1 instrumentation + Step 5 | not started |
 | GPR count 16 vs. 32 | Step 5, both configurations | not started |
