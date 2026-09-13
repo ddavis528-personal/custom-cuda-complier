@@ -1,6 +1,7 @@
 # F-30 — `bar.wait`'s phase parity cannot be an immediate
 
-**Status:** open, needs an ISA decision. Blocks the Step 4 reduction kernel.
+**Status:** RESOLVED — see O-27. Both options were adopted, for different reasons.
+Kept for the reasoning; the recommendation at the end is what was decided.
 **Touches:** O-12, §3 Format K point 52.
 
 ## The problem
@@ -110,3 +111,37 @@ still available inside the same opcode point.
 
 The compiler work is identical either way and is already done up to the
 diagnostic; A deletes it, B replaces it with a predicate-allocation path.
+
+
+---
+
+## Resolution (O-27)
+
+**Both**, and not as belt-and-braces — the review point was that A and B answer
+different questions and neither subsumes the other.
+
+**A is adopted for `__syncthreads()`.** The per-warp arrival epoch is tracked in
+hardware, the compressed `bar.wait #id` carries no phase operand at all, and
+`[14]` becomes reserved. The reduction kernel's in-loop barrier compiles;
+`test/reject/barrier-in-loop.ll` became `test/accept/barrier-in-loop.ll`.
+
+**B is adopted as a separate instruction**, `bar.wait.phase #id, ps`, at Format E
+opcode `00100` — not as a reinterpretation of the Format K payload. Putting it in
+the 32-bit format rather than squeezing it into the compressed one turned out to
+be strictly better:
+
+- The compressed payload had 2 spare bits and needed 3 (a source-select bit plus
+  a 2-bit predicate address). Shrinking the barrier ID to fit would have broken
+  the 64-entry table.
+- Format E has 28 free opcode points and room for the barrier ID at `[16:11]`,
+  the *same field `bar.init` uses*, so no operand moves.
+- It gets a predicate **qualifier** at `[29:27]` as well as the predicate
+  **source**. Compressed forms are never predicated, so the Format K wait cannot
+  be guarded — and warp-specialised kernels, which are exactly the ones that
+  need explicit phases, also need the wait to be guarded.
+
+The argument that settled it is in O-27: hardware epoch tracking answers "has my
+own arrival retired?", which is all of bulk sync and none of a pipelined
+producer/consumer, where a warp arrives at one barrier and waits on another. A
+split barrier whose wait can only target your own arrival is a fused barrier with
+extra steps.

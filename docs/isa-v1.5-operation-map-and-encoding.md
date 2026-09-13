@@ -282,7 +282,7 @@ compressed.
 | 49 | `bra.short` | `[15:8]` = 8-bit signed halfword offset |
 | 50 | `call.short` | `[15:8]` = 8-bit signed halfword offset; **implicit** link register |
 | 51 | `bar.arrive #id` | `[13:8]` = 6-bit barrier ID |
-| 52 | `bar.wait #id, phase` | `[13:8]` = barrier ID, `[14]` = phase parity |
+| 52 | `bar.wait #id` | `[13:8]` = barrier ID; phase is implicit (O-27), `[14:15]` reserved |
 | 53 | `ret rs` | `[15:12]` = `rs`, link-register source |
 | 54 | `exit` | unused |
 | 55 | `reconv.hint` | `[11:8]` = alt-path length, `[14:12]` = nesting depth, `[15]` = post-dominator |
@@ -841,9 +841,27 @@ still 18 bits (±256 KB), sign bit still at 31. Same technique as Format D′.
 | `[26:17]` | 10 | expected arrival count |
 | `[31:27]` | 5 | reserved |
 
-`bar.arrive` and `bar.wait` have **no 32-bit form** — both are fully expressed in Format K.
-Only initialization needs 32 bits, because a barrier ID plus a 10-bit expected count is 16
-bits of operand and the compressed forms have 8. See O-12.
+**Explicit-phase barrier wait:**
+
+| Bits | Width | Field |
+|---|---|---|
+| `[1:0]` | 2 | length = `00` |
+| `[5:2]` | 4 | fmt = `1010` |
+| `[10:6]` | 5 | opcode = `bar.wait.phase` |
+| `[16:11]` | 6 | barrier ID — same field as `bar.init` |
+| `[18:17]` | 2 | `ps` — predicate supplying the expected phase |
+| `[26:19]` | 8 | reserved |
+| `[29:27]` | 3 | **predicate qualifier** |
+| `[31:30]` | 2 | reserved |
+
+`ps` is a predicate **source**, not a qualifier, and the two are both present: the qualifier
+at `[29:27]` decides whether the instruction executes, `ps` is data it reads. See O-27 for
+why this instruction exists alongside the compressed wait.
+
+`bar.arrive` and the ordinary `bar.wait` have **no 32-bit form** — both are fully expressed
+in Format K. Initialization needs 32 bits because a barrier ID plus a 10-bit expected count
+is 16 bits of operand and the compressed forms have 8. `bar.wait.phase` needs 32 bits
+because it adds a predicate source and a qualifier to that same ID. See O-12 and O-27.
 
 **Fence:** no 32-bit form. Scope (3 bits) plus ordering (2 bits) is 5 bits of content,
 fully expressed in Format K. Fences are emitted around every barrier and atomic sequence,
@@ -857,10 +875,11 @@ so this is one of the higher-frequency compressions in the set.
 | `00001` | `bra.pred` | divergence entry point |
 | `00010` | `call` | explicit link-register destination |
 | `00011` | `bar.init` | barrier ID + expected arrival count |
-| `00100`+ | reserved | |
+| `00100` | `bar.wait.phase` | barrier ID + predicate-sourced phase (O-27) |
+| `00101`+ | reserved | |
 
-`ret`, `exit`, `reconv.hint`, `fence`, `bar.arrive` and `bar.wait` have no 32-bit encoding —
-all six are fully expressed in Format K.
+`ret`, `exit`, `reconv.hint`, `fence`, `bar.arrive` and the implicit-phase `bar.wait` have
+no 32-bit encoding — all six are fully expressed in Format K.
 
 `bra.pred` reads the predicate at thread granularity (K=1) always. There is no packed
 interpretation of a branch condition — `chwidth` has no interaction with Format E.
@@ -1697,25 +1716,19 @@ had them backwards:
   was misplaced: with independent per-thread PC scheduling, threads arrive individually, so
   an arrival is inherently one arrival. There is nothing for a count field to mean here. The
   compressed form was not "hardwiring count = 1" — count = 1 is the only sensible semantic.
-- **`bar.wait #id, phase`** needs the ID plus one phase-parity bit. Seven bits, comfortably
-  compressed.
+- **`bar.wait #id`** needs only the ID. **This bullet originally gave it a phase-parity
+  bit and called the parity software-tracked; that is superseded by O-27, which found
+  the compiler cannot alternate an immediate across dynamic executions.**
 
-**The assumption to check against the barrier design:** that the wait's phase parity is
-**software-tracked** — the compiler alternates the bit each time through the loop, and the
-comparator matches it against the table entry's epoch parity. This is what keeps `wait` at
-seven bits of operand and, more importantly, keeps **all** per-warp barrier state out of the
-machine: nothing has to remember which epoch a given warp arrived in, because the
-instruction stream carries it.
+**The assumption that needed checking — and failed.** O-12 assumed the wait's phase parity
+could be **software-tracked**: the compiler alternates the bit each time through the loop,
+and the comparator matches it against the table entry's epoch parity. That would keep `wait`
+at seven bits of operand and keep all per-warp barrier state out of the machine.
 
-The alternative — the barrier table tracking a per-warp arrival epoch so `wait` can be
-implicit — costs storage proportional to (resident warps × barrier entries), which is
-exactly the kind of small-state-times-large-multiplicity cost the GPR and predicate counts
-were kept lean to avoid. It also would not change the encoding, since the ID alone would
-then suffice. So the encoding is safe either way; the phase bit is cheap insurance and can
-be ignored by hardware that does not need it.
-
-Both readings are consistent with epoch-tagged retirement and comparator-driven wake. Worth
-a check against the settled barrier spec, but not a blocker for the encoding.
+The compiler cannot do it. See **O-27**, which resolves this by taking the alternative O-12
+named — the barrier table tracks a per-warp arrival epoch, so the ID alone suffices — and
+adds a separate explicit-phase instruction for the case hardware tracking structurally
+cannot serve.
 
 ---
 
@@ -2159,6 +2172,65 @@ the whole 5-bit space with nothing spare. At 18 the map would not have closed.
 predicates that are not one of the six relations. Each needs two compares or a point the map
 cannot spare. No CUDA source construct produces them directly; they arrive from explicit
 `isnan`-style idioms. See F-24.
+
+**O-27 — The barrier epoch moves into hardware, and `bar.wait` splits into two instructions.**
+
+O-12 put the phase parity in the `bar.wait` immediate and justified it by having "the
+compiler alternate the bit each time through the loop." It closed by asking for a check
+against the settled barrier spec. The check came from compiling the canonical reduction, and
+it fails: an immediate is fixed at assembly time, the barrier's epoch parity flips on every
+completion, and a barrier executed N times therefore needs N alternating expected values out
+of one encoded bit. The immediate is correct only where the barrier runs at most once.
+
+**Decided: the per-warp arrival epoch is tracked in hardware**, and the compressed
+`bar.wait #id` means *wait until the arrival I just made has retired*. It needs no phase
+operand at all, and `[14]` becomes reserved. The storage O-12 objected to is one bit per
+(resident warp × barrier entry) — 64 warps × 64 entries is 512 bytes per SM, which is a
+different order of magnitude from the register-file costs that instinct was formed on.
+
+**And `bar.wait.phase #id, ps` is added at Format E opcode `00100`**, taking the expected
+phase from a predicate register. This is not a fallback for the above. The two instructions
+answer structurally different questions, and neither subsumes the other:
+
+- Hardware epoch tracking answers **"has my own arrival retired?"**. That is the whole of
+  `__syncthreads()`, where every warp arrives at a barrier and then waits on it.
+- It answers nothing about a barrier **this warp did not arrive at**. In a pipelined
+  producer/consumer — the double-buffered shape every serious GEMM and every async-copy
+  pipeline uses — a warp arrives at the barrier for the buffer it just filled and waits on
+  the barrier for the *other* buffer:
+
+  ```
+  for (stage) {
+      bar.arrive       #(stage & 1)        ; this buffer is ready
+      bar.wait.phase   #((stage+1) & 1), P0 ; the other buffer has been drained
+  }
+  ```
+
+  "My last arrival on that barrier" is from the previous iteration, or does not exist at
+  all. The waiting warp has to *name* the phase it expects, and that expectation is dynamic,
+  so it comes from a register.
+
+This is the point of splitting arrive from wait in the first place. O-12 argued the split
+follows from per-thread PCs, which is true but incomplete: a split barrier whose wait can
+only ever target your own arrival is a fused barrier with extra steps. The explicit form is
+what makes the decoupling mean anything.
+
+**Costs.** One Format E opcode point of 28 free. No change to `bar.arrive`, `bar.init`, or
+any field position — the barrier ID sits at `[16:11]` exactly where `bar.init` puts it. The
+compressed wait gets *smaller* in operand content, not larger.
+
+**A secondary gain.** Compressed forms are never predicated (§1), so the Format K wait
+cannot be guarded. The Format E form carries the qualifier at `[29:27]` like every other
+32-bit instruction, which is what warp-specialised kernels need: producer warps and consumer
+warps take different paths and wait on different barriers. Note the qualifier and `ps` are
+distinct fields — the qualifier decides whether the instruction executes, `ps` is data.
+
+**What this does not settle.** Whether a barrier may be predicated at *sub-warp* granularity
+is a memory-model question, not an encoding one; the encoding permits it and the ABI should
+probably forbid it. And nothing in the compiler selects `bar.wait.phase` yet: CUDA C has no
+source construct that produces it without the async-pipeline intrinsics. It is encodable,
+assembler-reachable and round-trip tested. See F-35.
+
 
 
 ---

@@ -215,19 +215,19 @@ void CCGDAGToDAGISel::Select(SDNode *N) {
     // per-thread PCs a thread arrives individually.
     if (N->getConstantOperandVal(1) != Intrinsic::nvvm_barrier0)
       break;
-    // Format K payload. bar.arrive: [13:8] is the 6-bit barrier ID, so the ID
-    // sits in payload bits [5:0]. bar.wait adds the phase parity at [14],
-    // which is payload bit [6].
-    const unsigned BarrierID = 0;      // one CTA-wide barrier; see F-30
-    const unsigned Phase = 0;
+    // Format K payload: [13:8] is the 6-bit barrier ID, so the ID sits in
+    // payload bits [5:0]. The compressed wait carries no phase -- O-27 puts
+    // the epoch in hardware, so "wait until the arrival I just made has
+    // retired" needs no operand. A wait on a phase this warp did not arrive
+    // in is bar.wait.phase, a different instruction (Format E).
+    const unsigned BarrierID = 0;      // one CTA-wide barrier
     SDValue Chain = N->getOperand(0);
     SDNode *Arrive = CurDAG->getMachineNode(
         CCG::C_BAR_ARRIVE, DL, MVT::Other,
         {CurDAG->getTargetConstant(BarrierID, DL, MVT::i32), Chain});
     ReplaceNode(N, CurDAG->getMachineNode(
                        CCG::C_BAR_WAIT, DL, MVT::Other,
-                       {CurDAG->getTargetConstant(BarrierID | (Phase << 6), DL,
-                                                  MVT::i32),
+                       {CurDAG->getTargetConstant(BarrierID, DL, MVT::i32),
                         SDValue(Arrive, 0)}));
     return;
   }

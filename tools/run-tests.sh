@@ -84,6 +84,14 @@ run_remat || fail=1
 # from a compiler bug and tells the user nothing.
 echo
 echo "  --- backend accept / reject ---"
+# An empty suite must not pass. Every one of these files was gitignored by a
+# stray *.ll rule, so a fresh clone would have run zero cases and said nothing.
+for d in test/accept test/reject; do
+  n=$(find "$d" -name '*.ll' 2>/dev/null | wc -l)
+  if [ "$n" -eq 0 ]; then
+    echo "  FAIL  $d is empty -- the suite is missing, not passing"; fail=1
+  fi
+done
 if [ -x build/ccg-llc ]; then
   for f in test/accept/*.ll; do
     if build/ccg-llc "$f" -o "$TMP/a.s" >/dev/null 2>&1; then

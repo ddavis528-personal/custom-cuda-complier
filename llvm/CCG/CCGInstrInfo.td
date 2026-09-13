@@ -37,6 +37,7 @@ def brtarget21 : Operand<OtherVT> { let EncoderMethod = "getBranch21OpValue"; }
 def brtarget18 : Operand<OtherVT> { let EncoderMethod = "getBranch18OpValue"; }
 def psrc    : Operand<i32>;   // same shape, used by predicate logic
 def pmask4  : Operand<i32>;   // 4-bit predicate bitmask for ld.pred/st.pred
+def pidx2   : Operand<i32>;   // 2-bit predicate address, read side, no negate
 def srdsel  : Operand<i32>;   // srd selector
 
 // ---------------------------------------------------------------------------
@@ -196,6 +197,17 @@ def CALL : FormatEcall<0b00010, (outs GPR:$rd), (ins simm17:$off), "call $rd, $o
 
 def BAR_INIT : FormatEbarinit<0b00011, (outs), (ins uimm6:$barid, uimm10:$count),
                               "bar.init $barid, $count">;
+
+// O-27: wait for a named barrier to reach a phase the instruction names, rather
+// than the one this warp last arrived in. Hardware epoch tracking answers
+// "has my own arrival retired", which is the whole of __syncthreads() and none
+// of a pipelined producer/consumer, where a warp arrives at one barrier and
+// waits on another. The phase comes from a predicate so software can flip it
+// per stage.
+let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
+def BAR_WAIT_PHASE : FormatEbarwait<0b00100, (outs),
+                                    (ins pqual:$pq, uimm6:$barid, pidx2:$ps),
+                                    "@$pq bar.wait.phase $barid, $ps">;
 
 // ---------------------------------------------------------------------------
 // Format F -- wide immediate. The 48-bit form materializes any 32-bit constant

@@ -6,3 +6,8 @@ build/
 .cache/
 compile_commands.json
 /build/
+
+# ...but the test suite is source, not build output. Every .ll under test/ is a
+# hand-written regression case, and they were all silently untracked: a fresh
+# clone had three .cu files and no accept/reject suite at all.
+!test/**

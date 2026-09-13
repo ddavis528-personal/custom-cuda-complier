@@ -265,6 +265,24 @@ class FormatEbarinit<bits<5> opc, dag outs, dag ins, string asm>
   let Inst{31-27} = 0;           // reserved
 }
 
+// bar.wait.phase -- the explicit-phase barrier wait (O-27). The barrier ID sits
+// at [16:11], exactly where bar.init puts it, so the same operand occupies the
+// same field across the format. `ps` is a predicate SOURCE supplying the
+// expected phase, which is a different thing from the qualifier at [29:27]:
+// the qualifier decides whether the instruction executes, `ps` is data it
+// reads. Both are present, and the qualifier is what the compressed Format K
+// form cannot have.
+class FormatEbarwait<bits<5> opc, dag outs, dag ins, string asm>
+    : CCGInst32<0b1010, outs, ins, asm> {
+  bits<6> barid; bits<2> ps; bits<3> pq;
+  let Inst{10-6}  = opc;
+  let Inst{16-11} = barid;
+  let Inst{18-17} = ps;
+  let Inst{26-19} = 0;           // reserved
+  let Inst{29-27} = pq;
+  let Inst{31-30} = 0;           // reserved
+}
+
 // ---------------------------------------------------------------------------
 // Format F -- wide immediate. §3.
 // ---------------------------------------------------------------------------
