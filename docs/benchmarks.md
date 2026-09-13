@@ -48,22 +48,46 @@ in general.
 
 ## 2. Results
 
+Run `tools/bench.py`. Two tables, because static and dynamic answer different
+questions and only one of them can be measured on both machines.
+
+**Static — code size. Every column is a measurement.**
+
 ```
-  kernel        CCG    CCGb   b/i  align    alnb    GCN    GCNb   b/i    PTX  dyn/thr   SIMT
-  --------------------------------------------------------------------------------------------
-  vadd           24      80  26.7     17      58     29     152  41.9     21     17.0   100%
-  saxpy          23      76  26.4     18      60     25     136  43.5     19     18.0   100%
-  dot            61     192  25.2     53     166     60     300  40.0     46     91.9    65%
-  reduce         56     174  24.9     50     156     54     268  39.7     41     88.9    64%
-  transpose      83     294  28.3     77     274     64     308  38.5     43     77.0   100%
+  kernel     |     CCG unaligned     |  CCG aligned   |     AMDGCN gfx900     |  PTX
+             |  instr  bytes    b/i |  instr  bytes |  instr  bytes    b/i |  instr
+  --------------------------------------------------------------------------------
+  vadd       |     24     80   26.7 |     17     58 |     29    152   41.9 |     21
+  saxpy      |     23     76   26.4 |     18     60 |     25    136   43.5 |     19
+  dot        |     61    192   25.2 |     53    166 |     60    300   40.0 |     46
+  reduce     |     56    174   24.9 |     50    156 |     54    268   39.7 |     41
+  transpose  |     83    294   28.3 |     77    274 |     64    308   38.5 |     43
 ```
 
-`CCG`/`CCGb` are instructions and bytes with ordinary unaligned pointers — the
-general case. `align` is the same kernel with O-23's alignment attribute. `GCN`
-is AMD gfx900, instructions and bytes both taken from the **assembled object**,
-because GCN mixes 4- and 8-byte encodings and a line count of the `.s` would say
-nothing about size. `dyn/thr` is lane-instructions per thread, **executed on the
-simulator**; `SIMT` is lanes active per issue.
+**Dynamic — instructions actually issued, per thread of work.**
+
+```
+  kernel          CCG   SIMT     AMDGCN   how AMDGCN was obtained
+  ----------------------------------------------------------------------------
+  vadd           17.0   100%         29   exact: no backward branch
+  saxpy          18.0   100%         25   exact: no backward branch
+  dot            91.9    65%         --   has 3 loops; not modelled
+  reduce         88.9    64%         --   has 3 loops; not modelled
+  transpose      77.0   100%         64   exact: no backward branch
+```
+
+**CCG's dynamic column is measured** on the simulator — lane-instructions
+divided by threads, which for a fully-active warp is the issue count. **AMDGCN
+has no simulator here**, so its dynamic column is filled in only where the
+kernel provably has no backward branch and static and dynamic must therefore
+agree. The two reduction kernels loop on both sides and are left blank rather
+than modelled.
+
+**SIMT is CCG only, and is not comparable as printed.** A CCG warp is 32 lanes
+(§1); a gfx900 wavefront is 64. The same 32-thread block that fills a CCG warp
+half-fills theirs, so the numbers measure different things. Comparing occupancy
+needs the block size held fixed in each machine's own warp width, which these
+kernels do not do.
 
 ### Density: 25–28 bits per instruction against GCN's 38–44
 
@@ -96,14 +120,39 @@ not need (§1).
 
 `vadd`, `saxpy` and `transpose` execute exactly their static aligned instruction
 count, because they are straight-line. `dot` and `reduce` run about 1.7× their
-static size, which is the reduction loop, and their SIMT efficiency of 64–65%
-is the tree structure idling half the lanes each round.
+static size, which is the reduction loop, and their SIMT efficiency of 64–65% is
+the tree structure idling half the lanes each round.
 
-**That agreement is new, and it is the reason this column exists.** Before
-O-31, `transpose` was 143 static instructions and its two integer divisions
-each cost a 32-iteration loop. The static number understated it by roughly
-three times, and a benchmark that reported only static size would have called
-the division problem a 2× gap when it was closer to 9×.
+**That agreement is new, and it is why the dynamic column exists.** Before O-31,
+`transpose` was 143 static instructions and its integer division cost a
+32-iteration loop; the static number understated the real cost by roughly three
+times, and a benchmark reporting only static size called a 9× problem a 2× one.
+
+### Where CCG still loses: `transpose`, and it is instructive
+
+77 instructions issued against 64 — the only kernel where CCG issues more. Two
+causes, both structural rather than accidental:
+
+**AMD does the division on the scalar unit.** The divisor is warp-uniform (it
+depends on `blockIdx` and `n`), so their sequence is `s_mul_i32`, `s_sub_i32`,
+`s_cselect_b32` — one instruction per operation *for the whole wavefront*. CCG
+computes the same division redundantly in all 32 lanes. The instruction counts
+above understate this: their scalar instruction is a fraction of the energy and
+issue bandwidth of a 64-lane vector one.
+
+This is the first hard evidence for the **warp-uniform register file** that §1
+names as the response if GEMM register pressure comes back bad (O-25). It was
+argued there from register-file size; here it shows up as redundant *execution*.
+See F-52.
+
+**Every compare costs an extra instruction.** O-24 settled that there is no
+hardwired always-true predicate, so a compare must manufacture its guard:
+`por pd, !pd, pd` then `@pd setp`. The division's two correction steps are two
+compares, so two extra instructions. AMD's compare writes an implicit condition
+register and `s_cselect` reads it, at no extra cost.
+
+Two instructions in thirty is not the headline, but it is a real recurring cost
+of a settled decision, and compare-dense sequences are where it shows.
 
 ### The division result
 

@@ -105,7 +105,21 @@ def amdgcn(src, tmp):
     # Every disassembled instruction carries its encoding in a trailing
     # comment; directives and labels do not.
     n = len(re.findall(r"//\s+[0-9A-F]{12}:", dis))
-    return {"instrs": n, "bytes": os.path.getsize(binf)}
+
+    # A kernel with no backward branch executes each instruction at most once,
+    # so its static count IS its dynamic count -- no simulator needed and no
+    # modelling involved. With a loop, static says nothing about dynamic and
+    # this reports nothing rather than guessing.
+    text = open(asmf).read().splitlines()
+    label = {}
+    for i, l in enumerate(text):
+        m = re.match(r"^(\.\S+):", l.strip())
+        if m:
+            label[m.group(1)] = i
+    loops = sum(1 for i, l in enumerate(text)
+                for m in [re.search(r"s_c?branch\S*\s+(\.\S+)", l)]
+                if m and label.get(m.group(1), 1 << 30) < i)
+    return {"instrs": n, "bytes": os.path.getsize(binf), "loops": loops}
 
 def ptx(src, tmp):
     asm = run("clang", "-x", "cuda", "-nocudainc", "-nocudalib",
@@ -211,34 +225,60 @@ def main():
         return f"{d.get(key, '--'):>{w}}"
 
     print()
-    print("  Static instruction count and code size, one source per row.")
+    print("  STATIC -- code size. Every column is a measurement.")
     print()
-    print(f"  {'kernel':<10} {'CCG':>6} {'CCGb':>7} {'b/i':>5} "
-          f"{'align':>6} {'alnb':>7} {'GCN':>6} {'GCNb':>7} {'b/i':>5} {'PTX':>6}"
-          f" {'dyn/thr':>8} {'SIMT':>6}")
-    print("  " + "-" * 92)
+    print(f"  {'kernel':<10} | {'CCG unaligned':^21} | {'CCG aligned':^14} | "
+          f"{'AMDGCN gfx900':^21} | {'PTX':^6}")
+    print(f"  {'':<10} | {'instr':>6} {'bytes':>6} {'b/i':>6} | "
+          f"{'instr':>6} {'bytes':>6} | {'instr':>6} {'bytes':>6} {'b/i':>6} | "
+          f"{'instr':>6}")
+    print("  " + "-" * 80)
     for r in rows:
-        c, ca, g, p, d = (r["ccg"], r["ccg_aligned"], r["amdgcn"],
-                          r["ptx"], r["dyn"])
+        c, ca, g, p = r["ccg"], r["ccg_aligned"], r["amdgcn"], r["ptx"]
         cbi = f"{8*c['bytes']/c['instrs']:.1f}" if c and "instrs" in c else "--"
         gbi = f"{8*g['bytes']/g['instrs']:.1f}" if g and "instrs" in g else "--"
-        print(f"  {r['kernel']:<10} {cell(c,'instrs',6)} {cell(c,'bytes',7)} "
-              f"{cbi:>5} {cell(ca,'instrs',6)} {cell(ca,'bytes',7)} "
-              f"{cell(g,'instrs',6)} {cell(g,'bytes',7)} {gbi:>5} "
-              f"{cell(p,'instrs',6)} "
-              f"{dcell(d, 'per_thread'):>8} "
-              f"{dcell(d, 'simt'):>6}")
+        print(f"  {r['kernel']:<10} | {cell(c,'instrs',6)} {cell(c,'bytes',6)} "
+              f"{cbi:>6} | {cell(ca,'instrs',6)} {cell(ca,'bytes',6)} | "
+              f"{cell(g,'instrs',6)} {cell(g,'bytes',6)} {gbi:>6} | "
+              f"{cell(p,'instrs',6)}")
+
+    print()
+    print("  DYNAMIC -- instructions actually issued, per thread of work.")
+    print()
+    print(f"  {'kernel':<10} {'CCG':>8} {'SIMT':>6}   {'AMDGCN':>8}   how AMDGCN was obtained")
+    print("  " + "-" * 76)
+    for r in rows:
+        d, g = r["dyn"], r["amdgcn"]
+        mine = dcell(d, "per_thread")
+        simt = dcell(d, "simt")
+        if g and "loops" in g and g["loops"] == 0:
+            gd, how = str(g["instrs"]), "exact: no backward branch, so static = dynamic"
+        elif g and "loops" in g:
+            gd, how = "--", f"has {g['loops']} loops -- static says nothing; not modelled"
+        else:
+            gd, how = "--", "did not build"
+        print(f"  {r['kernel']:<10} {mine:>8} {simt:>6}   {gd:>8}   {how}")
+
     for r in rows:
         for name, d in (("ccg", r["ccg"]), ("amdgcn", r["amdgcn"])):
             if d and "error" in d:
                 print(f"  note: {r['kernel']} {name}: {d['error']}")
     print()
-    print("  CCG/CCGb  = instructions / bytes, unaligned pointers (the general case)")
-    print("  align     = the same kernel with O-23's alignment attribute")
-    print("  GCN       = AMD gfx900, a real ISA -- the only like-for-like density row")
-    print("  PTX       = nvptx64, a VIRTUAL ISA. Task complexity, NOT density.")
-    print("  dyn/thr   = lane-instructions per thread, EXECUTED on the simulator")
-    print("  SIMT      = lanes active per issue -- what divergence costs")
+    print("  CCG dynamic is MEASURED on the simulator: lane-instructions divided by")
+    print("  threads, which for a fully-active warp is the issue count. AMDGCN has no")
+    print("  simulator here, so its dynamic column is filled in only where the kernel")
+    print("  provably has no loop and static and dynamic must therefore agree. The two")
+    print("  reduction kernels loop on both sides and are left blank rather than")
+    print("  modelled.")
+    print()
+    print("  SIMT is CCG ONLY and is not comparable as printed: a CCG warp is 32 lanes")
+    print("  (§1) and a gfx900 wavefront is 64, so the same 32-thread block that fills")
+    print("  a CCG warp half-fills theirs. Comparing occupancy needs the same block")
+    print("  size expressed in each machine's own warp width, which these kernels do")
+    print("  not hold fixed.")
+    print()
+    print("  PTX is a VIRTUAL ISA. Task complexity, NOT density -- ptxas expands,")
+    print("  schedules and re-allocates it before anything executes.")
     return 0
 
 if __name__ == "__main__":
