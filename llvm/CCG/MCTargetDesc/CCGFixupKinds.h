@@ -24,6 +24,11 @@ enum Fixups {
   fixup_ccg_brapred18,
   /// `call`: 17-bit signed halfword offset, contiguous at [31:15].
   fixup_ccg_call17,
+  /// bra.short (Format K point 49): 8-bit signed halfword offset on a 16-bit
+  /// instruction. Selected optimistically and relaxed to fixup_ccg_bra21 when
+  /// the target turns out to be further than ±256 bytes, which is a decision
+  /// only layout can make.
+  fixup_ccg_bra8,
 
   LastTargetFixupKind,
   NumTargetFixupKinds = LastTargetFixupKind - FirstTargetFixupKind

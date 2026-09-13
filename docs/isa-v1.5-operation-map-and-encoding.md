@@ -1422,11 +1422,11 @@ against fresh `ccg-llc` output by `tools/check-spec-vs-codegen.py`, which runs i
     @p0 bra    Lexit                ; 32
     shl        r1, 2                ; 16   element index -> byte offset, hoisted
     ld.global  r2, [r0 + 52]        ; 32   b.roffset
-    add        r2, r2, r1           ; 16   fold; rd == rs0, so Format K
+    add        r2, r1               ; 16   fold; rd == rs0, so Format K
     ld.global  r3, [r0 + 48]        ; 32   b.rbase
     ld.global  r2, [r3, r2, 0, 0]   ; 32   b[i]; scale-enable CLEAR
     ld.global  r3, [r0 + 44]        ; 32   a.roffset
-    add        r3, r3, r1           ; 16   fold; Format K
+    add        r3, r1               ; 16   fold; Format K
     ld.global  r4, [r0 + 40]        ; 32   a.rbase
     ld.global  r3, [r4, r3, 0, 0]   ; 32   a[i]
     fadd       r3, r2               ; 16   compressed destructive, rd == rs0
@@ -1445,10 +1445,13 @@ allocator being asked for anything.
 
 **The third fold is the interesting one.** `add r1, r2, r1` computes the same
 shape as the two above it and pays 32 bits instead of 16, purely because the
-selector landed on `rd != rs0`. Two of three three-operand ALU ops here already
-satisfy O-8's condition by accident; nothing in the backend is trying to make
-that happen. Sixteen bits on this kernel, and the fraction that matters is the
-one in a GEMM inner loop. See **F-29**.
+allocator landed on `rd != rs0`. The compiler now takes the two that do fit --
+`CCGCompress` rewrites a three-operand ALU instruction to Format K whenever the
+registers it already has satisfy the constraint, and never inserts a copy to
+create one. Nothing yet *biases* allocation toward the tie, which is what the
+remaining third would need. O-8's hit rate on this kernel is 2 of 3; see
+**F-29** and O-29 for why the number is smaller and less interesting than it
+looks.
 
 **Why a kernel opens by manufacturing a predicate.** Formats C and C′ carry a
 **mandatory** predicate qualifier and there is no unpredicated compare tag, so every
@@ -2278,6 +2281,59 @@ index* — `LAUNCH_BASE >> 16` — not the address. Format F's 32-bit form carri
 bits, which covers every launch block below 2^33 bytes. §5.2 and both worked listings said
 `f48`, at 16 bits per kernel for range nothing will use. Both listings are 16 bits shorter
 as a result: §5.5 is 640 bits and §5.6 is 464.
+
+**O-29 — Compressed-form policy: take what is free, do not buy the rest yet.**
+
+§6 said density "depends entirely on how often the allocator can arrange
+`rd == rs0`, which is a compiler-backend question, not an ISA one." Nothing in the backend
+was asking it. This settles what the backend does, and what it deliberately does not.
+
+**Two kinds of compressed form, and they need opposite treatment.**
+
+The one-source forms — `neg`, `not`, `abs`, `mov` at §3 points 14–17 — carry `rd` and `rs`
+in *separate* fields. There is no constraint to satisfy, so they are always 16 bits and the
+backend always takes them.
+
+The two-source forms read and write `rd`, so they need `rd == rs0`. That is where the choice
+is, and it is not free: making the constraint hold can cost a `mov`, which is 16 bits —
+exactly what the compression saves. Paying a copy to earn a compression is a wash at best,
+and a loss when it also lengthens a live range.
+
+**So the rule is: compress what already fits, never create the fit.** `CCGCompress` runs
+after register allocation and rewrites a three-operand instruction to its compressed form
+only when the registers it already holds satisfy the constraint. Every rewrite is 16 bits
+saved and none can cost anything.
+
+The exception is where no three-operand form exists to fall back on. Format B defines only
+`add` as a register-immediate, so a shift-by-constant has no 32-bit encoding that takes an
+immediate at all: the alternatives are the compressed form plus a possible copy (32 bits) or
+materialising the constant into a register first (`movi` + Format A, 64 bits). There the
+tied form is selected up front, copy or no copy, because the fallback is twice the size.
+
+**What the measurement says so far**, from `ccg-llc -ccg-compress-stats`:
+
+| kernel | two-source candidates | already `rd == rs0` |
+|---|---|---|
+| §5.5 unaligned elementwise | 3 | 2 |
+| §5.6 aligned elementwise | 0 | — |
+| block reduction | 1 | 0 |
+
+Two things stand out, and neither is the hit rate.
+
+**The aligned kernel has no candidates at all.** Its three two-source `add`s are the in-window
+offset folds, and O-23's alignment attribute removes them. Alignment and compression are
+substitutes here, not complements — the same instructions are what each of them eliminates.
+
+**These kernels are the wrong place to measure.** Four candidates across three kernels is not
+a rate, it is an anecdote. §6's density claim rests on a GEMM inner loop, where accumulate-FMA
+and pointer arithmetic dominate and Format J's accumulate form — which has the same
+constraint — carries the arithmetic. Step 5 is where this number means something, and the
+instrumentation now exists to collect it.
+
+**Biasing allocation toward the tie is the open half**, and it is deliberately not done. A
+two-address hint costs nothing to add and can cost a great deal to get wrong; the data that
+would justify a particular bias is the GEMM measurement, not these four instructions.
+
 
 
 

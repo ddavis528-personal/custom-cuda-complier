@@ -13,6 +13,7 @@ namespace llvm {
 FunctionPass *createCCGISelDag(CCGTargetMachine &TM, CodeGenOptLevel OL);
 FunctionPass *createCCGExpandPseudos();
 FunctionPass *createCCGWindowRemat();
+FunctionPass *createCCGCompress();
 ModulePass *createCCGLowerShared();
 }
 
@@ -70,7 +71,12 @@ public:
 
   /// After register allocation: predicate registers become qualifier
   /// immediates, which is only possible once allocation has run.
-  void addPreEmitPass() override { addPass(createCCGExpandPseudos()); }
+  /// Pseudo expansion first, so the instructions it produces are compressible
+  /// too; then Format K compression, which only shrinks what already fits.
+  void addPreEmitPass() override {
+    addPass(createCCGExpandPseudos());
+    addPass(createCCGCompress());
+  }
 };
 } // namespace
 

@@ -167,11 +167,10 @@ and the generic folder could not act (F-26).
   figure           §5.6 listing    ccg-llc
   ------------------------------------------
   instructions               17         17
-  bits                      480        464   <-- DIVERGED
+  bits                      464        464
   peak_live                   4          4
 
-  1 figure(s) differ: the spec listing no longer describes what
-  the compiler emits. Regenerate the listing or fix codegen.
+  spec listing matches codegen
 ```
 
 ISA §5.6's worked listing is compared against this output on every build. That
@@ -199,11 +198,11 @@ _Z4vaddPfPKfS1_i:
 	@p0 bra LBB0_2
 	shl r1, 2
 	ld.global r2, [r0 + 52]
-	add r2, r2, r1
+	add r2, r1
 	ld.global r3, [r0 + 48]
 	ld.global r2, [r3, r2, 0, 0]
 	ld.global r3, [r0 + 44]
-	add r3, r3, r1
+	add r3, r1
 	ld.global r4, [r0 + 40]
 	ld.global r3, [r4, r3, 0, 0]
 	fadd r3, r2
@@ -220,11 +219,10 @@ Lfunc_end0:
   figure           §5.5 listing    ccg-llc
   ------------------------------------------
   instructions               24         24
-  bits                      656        640   <-- DIVERGED
+  bits                      640        640
   peak_live                   5          5
 
-  1 figure(s) differ: the spec listing no longer describes what
-  the compiler emits. Regenerate the listing or fix codegen.
+  spec listing matches codegen
 ```
 
 Seven more instructions and 176 more bits for the same arithmetic, which is what

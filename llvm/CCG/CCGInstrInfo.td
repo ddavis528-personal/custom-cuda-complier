@@ -51,6 +51,10 @@ def brtarget18 : Operand<OtherVT> {
   let EncoderMethod = "getBranch18OpValue";
   let DecoderMethod = "decodeSImm<18>";
 }
+def brtarget8 : Operand<OtherVT> {
+  let EncoderMethod = "getBranch8OpValue";
+  let DecoderMethod = "decodeSImm<8>";
+}
 def psrc    : Operand<i32>;   // same shape, used by predicate logic
 def pmask4  : Operand<i32>;   // 4-bit predicate bitmask for ld.pred/st.pred
 def pidx2   : Operand<i32>;   // 2-bit predicate address, read side, no negate
@@ -413,8 +417,11 @@ def SRD : FormatKsrd<28, (outs GPR:$rd), (ins srdsel:$sel), "srd $rd, $sel">;
 
 // Small-operand control ops (points 48-56).
 def C_CHWIDTH : FormatKraw<48, (outs), (ins uimm8:$payload), "chwidth $payload">;
+// §3 point 49. The payload is the 8-bit signed halfword offset, so this is a
+// branch operand rather than a raw immediate. Whether it fits is a layout
+// question, so the assembler relaxes it to Format E's `bra` when it does not.
 let isBranch = 1, isTerminator = 1, isBarrier = 1 in
-def C_BRA     : FormatKraw<49, (outs), (ins uimm8:$payload), "bra.short $payload">;
+def C_BRA : FormatKbra<49, (outs), (ins brtarget8:$off), "bra.short $off">;
 let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in {
 def C_BAR_ARRIVE : FormatKraw<51, (outs), (ins uimm8:$payload), "bar.arrive $payload">;
 def C_BAR_WAIT   : FormatKraw<52, (outs), (ins uimm8:$payload), "bar.wait $payload">;

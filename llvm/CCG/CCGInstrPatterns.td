@@ -21,7 +21,10 @@ def ccg_ret : SDNode<"CCGISD::RET", SDT_CCGRet,
 // needs a true guard manufactured first (O-24), which is a sequence rather
 // than a tree rewrite.
 // ---------------------------------------------------------------------------
-def : Pat<(br bb:$t), (BRA bb:$t)>;
+// F-28: emit the 16-bit form and let the assembler relax it to Format E's
+// 32-bit `bra` when the target is further than ±256 bytes. Picking here would
+// mean guessing at a distance that does not exist until layout.
+def : Pat<(br bb:$t), (C_BRA bb:$t)>;
 
 // ---------------------------------------------------------------------------
 // Integer arithmetic. Format A is three-source; the two-source operations leave

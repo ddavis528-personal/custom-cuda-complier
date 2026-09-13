@@ -459,7 +459,8 @@ answered. Update as items resolve.
 | F-26 No branch-analysis hooks, so fall-through edges became real branches | Step 3 | resolved — `analyzeBranch`/`removeBranch`/`insertBranch`/`reverseBranchCondition`; the kernel went from 18 instructions to 17, matching §5.6 exactly |
 | F-27 Unaligned pointer addressing is not implemented | Step 3 | **resolved — `matchBaseIdx` folds `roffset + (i << scale)` into one index register with scale-enable clear, trading O-7's scaling for the fourth addend. §5.5 is now generated from codegen, so O-23's "both shapes supported" is fact** |
 | F-29 No compressed-form (Format K) selection path | Step 4 | **open — nothing in the backend tries to land `rd == rs0`. Two of three three-operand ALU ops in §5.5 satisfy it by accident and one does not, costing 16 bits on a 656-bit kernel. Matters in proportion to ALU density, so a GEMM inner loop is the measurement. Blocks O-8 instrumentation, which also does not exist** |
-| F-28 `bra.short` (Format K, ±256 B) has no selection pattern | Step 4 | open — unexercised here; will fire often in loop-heavy code |
+| F-28 `bra.short` (Format K, ±256 B) has no selection pattern | Step 4 | **resolved — not a pattern question: whether a branch fits is a property of the final layout, so the selector always emits the 16-bit form and `CCGAsmBackend` relaxes it to Format E's `bra` when it cannot reach. Neither direction shows in the `.s`, which prints `bra.short` either way, so `check-relaxation.py` asserts both against the objects. Teaching only the selector would have silently reintroduced F-26: `analyzeBranch` recognised one opcode as an unconditional branch, and the dead fall-through came straight back** |
+| F-29 No compressed-form (Format K) selection path | Step 4 | **resolved — `CCGCompress` compresses what already satisfies `rd == rs0` and never inserts a copy to create it; O-29 records why the other half is deliberately left open. O-8 instrumentation now exists (`-ccg-compress-stats`): 2 of 3 on §5.5, 0 of 1 on the reduction, and 0 candidates on §5.6 because alignment already removed them. Too few to be a rate — Step 5's GEMM is where it means something** |
 | F-25 Branch relocations | Step 3 | resolved — three fixup kinds; `bra.pred`'s split field scattered in `applyFixup` |
 | F-19 Every compare is predicated; a kernel must manufacture a true predicate | Step 2 | resolved in v1.4 O-24, refined in v1.5 — self-guarding form costs one predicate, not two; regression test in `test/predicate-remat.s` |
 | F-18 Two of the four GPR arguments are contingent on kernel-pointer alignment | Step 0 | resolved — per-argument attribute, v1.4 O-23; see `proposals/pointer-alignment.md`. Step 5 must report both shapes |
@@ -467,7 +468,7 @@ answered. Update as items resolve.
 | F-14 Format B′/B″ move the predicate qualifier off `[29:27]` | Step 1 | resolved in v1.4 — O-22; checker now reports 0 deviations |
 | F-15 Invariant 8 claims a shared J/K compressed geometry that does not exist | Step 1 | resolved in v1.4 |
 | F-16 Invariant 8's "no exceptions" claim does not cover Format I | Step 1 | resolved in v1.4 — exclusions named |
-| O-8 compressed-form density | Step 1 instrumentation + Step 5 | not started |
+| O-8 compressed-form density | Step 5 | instrumentation done (`-ccg-compress-stats`, O-29); the measurement that matters is the GEMM inner loop |
 | O-9 compressed ld/st offset distribution | Step 1 instrumentation + Step 5 | not started |
 | GPR count 16 vs. 32 | Step 5, both configurations | not started |
 | Predicate count | Step 4; gated on F-2 | not started |

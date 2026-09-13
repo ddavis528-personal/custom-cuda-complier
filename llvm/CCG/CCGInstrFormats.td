@@ -464,6 +464,14 @@ class FormatKmem<bits<6> opc, dag outs, dag ins, string asm>
 }
 
 // Small-operand control ops that use [15:8] ad hoc.
+// bra.short: the 8-bit payload is a signed halfword offset, named so the
+// encoder can attach a fixup to it rather than treating it as a literal.
+class FormatKbra<bits<6> opc, dag outs, dag ins, string asm>
+    : CCGInstK<opc, outs, ins, asm> {
+  bits<8> off;
+  let Inst{15-8} = off;
+}
+
 class FormatKraw<bits<6> opc, dag outs, dag ins, string asm>
     : CCGInstK<opc, outs, ins, asm> {
   bits<8> payload;

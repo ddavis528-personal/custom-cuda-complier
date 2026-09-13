@@ -23,8 +23,14 @@ void CCGInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 static bool isCondBranch(const MachineInstr &MI) {
   return MI.getOpcode() == CCG::PSEUDO_BRA_PRED;
 }
+/// Both lengths. The selector emits the 16-bit `bra.short` and the assembler
+/// relaxes it to Format E's 32-bit `bra` when the target does not reach
+/// (F-28) -- but that decision belongs to layout, so at this level they are
+/// one operation and every hook below has to accept either. Recognising only
+/// `BRA` here is not a missed optimisation: the branch folder stops working,
+/// and the dead fall-through branch F-26 removed comes straight back.
 static bool isUncondBranch(const MachineInstr &MI) {
-  return MI.getOpcode() == CCG::BRA;
+  return MI.getOpcode() == CCG::BRA || MI.getOpcode() == CCG::C_BRA;
 }
 
 bool CCGInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
@@ -115,7 +121,7 @@ unsigned CCGInstrInfo::insertBranch(MachineBasicBlock &MBB,
          "condition is {guard, negate}");
 
   if (Cond.empty()) {
-    BuildMI(&MBB, DL, get(CCG::BRA)).addMBB(TBB);
+    BuildMI(&MBB, DL, get(CCG::C_BRA)).addMBB(TBB);
     return 1;
   }
 
@@ -125,7 +131,7 @@ unsigned CCGInstrInfo::insertBranch(MachineBasicBlock &MBB,
       .addMBB(TBB);
   if (!FBB)
     return 1;
-  BuildMI(&MBB, DL, get(CCG::BRA)).addMBB(FBB);
+  BuildMI(&MBB, DL, get(CCG::C_BRA)).addMBB(FBB);
   return 2;
 }
 

@@ -399,6 +399,10 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
 
   // ---- Format E / K: control flow ----------------------------------------
   case CCG::BRA:
+  case CCG::C_BRA:
+    // Same semantics at both lengths; Size differs, and the offset is in
+    // halfwords from the instruction after this one (§3). Which of the two the
+    // assembler picked is a layout question (F-28), invisible here.
     R.Kind = Result::Branch;
     R.Target = PC + Size + 2 * MI.getOperand(0).getImm();
     break;

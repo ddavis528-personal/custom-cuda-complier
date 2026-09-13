@@ -121,6 +121,25 @@ echo
 echo
 ./tools/run-reduce.sh || fail=1
 
+# --- branch relaxation (F-28) ---------------------------------------------
+# Neither direction is visible in the .s: it prints `bra.short` whether or not
+# the assembler grew it. So check the objects.
+echo
+echo "  --- branch relaxation ---"
+if [ -x build/ccg-llc ]; then
+  relax_ok=1
+  ./tools/cuda-to-asm.sh test/cuda/reduce.cu "$TMP/rd.s" "$TMP/rd" >/dev/null 2>&1 &&
+    build/ccg-llc "$TMP/rd-lowered.ll" -o "$TMP/rd.o" -obj &&
+    llvm-objcopy -O binary --only-section=.text "$TMP/rd.o" "$TMP/short.bin" || relax_ok=0
+  build/ccg-llc test/accept/branch-relax.ll -o "$TMP/rx.o" -obj &&
+    llvm-objcopy -O binary --only-section=.text "$TMP/rx.o" "$TMP/relaxed.bin" || relax_ok=0
+  if [ $relax_ok -eq 1 ]; then
+    python3 tools/check-relaxation.py "$JSON" "$TMP/short.bin" "$TMP/relaxed.bin" || fail=1
+  else
+    echo "  FAIL  could not build the relaxation inputs"; fail=1
+  fi
+fi
+
 # --- assembler / encoder cross-check --------------------------------------
 # ccg-as.py encodes from the TableGen JSON; the C++ MCCodeEmitter encodes from
 # gen-emitter. Two independent paths over one description (roadmap F-6).

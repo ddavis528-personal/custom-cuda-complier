@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CCGFixupKinds.h"
+#include "llvm/MC/MCInst.h"
 #include "CCGMCTargetDesc.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCFixupKindInfo.h"
@@ -19,6 +20,13 @@
 #include "llvm/MC/TargetRegistry.h"
 
 using namespace llvm;
+
+/// are 16-bit granular. LLVM computes a PC-relative fixup value relative to the
+/// fixup location, which is the start of the instruction, so the instruction's
+/// own size comes off before the halfword division.
+static int64_t branchDisplacement(uint64_t Value, unsigned InstrSize) {
+  return (int64_t(Value) - int64_t(InstrSize)) / 2;
+}
 
 namespace {
 
@@ -39,6 +47,7 @@ public:
         {"fixup_ccg_bra21",        11,     21,   MCFixupKindInfo::FKF_IsPCRel},
         {"fixup_ccg_brapred18",    0,      32,   MCFixupKindInfo::FKF_IsPCRel},
         {"fixup_ccg_call17",       15,     17,   MCFixupKindInfo::FKF_IsPCRel},
+        {"fixup_ccg_bra8",          8,      8,   MCFixupKindInfo::FKF_IsPCRel},
     };
     if (Kind < FirstTargetFixupKind)
       return MCAsmBackend::getFixupKindInfo(Kind);
@@ -50,10 +59,26 @@ public:
                   uint64_t Value, bool IsResolved,
                   const MCSubtargetInfo *) const override;
 
-  bool fixupNeedsRelaxation(const MCFixup &, uint64_t,
+  /// §3 gives bra.short ±256 bytes. Whether a branch fits is a property of the
+  /// final layout, not of the IR, so the selector emits the 16-bit form
+  /// optimistically and this grows it when it turns out not to reach.
+  bool mayNeedRelaxation(const MCInst &Inst, const MCSubtargetInfo &)
+      const override {
+    return Inst.getOpcode() == CCG::C_BRA;
+  }
+
+  bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
                             const MCRelaxableFragment *,
                             const MCAsmLayout &) const override {
-    return false;
+    if (Fixup.getKind() != CCG::fixup_ccg_bra8)
+      return false;
+    return !isInt<8>(branchDisplacement(Value, /*InstrSize=*/2));
+  }
+
+  void relaxInstruction(MCInst &Inst,
+                        const MCSubtargetInfo &) const override {
+    assert(Inst.getOpcode() == CCG::C_BRA && "nothing else relaxes");
+    Inst.setOpcode(CCG::BRA);   // same single operand, 16 bits -> 32
   }
 
   bool writeNopData(raw_ostream &OS, uint64_t Count,
@@ -70,12 +95,6 @@ public:
 };
 
 /// §3: branch offsets are measured from the instruction *after* the branch and
-/// are 16-bit granular. LLVM computes a PC-relative fixup value relative to the
-/// fixup location, which is the start of the instruction, so the instruction's
-/// own size comes off before the halfword division.
-static int64_t branchDisplacement(uint64_t Value, unsigned InstrSize) {
-  return (int64_t(Value) - int64_t(InstrSize)) / 2;
-}
 
 static void write32le(MutableArrayRef<char> Data, uint64_t Off, uint32_t V) {
   for (unsigned I = 0; I != 4; ++I)
@@ -107,7 +126,19 @@ void CCGAsmBackend::applyFixup(const MCAssembler &, const MCFixup &Fixup,
     return;
   const unsigned Kind = Fixup.getKind();
   const uint64_t Off = Fixup.getOffset();
-  // Every branch fixup in §3 sits on a 32-bit instruction.
+
+  // bra.short is the one branch on a 16-bit instruction, so its displacement
+  // is measured from a different instruction size and it patches a halfword.
+  if (Kind == CCG::fixup_ccg_bra8) {
+    const int64_t D8 = branchDisplacement(Value, /*InstrSize=*/2);
+    if (!isInt<8>(D8))
+      report_fatal_error("CCG: bra.short target out of range -- relaxation "
+                         "should have grown this to Format E's bra");
+    Data[Off + 1] = char(uint8_t(D8));      // payload is [15:8]
+    return;
+  }
+
+  // Every other branch fixup in §3 sits on a 32-bit instruction.
   const int64_t D = branchDisplacement(Value, /*InstrSize=*/4);
   uint32_t Word = read32le(Data, Off);
 
