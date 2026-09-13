@@ -82,6 +82,7 @@ add_library(CCGMC STATIC
   llvm/CCG/CCGLowerShared.cpp
   llvm/CCG/CCGCompress.cpp
   llvm/CCG/CCGExpandDivision.cpp
+  llvm/CCG/CCGFrameLowering.cpp
   llvm/CCG/MCTargetDesc/CCGAsmBackend.cpp)
 add_dependencies(CCGMC CCGTableGen)
 target_include_directories(CCGMC PUBLIC

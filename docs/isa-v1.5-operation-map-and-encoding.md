@@ -2334,6 +2334,46 @@ instrumentation now exists to collect it.
 two-address hint costs nothing to add and can cost a great deal to get wrong; the data that
 would justify a particular bias is the GEMM measurement, not these four instructions.
 
+**O-30 — `.local` gets a window per thread, and the frame pointer is a window index.**
+
+Spilling needs somewhere to spill to. §5.1 named `.local` as reaching memory "through its
+window" and left it there; nothing allocated a window, lowered a frame index, or carried a
+stack base in the launch block. The consequence was not a missing optimisation: **the
+backend could not compile a GEMM at all**, and did not say so — the allocator's spiller
+called into unimplemented hooks and corrupted the heap. See F-46.
+
+**Decided: each thread gets a whole 64 KiB window**, and thread *t*'s frame is window
+`local_base + t`, where `local_base` is a CTA-wide window index in the launch block at +24.
+
+That falls out of S=16 and is the reason to prefer it over the obvious alternative. If a
+thread's frame were at a byte offset inside a shared region, the address would need a base
+register *and* an index register — two of sixteen GPRs reserved forever. Making the frame
+pointer a **window index** instead means the frame offset is the entire remaining address
+computation, so a spill is one base+offset instruction and the frame costs **one** reserved
+register:
+
+```
+    movi       R15, #LAUNCH_WINDOW
+    ld.global  R15, [R15 + #LOCAL_BASE]   ; CTA's .local window
+    srd        R14, 0                     ; %ctatid
+    add        R15, R15, R14              ; this thread's window
+    ...
+    st.global  R3,  [R15 + -4]            ; a spill, one instruction
+```
+
+**What it costs.** One GPR of sixteen, reserved unconditionally — whether a function spills
+is decided *during* register allocation and `getReservedRegs` is asked before. It binds only
+at 16 simultaneously live values, so no kernel measured before Step 5 pays anything for it.
+Format D's 13-bit signed displacement caps a frame at 4 KiB per thread, comfortably inside
+the 64 KiB window. Address space is the cheap resource here: 64 KiB × 32 lanes is 2 MiB of
+*virtual* space per warp, of which a real kernel touches a few hundred bytes.
+
+**Predicates spill through `ld.pred`/`st.pred`**, which is what O-19 added them for. F-2 found
+there was no path from a predicate to memory at all; without one the allocator could not
+spill a predicate even in principle. §3's 4-bit predicate mask means one instruction moves
+any subset, though the allocator spills one at a time.
+
+
 
 
 

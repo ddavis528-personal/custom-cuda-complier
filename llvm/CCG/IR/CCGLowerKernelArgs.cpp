@@ -57,6 +57,10 @@ enum : unsigned {
   OffNctaidX = 12,
   OffNctaidY = 16,
   OffNctaidZ = 20,
+  /// Window index of this CTA's `.local` region (§5.1: `.local` reaches memory
+  /// through its window). Thread t's frame is window `OffLocalBase + t` -- see
+  /// O-30 for why a whole 64 KiB window per thread is the cheap choice.
+  OffLocalBase = 24,
   OffArgs    = 32,
 };
 

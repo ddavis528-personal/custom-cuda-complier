@@ -4,6 +4,7 @@
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
+#include <cstdlib>
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
 
@@ -57,9 +58,9 @@ public:
   /// §5.1 makes `.shared` flat 32-bit, so a shared object's address is a
   /// compile-time constant and the layout is the whole of its lowering.
   void addIRPasses() override {
-    addPass(createCCGLowerShared());
+    if (!getenv("CCG_NO_SHARED")) addPass(createCCGLowerShared());
     // Before anything can ask for a division libcall that does not exist.
-    addPass(createCCGExpandDivision());
+    if (!getenv("CCG_NO_DIV")) addPass(createCCGExpandDivision());
     TargetPassConfig::addIRPasses();
   }
 
@@ -69,7 +70,7 @@ public:
   /// CodeGenPrepare so nothing can hoist it back out.
   void addCodeGenPrepare() override {
     TargetPassConfig::addCodeGenPrepare();
-    addPass(createCCGWindowRemat());
+    if (!getenv("CCG_NO_REMAT")) addPass(createCCGWindowRemat());
   }
 
   /// After register allocation: predicate registers become qualifier
@@ -78,7 +79,7 @@ public:
   /// too; then Format K compression, which only shrinks what already fits.
   void addPreEmitPass() override {
     addPass(createCCGExpandPseudos());
-    addPass(createCCGCompress());
+    if (!getenv("CCG_NO_COMPRESS")) addPass(createCCGCompress());
   }
 };
 } // namespace

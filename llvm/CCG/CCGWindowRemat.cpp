@@ -29,6 +29,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Pass.h"
+#include "llvm/IR/ValueHandle.h"
 #include "llvm/Transforms/Utils/Local.h"
 
 using namespace llvm;
@@ -148,9 +149,18 @@ bool runOnFn(Function &F) {
 
   // The originals are usually dead now; if a use survived in the defining
   // block they stay, which is correct.
-  if (Changed)
-    for (Instruction *I : llvm::reverse(Roots))
-      RecursivelyDeleteTriviallyDeadInstructions(I);
+  //
+  // Weak handles, not raw pointers: two roots can share operands, so deleting
+  // one recursively deletes instructions that are still in this list. Holding
+  // raw pointers here is a use-after-free -- it showed up as heap corruption
+  // in the GEMM, whose several window chains share a launch-block load, and
+  // not in any earlier kernel, whose chains were disjoint.
+  if (Changed) {
+    SmallVector<WeakTrackingVH, 8> Handles(Roots.begin(), Roots.end());
+    for (WeakTrackingVH &H : llvm::reverse(Handles))
+      if (H)
+        RecursivelyDeleteTriviallyDeadInstructions(cast<Instruction>(H));
+  }
   return Changed;
 }
 

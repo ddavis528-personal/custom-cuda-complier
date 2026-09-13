@@ -9,6 +9,58 @@
 
 using namespace llvm;
 
+/// Spill and reload. The frame pointer holds this thread's `.local` WINDOW
+/// index (O-30), so the frame offset is the whole address computation -- one
+/// base+offset instruction, no index register, and the frame costs one
+/// reserved GPR rather than two.
+///
+/// A predicate spills through `ld.pred`/`st.pred` (O-19), which is what those
+/// instructions were added for in v1.3: F-2 found there was no way to get a
+/// predicate into memory at all, and without one the allocator cannot spill a
+/// predicate even in principle.
+void CCGInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
+                                       MachineBasicBlock::iterator MI,
+                                       Register SrcReg, bool isKill,
+                                       int FrameIndex,
+                                       const TargetRegisterClass *RC,
+                                       const TargetRegisterInfo *,
+                                       Register) const {
+  DebugLoc DL = MI != MBB.end() ? MI->getDebugLoc() : DebugLoc();
+  if (RC->getID() == CCG::PRRegClassID) {
+    // §3: [14:11] is a 4-bit predicate MASK, not a register number, so one
+    // instruction can move any subset of the file. The allocator spills one at
+    // a time, so the mask has a single bit set.
+    BuildMI(MBB, MI, DL, get(CCG::ST_PRED_G))
+        .addImm(1u << (SrcReg - CCG::P0))
+        .addFrameIndex(FrameIndex)
+        .addImm(0);
+    return;
+  }
+  BuildMI(MBB, MI, DL, get(CCG::ST_GLOBAL))
+      .addReg(SrcReg, getKillRegState(isKill))
+      .addFrameIndex(FrameIndex)
+      .addImm(0);
+}
+
+void CCGInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
+                                        MachineBasicBlock::iterator MI,
+                                        Register DestReg, int FrameIndex,
+                                        const TargetRegisterClass *RC,
+                                        const TargetRegisterInfo *,
+                                        Register) const {
+  DebugLoc DL = MI != MBB.end() ? MI->getDebugLoc() : DebugLoc();
+  if (RC->getID() == CCG::PRRegClassID) {
+    BuildMI(MBB, MI, DL, get(CCG::LD_PRED_G))
+        .addImm(1u << (DestReg - CCG::P0))
+        .addFrameIndex(FrameIndex)
+        .addImm(0);
+    return;
+  }
+  BuildMI(MBB, MI, DL, get(CCG::LD_GLOBAL), DestReg)
+      .addFrameIndex(FrameIndex)
+      .addImm(0);
+}
+
 /// §1: a predicate is 32 bits, one per lane, in a register file of its own
 /// (invariant 5). `regOf` and the encoding both number P0-P3 from zero, so a
 /// predicate copy emitted as a GPR move is not a type error anywhere -- it
