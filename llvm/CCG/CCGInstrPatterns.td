@@ -60,9 +60,15 @@ def : Pat<(xor GPR:$a, (i32 -1)), (C_NOT GPR:$a)>;
 def : Pat<(mul GPR:$a, GPR:$b), (MADLO GPR:$a, GPR:$b, (MOVI 0))>;
 def : Pat<(add (mul GPR:$a, GPR:$b), GPR:$c), (MADLO GPR:$a, GPR:$b, GPR:$c)>;
 def : Pat<(add GPR:$a, (i32 imm:$i)), (ADDI GPR:$a, imm:$i)>;
-def : Pat<(shl GPR:$a, (i32 imm:$i)), (C_SHLI GPR:$a, imm:$i)>;
-def : Pat<(srl GPR:$a, (i32 imm:$i)), (C_SHRI GPR:$a, imm:$i)>;
-def : Pat<(sra GPR:$a, (i32 imm:$i)), (C_SRAI GPR:$a, imm:$i)>;
+// §3: Format K's register-immediate forms carry FOUR bits, unsigned. Without
+// this predicate the encoder silently truncates -- a shift by 31 became a shift
+// by 15, which is how integer division miscompiled while every primitive it
+// uses tested correct (F-43). Out of range, the constant goes to a register and
+// the three-operand Format A form does the shift.
+def uimm4_imm : ImmLeaf<i32, [{ return Imm >= 0 && Imm < 16; }]>;
+def : Pat<(shl GPR:$a, (i32 uimm4_imm:$i)), (C_SHLI GPR:$a, imm:$i)>;
+def : Pat<(srl GPR:$a, (i32 uimm4_imm:$i)), (C_SHRI GPR:$a, imm:$i)>;
+def : Pat<(sra GPR:$a, (i32 uimm4_imm:$i)), (C_SRAI GPR:$a, imm:$i)>;
 
 // ---------------------------------------------------------------------------
 // Floating point. The compressed destructive form is the natural match for a
@@ -161,3 +167,12 @@ foreach ty = [i32, f32] in {
   def : Pat<(ty (ld_shared GPR:$rbase)), (LD_SHARED GPR:$rbase, 0)>;
   def : Pat<(st_shared ty:$v, GPR:$rbase), (ST_SHARED GPR:$v, GPR:$rbase, 0)>;
 }
+
+// ---------------------------------------------------------------------------
+// Predicate logic (O-20). These are the i1 domain -- a predicate is 32 bits,
+// one per lane, and never narrows (invariant 5), so i1 operations are real
+// register operations rather than something to widen into a GPR.
+// ---------------------------------------------------------------------------
+def : Pat<(and PR:$a, PR:$b), (PSEUDO_PAND PR:$a, PR:$b)>;
+def : Pat<(or  PR:$a, PR:$b), (PSEUDO_POR  PR:$a, PR:$b)>;
+def : Pat<(xor PR:$a, PR:$b), (PSEUDO_PXOR PR:$a, PR:$b)>;

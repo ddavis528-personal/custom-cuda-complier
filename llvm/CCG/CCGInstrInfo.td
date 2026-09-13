@@ -150,6 +150,15 @@ def DP4_SS : FormatA<64, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
 
 def ADD_P : FormatAp<0, (outs GPR:$rd), (ins pqual:$pq, GPR:$rs0, GPR:$rs1, GPR:$rs2),
                      "@$pq add $rd, $rs0, $rs1">;
+
+// §4 point 19. `sel` is predicated in shape but not in semantics: it writes rd
+// unconditionally and the qualifier chooses which source, where every other
+// predicated instruction writes only the lanes the qualifier selects and
+// preserves the rest (invariant 10). That difference is exactly why it needs an
+// opcode of its own rather than being `@p mov` plus `@!p mov`.
+def SEL : FormatAp<aluOpc.SEL, (outs GPR:$rd),
+                   (ins pqual:$pq, GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                   "@$pq sel $rd, $rs0, $rs1">;
 def ADD_PP : FormatApp<0, (outs GPR:$rd, PR:$pd),
                        (ins pqual:$pq, GPR:$rs0, GPR:$rs1, GPR:$rs2),
                        "@$pq add $rd, $rs0, $rs1, $pd">;
@@ -466,6 +475,20 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
 
   // $neg is the qualifier's negate bit (§1). Carrying it lets the generic
   // branch folder invert a condition rather than adding an instruction.
+  // Predicate logic, same register-vs-qualifier problem: §3's pand/por/pxor
+  // take their sources as 3-bit qualifier-shaped fields (2-bit address plus a
+  // negate bit), but allocation has to see registers.
+  foreach op = ["AND", "OR", "XOR"] in
+    def PSEUDO_P#op : CCGInst<0, (outs PR:$pd), (ins PR:$ps0, PR:$ps1),
+                              "# p"#op#" $pd, $ps0, $ps1">;
+
+  // The condition arrives as a predicate REGISTER, which is what allocation has
+  // to see; §3 encodes it as a qualifier immediate. Same two-representation
+  // problem as the compares, solved the same way.
+  def PSEUDO_SEL : CCGInst<0, (outs GPR:$rd),
+                           (ins PR:$cond, GPR:$a, GPR:$b),
+                           "# sel $rd, $cond, $a, $b">;
+
   let isBranch = 1, isTerminator = 1 in
   def PSEUDO_BRA_PRED : CCGInst<0, (outs),
                                 (ins PR:$guard, i32imm:$neg, brtarget18:$off),

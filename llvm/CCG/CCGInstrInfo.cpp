@@ -2,16 +2,38 @@
 #include "CCGInstrInfo.h"
 #include "MCTargetDesc/CCGMCTargetDesc.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/Support/ErrorHandling.h"
 
 #define GET_INSTRINFO_CTOR_DTOR
 #include "CCGGenInstrInfo.inc"
 
 using namespace llvm;
 
+/// §1: a predicate is 32 bits, one per lane, in a register file of its own
+/// (invariant 5). `regOf` and the encoding both number P0-P3 from zero, so a
+/// predicate copy emitted as a GPR move is not a type error anywhere -- it
+/// assembles, disassembles and executes, and silently clobbers R0-R3.
+static bool isPred(MCRegister R) { return R >= CCG::P0 && R <= CCG::P3; }
+
 void CCGInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                MachineBasicBlock::iterator MI,
                                const DebugLoc &DL, MCRegister DestReg,
                                MCRegister SrcReg, bool KillSrc) const {
+  if (isPred(DestReg) != isPred(SrcReg))
+    report_fatal_error("CCG: no copy between a GPR and a predicate -- they are "
+                       "separate files (invariant 5); use ballot/unballot");
+
+  if (isPred(DestReg)) {
+    // O-20's predicate logic gives a copy for free: `por pd, ps, ps` is ps.
+    // 16 bits, no new opcode point, and it reads the source twice rather than
+    // needing a dedicated move.
+    auto qual = [](MCRegister R) { return unsigned(R - CCG::P0); };
+    BuildMI(MBB, MI, DL, get(CCG::POR), DestReg)
+        .addImm(qual(SrcReg))
+        .addImm(qual(SrcReg));
+    return;
+  }
+
   // The compressed mov is 16 bits and is a rename-time no-op at execution
   // (§3, Format K).
   BuildMI(MBB, MI, DL, get(CCG::C_MOV), DestReg)

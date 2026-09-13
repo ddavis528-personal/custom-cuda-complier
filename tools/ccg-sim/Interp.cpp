@@ -182,6 +182,17 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     break;
   }
 
+  // §4 point 19. Unlike every other predicated instruction, `sel` writes rd in
+  // every lane -- the qualifier picks the source rather than gating the write.
+  case CCG::SEL: {
+    unsigned D = regOf(MI, 0), A = regOf(MI, 2), B = regOf(MI, 3);
+    uint32_t G = guardMask(W, uint32_t(MI.getOperand(1).getImm()));
+    forEachLane([&](unsigned L) {
+      W.GPR[D][L] = ((G >> L) & 1) ? W.GPR[A][L] : W.GPR[B][L];
+    });
+    break;
+  }
+
   case CCG::MADLO: {
     unsigned D = regOf(MI, 0), A = regOf(MI, 1), B = regOf(MI, 2), C = regOf(MI, 3);
     forEachLane([&](unsigned L) {

@@ -201,6 +201,15 @@ void CCGDAGToDAGISel::Select(SDNode *N) {
                                           {SDValue(True, 0), LHS, RHS}));
     return;
   }
+  case ISD::SELECT: {
+    // (select cond, a, b) -- cond is an i1 in a predicate register.
+    if (N->getValueType(0) != MVT::i32 && N->getValueType(0) != MVT::f32)
+      break;
+    ReplaceNode(N, CurDAG->getMachineNode(
+                       CCG::PSEUDO_SEL, DL, N->getValueType(0),
+                       {N->getOperand(0), N->getOperand(1), N->getOperand(2)}));
+    return;
+  }
   case ISD::BRCOND: {
     ReplaceNode(N, CurDAG->getMachineNode(
                        CCG::PSEUDO_BRA_PRED, DL, MVT::Other,

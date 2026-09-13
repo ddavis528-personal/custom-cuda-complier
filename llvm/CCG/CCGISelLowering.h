@@ -3,6 +3,7 @@
 #define CCG_CCGISELLOWERING_H
 
 #include "llvm/CodeGen/TargetLowering.h"
+#include "llvm/CodeGen/ValueTypes.h"
 
 namespace llvm {
 class CCGSubtarget;
@@ -22,6 +23,16 @@ enum NodeType : unsigned {
 class CCGTargetLowering : public TargetLowering {
 public:
   explicit CCGTargetLowering(const TargetMachine &TM, const CCGSubtarget &STI);
+
+  /// A compare writes a predicate, and a predicate is one bit per lane at every
+  /// chwidth (invariant 5). The default here is a pointer-sized integer, which
+  /// on a 64-bit pointer target means setcc produces an i64 that then has to be
+  /// truncated -- reintroducing the 64-bit value invariant 11 exists to
+  /// prevent. i1 is both correct and the only representable answer.
+  EVT getSetCCResultType(const DataLayout &, LLVMContext &,
+                         EVT VT) const override {
+    return MVT::i1;
+  }
 
   SDValue LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv,
                                bool IsVarArg,

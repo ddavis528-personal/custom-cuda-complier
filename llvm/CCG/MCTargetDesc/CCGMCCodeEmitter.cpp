@@ -11,6 +11,8 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
+#include "llvm/Support/MathExtras.h"
+#include "CCGOperandWidths.inc"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/EndianStream.h"
@@ -102,10 +104,44 @@ unsigned CCGMCCodeEmitter::getBranch8OpValue(const MCInst &MI, unsigned OpNo,
   return branchOpValue(MI, OpNo, Fixups, CCG::fixup_ccg_bra8);
 }
 
+/// An immediate wider than its field is silently truncated by the generated
+/// encoder -- the bits simply do not reach the instruction. That is not a
+/// theoretical hazard: a shift by 31 selected into Format K's 4-bit immediate
+/// became a shift by 15, and integer division miscompiled while every
+/// primitive it used tested correct (F-43). Nothing downstream can notice,
+/// because the encoder and the decoder agree perfectly on the truncated value.
+///
+/// So check it here, against the same .td the encoder is generated from.
+static void verifyImmediatesFit(const MCInst &MI, StringRef Name) {
+  for (unsigned I = 0, N = MI.getNumOperands(); I != N; ++I) {
+    const MCOperand &MO = MI.getOperand(I);
+    if (!MO.isImm())
+      continue;
+    const CCGOperandInfo *OI = nullptr;
+    for (unsigned J = 0; J != CCGNumInstOperands; ++J) {
+      if (Name != CCGInstOperandTable[J].Inst)
+        continue;
+      if (I < CCGInstOperandTable[J].NumOperands)
+        OI = &CCGInstOperandTable[J].Operands[I];
+      break;
+    }
+    if (!OI || OI->Bits == 0 || OI->Bits >= 64)
+      continue;
+    int64_t V = MO.getImm();
+    bool Fits = OI->Signed ? isIntN(OI->Bits, V) : isUIntN(OI->Bits, uint64_t(V));
+    if (!Fits)
+      report_fatal_error(Twine("CCG: ") + Name + " operand " + Twine(I) +
+                         " value " + Twine(V) + " does not fit its " +
+                         Twine(OI->Bits) + "-bit field -- selecting this form "
+                         "truncates it silently");
+  }
+}
+
 void CCGMCCodeEmitter::encodeInstruction(const MCInst &MI,
                                          SmallVectorImpl<char> &CB,
                                          SmallVectorImpl<MCFixup> &Fixups,
                                          const MCSubtargetInfo &STI) const {
+  verifyImmediatesFit(MI, MCII.getName(MI.getOpcode()));
   uint64_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);
   unsigned Size = MCII.get(MI.getOpcode()).getSize();
   assert((Size == 2 || Size == 4 || Size == 6) &&

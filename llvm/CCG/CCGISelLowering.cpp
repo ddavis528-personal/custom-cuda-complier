@@ -58,11 +58,17 @@ CCGTargetLowering::CCGTargetLowering(const TargetMachine &TM,
     // explicit value the allocator can see.
     setOperationAction(ISD::BR_CC, VT, Expand);
     setOperationAction(ISD::SELECT_CC, VT, Expand);
-    setOperationAction(ISD::SELECT, VT, Expand);
+    // NOT Expand. Expanding SELECT produces SELECT_CC, and expanding SELECT_CC
+    // produces SELECT, so marking both Expand is an infinite legalization loop
+    // -- the compiler hangs rather than failing. It went unnoticed until the
+    // division expansion produced the first `select` this backend had ever
+    // seen. §4 point 19 is `sel`, so the operation is Legal and selected in
+    // C++ like the other predicate-consuming nodes. See F-42.
+    setOperationAction(ISD::SELECT, VT, Legal);
   }
   setOperationAction(ISD::BR_CC, MVT::f32, Expand);
   setOperationAction(ISD::SELECT_CC, MVT::f32, Expand);
-  setOperationAction(ISD::SELECT, MVT::f32, Expand);
+  setOperationAction(ISD::SELECT, MVT::f32, Legal);
   // brcond takes an i1; there is no BRCOND over a GPR bit pattern, because a
   // branch reads the predicate file directly (§3, Format E).
   setOperationAction(ISD::BRCOND, MVT::Other, Legal);

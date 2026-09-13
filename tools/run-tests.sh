@@ -121,6 +121,30 @@ echo
 echo
 ./tools/run-reduce.sh || fail=1
 
+# --- integer division: compiles AND computes -------------------------------
+# Every primitive the expansion uses tested correct on its own; the kernel was
+# still wrong. Only executing it finds that.
+echo
+echo "  --- integer division (expanded in IR) ---"
+if [ -x build/ccg-llc ]; then
+  if build/ccg-llc test/accept/integer-divide.ll -o "$TMP/dv.o" -obj 2>/dev/null &&
+     llvm-objcopy -O binary --only-section=.text "$TMP/dv.o" "$TMP/dv.bin"; then
+    dargs=(-poke 0x20020=3)
+    for i in $(seq 0 15); do dargs+=(-peek $((0x30000 + i*4))); done
+    dout=$("$SIM" "$TMP/dv.bin" "${dargs[@]}" 2>&1)
+    dbad=0
+    for i in $(seq 0 15); do
+      got=$(echo "$dout" | grep -oP "\[0x$(printf %x $((0x30000 + i*4)))\] = \K\d+")
+      want=$(( (i*7 + 13) / (i + 1) ))
+      [ "$got" = "$want" ] || { echo "    lane $i: got $got, want $want"; dbad=1; }
+    done
+    [ $dbad -eq 0 ] && echo "  PASS  udiv by a runtime value, 16 lanes" \
+                    || { echo "  FAIL  udiv results wrong"; fail=1; }
+  else
+    echo "  FAIL  integer-divide.ll did not compile"; fail=1
+  fi
+fi
+
 # --- branch relaxation (F-28) ---------------------------------------------
 # Neither direction is visible in the .s: it prints `bra.short` whether or not
 # the assembler grew it. So check the objects.

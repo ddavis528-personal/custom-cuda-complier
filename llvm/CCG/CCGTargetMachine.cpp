@@ -14,6 +14,7 @@ FunctionPass *createCCGISelDag(CCGTargetMachine &TM, CodeGenOptLevel OL);
 FunctionPass *createCCGExpandPseudos();
 FunctionPass *createCCGWindowRemat();
 FunctionPass *createCCGCompress();
+FunctionPass *createCCGExpandDivision();
 ModulePass *createCCGLowerShared();
 }
 
@@ -57,6 +58,8 @@ public:
   /// compile-time constant and the layout is the whole of its lowering.
   void addIRPasses() override {
     addPass(createCCGLowerShared());
+    // Before anything can ask for a division libcall that does not exist.
+    addPass(createCCGExpandDivision());
     TargetPassConfig::addIRPasses();
   }
 

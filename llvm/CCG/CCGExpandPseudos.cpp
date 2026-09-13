@@ -97,6 +97,29 @@ bool CCGExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
         break;
       }
 
+      case CCG::PSEUDO_PAND:
+      case CCG::PSEUDO_POR:
+      case CCG::PSEUDO_PXOR: {
+        unsigned Opc = MI.getOpcode() == CCG::PSEUDO_PAND ? CCG::PAND
+                       : MI.getOpcode() == CCG::PSEUDO_POR ? CCG::POR
+                                                           : CCG::PXOR;
+        BuildMI(MBB, MI, DL, TII->get(Opc), MI.getOperand(0).getReg())
+            .addImm(qualFor(MI.getOperand(1).getReg(), /*Negate=*/false))
+            .addImm(qualFor(MI.getOperand(2).getReg(), /*Negate=*/false));
+        break;
+      }
+
+      case CCG::PSEUDO_SEL: {
+        // rs2 is unread by `sel`; tie it to rs0 rather than leave a third
+        // register live, as the other two-source Format A forms do.
+        BuildMI(MBB, MI, DL, TII->get(CCG::SEL), MI.getOperand(0).getReg())
+            .addImm(qualFor(MI.getOperand(1).getReg(), /*Negate=*/false))
+            .add(MI.getOperand(2))
+            .add(MI.getOperand(3))
+            .add(MI.getOperand(2));
+        break;
+      }
+
       case CCG::PSEUDO_BRA_PRED: {
         Register Guard = MI.getOperand(0).getReg();
         bool Neg = MI.getOperand(1).getImm() != 0;
