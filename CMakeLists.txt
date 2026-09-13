@@ -85,6 +85,7 @@ add_library(CCGMC STATIC
   llvm/CCG/CCGFrameLowering.cpp
   llvm/CCG/CCGTargetTransformInfo.cpp
   llvm/CCG/CCGUniformity.cpp
+  llvm/CCG/CCGMaskUniform.cpp
   llvm/CCG/MCTargetDesc/CCGAsmBackend.cpp)
 add_dependencies(CCGMC CCGTableGen)
 target_include_directories(CCGMC PUBLIC

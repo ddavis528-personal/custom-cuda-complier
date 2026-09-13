@@ -183,8 +183,47 @@ def FFMA_F0 : FormatA<FpOpc<fpOp.FFMA, 0>.V, (outs GPR:$rd),
 def DP4_SS : FormatA<64, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
                      "dp4.ss $rd, $rs0, $rs1, $rs2">;
 
-def ADD_P : FormatAp<0, (outs GPR:$rd), (ins pqual:$pq, GPR:$rs0, GPR:$rs1, GPR:$rs2),
-                     "@$pq add $rd, $rs0, $rs1">;
+// Predicated twins, Format A′ (O-33). These are what mask-and-broadcast
+// selects: a warp-uniform computation runs with only lane 0 active and the
+// result is broadcast, so lanes 1-31 never switch.
+//
+// §4 puts A′'s opcode at SEVEN bits, so only points 0-127 are reachable this
+// way. The conversions at 128+ and the SFU at 256+ have no predicated form at
+// all, which is a real limit on how much of a kernel can be masked -- the
+// division sequence's `cvt` and `rcp` cannot be, however uniform they are.
+multiclass AluRRP<int opc, string mnem> {
+  def NAME : FormatAp<opc, (outs GPR:$rd),
+                      (ins pqual:$pq, GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                      "@$pq "#mnem#" $rd, $rs0, $rs1">;
+}
+defm ADD_P   : AluRRP<aluOpc.ADD,   "add">;
+defm SUB_P   : AluRRP<aluOpc.SUB,   "sub">;
+defm AND_P   : AluRRP<aluOpc.AND,   "and">;
+defm OR_P    : AluRRP<aluOpc.OR,    "or">;
+defm XOR_P   : AluRRP<aluOpc.XOR,   "xor">;
+defm SHL_P   : AluRRP<aluOpc.SHL,   "shl">;
+defm SHR_P   : AluRRP<aluOpc.SHR,   "shr">;
+defm SRA_P   : AluRRP<aluOpc.SRA,   "sra">;
+defm MIN_S_P : AluRRP<aluOpc.MIN_S, "min.s">;
+defm MIN_U_P : AluRRP<aluOpc.MIN_U, "min.u">;
+defm MAX_S_P : AluRRP<aluOpc.MAX_S, "max.s">;
+defm MAX_U_P : AluRRP<aluOpc.MAX_U, "max.u">;
+defm MUL_HI_S_P : AluRRP<aluOpc.MUL_HI_S, "mul.hi.s">;
+defm MUL_HI_U_P : AluRRP<aluOpc.MUL_HI_U, "mul.hi.u">;
+
+def MADLO_P : FormatAp<aluOpc.MAD_LO, (outs GPR:$rd),
+                       (ins pqual:$pq, GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                       "@$pq mad.lo $rd, $rs0, $rs1, $rs2">;
+
+// FP: 32 + 8*format + op (O-28), all inside A′'s reach at format code 0.
+multiclass FpRRP<int op, string mnem> {
+  def NAME : FormatAp<FpOpc<op, 0>.V, (outs GPR:$rd),
+                      (ins pqual:$pq, GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                      "@$pq "#mnem#".f0 $rd, $rs0, $rs1">;
+}
+defm FADD_P : FpRRP<fpOp.FADD, "fadd">;
+defm FSUB_P : FpRRP<fpOp.FSUB, "fsub">;
+defm FMUL_P : FpRRP<fpOp.FMUL, "fmul">;
 
 // §4 point 19. `sel` is predicated in shape but not in semantics: it writes rd
 // unconditionally and the qualifier chooses which source, where every other
@@ -541,6 +580,15 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
 
   // $neg is the qualifier's negate bit (§1). Carrying it lets the generic
   // branch folder invert a condition rather than adding an instruction.
+  // O-33's broadcast. Tied because the shuffle is in-place: lanes 1-31 read
+  // lane 0's copy of the SAME register, and lane 0 keeps its own value because
+  // the qualifier excludes it (invariant 10). That is what makes one
+  // instruction a complete broadcast rather than needing a second to fix up
+  // lane 0.
+  let Constraints = "$rd = $rd_in" in
+  def PSEUDO_BCAST : CCGInst<0, (outs GPR:$rd), (ins GPR:$rd_in),
+                             "# broadcast $rd from lane 0">;
+
   // Predicate logic, same register-vs-qualifier problem: §3's pand/por/pxor
   // take their sources as 3-bit qualifier-shaped fields (2-bit address plus a
   // negate bit), but allocation has to see registers.

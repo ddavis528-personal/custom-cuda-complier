@@ -164,6 +164,8 @@ int main(int argc, char **argv) {
     // --- counters -------------------------------------------------------
     ++C.IssueGroups;
     C.LaneInstrs += llvm::popcount(Mask);
+    // Lanes that actually switched, after predication (O-33).
+    C.ActiveLanes += llvm::popcount(R.ActiveSet ? R.Active : Mask);
     C.Bytes += Size;
     {
       const MCInstrDesc &D = MII->get(MI.getOpcode());
@@ -253,8 +255,12 @@ int main(int argc, char **argv) {
       return D ? (100.0 * double(N) / double(D)) : 0.0;
     };
     outs() << format("  issue groups            %10llu\n", (unsigned long long)C.IssueGroups)
-           << format("  lane-instructions       %10llu   (work actually done)\n",
+           << format("  lane-instructions       %10llu   (issued, before predication)\n",
                      (unsigned long long)C.LaneInstrs)
+           << format("  lane-activations        %10llu   %5.1f%%  (after predication -- "
+                     "the energy number, O-33)\n",
+                     (unsigned long long)C.ActiveLanes,
+                     pct(C.ActiveLanes, C.LaneInstrs))
            << format("  per thread              %10.1f   (lane-instructions / %u threads)\n",
                      double(C.LaneInstrs) / std::max(1u, Threads), Threads)
            << format("  SIMT efficiency         %9.1f%%   (lanes active per issue, of %u)\n",

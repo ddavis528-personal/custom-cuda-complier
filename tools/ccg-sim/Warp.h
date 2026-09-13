@@ -67,7 +67,8 @@ public:
 /// what divergence costs.
 struct Counters {
   uint64_t IssueGroups = 0;   ///< instructions issued, warp granularity
-  uint64_t LaneInstrs = 0;    ///< sum of active lanes over all issues
+  uint64_t LaneInstrs = 0;    ///< sum of issue-mask lanes over all issues
+  uint64_t ActiveLanes = 0;   ///< the same after predication (O-33)
   uint64_t Bytes = 0;         ///< dynamic instruction bytes fetched
   uint64_t Stalls = 0;        ///< issue slots spent blocked at a barrier
   uint64_t Diverged = 0;      ///< predicated branches where the mask split

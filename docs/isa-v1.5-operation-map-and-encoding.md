@@ -973,7 +973,12 @@ so those opcodes are 32-bit only.
 tag, not one layout, and a decoder implementer reading the merged table had to reconstruct
 the split unaided. They are now written out. No bit assignment changes.
 
-**Shuffles** — GPR source and destination, 5-bit lane index, no predicate destination:
+**Shuffles** — GPR source and destination, 5-bit lane index, no predicate destination.
+
+**The source lane is read whether or not it is active.** A shuffle reads the register file
+across lanes; the predicate qualifier gates which lanes *write*, not which lanes can be
+*read from*. O-33's broadcast depends on exactly this — lane 0 computes a value and is then
+excluded from the shuffle that distributes it.
 
 | Bits | Width | Field |
 |---|---|---|
@@ -2489,6 +2494,87 @@ forms remain in the ISA and are what if-conversion would select — nothing sele
 **O-24 is not superseded, only displaced.** Its idiom is still the only way to get a constant
 into a predicate without `pmov`, still correct, and still what a genuinely predicated compare
 needs. It is simply no longer on the path every kernel takes.
+
+**O-33 — Warp-uniform work runs on one lane and is broadcast.**
+
+Half of what an addressing-heavy kernel does is warp-uniform: the same value computed
+identically in all 32 lanes. The measurement is in O-25's reporting — 52–75% of instructions
+in the elementwise, reduction and transpose kernels, against 14% in a GEMM.
+
+**Decided: mask that work to lane 0 and broadcast the result.**
+
+```
+    pmov       P3, #1            ; lane 0 only -- once, in the entry block
+    @P3 ld.global R1, [R0 + 48]  ; uniform work, one lane active
+    @P3 mad.lo R1, R1, R3, R2
+    @!P3 shfl.idx R1, R1, 0      ; lanes 1-31 read lane 0
+```
+
+**The broadcast is one instruction, not two.** The shuffle is guarded by the **negated**
+mask, so lanes 1–31 read lane 0's copy while lane 0 is excluded and keeps its own value
+(invariant 10). Nothing has to fix up lane 0 afterwards. It also means the source lane of a
+shuffle is read whether or not that lane is *active* — being masked off stops a lane
+writing, not its register being readable. That is now stated in §3 rather than left implied.
+
+**Predication, not branching.** A branch would split the per-thread PCs (§1), and the
+broadcast is a warp-collective instruction that needs its lanes co-issued. Predication keeps
+every lane at the same PC, so the collective is always well-formed. This is the first place
+where the per-thread-PC model constrains an optimisation rather than enabling one.
+
+---
+
+### ⚠ This is a power optimisation, and it is a claim on the RTL
+
+**Nothing in the ISA makes masking save energy.** The saving exists only if the datapath
+gates mask-off lanes — clock-gated, operand-isolated, or both. If predicated-off lanes still
+burn dynamic power, this transformation costs one broadcast per region and returns
+**nothing**.
+
+That is an obligation on the implementation, recorded here because it is invisible at this
+level and easy to lose between here and RTL:
+
+> **Lane gating is required, not optional.** A predicated-off lane must not toggle its ALU
+> operands, its register-file write port, or its result bus. The compiler is now generating
+> code whose entire value rests on it.
+
+The measurement below is in **lane-activations** — lanes that actually did work — precisely
+so that the thing the hardware must deliver is what the tooling counts.
+
+---
+
+**Measured**, `ccg-sim -counters`, masking on against off:
+
+| kernel | lane-activations | | instructions | |
+|---|---|---|---|---|
+| | off | on | off | on |
+| uniform-chain microbenchmark | 640 | **548** (−14%) | 20 | 23 |
+| `transpose` | 2304 | **1809** (−21.5%) | 72 | 76 |
+
+**It is not applied everywhere, because it does not pay everywhere.** Each masked
+instruction saves 31 lane-activations and each broadcast costs 31, so a region pays only
+when it contains more masked work than crossings into divergent code. The reduction kernels
+have eight maskable instructions and eight crossings — every uniform value is consumed
+immediately by divergent work — so the pass measures that and declines. `vadd` likewise.
+
+**Two things bound how much can be masked**, and both are encoding facts rather than
+compiler limitations:
+
+- **§4 gives Format A′ a seven-bit opcode**, so only points 0–127 can be predicated.
+  Conversions (128+) and the SFU (256+) have no predicated form, so the division sequence's
+  `cvt` and `rcp` run in all 32 lanes however uniform they are.
+- **Format D′ narrows the load displacement** from 13 bits to 10, so a predicated load needs
+  its offset to fit. Launch-block offsets are tens of bytes, so it always does here.
+
+An instruction with no predicated form is **not** a reason to broadcast, though — it runs on
+all 32 lanes, computing from whatever the masked region left in lanes 1–31, and lane 0 stays
+correct because lane 0's inputs were correct. It costs a missed saving, not a crossing.
+Getting that wrong doubled the broadcast count in the first implementation.
+
+**Cost: one predicate register**, P3, reserved unconditionally — whether a function has
+uniform work is decided after `getReservedRegs` is asked. Measured predicate pressure across
+every kernel here is 1–2 of 4, so the quarter of the file this takes is currently unused;
+O-32 removing the manufactured guards is most of why it is free.
+
 
 
 

@@ -34,6 +34,13 @@ BitVector CCGRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   // and this is asked before. It only binds at 16 simultaneously live values,
   // so no kernel measured so far pays anything for it.
   Reserved.set(CCG::R15);
+  // P3 is the lane-0 mask for O-33's mask-and-broadcast. Like R15 it has to be
+  // reserved before allocation runs, because whether a function has uniform
+  // work to mask is decided by a pass that runs after this is asked. Measured
+  // predicate pressure across every kernel here is 1-2 of 4, so the quarter of
+  // the file this costs is currently unused anyway -- O-32 removing the
+  // manufactured guards is most of why.
+  Reserved.set(CCG::P3);
   return Reserved;
 }
 

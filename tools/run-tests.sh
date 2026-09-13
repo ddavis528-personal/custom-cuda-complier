@@ -150,6 +150,11 @@ echo
 echo "  --- float-reciprocal division ---"
 ./tools/check-div.sh 12 || fail=1
 
+# --- lane-0 masking (O-33) -------------------------------------------------
+echo
+echo "  --- warp-uniform lane-0 masking ---"
+./tools/check-mask.sh || fail=1
+
 # --- branch relaxation (F-28) ---------------------------------------------
 # Neither direction is visible in the .s: it prints `bra.short` whether or not
 # the assembler grew it. So check the objects.

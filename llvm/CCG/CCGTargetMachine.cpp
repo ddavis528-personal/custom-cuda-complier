@@ -15,6 +15,7 @@ FunctionPass *createCCGISelDag(CCGTargetMachine &TM, CodeGenOptLevel OL);
 FunctionPass *createCCGExpandPseudos();
 FunctionPass *createCCGWindowRemat();
 FunctionPass *createCCGCompress();
+FunctionPass *createCCGMaskUniform();
 FunctionPass *createCCGExpandDivision();
 FunctionPass *createCCGUniformity();
 ModulePass *createCCGLowerShared();
@@ -71,6 +72,14 @@ public:
   /// cloned into every block that uses it, so the DAGCombine that folds it into
   /// an addressing mode always sees it locally. Placed after the default
   /// CodeGenPrepare so nothing can hoist it back out.
+  /// O-33: after instruction selection, before allocation -- uniformity is a
+  /// dataflow property and SSA virtual registers are what makes it cheap to
+  /// compute.
+  bool addILPOpts() override {
+    addPass(createCCGMaskUniform());
+    return true;
+  }
+
   void addCodeGenPrepare() override {
     TargetPassConfig::addCodeGenPrepare();
     addPass(createCCGWindowRemat());

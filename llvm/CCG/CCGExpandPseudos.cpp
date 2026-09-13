@@ -109,6 +109,19 @@ bool CCGExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
         break;
       }
 
+      case CCG::PSEUDO_BCAST: {
+        // Lanes 1-31 read lane 0's copy; lane 0 is excluded by the NEGATED
+        // qualifier and keeps its own value (invariant 10), which is what
+        // makes one instruction a complete broadcast. rd and rs0 are the same
+        // register -- the tie guaranteed that.
+        Register Rd = MI.getOperand(0).getReg();
+        BuildMI(MBB, MI, DL, TII->get(CCG::SHFL_IDX), Rd)
+            .addImm(qualFor(CCG::P3, /*Negate=*/true))
+            .addReg(Rd)
+            .addImm(0);
+        break;
+      }
+
       case CCG::PSEUDO_SEL: {
         // rs2 is unread by `sel`; tie it to rs0 rather than leave a third
         // register live, as the other two-source Format A forms do.

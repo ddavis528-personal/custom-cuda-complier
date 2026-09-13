@@ -481,6 +481,101 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     break;
   }
 
+  // ---- Format I: pmov -- the only constant-to-predicate path (O-14) ------
+  case CCG::PMOV_IMM: {
+    unsigned D = regOf(MI, 0);
+    uint32_t LaneMask = uint32_t(MI.getOperand(1).getImm());
+    // Unpredicated and not gated by the issue mask: §3 writes bit n of the
+    // immediate to lane n's predicate bit, for all 32 lanes. That is what makes
+    // it usable to CREATE a mask -- a value gated by the current mask could not
+    // widen one.
+    W.Pred[D] = LaneMask;
+    break;
+  }
+
+  // ---- Format G: shuffle -------------------------------------------------
+  case CCG::SHFL_IDX: {
+    unsigned D = regOf(MI, 0), A = regOf(MI, 2);
+    uint32_t Lane = uint32_t(MI.getOperand(3).getImm()) & 31;
+    uint32_t G = guardMask(W, uint32_t(MI.getOperand(1).getImm())) & Mask;
+    R.Active = G; R.ActiveSet = true;
+    // The source lane is read whether or not it is ACTIVE. A shuffle reads the
+    // register file across lanes; being masked off stops a lane writing, not
+    // its register being readable. O-33's broadcast depends on exactly this:
+    // lane 0 computes the value and is then excluded from the shuffle that
+    // distributes it.
+    uint32_t Src = W.GPR[A][Lane];
+    forEachLane([&](unsigned L) {
+      if ((G >> L) & 1)
+        W.GPR[D][L] = Src;
+    });
+    break;
+  }
+
+  // ---- Format D′: predicated load (O-33) ---------------------------------
+  case CCG::LD_GLOBAL_P: {
+    unsigned Data = regOf(MI, 0), Base = regOf(MI, 2);
+    int64_t Off = MI.getOperand(3).getImm();
+    uint32_t G = guardMask(W, uint32_t(MI.getOperand(1).getImm())) & Mask;
+    R.Active = G; R.ActiveSet = true;
+    forEachLane([&](unsigned L) {
+      if (!((G >> L) & 1))
+        return;                  // invariant 10: excluded lanes preserved
+      W.GPR[Data][L] = Mem.read32((uint64_t(W.GPR[Base][L]) << kBaseShift) + Off);
+    });
+    break;
+  }
+
+  // ---- Format A′: predicated ALU (O-33) ----------------------------------
+  case CCG::ADD_P: case CCG::SUB_P: case CCG::AND_P: case CCG::OR_P:
+  case CCG::XOR_P: case CCG::SHL_P: case CCG::SHR_P: case CCG::SRA_P:
+  case CCG::MIN_S_P: case CCG::MIN_U_P: case CCG::MAX_S_P: case CCG::MAX_U_P:
+  case CCG::MUL_HI_S_P: case CCG::MUL_HI_U_P: {
+    static const std::pair<unsigned, unsigned> Map[] = {
+        {CCG::ADD_P, CCG::ADD}, {CCG::SUB_P, CCG::SUB}, {CCG::AND_P, CCG::AND},
+        {CCG::OR_P, CCG::OR},   {CCG::XOR_P, CCG::XOR}, {CCG::SHL_P, CCG::SHL},
+        {CCG::SHR_P, CCG::SHR}, {CCG::SRA_P, CCG::SRA},
+        {CCG::MIN_S_P, CCG::MIN_S}, {CCG::MIN_U_P, CCG::MIN_U},
+        {CCG::MAX_S_P, CCG::MAX_S}, {CCG::MAX_U_P, CCG::MAX_U},
+        {CCG::MUL_HI_S_P, CCG::MUL_HI_S}, {CCG::MUL_HI_U_P, CCG::MUL_HI_U}};
+    unsigned Base = 0;
+    for (auto [P, B] : Map) if (P == Op) Base = B;
+    unsigned D = regOf(MI, 0), A = regOf(MI, 2), Bx = regOf(MI, 3);
+    uint32_t G = guardMask(W, uint32_t(MI.getOperand(1).getImm())) & Mask;
+    R.Active = G; R.ActiveSet = true;
+    forEachLane([&](unsigned L) {
+      // Invariant 10: a predicated write preserves the lanes the guard
+      // excludes. That is what lets the masked region leave lanes 1-31 holding
+      // whatever they held, to be overwritten by the broadcast.
+      if ((G >> L) & 1)
+        W.GPR[D][L] = aluRR(Base, W.GPR[A][L], W.GPR[Bx][L]);
+    });
+    break;
+  }
+  case CCG::FADD_P: case CCG::FSUB_P: case CCG::FMUL_P: {
+    unsigned Base = Op == CCG::FADD_P ? CCG::FADD
+                  : Op == CCG::FSUB_P ? CCG::FSUB : CCG::FMUL;
+    unsigned D = regOf(MI, 0), A = regOf(MI, 2), Bx = regOf(MI, 3);
+    uint32_t G = guardMask(W, uint32_t(MI.getOperand(1).getImm())) & Mask;
+    R.Active = G; R.ActiveSet = true;
+    forEachLane([&](unsigned L) {
+      if ((G >> L) & 1)
+        W.GPR[D][L] = fpRR(Base, W.GPR[A][L], W.GPR[Bx][L]);
+    });
+    break;
+  }
+  case CCG::MADLO_P: {
+    unsigned D = regOf(MI, 0), A = regOf(MI, 2), Bx = regOf(MI, 3),
+             C = regOf(MI, 4);
+    uint32_t G = guardMask(W, uint32_t(MI.getOperand(1).getImm())) & Mask;
+    R.Active = G; R.ActiveSet = true;
+    forEachLane([&](unsigned L) {
+      if ((G >> L) & 1)
+        W.GPR[D][L] = W.GPR[A][L] * W.GPR[Bx][L] + W.GPR[C][L];
+    });
+    break;
+  }
+
   // ---- Format K: predicate logic (O-20) ----------------------------------
   case CCG::PAND:
   case CCG::POR:
