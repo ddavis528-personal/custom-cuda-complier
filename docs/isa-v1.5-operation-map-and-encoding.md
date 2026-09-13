@@ -2373,6 +2373,66 @@ there was no path from a predicate to memory at all; without one the allocator c
 spill a predicate even in principle. §3's 4-bit predicate mask means one instruction moves
 any subset, though the allocator spills one at a time.
 
+**O-31 — Conversions and the SFU get their first points, because integer division needed
+them.**
+
+§4 reserved 128–255 for conversions and 256+ for "SFU and future extension", and left both
+empty. That was not free. With no float path available, integer division fell back to a
+shift-subtract loop, and the simulator put a number on it: **one `udiv` cost 97 dynamic
+instructions per thread.** AMD's compiler does the same division in about ten straight-line
+instructions, and the 143-versus-64 static gap on the `transpose` benchmark was almost
+entirely this one operation.
+
+**Assigned, and only what is needed:**
+
+| point | | point | |
+|---|---|---|---|
+| 128 | `cvt.f32.s32` | 256 | `rcp.f32` |
+| 129 | `cvt.f32.u32` | 257 | `rsqrt.f32` |
+| 130 | `cvt.s32.f32` (toward zero) | 258 | `sqrt.f32` |
+| 131 | `cvt.u32.f32` (toward zero) | 259–262 | `ex2`, `lg2`, `sin`, `cos` |
+
+The four conversions are what the algorithm needs. The SFU set is assigned together rather
+than one at a time because O-28 makes numbering normative — fixing it once is cheaper than
+revisiting it — and because CUDA requires all of them anyway. The rest of both ranges stays
+reserved; filling them in speculatively would be inventing an ISA rather than specifying one.
+
+**Out-of-range conversion saturates, NaN gives zero.** Same contract §4 gives width
+mismatches: deterministic, no interlock, a compiler-correctness matter.
+
+**The SFU is specified as correctly-rounded**, which real units are not. That is a
+deliberate simplification with a real cost, recorded here rather than buried: simulating a
+1-ulp-approximate reciprocal would make results depend on a specific hardware's error table,
+which does not exist yet. The division sequence below is written not to depend on more than
+about one ulp, so it survives a later move to an approximate unit — but that is an argument,
+not a test, until there is an error model to test against.
+
+**The division sequence, and the one constant that matters:**
+
+```
+    e = (u32)(rcp((float)d) * 0x1.fffffcp+31)   ; NOT 2^32
+    e = e + mulhi(e, -(e*d))                    ; one Newton step, fixed point
+    q = mulhi(n, e)
+    two conditional corrections
+```
+
+Scaling by just under 2^32 is the whole trick. The Newton step converges **only from below**:
+if `e` ever exceeds 2^32/d then `e*d` wraps past 2^32 and the correction term becomes huge
+instead of small, driving `e` further out. `rcp` can be an ulp high, so scaling by exactly
+2^32 is not safe. This is why AMD's sequence carries the same odd constant, and getting it
+wrong here produced a division that was right for `d ≤ 2` and wrong above.
+
+Exactness is checked, not argued: `tools/check-div.sh` runs the compiled kernel on the
+simulator against exact integer division over the edge cases — `d = 1`, `d = 0`, operands at
+2^31 and 2^32−1, powers of two either side of a rounding boundary — and a large
+pseudo-random sample. **Result: 97 dynamic instructions per thread became 32, and the code
+is straight-line.**
+
+`sdiv` and `srem` are the unsigned sequence on magnitudes with the sign restored.
+`sdiv(INT32_MIN, −1)` overflows and is poison in LLVM; this returns `INT32_MIN`, as hardware
+does.
+
+
 
 
 

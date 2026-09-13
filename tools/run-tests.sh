@@ -145,6 +145,11 @@ if [ -x build/ccg-llc ]; then
   fi
 fi
 
+# --- division exactness (F-48, O-31) ---------------------------------------
+echo
+echo "  --- float-reciprocal division ---"
+./tools/check-div.sh 12 || fail=1
+
 # --- branch relaxation (F-28) ---------------------------------------------
 # Neither direction is visible in the .s: it prints `bra.short` whether or not
 # the assembler grew it. So check the objects.

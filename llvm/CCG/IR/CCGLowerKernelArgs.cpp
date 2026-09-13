@@ -151,6 +151,12 @@ PreservedAnalyses LowerKernelArgs::run(Module &M, ModuleAnalysisManager &) {
       Changed = true;
     }
 
+    // Record the layout as an attribute. It is the pass's own knowledge --
+    // pointers take 8 bytes whether aligned or not, scalars pack into 4 -- and
+    // anything else that needs it (a launch harness, a benchmark driver) would
+    // otherwise be reduced to guessing, which is exactly what produced a
+    // benchmark measuring a kernel whose guard failed for every lane.
+    SmallVector<std::string, 8> ArgOffsets;
     unsigned Off = OffArgs;
     for (Argument &A : F.args()) {
       if (A.getType()->isPointerTy()) {
@@ -160,6 +166,7 @@ PreservedAnalyses LowerKernelArgs::run(Module &M, ModuleAnalysisManager &) {
         MaybeAlign PA = A.getParamAlign();
         bool Aligned = PA && PA->value() >= kWindowAlign;
 
+        ArgOffsets.push_back("p" + std::to_string(Off));
         Value *RBase = loadSlot(Off, A.getName() + ".rbase");
         Value *Addr = B.CreateShl(B.CreateZExt(RBase, I64),
                                   ConstantInt::get(I64, kBaseShift),
@@ -178,6 +185,7 @@ PreservedAnalyses LowerKernelArgs::run(Module &M, ModuleAnalysisManager &) {
         Value *P = B.CreateIntToPtr(Addr, A.getType(), A.getName() + ".ptr");
         A.replaceAllUsesWith(P);
       } else {
+        ArgOffsets.push_back("s" + std::to_string(Off));
         Value *V = loadSlot(Off, A.getName() + ".val");
         if (A.getType() != I32)
           V = B.CreateBitOrPointerCast(V, A.getType());
@@ -192,12 +200,17 @@ PreservedAnalyses LowerKernelArgs::run(Module &M, ModuleAnalysisManager &) {
     // signature so that fact is expressed in the IR rather than left for
     // instruction selection to work around. LLVM cannot remove arguments in
     // place, so the body moves to a new function.
+    std::string Layout;
+    for (const std::string &E : ArgOffsets)
+      Layout += (Layout.empty() ? "" : ",") + E;
+
     auto *NewTy = FunctionType::get(F.getReturnType(), {}, /*isVarArg=*/false);
     Function *NF = Function::Create(NewTy, F.getLinkage(), F.getAddressSpace());
     NF->copyAttributesFrom(&F);
     NF->setAttributes(AttributeList());
     NF->setComdat(F.getComdat());
     F.getParent()->getFunctionList().insert(F.getIterator(), NF);
+    NF->addFnAttr("ccg-arg-layout", Layout);
     NF->takeName(&F);
     NF->splice(NF->begin(), &F);
 

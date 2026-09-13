@@ -56,6 +56,33 @@ public:
   void write8(uint64_t Addr, uint8_t V) { *byteAt(Addr) = V; }
 };
 
+/// Execution counters. Static code size is what an encoding is usually judged
+/// on, but "instructions required to complete a task" is a dynamic question and
+/// the two can differ by orders of magnitude -- a 32-iteration division loop is
+/// 35 instructions statically and over a thousand in flight.
+///
+/// Warp-level and thread-level are both reported because they answer different
+/// questions: issue groups are what the machine schedules and what code size
+/// predicts, lane-instructions are the work actually done, and their ratio is
+/// what divergence costs.
+struct Counters {
+  uint64_t IssueGroups = 0;   ///< instructions issued, warp granularity
+  uint64_t LaneInstrs = 0;    ///< sum of active lanes over all issues
+  uint64_t Bytes = 0;         ///< dynamic instruction bytes fetched
+  uint64_t Stalls = 0;        ///< issue slots spent blocked at a barrier
+  uint64_t Diverged = 0;      ///< predicated branches where the mask split
+  uint64_t Regrouped = 0;     ///< issues that reunited lanes previously apart
+
+  // By class. Taken from MCInstrDesc where possible rather than from an opcode
+  // list here, so the simulator does not carry a second opinion about what an
+  // instruction is.
+  uint64_t ALU = 0, Mem = 0, Ctrl = 0, Pred = 0, Barrier = 0;
+  // Memory detail. `Spill` is a subset of Mem: a transfer through the frame
+  // pointer, which nothing else uses because R15 is reserved (O-30).
+  uint64_t LdSt[4] = {};      ///< ld.global, st.global, ld.shared, st.shared
+  uint64_t Spill = 0;
+};
+
 struct Warp {
   /// gpr[r][lane] -- 32 lanes per register, one element each.
   std::array<std::array<uint32_t, kLanes>, kGPRs> GPR{};

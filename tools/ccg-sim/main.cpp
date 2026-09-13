@@ -21,7 +21,10 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/ADT/bit.h"
+#include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/MC/MCInstrDesc.h"
+#include <algorithm>
 
 using namespace llvm;
 using namespace ccg;
@@ -38,6 +41,7 @@ static cl::opt<unsigned> CtaId("ctaid", cl::init(0), cl::desc("CTA index"));
 static cl::opt<uint64_t> CodeBase("code-base", cl::init(0x1000),
                                   cl::desc("load address for the kernel"));
 static cl::opt<bool> Trace("trace", cl::desc("print each issue group"));
+static cl::opt<bool> Stats("counters", cl::desc("print execution counters"));
 static cl::opt<unsigned> MaxSteps("max-steps", cl::init(100000),
                                   cl::desc("issue-group limit"));
 static cl::list<std::string> Pokes("poke", cl::desc("addr=value, before run"),
@@ -89,6 +93,24 @@ int main(int argc, char **argv) {
     I.Mem.write32(Addr, Val);
   }
 
+  Counters C;
+  // Distinct PCs among runnable lanes, to tell reconvergence from mere
+  // progress: §1 claims lanes regroup opportunistically when their PCs
+  // coincide, and that is only observable by watching the count fall.
+  auto distinctPCs = [&](uint32_t Run) {
+    unsigned N = 0;
+    uint64_t Seen[kLanes];
+    for (unsigned L = 0; L != kLanes; ++L) {
+      if (!((Run >> L) & 1)) continue;
+      bool New = true;
+      for (unsigned J = 0; J != N; ++J)
+        if (Seen[J] == W.PC[L]) { New = false; break; }
+      if (New) Seen[N++] = W.PC[L];
+    }
+    return N;
+  };
+  unsigned PrevGroups = 1;
+
   unsigned Steps = 0, Issued = 0;
   while (W.Active && Steps++ < MaxSteps) {
     // Group by PC: pick the lowest PC among active lanes and issue for every
@@ -139,6 +161,42 @@ int main(int argc, char **argv) {
     auto R = I.step(W, MI, Mask, Target, unsigned(Size));
     ++Issued;
 
+    // --- counters -------------------------------------------------------
+    ++C.IssueGroups;
+    C.LaneInstrs += llvm::popcount(Mask);
+    C.Bytes += Size;
+    {
+      const MCInstrDesc &D = MII->get(MI.getOpcode());
+      unsigned Op = MI.getOpcode();
+      bool IsBar = Op == CCG::C_BAR_ARRIVE || Op == CCG::C_BAR_WAIT ||
+                   Op == CCG::BAR_WAIT_PHASE || Op == CCG::BAR_INIT;
+      bool IsPred = Op == CCG::PAND || Op == CCG::POR || Op == CCG::PXOR ||
+                    Op == CCG::PMOV_IMM;
+      if (IsBar)               ++C.Barrier;
+      else if (IsPred)         ++C.Pred;
+      else if (D.isBranch() || D.isReturn() || Op == CCG::C_EXIT) ++C.Ctrl;
+      else if (D.mayLoad() || D.mayStore()) {
+        ++C.Mem;
+        int Slot = Op == CCG::LD_GLOBAL || Op == CCG::LD_GLOBAL_IDX ? 0
+                   : Op == CCG::ST_GLOBAL || Op == CCG::ST_GLOBAL_IDX ? 1
+                   : Op == CCG::LD_SHARED || Op == CCG::LD_SHARED_IDX ? 2
+                   : Op == CCG::ST_SHARED || Op == CCG::ST_SHARED_IDX ? 3 : -1;
+        if (Slot >= 0) ++C.LdSt[Slot];
+        // A transfer through the frame pointer is a spill; R15 is reserved
+        // (O-30), so nothing else can be addressing through it.
+        for (unsigned K = 0; K != MI.getNumOperands(); ++K)
+          if (MI.getOperand(K).isReg() && MI.getOperand(K).getReg() == CCG::R15) {
+            ++C.Spill;
+            break;
+          }
+      } else                   ++C.ALU;
+    }
+    if (R.Kind == Interp::Result::Stall)
+      C.Stalls += llvm::popcount(R.TakenMask);
+    if (R.Kind == Interp::Result::BranchPred && R.TakenMask != 0 &&
+        R.TakenMask != Mask)
+      ++C.Diverged;
+
     switch (R.Kind) {
     case Interp::Result::Unimplemented:
       errs() << "error: " << MII->getName(MI.getOpcode())
@@ -169,6 +227,7 @@ int main(int argc, char **argv) {
       break;
     case Interp::Result::Exit:
       W.Active &= ~Mask;
+      C.Regrouped += 0;   // exiting is not reconvergence
       // An exiting lane can be what a barrier was waiting for, since a lane
       // that has left never arrives. Re-check every barrier against the lanes
       // that remain.
@@ -188,6 +247,39 @@ int main(int argc, char **argv) {
   }
 
   outs() << "  executed " << Issued << " issue groups\n";
+  if (Stats) {
+    unsigned Threads = NumThreads >= kLanes ? kLanes : NumThreads;
+    auto pct = [](uint64_t N, uint64_t D) {
+      return D ? (100.0 * double(N) / double(D)) : 0.0;
+    };
+    outs() << format("  issue groups            %10llu\n", (unsigned long long)C.IssueGroups)
+           << format("  lane-instructions       %10llu   (work actually done)\n",
+                     (unsigned long long)C.LaneInstrs)
+           << format("  per thread              %10.1f   (lane-instructions / %u threads)\n",
+                     double(C.LaneInstrs) / std::max(1u, Threads), Threads)
+           << format("  SIMT efficiency         %9.1f%%   (lanes active per issue, of %u)\n",
+                     pct(C.LaneInstrs, C.IssueGroups * Threads), Threads)
+           << format("  instruction bytes       %10llu\n", (unsigned long long)C.Bytes)
+           << format("  dynamic bits/instr      %10.1f\n",
+                     C.IssueGroups ? 8.0 * double(C.Bytes) / double(C.IssueGroups) : 0.0)
+           << "\n"
+           << format("  ALU                     %10llu   %5.1f%%\n",
+                     (unsigned long long)C.ALU, pct(C.ALU, C.IssueGroups))
+           << format("  memory                  %10llu   %5.1f%%   "
+                     "(g:%llu/%llu  s:%llu/%llu  spill:%llu)\n",
+                     (unsigned long long)C.Mem, pct(C.Mem, C.IssueGroups),
+                     (unsigned long long)C.LdSt[0], (unsigned long long)C.LdSt[1],
+                     (unsigned long long)C.LdSt[2], (unsigned long long)C.LdSt[3],
+                     (unsigned long long)C.Spill)
+           << format("  control                 %10llu   %5.1f%%   (%llu divergent)\n",
+                     (unsigned long long)C.Ctrl, pct(C.Ctrl, C.IssueGroups),
+                     (unsigned long long)C.Diverged)
+           << format("  predicate               %10llu   %5.1f%%\n",
+                     (unsigned long long)C.Pred, pct(C.Pred, C.IssueGroups))
+           << format("  barrier                 %10llu   %5.1f%%   (%llu lane-stalls)\n",
+                     (unsigned long long)C.Barrier, pct(C.Barrier, C.IssueGroups),
+                     (unsigned long long)C.Stalls);
+  }
   for (const auto &P : Peeks) {
     uint64_t Addr;
     if (StringRef(P).getAsInteger(0, Addr)) {

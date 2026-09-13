@@ -141,6 +141,41 @@ def FNEG_F0 : FormatA<FpOpc<fpOp.FNEG, 0>.V, (outs GPR:$rd),
                       (ins GPR:$rs0, GPR:$rs1, GPR:$rs2), "fneg.f0 $rd, $rs0">;
 def FABS_F0 : FormatA<FpOpc<fpOp.FABS, 0>.V, (outs GPR:$rd),
                       (ins GPR:$rs0, GPR:$rs1, GPR:$rs2), "fabs.f0 $rd, $rs0">;
+// §4 reserves 128-255 for conversions and 256+ for SFU. Both were empty, which
+// is why integer division fell back to a 32-iteration shift-subtract loop: the
+// float-reciprocal algorithm every GPU uses needs exactly these two things.
+// Only the points actually needed are assigned; the rest of both ranges stays
+// reserved rather than being filled in speculatively. See O-31.
+class CvtOpc { int F32_S32 = 128; int F32_U32 = 129;
+               int S32_F32 = 130; int U32_F32 = 131; }
+def cvtOpc : CvtOpc;
+multiclass Cvt<int opc, string mnem> {
+  def NAME : FormatA<opc, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                     mnem#" $rd, $rs0">;
+}
+defm CVT_F32_S32 : Cvt<cvtOpc.F32_S32, "cvt.f32.s32">;
+defm CVT_F32_U32 : Cvt<cvtOpc.F32_U32, "cvt.f32.u32">;
+defm CVT_S32_F32 : Cvt<cvtOpc.S32_F32, "cvt.s32.f32">;  // toward zero
+defm CVT_U32_F32 : Cvt<cvtOpc.U32_F32, "cvt.u32.f32">;  // toward zero
+
+// SFU, §4 point 256+. `rcp` is the one the division algorithm needs; the rest
+// of the classic set is here because they share the unit and CUDA requires
+// them, and because assigning them together fixes the numbering once (O-28).
+class SfuOpc { int RCP = 256; int RSQRT = 257; int SQRT = 258;
+               int EX2 = 259; int LG2 = 260; int SIN = 261; int COS = 262; }
+def sfuOpc : SfuOpc;
+multiclass Sfu<int opc, string mnem> {
+  def NAME : FormatA<opc, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                     mnem#" $rd, $rs0">;
+}
+defm RCP_F32   : Sfu<sfuOpc.RCP,   "rcp.f32">;
+defm RSQRT_F32 : Sfu<sfuOpc.RSQRT, "rsqrt.f32">;
+defm SQRT_F32  : Sfu<sfuOpc.SQRT,  "sqrt.f32">;
+defm EX2_F32   : Sfu<sfuOpc.EX2,   "ex2.f32">;
+defm LG2_F32   : Sfu<sfuOpc.LG2,   "lg2.f32">;
+defm SIN_F32   : Sfu<sfuOpc.SIN,   "sin.f32">;
+defm COS_F32   : Sfu<sfuOpc.COS,   "cos.f32">;
+
 def FFMA_F0 : FormatA<FpOpc<fpOp.FFMA, 0>.V, (outs GPR:$rd),
                       (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
                       "ffma.f0 $rd, $rs0, $rs1, $rs2">;
@@ -243,20 +278,36 @@ defm SETP_GE_F : Setp<setpOpc.GE_F, "ge.f">;
 // 00000-00011 base+offset, 00100-00111 base+index, 01000-01011 predicate
 // transfer (v1.3, O-19), 01100+ reserved for span.
 // ---------------------------------------------------------------------------
+let mayLoad = 1 in
+// mayLoad/mayStore have to be stated explicitly here: these are selected in
+// C++ from CCGISD nodes rather than from TableGen patterns, so there is nothing
+// for TableGen to infer them from, and every memory instruction was marked as
+// having no memory effect. Nothing has depended on it -- no scheduler is
+// enabled -- but it is wrong for anything that reorders, and it made the
+// simulator's counters classify every global access as ALU.
+let mayLoad = 1 in
 def LD_GLOBAL  : FormatD<0b00000, (outs GPR:$rdata), (ins GPR:$rbase, simm13:$off),
                          "ld.global $rdata, [$rbase + $off]">;
+let mayStore = 1 in
+let mayStore = 1 in
 def ST_GLOBAL  : FormatD<0b00001, (outs), (ins GPR:$rdata, GPR:$rbase, simm13:$off),
                          "st.global $rdata, [$rbase + $off]">;
+let mayLoad = 1 in
+let mayLoad = 1 in
 def LD_SHARED  : FormatD<0b00010, (outs GPR:$rdata), (ins GPR:$rbase, simm13:$off),
                          "ld.shared $rdata, [$rbase + $off]">;
+let mayStore = 1 in
+let mayStore = 1 in
 def ST_SHARED  : FormatD<0b00011, (outs), (ins GPR:$rdata, GPR:$rbase, simm13:$off),
                          "st.shared $rdata, [$rbase + $off]">;
 
 // Base+index. For .global the AGU computes (rbase << 16) + (rindex << scale)
 // + disp; the shift comes from the address space, not from a field. §5.1.
+let mayLoad = 1 in
 def LD_GLOBAL_IDX : FormatDidx<0b00100, (outs GPR:$rdata),
                                (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
                                "ld.global $rdata, [$rbase, $rindex, $scale, $disp]">;
+let mayStore = 1 in
 def ST_GLOBAL_IDX : FormatDidx<0b00101, (outs),
                                (ins GPR:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
                                "st.global $rdata, [$rbase, $rindex, $scale, $disp]">;
@@ -265,20 +316,26 @@ def ST_GLOBAL_IDX : FormatDidx<0b00101, (outs),
 // disp, a plain three-input add. Chwidth-derived scaling applies unconditionally
 // here -- there is no window offset to fold into the index, which is the reason
 // O-7 fires for .shared and only for aligned .global.
+let mayLoad = 1 in
 def LD_SHARED_IDX : FormatDidx<0b00110, (outs GPR:$rdata),
                                (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
                                "ld.shared $rdata, [$rbase, $rindex, $scale, $disp]">;
+let mayStore = 1 in
 def ST_SHARED_IDX : FormatDidx<0b00111, (outs),
                                (ins GPR:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
                                "st.shared $rdata, [$rbase, $rindex, $scale, $disp]">;
 
 // Predicate transfer (v1.3, O-19). [14:11] is a predicate mask, not rdata.
+let mayLoad = 1 in
 def LD_PRED_G : FormatD<0b01000, (outs), (ins pmask4:$rdata, GPR:$rbase, simm13:$off),
                         "ld.pred $rdata, [$rbase + $off]">;
+let mayStore = 1 in
 def ST_PRED_G : FormatD<0b01001, (outs), (ins pmask4:$rdata, GPR:$rbase, simm13:$off),
                         "st.pred $rdata, [$rbase + $off]">;
+let mayLoad = 1 in
 def LD_PRED_S : FormatD<0b01010, (outs), (ins pmask4:$rdata, GPR:$rbase, simm13:$off),
                         "ld.pred.shared $rdata, [$rbase + $off]">;
+let mayStore = 1 in
 def ST_PRED_S : FormatD<0b01011, (outs), (ins pmask4:$rdata, GPR:$rbase, simm13:$off),
                         "st.pred.shared $rdata, [$rbase + $off]">;
 

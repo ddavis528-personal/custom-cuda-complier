@@ -49,62 +49,75 @@ in general.
 ## 2. Results
 
 ```
-  kernel        CCG    CCGb   b/i  align    alnb    GCN    GCNb   b/i    PTX
-  ----------------------------------------------------------------------------
-  vadd           24      80  26.7     17      58     29     152  41.9     21
-  saxpy          23      76  26.4     18      60     25     136  43.5     19
-  dot            61     192  25.2     53     166     60     300  40.0     46
-  reduce         56     174  24.9     50     156     54     268  39.7     41
-  transpose     143     482  27.0    137     464     64     308  38.5     43
+  kernel        CCG    CCGb   b/i  align    alnb    GCN    GCNb   b/i    PTX  dyn/thr   SIMT
+  --------------------------------------------------------------------------------------------
+  vadd           24      80  26.7     17      58     29     152  41.9     21     17.0   100%
+  saxpy          23      76  26.4     18      60     25     136  43.5     19     18.0   100%
+  dot            61     192  25.2     53     166     60     300  40.0     46     91.9    65%
+  reduce         56     174  24.9     50     156     54     268  39.7     41     88.9    64%
+  transpose      83     294  28.3     77     274     64     308  38.5     43     77.0   100%
 ```
 
 `CCG`/`CCGb` are instructions and bytes with ordinary unaligned pointers — the
 general case. `align` is the same kernel with O-23's alignment attribute. `GCN`
 is AMD gfx900, instructions and bytes both taken from the **assembled object**,
 because GCN mixes 4- and 8-byte encodings and a line count of the `.s` would say
-nothing about size.
+nothing about size. `dyn/thr` is lane-instructions per thread, **executed on the
+simulator**; `SIMT` is lanes active per issue.
 
-### Density: 25–27 bits per instruction against GCN's 38–44
+### Density: 25–28 bits per instruction against GCN's 38–44
 
 This is the headline and it holds across every kernel: **CCG encodes at roughly
-0.62× the bits per instruction of a real contemporary GPU ISA.** The variable
+0.65× the bits per instruction of a real contemporary GPU ISA.** The variable
 16/32/48 encoding is doing what §6 claimed it would.
 
 ### The control that matters: instruction counts are comparable
 
-A denser encoding that needs twice the instructions has gained nothing. On four
-of five kernels the counts are within 20%, and on two of them CCG is *lower*:
+A denser encoding that needs twice the instructions has gained nothing. The
+counts are within 30% everywhere and CCG is *lower* on two kernels:
 
-| | vadd | saxpy | dot | reduce |
-|---|---|---|---|---|
-| CCG | 24 | 23 | 61 | 56 |
-| GCN | 29 | 25 | 60 | 54 |
+| | vadd | saxpy | dot | reduce | transpose |
+|---|---|---|---|---|---|
+| CCG | 24 | 23 | 61 | 56 | 83 |
+| GCN | 29 | 25 | 60 | 54 | 64 |
 
-So the density is not bought with instruction count. **Code size lands at
-roughly half**: 80 vs 152 bytes on `vadd`, 76 vs 136 on `saxpy`, 174 vs 268 on
-`reduce`. With the alignment attribute, `vadd` is 58 bytes against 152 — 2.6×.
+So the density is not bought with instruction count, and **code size lands
+below GCN on every kernel** — 174 against 268 bytes on the reduction, 294
+against 308 on the transpose. With the alignment attribute `vadd` is 58 bytes
+against 152, which is 2.6×.
 
-Two structural reasons, both already in the design record rather than
-discovered here: GCN carries 64-bit pointers in register pairs, where invariant
-11 keeps addresses out of registers entirely (§5.1); and GCN's scalar/vector
-split costs `s_waitcnt` and `s_and_saveexec` instructions that a per-thread-PC
-machine does not need (§1).
+Two structural reasons, both from the design record rather than discovered here:
+GCN carries 64-bit pointers in register pairs where invariant 11 keeps addresses
+out of registers entirely (§5.1), and GCN's scalar/vector split costs
+`s_waitcnt` and `s_and_saveexec` instructions that a per-thread-PC machine does
+not need (§1).
 
-### `transpose` is the exception, and it is not an ISA result
+### Static and dynamic agree — now
 
-143 instructions against GCN's 64. The whole difference is **integer division**:
-`transpose` divides by a runtime value twice, and the two compilers expand it
-very differently.
+`vadd`, `saxpy` and `transpose` execute exactly their static aligned instruction
+count, because they are straight-line. `dot` and `reduce` run about 1.7× their
+static size, which is the reduction loop, and their SIMT efficiency of 64–65%
+is the tree structure idling half the lanes each round.
 
-| | approach | shape |
-|---|---|---|
-| CCG | LLVM's generic shift-subtract | ~35 instructions **plus a loop of up to 32 iterations** |
-| GCN | float reciprocal — `v_cvt_f32_u32`, `v_rcp_iflag_f32`, `v_mul_f32`, `v_cvt_u32_f32`, Newton correction | ~10 instructions, straight-line |
+**That agreement is new, and it is the reason this column exists.** Before
+O-31, `transpose` was 143 static instructions and its two integer divisions
+each cost a 32-iteration loop. The static number understated it by roughly
+three times, and a benchmark that reported only static size would have called
+the division problem a 2× gap when it was closer to 9×.
 
-The ISA is not the limitation: §4 has `fmul`, and points 128+ are conversions.
-This is a compiler choice that has not been made yet. It costs more dynamically
-than statically — a 32-iteration loop against ten straight-line instructions —
-so the static row understates it. See **F-48**.
+### The division result
+
+Measured on the simulator, one `udiv`:
+
+| | static | dynamic per thread | shape |
+|---|---|---|---|
+| shift-subtract (before) | 63 | **97.2** | loop, up to 32 iterations |
+| float reciprocal (O-31) | 35 | **32.0** | straight-line |
+
+`transpose` fell from 143 instructions and 482 bytes to 83 and 294. §4 had
+reserved the conversion and SFU opcode ranges and left them empty; filling in
+six points closed the entire gap. See O-31 for the algorithm and the one
+constant that makes it exact.
 
 ---
 
@@ -115,11 +128,11 @@ tile:
 
 ```
   tile  accs    instrs     bits b/instr  spills    fma sp/fma    K-hit
-  1x1   1          204     5584    27.4      35     16   2.19      23%
-  1x2   2          293     7936    27.1      60     32   1.88      22%
-  2x2   4          397    10640    26.8      88     64   1.38      21%
-  2x4   8          653    17312    26.5     174    128   1.36      17%
-  4x4   16        1169    30800    26.3     420    256   1.64      16%
+  1x1   1          173     4832    27.9      31     17   1.82      16%
+  1x2   2          256     7056    27.6      57     33   1.73      19%
+  2x2   4          370    10000    27.0      89     65   1.37      17%
+  2x4   8          629    16736    26.6     177    129   1.37      13%
+  4x4   16        1142    30096    26.4     420    257   1.63      14%
 ```
 
 `sp/fma` — memory traffic the register file forced, per unit of arithmetic it
@@ -128,11 +141,11 @@ accumulators are the whole file and everything else spills. At 16 GPRs the
 practical ceiling is 2×4, which is what §1 guessed before there was anything to
 measure.
 
-Density holds up under pressure: 26.3–27.4 bits per instruction across a 6×
+Density holds up under pressure: 26.4–27.9 bits per instruction across a 6.6×
 range of kernel size.
 
-**The compressed-form hit rate falls as pressure rises** — 23% at 1×1 to 16% at
-4×4. Register pressure and Format K compression work against each other, because
+**The compressed-form hit rate stays low and drifts down under pressure** —
+19% at 1×2 down to 13–14% at the largest tiles. Register pressure and Format K compression work against each other, because
 the allocator lands `rd == rs0` less often when it has less freedom. O-29's
 proposed "bias allocation toward the tie" would therefore be worth least exactly
 where code size matters most.
@@ -143,10 +156,10 @@ where code size matters most.
 
 - **SASS.** The comparison the project's density argument is actually written
   against, and the one missing. Needs `ptxas`.
-- **Dynamic counts.** The simulator already counts issue groups; wiring that
-  into the benchmark would turn instruction count from a proxy into a
-  measurement, and would make the `transpose` division result ten times more
-  damning than it looks statically.
+- **Dynamic counts for GCN.** CCG's are measured; AMD's are not, because there
+  is no AMD simulator here. For these kernels their code is straight-line where
+  ours is, so static is a fair proxy for both — but that is an argument about
+  these five kernels, not a general one.
 - **More kernels, and unfriendly ones.** Five kernels with regular control flow
   is a narrow base. Anything branch-heavy or with irregular access would test
   the parts of the encoding these do not reach.

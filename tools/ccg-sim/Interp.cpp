@@ -17,6 +17,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <utility>
 
@@ -189,6 +190,49 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     uint32_t G = guardMask(W, uint32_t(MI.getOperand(1).getImm()));
     forEachLane([&](unsigned L) {
       W.GPR[D][L] = ((G >> L) & 1) ? W.GPR[A][L] : W.GPR[B][L];
+    });
+    break;
+  }
+
+  // ---- §4 128+: conversions, and 256+: SFU (O-31) -------------------------
+  case CCG::CVT_F32_S32: case CCG::CVT_F32_U32:
+  case CCG::CVT_S32_F32: case CCG::CVT_U32_F32:
+  case CCG::RCP_F32: case CCG::RSQRT_F32: case CCG::SQRT_F32:
+  case CCG::EX2_F32: case CCG::LG2_F32: case CCG::SIN_F32: case CCG::COS_F32: {
+    unsigned D = regOf(MI, 0), A = regOf(MI, 1);
+    forEachLane([&](unsigned L) {
+      uint32_t X = W.GPR[A][L];
+      float F = bitsToFloat(X);
+      switch (Op) {
+      case CCG::CVT_F32_S32: W.GPR[D][L] = floatToBits(float(int32_t(X))); break;
+      case CCG::CVT_F32_U32: W.GPR[D][L] = floatToBits(float(X)); break;
+      // Toward zero, and out-of-range saturates rather than trapping -- the
+      // same contract §4 gives width mismatches: deterministic garbage, no
+      // interlock.
+      case CCG::CVT_S32_F32:
+        W.GPR[D][L] = uint32_t(F >= 2147483647.0f    ? INT32_MAX
+                               : F <= -2147483648.0f ? INT32_MIN
+                               : std::isnan(F)       ? 0
+                                                     : int32_t(F));
+        break;
+      case CCG::CVT_U32_F32:
+        W.GPR[D][L] = F >= 4294967295.0f ? UINT32_MAX
+                      : (F <= 0.0f || std::isnan(F)) ? 0u
+                                                     : uint32_t(F);
+        break;
+      // The SFU is specified as correctly-rounded here. Real units are
+      // approximate, and the division sequence is written not to depend on
+      // more than ~1 ulp -- but simulating an approximation would make results
+      // unreproducible without pinning a specific hardware's error, which does
+      // not exist yet. See O-31.
+      case CCG::RCP_F32:   W.GPR[D][L] = floatToBits(1.0f / F); break;
+      case CCG::RSQRT_F32: W.GPR[D][L] = floatToBits(1.0f / std::sqrt(F)); break;
+      case CCG::SQRT_F32:  W.GPR[D][L] = floatToBits(std::sqrt(F)); break;
+      case CCG::EX2_F32:   W.GPR[D][L] = floatToBits(std::exp2f(F)); break;
+      case CCG::LG2_F32:   W.GPR[D][L] = floatToBits(std::log2f(F)); break;
+      case CCG::SIN_F32:   W.GPR[D][L] = floatToBits(std::sin(F)); break;
+      default:             W.GPR[D][L] = floatToBits(std::cos(F)); break;
+      }
     });
     break;
   }

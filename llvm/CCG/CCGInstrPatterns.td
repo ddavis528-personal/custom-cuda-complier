@@ -176,3 +176,19 @@ foreach ty = [i32, f32] in {
 def : Pat<(and PR:$a, PR:$b), (PSEUDO_PAND PR:$a, PR:$b)>;
 def : Pat<(or  PR:$a, PR:$b), (PSEUDO_POR  PR:$a, PR:$b)>;
 def : Pat<(xor PR:$a, PR:$b), (PSEUDO_PXOR PR:$a, PR:$b)>;
+
+// ---------------------------------------------------------------------------
+// Conversions and SFU (§4 points 128+ and 256+, O-31).
+// ---------------------------------------------------------------------------
+def : Pat<(f32 (sint_to_fp GPR:$a)), (CVT_F32_S32 GPR:$a, GPR:$a, GPR:$a)>;
+def : Pat<(f32 (uint_to_fp GPR:$a)), (CVT_F32_U32 GPR:$a, GPR:$a, GPR:$a)>;
+def : Pat<(i32 (fp_to_sint GPR:$a)), (CVT_S32_F32 GPR:$a, GPR:$a, GPR:$a)>;
+def : Pat<(i32 (fp_to_uint GPR:$a)), (CVT_U32_F32 GPR:$a, GPR:$a, GPR:$a)>;
+
+// 1.0f / x is the reciprocal instruction. This is the only fdiv this backend
+// selects: general float division needs a Newton sequence of its own and is
+// not implemented -- see F-49.
+def fpimm_one : PatLeaf<(fpimm), [{ return N->isExactlyValue(1.0); }]>;
+def : Pat<(fdiv fpimm_one, GPR:$a), (RCP_F32 GPR:$a, GPR:$a, GPR:$a)>;
+
+def : Pat<(fsqrt GPR:$a), (SQRT_F32 GPR:$a, GPR:$a, GPR:$a)>;
