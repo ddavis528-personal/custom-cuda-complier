@@ -148,6 +148,34 @@ class FormatC<bits<5> opc, dag outs, dag ins, string asm>
   let Inst{31-30} = pd;
 }
 
+// Format C" -- UNPREDICATED compare, tag 1111 at 32 bits.
+//
+// §1's own rule is that a predicated operation needs a distinct unpredicated
+// encoding, which is why A/A'/A" and D/D' exist. The compare family broke it:
+// it spent both its tags on reg-reg versus reg-imm and left no unpredicated
+// form, so every compare had to manufacture a guard first (O-24). Measured, that
+// was 13% of dynamically issued instructions in the reduction kernels.
+//
+// Tag 1111 is free at 32 bits -- H is 48-bit only, and §2 makes the length
+// decodable from [1:0] before the tag is read, so the two cannot be confused.
+//
+// One tag covers both operand shapes, where the predicated forms needed two:
+// dropping the qualifier frees [29:27], and bit [27] selects register versus
+// immediate. rd, rs0, rs1 and pd stay exactly where C and C' put them
+// (invariant 8), and the immediate lands at [26:19] exactly as in C'.
+class FormatCu<bits<5> opc, bit isimm, dag outs, dag ins, string asm>
+    : CCGInst32<0b1111, outs, ins, asm> {
+  bits<4> rd; bits<4> rs0; bits<4> rs1; bits<8> imm; bits<2> pd;
+  let Inst{10-6}  = opc;
+  let Inst{14-11} = rd;
+  let Inst{18-15} = rs0;
+  let Inst{22-19} = !if(isimm, imm{3-0}, rs1);
+  let Inst{26-23} = !if(isimm, imm{7-4}, 0b0000);
+  let Inst{27}    = isimm;
+  let Inst{29-28} = 0;           // reserved
+  let Inst{31-30} = pd;
+}
+
 class FormatCp<bits<5> opc, dag outs, dag ins, string asm>
     : CCGInst32<0b0111, outs, ins, asm> {
   bits<4> rd; bits<4> rs0; bits<8> imm; bits<3> pq; bits<2> pd;

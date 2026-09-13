@@ -100,6 +100,21 @@ static uint32_t fpRR(unsigned Op, uint32_t XB, uint32_t YB) {
 /// opcode map, so they are one function here. Integer eq/ne are sign-agnostic
 /// and shared between the signed and unsigned classes, which is why the map
 /// needs 16 points rather than 18.
+/// Fold an unpredicated (Format C") opcode onto its predicated twin. O-26 made
+/// the opcode map shared, so a mnemonic is one relation in all three formats
+/// and the semantics table does not need three copies.
+static unsigned baseCompare(unsigned Op) {
+  switch (Op) {
+#define NP(x) case CCG::x##_NP: case CCG::x##_NPI: return CCG::x;
+  NP(SETP_LT) NP(SETP_LE) NP(SETP_EQ) NP(SETP_NE) NP(SETP_GT) NP(SETP_GE)
+  NP(SETP_LT_U) NP(SETP_LE_U) NP(SETP_GT_U) NP(SETP_GE_U)
+  NP(SETP_LT_F) NP(SETP_LE_F) NP(SETP_EQ_F) NP(SETP_NE_F)
+  NP(SETP_GT_F) NP(SETP_GE_F)
+#undef NP
+  default: return Op;
+  }
+}
+
 static bool compare(unsigned Op, uint32_t XB, uint32_t YB) {
   int32_t SX = int32_t(XB), SY = int32_t(YB);
   float FX = bitsToFloat(XB), FY = bitsToFloat(YB);
@@ -309,6 +324,37 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     });
     break;
   }
+
+  case CCG::SETP_LT_NP:   case CCG::SETP_LE_NP:   case CCG::SETP_EQ_NP:
+  case CCG::SETP_NE_NP:   case CCG::SETP_GT_NP:   case CCG::SETP_GE_NP:
+  case CCG::SETP_LT_U_NP: case CCG::SETP_LE_U_NP: case CCG::SETP_GT_U_NP:
+  case CCG::SETP_GE_U_NP: case CCG::SETP_LT_F_NP: case CCG::SETP_LE_F_NP:
+  case CCG::SETP_EQ_F_NP: case CCG::SETP_NE_F_NP: case CCG::SETP_GT_F_NP:
+  case CCG::SETP_GE_F_NP:
+  case CCG::SETP_LT_NPI:   case CCG::SETP_LE_NPI:   case CCG::SETP_EQ_NPI:
+  case CCG::SETP_NE_NPI:   case CCG::SETP_GT_NPI:   case CCG::SETP_GE_NPI:
+  case CCG::SETP_LT_U_NPI: case CCG::SETP_LE_U_NPI: case CCG::SETP_GT_U_NPI:
+  case CCG::SETP_GE_U_NPI: case CCG::SETP_LT_F_NPI: case CCG::SETP_LE_F_NPI:
+  case CCG::SETP_EQ_F_NPI: case CCG::SETP_NE_F_NPI: case CCG::SETP_GT_F_NPI:
+  case CCG::SETP_GE_F_NPI: {
+    // Format C" (O-32): no qualifier, so every lane in the issue mask is
+    // written. Lanes OUTSIDE the mask are still preserved -- they are at a
+    // different PC and may hold a live predicate (invariant 10 applies to the
+    // issue mask, not only to a guard).
+    unsigned P = regOf(MI, 0), A = regOf(MI, 2);
+    bool Imm = !MI.getOperand(3).isReg();
+    unsigned B = Imm ? 0 : regOf(MI, 3);
+    int32_t IV = Imm ? int32_t(MI.getOperand(3).getImm()) : 0;
+    unsigned Base = baseCompare(Op);
+    forEachLane([&](unsigned L) {
+      uint32_t X = W.GPR[A][L];
+      uint32_t Y = Imm ? uint32_t(IV) : W.GPR[B][L];
+      bool T = compare(Base, X, Y);
+      W.Pred[P] = (W.Pred[P] & ~(1u << L)) | (uint32_t(T) << L);
+    });
+    break;
+  }
+
 
   // ---- Format D: load / store --------------------------------------------
   case CCG::LD_GLOBAL:

@@ -191,7 +191,7 @@ several of them have no slack at all.
 | `1100` | G | Warp-collective (predicated forms; unpredicated live in K) |
 | `1101` | D′ | Load / store, predicated |
 | `1110` | I | Register / predicate metadata (`chwidth.multi`, `pmov`) |
-| `1111` | H | Escape / tensor — reserved; 48-bit only, see length table below |
+| `1111` | C″ / H | **32-bit: unpredicated compare (O-32)**; 48-bit: escape / tensor, reserved |
 
 **Which tags have which lengths:**
 
@@ -208,7 +208,11 @@ several of them have no slack at all.
 | `1100` | G | — |
 | `1101` | D′ | wide-offset sibling |
 | `1110` | I | subop `01` (`pmov`) only |
-| `1111` | reserved | H — carries its own length in `[9:6]` |
+| `1111` | C″ (O-32) | H — carries its own length in `[9:6]` |
+
+Tag `1111` is the one place two unrelated formats share a code, and §2's length-first rule
+is what makes that safe: the length is known from `[1:0]` before the tag is read, so a 32-bit
+C″ and a 48-bit H are never candidates for the same decode.
 
 Nine of sixteen tags have a 48-bit form and none of them needed a new tag to get one. The
 formats with no immediate (A family, C, E, G, I) have nothing to widen and so have no
@@ -1417,8 +1421,7 @@ against fresh `ccg-llc` output by `tools/check-spec-vs-codegen.py`, which runs i
     srd        r3, 1                ; 16   %ctaid
     mad.lo     r1, r3, r1, r2       ; 32   i = ctaid*ntid + tid
     ld.global  r2, [r0 + 56]        ; 32   n
-    por        p0, !p0, p0          ; 16   O-24: manufacture a true predicate
-    @p0 setp.le p0, r2, r1          ; 32   self-guarding: guard IS destination
+    setp.le    p0, r2, r1           ; 32   Format C″, unpredicated (O-32)
     @p0 bra    Lexit                ; 32
     shl        r1, 2                ; 16   element index -> byte offset, hoisted
     ld.global  r2, [r0 + 52]        ; 32   b.roffset
@@ -1438,8 +1441,8 @@ Lexit:
     exit                            ; 16
 ```
 
-24 instructions, 640 bits — **26.7 bits per instruction**, against 768 for a
-fixed-32 encoding, a 17% saving. The compressed forms fire on `srd`, `por`, the
+23 instructions, 624 bits — **27.1 bits per instruction**, against 736 for a
+fixed-32 encoding, a 15% saving. The compressed forms fire on `srd`, `por`, the
 index shift, two of the three offset folds, `fadd` and `exit` without the
 allocator being asked for anything.
 
@@ -1453,18 +1456,20 @@ remaining third would need. O-8's hit rate on this kernel is 2 of 3; see
 **F-29** and O-29 for why the number is smaller and less interesting than it
 looks.
 
-**Why a kernel opens by manufacturing a predicate.** Formats C and C′ carry a
-**mandatory** predicate qualifier and there is no unpredicated compare tag, so every
-compare is guarded — and with no hardwired always-true predicate (§1) the first compare in
-a kernel has nothing valid to be guarded by. The way out is that **compressed forms are
-never predicated**: `por pd, !ps, ps` yields all-ones whatever `ps` holds, in 16 bits. Note
-that this only became cheap in 1.3 — before the Format K predicate logic of O-20, the only
-constant-to-predicate path was `pmov`, which exists only at 48 bits. See O-24.
+**A compare is one instruction, and used not to be.** Formats C and C′ carry a
+**mandatory** predicate qualifier, and with no hardwired always-true predicate (§1) the
+first compare in a kernel had nothing valid to be guarded by. O-24 solved that by
+manufacturing one: `por pd, !pd, pd` yields all-ones whatever `pd` held, in 16 bits, and
+the compare then guarded on the predicate it was about to overwrite.
 
-The compare that follows is **self-guarding**: it consumes that predicate as its
-qualifier and overwrites the same register with its result. The all-true value is
-dead the moment it is used, so the idiom costs no second predicate and the
-effective predicate file stays at 4, not 3.
+That worked and it was not free — **13% of dynamically issued instructions in the reduction
+kernels**. O-32 adds Format C″, an unpredicated compare, which is what §1's own rule said
+should have existed all along: every predicated operation needs a distinct unpredicated
+encoding, which is why A/A′/A″ and D/D′ exist. The compare family was the exception, having
+spent both its tags on reg-reg versus reg-imm.
+
+The O-24 idiom remains correct and remains the answer for *genuinely* predicated compares;
+it is simply no longer on the common path.
 
 **Peak live GPRs is 5 of 16**, at `ld.global r4, [r0 + 40]`: the launch window in
 `r0`, the byte offset in `r1`, the partially-consumed `b[i]` chain, and the two
@@ -1493,8 +1498,7 @@ pointer arguments.
     srd        r3, 1                ; 16   %ctaid
     mad.lo     r1, r3, r1, r2       ; 32   i = ctaid*ntid + tid
     ld.global  r2, [r0 + 56]        ; 32   n
-    por        p0, !p0, p0          ; 16   O-24: manufacture a true predicate
-    @p0 setp.le p0, r2, r1          ; 32   self-guarding: guard IS destination
+    setp.le    p0, r2, r1           ; 32   Format C″, unpredicated (O-32)
     @p0 bra    Lexit                ; 32
     ld.global  r2, [r0 + 48]        ; 32   b.rbase -- one slot, not two
     ld.global  r2, [r2, r1, x4]     ; 32   b[i], scale-enable set
@@ -1509,8 +1513,8 @@ Lexit:
 
 | | Instructions | Bits | Peak live GPRs | GPRs per pointer |
 |---|---|---|---|---|
-| Unaligned (§5.5) | 24 | 640 | 5 | 2 |
-| Aligned (§5.6) | 17 | 464 | **4** | 1 |
+| Unaligned (§5.5) | 23 | 624 | 5 | 2 |
+| Aligned (§5.6) | 16 | 448 | **4** | 1 |
 
 The alignment attribute is worth **7 instructions and 176 bits on a 24-instruction
 kernel** — a 28% code-size reduction on the smallest kernel that does anything,
@@ -2431,6 +2435,61 @@ is straight-line.**
 `sdiv` and `srem` are the unsigned sequence on magnitudes with the sign restored.
 `sdiv(INT32_MIN, −1)` overflows and is poison in LLVM; this returns `INT32_MIN`, as hardware
 does.
+
+**O-32 — Format C″: the compare family gets its unpredicated encoding.**
+
+§1 states the rule plainly: with no `PT` equivalent, "an unpredicated instruction cannot be
+expressed as 'predicated on true.' Every predicated operation therefore requires a distinct
+unpredicated encoding." That is why A/A′/A″, B/B′/B″ and D/D′ exist as separate formats.
+
+**The compare family broke its own rule.** It spent both of its format tags on reg-reg
+versus reg-imm and left no unpredicated form, so O-24 had to manufacture a guard for every
+compare — `por pd, !pd, pd`, then a self-guarding `@pd setp pd, …`. Correct, and one extra
+instruction every single time.
+
+**Measured, that was not small.** Static cost ran 4.5–8.5% of instructions in the small
+kernels and 0.6% in a GEMM, but the dynamic figure is what matters and it is worse: a
+compare inside a loop pays on every iteration.
+
+| kernel | dynamic issue groups | manufactured guards | |
+|---|---|---|---|
+| `reduce` | 138 | 18 | **13.0%** |
+| `dot` | 141 | 18 | **12.8%** |
+
+**Decided: Format C″ at tag `1111`, 32-bit.** The tag was free — `H` is 48-bit only, and §2
+makes length decodable from `[1:0]` before the tag is read, so a 32-bit `1111` and a 48-bit
+`1111` cannot be confused. No existing encoding moves.
+
+| Bits | Width | Field |
+|---|---|---|
+| `[1:0]` | 2 | `00` |
+| `[5:2]` | 4 | `1111` |
+| `[10:6]` | 5 | opcode — the **same** shared map as C and C′ (O-26) |
+| `[14:11]` | 4 | `rd` |
+| `[18:15]` | 4 | `rs0` |
+| `[22:19]` | 4 | `rs1`, or immediate `[3:0]` |
+| `[26:23]` | 4 | reserved, or immediate `[7:4]` |
+| `[27]` | 1 | operand source: 0 = register, 1 = immediate |
+| `[29:28]` | 2 | reserved |
+| `[31:30]` | 2 | `pd` — mandatory, same position as C and C′ |
+
+**One tag covers both operand shapes**, where the predicated forms needed two. Dropping the
+qualifier frees `[29:27]`, and one of those bits selects register versus immediate. The
+immediate lands at `[26:19]`, exactly where C′ puts it, so the decoder's immediate extraction
+is shared. `rd`, `rs0`, `rs1` and `pd` do not move (invariant 8).
+
+**What it costs:** one format tag, the last free 32-bit one. `H` keeps `1111` at 48 bits and
+is unaffected. Two reserved bits remain at `[29:28]` for a future qualifier-shaped extension
+if one is ever wanted.
+
+**What it buys:** the `por` disappears from every compare the compiler emits. §5.5 falls from
+24 instructions to 23 and §5.6 from 17 to 16; `reduce` falls from 59 to 54. The predicated
+forms remain in the ISA and are what if-conversion would select — nothing selects them today.
+
+**O-24 is not superseded, only displaced.** Its idiom is still the only way to get a constant
+into a predicate without `pmov`, still correct, and still what a genuinely predicated compare
+needs. It is simply no longer on the path every kernel takes.
+
 
 
 

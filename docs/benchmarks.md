@@ -57,11 +57,11 @@ questions and only one of them can be measured on both machines.
   kernel     |     CCG unaligned     |  CCG aligned   |     AMDGCN gfx900     |  PTX
              |  instr  bytes    b/i |  instr  bytes |  instr  bytes    b/i |  instr
   --------------------------------------------------------------------------------
-  vadd       |     24     80   26.7 |     17     58 |     29    152   41.9 |     21
-  saxpy      |     23     76   26.4 |     18     60 |     25    136   43.5 |     19
-  dot        |     61    192   25.2 |     53    166 |     60    300   40.0 |     46
-  reduce     |     56    174   24.9 |     50    156 |     54    268   39.7 |     41
-  transpose  |     83    294   28.3 |     77    274 |     64    308   38.5 |     43
+  vadd       |     23     78   27.1 |     16     56 |     29    152   41.9 |     21
+  saxpy      |     22     74   26.9 |     17     58 |     25    136   43.5 |     19
+  dot        |     56    182   26.0 |     48    156 |     60    300   40.0 |     46
+  reduce     |     51    166   26.0 |     45    146 |     54    268   39.7 |     41
+  transpose  |     78    284   29.1 |     72    264 |     64    308   38.5 |     43
 ```
 
 **Dynamic — instructions actually issued, per thread of work.**
@@ -69,11 +69,11 @@ questions and only one of them can be measured on both machines.
 ```
   kernel          CCG   SIMT     AMDGCN   how AMDGCN was obtained
   ----------------------------------------------------------------------------
-  vadd           17.0   100%         29   exact: no backward branch
-  saxpy          18.0   100%         25   exact: no backward branch
-  dot            91.9    65%         --   has 3 loops; not modelled
-  reduce         88.9    64%         --   has 3 loops; not modelled
-  transpose      77.0   100%         64   exact: no backward branch
+  vadd           16.0   100%         29   exact: no backward branch
+  saxpy          17.0   100%         25   exact: no backward branch
+  dot            78.9    64%         --   has 3 loops; not modelled
+  reduce         75.9    63%         --   has 3 loops; not modelled
+  transpose      72.0   100%         64   exact: no backward branch
 ```
 
 **CCG's dynamic column is measured** on the simulator — lane-instructions
@@ -89,7 +89,7 @@ half-fills theirs, so the numbers measure different things. Comparing occupancy
 needs the block size held fixed in each machine's own warp width, which these
 kernels do not do.
 
-### Density: 25–28 bits per instruction against GCN's 38–44
+### Density: 26–29 bits per instruction against GCN's 38–44
 
 This is the headline and it holds across every kernel: **CCG encodes at roughly
 0.65× the bits per instruction of a real contemporary GPU ISA.** The variable
@@ -102,7 +102,7 @@ counts are within 30% everywhere and CCG is *lower* on two kernels:
 
 | | vadd | saxpy | dot | reduce | transpose |
 |---|---|---|---|---|---|
-| CCG | 24 | 23 | 61 | 56 | 83 |
+| CCG | 23 | 22 | 56 | 51 | 78 |
 | GCN | 29 | 25 | 60 | 54 | 64 |
 
 So the density is not bought with instruction count, and **code size lands
@@ -145,14 +145,18 @@ names as the response if GEMM register pressure comes back bad (O-25). It was
 argued there from register-file size; here it shows up as redundant *execution*.
 See F-52.
 
-**Every compare costs an extra instruction.** O-24 settled that there is no
-hardwired always-true predicate, so a compare must manufacture its guard:
-`por pd, !pd, pd` then `@pd setp`. The division's two correction steps are two
-compares, so two extra instructions. AMD's compare writes an implicit condition
-register and `s_cselect` reads it, at no extra cost.
+**Compares used to cost an extra instruction each** — O-24's manufactured guard
+— which was 13% of dynamically issued instructions in the reduction kernels.
+O-32 added Format C″, an unpredicated compare, and that is now zero. It was the
+single largest avoidable overhead the benchmark found:
 
-Two instructions in thirty is not the headline, but it is a real recurring cost
-of a settled decision, and compare-dense sequences are where it shows.
+| | `dot` | `reduce` | `transpose` |
+|---|---|---|---|
+| dynamic, before O-32 | 91.9 | 88.9 | 77.0 |
+| after | **78.9** | **75.9** | **72.0** |
+
+What remains on `transpose` is the scalar-unit gap above, which is
+architectural rather than a missing encoding.
 
 ### The division result
 

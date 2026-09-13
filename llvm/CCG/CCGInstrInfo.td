@@ -242,6 +242,9 @@ class SetpOpc {
 }
 def setpOpc : SetpOpc;
 
+// Unpredicated (Format C", O-32) alongside the two predicated forms. Same
+// opcode map -- O-26 made it shared, so a mnemonic is one opcode value in all
+// three formats.
 multiclass Setp<int opc, string suffix> {
   def NAME    : FormatC<opc, (outs PR:$pd, GPR:$rd),
                         (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
@@ -249,6 +252,12 @@ multiclass Setp<int opc, string suffix> {
   def NAME#_I : FormatCp<opc, (outs PR:$pd, GPR:$rd),
                          (ins pqual:$pq, GPR:$rs0, simm8:$imm),
                          "@$pq setp."#suffix#" $pd, $rs0, $imm">;
+  def NAME#_NP : FormatCu<opc, 0, (outs PR:$pd, GPR:$rd),
+                         (ins GPR:$rs0, GPR:$rs1),
+                         "setp."#suffix#" $pd, $rs0, $rs1">;
+  def NAME#_NPI : FormatCu<opc, 1, (outs PR:$pd, GPR:$rd),
+                          (ins GPR:$rs0, simm8:$imm),
+                          "setp."#suffix#" $pd, $rs0, $imm">;
 }
 
 // Signed integer, and the sign-agnostic equalities.

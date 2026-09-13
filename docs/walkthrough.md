@@ -74,7 +74,7 @@ modified.
 ## 3. Kernel ABI lowering
 
 ```llvm
-define dso_local void @_Z4vaddPfPKfS1_i() local_unnamed_addr {
+define dso_local void @_Z4vaddPfPKfS1_i() local_unnamed_addr #0 {
   %ntid = load i32, ptr addrspace(4) inttoptr (i64 131072 to ptr addrspace(4)), align 4, !invariant.load !5
   %.val = load i32, ptr addrspace(4) inttoptr (i64 131128 to ptr addrspace(4)), align 4, !invariant.load !5
   %1 = tail call noundef i32 @llvm.nvvm.read.ptx.sreg.ctaid.x()
@@ -130,8 +130,7 @@ _Z4vaddPfPKfS1_i:
 	srd r3, 1
 	mad.lo r1, r3, r1, r2
 	ld.global r2, [r0 + 56]
-	por p0, 4, 0
-	@p0 setp.le p0, r2, r1
+	setp.le p0, r2, r1
 	@p0 bra LBB0_2
 	ld.global r2, [r0 + 48]
 	ld.global r2, [r2, r1, 1, 0]
@@ -166,11 +165,12 @@ and the generic folder could not act (F-26).
 ```
   figure           §5.6 listing    ccg-llc
   ------------------------------------------
-  instructions               17         17
-  bits                      464        464
+  instructions               17         16   <-- DIVERGED
+  bits                      464        448   <-- DIVERGED
   peak_live                   4          4
 
-  spec listing matches codegen
+  2 figure(s) differ: the spec listing no longer describes what
+  the compiler emits. Regenerate the listing or fix codegen.
 ```
 
 ISA §5.6's worked listing is compared against this output on every build. That
@@ -193,8 +193,7 @@ _Z4vaddPfPKfS1_i:
 	srd r3, 1
 	mad.lo r1, r3, r1, r2
 	ld.global r2, [r0 + 56]
-	por p0, 4, 0
-	@p0 setp.le p0, r2, r1
+	setp.le p0, r2, r1
 	@p0 bra LBB0_2
 	shl r1, 2
 	ld.global r2, [r0 + 52]
@@ -218,11 +217,12 @@ Lfunc_end0:
 ```
   figure           §5.5 listing    ccg-llc
   ------------------------------------------
-  instructions               24         24
-  bits                      640        640
+  instructions               24         23   <-- DIVERGED
+  bits                      640        624   <-- DIVERGED
   peak_live                   5          5
 
-  spec listing matches codegen
+  2 figure(s) differ: the spec listing no longer describes what
+  the compiler emits. Regenerate the listing or fix codegen.
 ```
 
 Seven more instructions and 176 more bits for the same arithmetic, which is what
@@ -232,7 +232,7 @@ landed on `rd != rs0` and nothing tries to prevent that (F-29).
 
 ## 5. The binary
 
-17 instructions in 58 bytes. Each length comes from bits `[1:0]` of
+16 instructions in 56 bytes. Each length comes from bits `[1:0]` of
 its first halfword alone — this walker never looks at the format tag, which is
 exactly what §2 claims.
 
@@ -245,40 +245,37 @@ exactly what §2 claims.
 0x000a  72 13              16-bit, Format K   K
 0x000c  40 89 09 01        32-bit             A
 0x0010  20 10 c0 01        32-bit             D
-0x0014  f6 10              16-bit, Format K   K
-0x0016  58 00 09 00        32-bit             C
-0x001a  68 68 00 00        32-bit             E
-0x001e  20 10 80 01        32-bit             D
-0x0022  20 11 89 00        32-bit             D
-0x0026  20 18 40 01        32-bit             D
-0x002a  20 99 89 00        32-bit             D
-0x002e  4a 23              16-bit, Format K   K
-0x0030  20 00 00 01        32-bit             D
-0x0034  60 19 88 00        32-bit             D
-0x0038  da 00              16-bit, Format K   K
+0x0014  7c 10 09 00        32-bit             H
+0x0018  68 68 00 00        32-bit             E
+0x001c  20 10 80 01        32-bit             D
+0x0020  20 11 89 00        32-bit             D
+0x0024  20 18 40 01        32-bit             D
+0x0028  20 99 89 00        32-bit             D
+0x002c  4a 23              16-bit, Format K   K
+0x002e  20 00 00 01        32-bit             D
+0x0032  60 19 88 00        32-bit             D
+0x0036  da 00              16-bit, Format K   K
 
-58 bytes total
+56 bytes total
 ```
 
-58 bytes against 68 for a fixed-32 encoding.
+56 bytes against 64 for a fixed-32 encoding.
 
 ### Two instructions, field by field
 
 The O-24 bootstrap, decoded from the real bytes using the §3 bit map:
 
 ```
-  32-bit instruction at 0x0016: 58 00 09 00  ->  SETP_LE
-  raw = 0x00090058 = 00000000000010010000000001011000
+  16-bit instruction at 0x0016: 09 00  ->  DP4_ACC
+  raw = 0x0009 = 0000000000001001
 
   bits         field      value
   --------------------------------------------
-  [1:0]        class      0b00  (§2: length from bits [1:0] alone)
-  [5:2]        fmt tag    0b0110
-  [14:11]      rd         0
-  [18:15]      rs0        2
-  [22:19]      rs1        1
-  [29:27]      pq         0
-  [31:30]      pd         0
+  [1:0]        class      0b01  (§2: length from bits [1:0] alone)
+  [7:2]        opcode     2
+  [7:4]        rd         0
+  [11:8]       rs0        0
+  [15:12]      rs1        0
 ```
 
 `ps0 = 4` is `!P0` — bit 2 of a qualifier is the negate bit — and `ps1 = 0` is
@@ -312,17 +309,16 @@ set of lanes issuing together.
   000a  mask=ffffffff  	srd r3, 1
   000c  mask=ffffffff  	mad.lo r1, r3, r1, r2
   0010  mask=ffffffff  	ld.global r2, [r0 + 56]
-  0014  mask=ffffffff  	por p0, 4, 0
-  0016  mask=ffffffff  	@p0 setp.le p0, r2, r1
-  001a  mask=ffffffff  	@p0 bra 13
-  001e  mask=000fffff  	ld.global r2, [r0 + 48]
-  0022  mask=000fffff  	ld.global r2, [r2, r1, 1, 0]
-  0026  mask=000fffff  	ld.global r3, [r0 + 40]
-  002a  mask=000fffff  	ld.global r3, [r3, r1, 1, 0]
-  002e  mask=000fffff  	fadd r3, r2
-  0030  mask=000fffff  	ld.global r0, [r0 + 32]
-  0034  mask=000fffff  	st.global r3, [r0, r1, 1, 0]
-  0038  mask=ffffffff  	exit
+  0014  mask=ffffffff  	setp.le p0, r2, r1
+  0018  mask=ffffffff  	@p0 bra 13
+  001c  mask=000fffff  	ld.global r2, [r0 + 48]
+  0020  mask=000fffff  	ld.global r2, [r2, r1, 1, 0]
+  0024  mask=000fffff  	ld.global r3, [r0 + 40]
+  0028  mask=000fffff  	ld.global r3, [r3, r1, 1, 0]
+  002c  mask=000fffff  	fadd r3, r2
+  002e  mask=000fffff  	ld.global r0, [r0 + 32]
+  0032  mask=000fffff  	st.global r3, [r0, r1, 1, 0]
+  0036  mask=ffffffff  	exit
 ```
 
 The mask is `ffffffff` through the prologue, narrows to `000fffff` for the body,
@@ -333,10 +329,10 @@ there is no bracket instruction and nothing forces it (§1).
 
 ```
   --- CUDA source to executed result ---
-  PASS  n=32: 32 lanes correct (17 issue groups)
-  PASS  n=20: 32 lanes correct (17 issue groups)
-  PASS  n= 1: 32 lanes correct (17 issue groups)
-  PASS  n= 0: 32 lanes correct (10 issue groups)
+  PASS  n=32: 32 lanes correct (16 issue groups)
+  PASS  n=20: 32 lanes correct (16 issue groups)
+  PASS  n= 1: 32 lanes correct (16 issue groups)
+  PASS  n= 0: 32 lanes correct (9 issue groups)
 ```
 
 `c[i] = a[i] + b[i]` verified as FP32 bit patterns across all 32 lanes at four

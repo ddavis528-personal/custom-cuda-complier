@@ -4,15 +4,14 @@
   000a  mask=ffffffff  	srd r3, 1
   000c  mask=ffffffff  	mad.lo r1, r3, r1, r2
   0010  mask=ffffffff  	ld.global r2, [r0 + 56]
-  0014  mask=ffffffff  	por p0, 4, 0
-  0016  mask=ffffffff  	@p0 setp.le p0, r2, r1
-  001a  mask=ffffffff  	@p0 bra 13
-  001e  mask=000fffff  	ld.global r2, [r0 + 48]
-  0022  mask=000fffff  	ld.global r2, [r2, r1, 1, 0]
-  0026  mask=000fffff  	ld.global r3, [r0 + 40]
-  002a  mask=000fffff  	ld.global r3, [r3, r1, 1, 0]
-  002e  mask=000fffff  	fadd r3, r2
-  0030  mask=000fffff  	ld.global r0, [r0 + 32]
-  0034  mask=000fffff  	st.global r3, [r0, r1, 1, 0]
-  0038  mask=ffffffff  	exit
-  executed 17 issue groups
+  0014  mask=ffffffff  	setp.le p0, r2, r1
+  0018  mask=ffffffff  	@p0 bra 13
+  001c  mask=000fffff  	ld.global r2, [r0 + 48]
+  0020  mask=000fffff  	ld.global r2, [r2, r1, 1, 0]
+  0024  mask=000fffff  	ld.global r3, [r0 + 40]
+  0028  mask=000fffff  	ld.global r3, [r3, r1, 1, 0]
+  002c  mask=000fffff  	fadd r3, r2
+  002e  mask=000fffff  	ld.global r0, [r0 + 32]
+  0032  mask=000fffff  	st.global r3, [r0, r1, 1, 0]
+  0036  mask=ffffffff  	exit
+  executed 16 issue groups

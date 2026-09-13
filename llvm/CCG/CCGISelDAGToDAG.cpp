@@ -157,37 +157,41 @@ void CCGDAGToDAGISel::Select(SDNode *N) {
     return;
   }
   case ISD::SETCC: {
-    // O-24: there is no unpredicated compare, and no hardwired always-true
-    // predicate, so a guard has to be manufactured. PSEUDO_PTRUE supplies one
-    // and the tie on PSEUDO_SETP forces it into the compare's own destination
-    // -- the self-guarding form, which costs one predicate rather than two.
+    // O-32: Format C" is unpredicated, so a compare is one instruction. It used
+    // to be two -- Formats C and C' carry a mandatory qualifier and there is no
+    // always-true predicate (§1), so every compare manufactured its own guard
+    // with `por pd, !pd, pd` first (O-24). That cost 13% of dynamically issued
+    // instructions in the reduction kernels, which is what paid for the format.
+    //
+    // The predicated forms remain, and are what if-conversion would select;
+    // nothing selects them today.
     ISD::CondCode CC = cast<CondCodeSDNode>(N->getOperand(2))->get();
     SDValue LHS = N->getOperand(0), RHS = N->getOperand(1);
     unsigned Opc;
-    // gt/ge are lt/le with the operands swapped -- §3 allocates 18 setp points
+    // gt/ge are lt/le with the operands swapped -- §3 allocates 16 setp points
     // and there is no reason to spend two of them on reversible predicates.
     switch (CC) {
-    case ISD::SETLT: Opc = CCG::PSEUDO_SETP_LT; break;
-    case ISD::SETLE: Opc = CCG::PSEUDO_SETP_LE; break;
-    case ISD::SETEQ: Opc = CCG::PSEUDO_SETP_EQ; break;
-    case ISD::SETNE: Opc = CCG::PSEUDO_SETP_NE; break;
-    case ISD::SETGT: Opc = CCG::PSEUDO_SETP_LT; std::swap(LHS, RHS); break;
-    case ISD::SETGE: Opc = CCG::PSEUDO_SETP_LE; std::swap(LHS, RHS); break;
+    case ISD::SETLT: Opc = CCG::SETP_LT_NP; break;
+    case ISD::SETLE: Opc = CCG::SETP_LE_NP; break;
+    case ISD::SETEQ: Opc = CCG::SETP_EQ_NP; break;
+    case ISD::SETNE: Opc = CCG::SETP_NE_NP; break;
+    case ISD::SETGT: Opc = CCG::SETP_LT_NP; std::swap(LHS, RHS); break;
+    case ISD::SETGE: Opc = CCG::SETP_LE_NP; std::swap(LHS, RHS); break;
     // Unsigned. eq/ne are the signed points: they compare bit patterns.
-    case ISD::SETULT: Opc = CCG::PSEUDO_SETP_LT_U; break;
-    case ISD::SETULE: Opc = CCG::PSEUDO_SETP_LE_U; break;
-    case ISD::SETUGT: Opc = CCG::PSEUDO_SETP_LT_U; std::swap(LHS, RHS); break;
-    case ISD::SETUGE: Opc = CCG::PSEUDO_SETP_LE_U; std::swap(LHS, RHS); break;
+    case ISD::SETULT: Opc = CCG::SETP_LT_U_NP; break;
+    case ISD::SETULE: Opc = CCG::SETP_LE_U_NP; break;
+    case ISD::SETUGT: Opc = CCG::SETP_LT_U_NP; std::swap(LHS, RHS); break;
+    case ISD::SETUGE: Opc = CCG::SETP_LE_U_NP; std::swap(LHS, RHS); break;
     // FP. `eq.f` is ordered-equal and `ne.f` its exact complement, so `une`
     // -- what C's `!=` produces -- is the natural point rather than a
     // negation. Swapping operands is safe for the ordered relations: NaN makes
     // both directions false either way.
-    case ISD::SETOLT: Opc = CCG::PSEUDO_SETP_LT_F; break;
-    case ISD::SETOLE: Opc = CCG::PSEUDO_SETP_LE_F; break;
-    case ISD::SETOGT: Opc = CCG::PSEUDO_SETP_LT_F; std::swap(LHS, RHS); break;
-    case ISD::SETOGE: Opc = CCG::PSEUDO_SETP_LE_F; std::swap(LHS, RHS); break;
-    case ISD::SETOEQ: Opc = CCG::PSEUDO_SETP_EQ_F; break;
-    case ISD::SETUNE: Opc = CCG::PSEUDO_SETP_NE_F; break;
+    case ISD::SETOLT: Opc = CCG::SETP_LT_F_NP; break;
+    case ISD::SETOLE: Opc = CCG::SETP_LE_F_NP; break;
+    case ISD::SETOGT: Opc = CCG::SETP_LT_F_NP; std::swap(LHS, RHS); break;
+    case ISD::SETOGE: Opc = CCG::SETP_LE_F_NP; std::swap(LHS, RHS); break;
+    case ISD::SETOEQ: Opc = CCG::SETP_EQ_F_NP; break;
+    case ISD::SETUNE: Opc = CCG::SETP_NE_F_NP; break;
     default:
       // SETONE, SETUEQ, SETO, SETUO and the unordered inequalities need either
       // two compares or opcode points the map does not spend. Diagnosed rather
@@ -196,9 +200,11 @@ void CCGDAGToDAGISel::Select(SDNode *N) {
                          " not implemented -- ordered/unordered FP variants "
                          "beyond olt/ole/ogt/oge/oeq/une are roadmap F-24");
     }
-    SDNode *True = CurDAG->getMachineNode(CCG::PSEUDO_PTRUE, DL, MVT::i1);
-    ReplaceNode(N, CurDAG->getMachineNode(Opc, DL, MVT::i1,
-                                          {SDValue(True, 0), LHS, RHS}));
+    // Two results: the predicate, and the materialization destination §3 says
+    // is always allocated but which these opcodes do not write.
+    SDNode *New = CurDAG->getMachineNode(Opc, DL, MVT::i1, MVT::i32,
+                                         {LHS, RHS});
+    ReplaceNode(N, SDValue(New, 0).getNode());
     return;
   }
   case ISD::SELECT: {
