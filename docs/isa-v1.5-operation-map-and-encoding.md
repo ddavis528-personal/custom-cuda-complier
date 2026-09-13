@@ -2556,14 +2556,31 @@ when it contains more masked work than crossings into divergent code. The reduct
 have eight maskable instructions and eight crossings — every uniform value is consumed
 immediately by divergent work — so the pass measures that and declines. `vadd` likewise.
 
-**Two things bound how much can be masked**, and both are encoding facts rather than
-compiler limitations:
+**Four things bound how much can be masked.** The first version of this section named two
+and sized them off a report whose "blocked: encoding" bucket was a `default: return false`
+catch-all — branches, stores, `srd` and `select` all landed in it, and `select` was
+simultaneously counted as maskable. F-57 split it into named buckets; these are the
+measured shares in `transpose`, the kernel with the most uniform work:
 
-- **§4 gives Format A′ a seven-bit opcode**, so only points 0–127 can be predicated.
-  Conversions (128+) and the SFU (256+) have no predicated form, so the division sequence's
-  `cvt` and `rcp` run in all 32 lanes however uniform they are.
-- **Format D′ narrows the load displacement** from 13 bits to 10, so a predicated load needs
-  its offset to fit. Launch-block offsets are tens of bytes, so it always does here.
+| bound | `transpose` | what would fix it |
+|---|---|---|
+| `sel` spends `[29:27]` on data (§4 point 19) | **10** | a second predicate field — 2 bits a 32-bit format does not have. F-58 |
+| §4 puts conversions at 128+ and the SFU at 256+ | **3** | relocate the five points the compiler uses into 64–127. F-56, blocked on F-59 |
+| `srd` is Format K only (invariant 7) | 1 | nothing: a 16-bit instruction has no qualifier field by design |
+| a barrier must not be masked | 1 | nothing: this one is semantics, not encoding |
+
+Plus control flow, which in the reduction kernels dominates everything above: a block not
+reached by every lane cannot have work masked *to* lane 0, because lane 0 might not be one
+of the lanes that got there.
+
+The `sel` row is the interesting one, and it was invisible before F-57. Those ten are the
+two division sequences' correction steps. The general statement is that **a value already
+predicated for control flow cannot also be masked to lane 0** — O-33 and ordinary
+predication want the same three bits. That is a deeper limit than the opcode-range one, and
+it is not obviously fixable.
+
+**Format D′ also narrows the load displacement** from 13 bits to 10, so a predicated load
+needs its offset to fit. Launch-block offsets are tens of bytes, so it always does here.
 
 An instruction with no predicated form is **not** a reason to broadcast, though — it runs on
 all 32 lanes, computing from whatever the masked region left in lanes 1–31, and lane 0 stays

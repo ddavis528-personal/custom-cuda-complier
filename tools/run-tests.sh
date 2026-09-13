@@ -155,6 +155,13 @@ echo
 echo "  --- warp-uniform lane-0 masking ---"
 ./tools/check-mask.sh || fail=1
 
+# --- uniformity-report buckets (F-57) --------------------------------------
+# The report is evidence for a spec change, so a bucket that names an encoding
+# limit must contain only that limit. See the header of the script.
+echo
+echo "  --- uniformity report buckets ---"
+./tools/check-uniformity-buckets.sh || fail=1
+
 # --- branch relaxation (F-28) ---------------------------------------------
 # Neither direction is visible in the .s: it prints `bra.short` whether or not
 # the assembler grew it. So check the objects.
