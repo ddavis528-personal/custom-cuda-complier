@@ -11,13 +11,19 @@
 // ---------------------------------------------------------------------------
 // Operand classes
 // ---------------------------------------------------------------------------
-def simm13  : Operand<i32>;
-def simm10  : Operand<i32>;
-def simm8   : Operand<i32>;
-def simm9   : Operand<i32>;
-def simm21  : Operand<i32>;
-def simm17  : Operand<i32>;
-def simm18  : Operand<i32>;
+// Signed fields need an explicit decoder: TableGen's default zero-extends the
+// field, which silently turns every negative displacement and every backward
+// branch into a huge positive one. See F-39.
+class SImm<int n> : Operand<i32> {
+  let DecoderMethod = "decodeSImm<" # n # ">";
+}
+def simm13  : SImm<13>;
+def simm10  : SImm<10>;
+def simm8   : SImm<8>;
+def simm9   : SImm<9>;
+def simm21  : SImm<21>;
+def simm17  : SImm<17>;
+def simm18  : SImm<18>;
 def uimm2   : Operand<i32>;
 def uimm3   : Operand<i32>;
 def uimm4   : Operand<i32>;
@@ -33,8 +39,18 @@ def uimm33  : Operand<i32>;
 // 2-bit predicate address + negate (§1). Printed as @p1 / @!p1 rather than as
 // a raw field value -- these listings are the verification artifact.
 def pqual   : Operand<i32> { let PrintMethod = "printPredQual"; }
-def brtarget21 : Operand<OtherVT> { let EncoderMethod = "getBranch21OpValue"; }
-def brtarget18 : Operand<OtherVT> { let EncoderMethod = "getBranch18OpValue"; }
+// Branch offsets are halfword-granular and SIGNED -- §3 puts the sign bit at 31
+// in both forms. The decoder side needs saying explicitly for the same reason
+// the simm classes do (F-39): a backward branch is the common case that the
+// default zero-extension gets wrong.
+def brtarget21 : Operand<OtherVT> {
+  let EncoderMethod = "getBranch21OpValue";
+  let DecoderMethod = "decodeSImm<21>";
+}
+def brtarget18 : Operand<OtherVT> {
+  let EncoderMethod = "getBranch18OpValue";
+  let DecoderMethod = "decodeSImm<18>";
+}
 def psrc    : Operand<i32>;   // same shape, used by predicate logic
 def pmask4  : Operand<i32>;   // 4-bit predicate bitmask for ld.pred/st.pred
 def pidx2   : Operand<i32>;   // 2-bit predicate address, read side, no negate

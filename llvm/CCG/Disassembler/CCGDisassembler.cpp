@@ -15,6 +15,7 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/MathExtras.h"
 
 using namespace llvm;
 
@@ -54,6 +55,19 @@ static DecodeStatus DecodePRRegisterClass(MCInst &MI, uint64_t RegNo, uint64_t,
   if (RegNo >= std::size(PRDecoderTable))
     return MCDisassembler::Fail;
   MI.addOperand(MCOperand::createReg(PRDecoderTable[RegNo]));
+  return MCDisassembler::Success;
+}
+
+/// Sign-extend a field that the .td declares signed. Without this the generated
+/// decoder zero-extends, which is invisible to a forward branch and to any
+/// non-negative displacement -- and wrong for every other case. The round trip
+/// could not catch it either: it encodes and decodes the same bit pattern, so
+/// both sides agreed on a value that was simply not the one the assembler
+/// meant. See F-39.
+template <unsigned N>
+static DecodeStatus decodeSImm(MCInst &MI, uint64_t Imm, int64_t,
+                               const MCDisassembler *) {
+  MI.addOperand(MCOperand::createImm(SignExtend64<N>(Imm)));
   return MCDisassembler::Success;
 }
 

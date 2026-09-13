@@ -23,6 +23,8 @@ namespace ccg {
 static constexpr unsigned kLanes = 32;
 static constexpr unsigned kGPRs = 16;
 static constexpr unsigned kPreds = 4;
+/// §3, Format E: 6-bit barrier ID, "64 entries -- matches the 4x16 table".
+static constexpr unsigned kBarriers = 64;
 
 /// Sparse 48-bit address space. Paged so a kernel can use widely separated
 /// windows (§5.4: thread-, warp- and CTA-private scopes) without allocating
@@ -72,6 +74,24 @@ struct Warp {
   /// the only value the launch block structurally cannot carry.
   std::array<uint32_t, kLanes> CtaTid{};
   uint32_t CtaId = 0;
+
+  /// Lanes blocked at a barrier. They hold their PC and are skipped when the
+  /// scheduler picks an issue group -- otherwise a lowest-PC scheduler would
+  /// select a blocked lane forever. Not architectural state; it is the
+  /// simulator's representation of "this thread is not runnable".
+  uint32_t Stalled = 0;
+
+  /// Barrier state (O-27). The arrival epoch is per *thread* here because a
+  /// thread is what arrives -- §1's per-thread PCs mean lanes of one warp can
+  /// reach a barrier at different times, which is exactly what makes a barrier
+  /// a real synchronisation point rather than a formality. Hardware tracks
+  /// this per warp; per lane is the finer-grained version of the same thing.
+  struct BarrierState {
+    uint32_t Arrived = 0;                     ///< lanes arrived this epoch
+    uint64_t Epoch = 0;                       ///< completions so far
+    std::array<uint64_t, kLanes> ArrivalEpoch{}; ///< epoch each lane arrived in
+  };
+  std::array<BarrierState, kBarriers> Bar{};
 
   Warp() { ChWidth.fill(0); } // 00 = 32-bit, the reset default
 };

@@ -20,6 +20,7 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/ADT/bit.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -93,14 +94,24 @@ int main(int argc, char **argv) {
     // Group by PC: pick the lowest PC among active lanes and issue for every
     // lane sitting there. Lowest-first is a scheduling policy, not semantics --
     // any order gives the same results.
+    uint32_t Runnable = W.Active & ~W.Stalled;
+    if (!Runnable) {
+      // Every remaining lane is blocked at a barrier that no one can now
+      // complete. Report it as what it is rather than running to the step
+      // limit: a deadlocked kernel and a slow one look nothing alike.
+      errs() << "error: deadlock -- " << llvm::popcount(W.Active)
+             << " lanes blocked at a barrier with no lane able to arrive\n";
+      return 1;
+    }
+
     uint64_t Target = UINT64_MAX;
     for (unsigned L = 0; L != kLanes; ++L)
-      if ((W.Active >> L) & 1)
+      if ((Runnable >> L) & 1)
         Target = std::min(Target, W.PC[L]);
 
     uint32_t Mask = 0;
     for (unsigned L = 0; L != kLanes; ++L)
-      if (((W.Active >> L) & 1) && W.PC[L] == Target)
+      if (((Runnable >> L) & 1) && W.PC[L] == Target)
         Mask |= 1u << L;
 
     uint64_t Off = Target - CodeBase;
@@ -148,8 +159,25 @@ int main(int argc, char **argv) {
         if (Mask & (1u << L))
           W.PC[L] = (R.TakenMask & (1u << L)) ? R.Target : Target + Size;
       break;
+    case Interp::Result::Stall:
+      // The blocked lanes hold their PC and drop out of scheduling until the
+      // barrier releases them. Lanes of the same group that got through -- the
+      // ones the barrier had already retired -- advance normally.
+      for (unsigned L = 0; L != kLanes; ++L)
+        if ((Mask & (1u << L)) && !(R.TakenMask & (1u << L)))
+          W.PC[L] += Size;
+      break;
     case Interp::Result::Exit:
       W.Active &= ~Mask;
+      // An exiting lane can be what a barrier was waiting for, since a lane
+      // that has left never arrives. Re-check every barrier against the lanes
+      // that remain.
+      W.Stalled = 0;
+      for (auto &B : W.Bar)
+        if (B.Arrived && W.Active && (B.Arrived & W.Active) == W.Active) {
+          B.Arrived = 0;
+          ++B.Epoch;
+        }
       break;
     }
   }

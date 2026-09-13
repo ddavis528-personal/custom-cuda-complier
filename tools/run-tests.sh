@@ -118,6 +118,9 @@ fi
 echo
 ./tools/run-e2e.sh || fail=1
 
+echo
+./tools/run-reduce.sh || fail=1
+
 # --- assembler / encoder cross-check --------------------------------------
 # ccg-as.py encodes from the TableGen JSON; the C++ MCCodeEmitter encodes from
 # gen-emitter. Two independent paths over one description (roadmap F-6).

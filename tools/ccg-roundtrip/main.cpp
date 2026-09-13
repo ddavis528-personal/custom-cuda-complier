@@ -25,6 +25,7 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/MathExtras.h"
 #include <random>
 #include <string>
 
@@ -49,38 +50,28 @@ struct Stats {
 };
 } // namespace
 
-// Widest encoded field for an instruction, by TableGen variable name.
-static unsigned fieldBits(StringRef Inst, StringRef Var) {
-  for (unsigned I = 0; I != CCGNumInstFields; ++I) {
-    if (Inst != CCGInstFieldTable[I].Inst)
+/// Per-operand encoding info, in MCInst operand order. Two things this replaces
+/// were each hiding a class of bug:
+///
+///   - Every immediate used to be bounded by the NARROWEST field on the
+///     instruction, which on a Format C compare is the 2-bit predicate
+///     destination. Wide immediates were therefore only ever tested with tiny
+///     values. Per-operand widths test each field at its real width.
+///   - Signedness used to be unknown, so every generated value was
+///     non-negative. That is how F-39 -- a decoder that zero-extended every
+///     signed field -- ran green through three steps of work: a backward
+///     branch and a negative displacement were never once encoded.
+static const CCGOperandInfo *operandInfo(StringRef Inst, unsigned Idx) {
+  for (unsigned I = 0; I != CCGNumInstOperands; ++I) {
+    if (Inst != CCGInstOperandTable[I].Inst)
       continue;
-    for (unsigned F = 0; F != CCGInstFieldTable[I].NumFields; ++F)
-      if (Var == CCGInstFieldTable[I].Fields[F].Var)
-        return CCGInstFieldTable[I].Fields[F].Bits;
-    return 0;
+    if (Idx >= CCGInstOperandTable[I].NumOperands)
+      return nullptr;
+    return &CCGInstOperandTable[I].Operands[Idx];
   }
-  return 0;
+  return nullptr;
 }
 
-// Immediate operands are named positionally in the .td; the encoder reads them
-// through getMachineOpValue, so any value that fits the field round-trips. We
-// do not know which field an operand maps to by name alone, so take the
-// narrowest field on the instruction as a safe bound for every immediate.
-static unsigned narrowestField(StringRef Inst) {
-  unsigned Min = 64;
-  for (unsigned I = 0; I != CCGNumInstFields; ++I) {
-    if (Inst != CCGInstFieldTable[I].Inst)
-      continue;
-    for (unsigned F = 0; F != CCGInstFieldTable[I].NumFields; ++F) {
-      unsigned B = CCGInstFieldTable[I].Fields[F].Bits;
-      // Register fields are 4 bits (2 for predicates) and are handled
-      // separately; only immediates need bounding.
-      if (B < Min)
-        Min = B;
-    }
-  }
-  return Min == 64 ? 0 : Min;
-}
 
 int main(int argc, char **argv) {
   cl::ParseCommandLineOptions(argc, argv, "CCG encode/decode round-trip\n");
@@ -129,7 +120,7 @@ int main(int argc, char **argv) {
     }
     ++S.Checked;
 
-    unsigned ImmBits = narrowestField(Name);
+
 
     for (unsigned Trial = 0; Trial != NumTrials; ++Trial) {
       MCInst MI;
@@ -159,8 +150,18 @@ int main(int argc, char **argv) {
           MI.addOperand(MCOperand::createReg(RC.getRegister(RNG() % RC.getNumRegs())));
         } else if (OI.OperandType == MCOI::OPERAND_IMMEDIATE ||
                    OI.OperandType == MCOI::OPERAND_UNKNOWN) {
-          uint64_t Mask = ImmBits >= 64 ? ~0ULL : ((1ULL << ImmBits) - 1);
-          MI.addOperand(MCOperand::createImm(ImmBits ? (RNG() & Mask) : 0));
+          const CCGOperandInfo *OpI = operandInfo(Name, I);
+          unsigned Bits = OpI ? OpI->Bits : 0;
+          bool Signed = OpI && OpI->Signed;
+          uint64_t Mask = Bits >= 64 ? ~0ULL : ((1ULL << Bits) - 1);
+          uint64_t Raw = Bits ? (RNG() & Mask) : 0;
+          // A signed field is generated across its own signed range, so half
+          // the trials are negative -- the case a decoder can get wrong while
+          // still agreeing with the encoder on every bit.
+          int64_t V = (Signed && Bits && Bits < 64)
+                          ? llvm::SignExtend64(Raw, Bits)
+                          : int64_t(Raw);
+          MI.addOperand(MCOperand::createImm(V));
         } else {
           Buildable = false;
           break;
@@ -204,18 +205,22 @@ int main(int argc, char **argv) {
         break;
       }
 
-      // Compare the register operands that survive the round trip. Immediates
-      // are compared only where the decoder reconstructs them into operands.
-      bool Mismatch = false;
+      // Registers AND immediates. Comparing only registers left the entire
+      // immediate path unchecked, which is the other half of why F-39 -- a
+      // decoder that zero-extended every signed field -- ran green for three
+      // steps of work.
+      const char *Bad = nullptr;
       for (unsigned I = 0, N = std::min(MI.getNumOperands(),
                                         Decoded.getNumOperands());
            I != N; ++I) {
         const MCOperand &A = MI.getOperand(I), &B = Decoded.getOperand(I);
         if (A.isReg() && B.isReg() && A.getReg() != B.getReg())
-          Mismatch = true;
+          Bad = "register operands changed";
+        else if (A.isImm() && B.isImm() && A.getImm() != B.getImm())
+          Bad = "immediate operands changed";
       }
-      if (Mismatch) {
-        errs() << "FAIL " << Name << ": register operands changed\n";
+      if (Bad) {
+        errs() << "FAIL " << Name << ": " << Bad << "\n";
         ++S.Failed;
         break;
       }
