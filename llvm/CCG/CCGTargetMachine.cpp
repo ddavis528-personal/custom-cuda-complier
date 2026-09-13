@@ -12,6 +12,7 @@ using namespace llvm;
 namespace llvm {
 FunctionPass *createCCGISelDag(CCGTargetMachine &TM, CodeGenOptLevel OL);
 FunctionPass *createCCGExpandPseudos();
+FunctionPass *createCCGWindowRemat();
 }
 
 // Pointers are 64 bits wide as clang emits them; no register holds one
@@ -50,6 +51,15 @@ public:
     addPass(createCCGISelDag(getCCGTargetMachine(), getOptLevel()));
     return false;
   }
+  /// Last thing before instruction selection: §5.1's window arithmetic is
+  /// cloned into every block that uses it, so the DAGCombine that folds it into
+  /// an addressing mode always sees it locally. Placed after the default
+  /// CodeGenPrepare so nothing can hoist it back out.
+  void addCodeGenPrepare() override {
+    TargetPassConfig::addCodeGenPrepare();
+    addPass(createCCGWindowRemat());
+  }
+
   /// After register allocation: predicate registers become qualifier
   /// immediates, which is only possible once allocation has run.
   void addPreEmitPass() override { addPass(createCCGExpandPseudos()); }

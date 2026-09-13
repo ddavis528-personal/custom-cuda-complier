@@ -173,10 +173,28 @@ void CCGDAGToDAGISel::Select(SDNode *N) {
     case ISD::SETNE: Opc = CCG::PSEUDO_SETP_NE; break;
     case ISD::SETGT: Opc = CCG::PSEUDO_SETP_LT; std::swap(LHS, RHS); break;
     case ISD::SETGE: Opc = CCG::PSEUDO_SETP_LE; std::swap(LHS, RHS); break;
+    // Unsigned. eq/ne are the signed points: they compare bit patterns.
+    case ISD::SETULT: Opc = CCG::PSEUDO_SETP_LT_U; break;
+    case ISD::SETULE: Opc = CCG::PSEUDO_SETP_LE_U; break;
+    case ISD::SETUGT: Opc = CCG::PSEUDO_SETP_LT_U; std::swap(LHS, RHS); break;
+    case ISD::SETUGE: Opc = CCG::PSEUDO_SETP_LE_U; std::swap(LHS, RHS); break;
+    // FP. `eq.f` is ordered-equal and `ne.f` its exact complement, so `une`
+    // -- what C's `!=` produces -- is the natural point rather than a
+    // negation. Swapping operands is safe for the ordered relations: NaN makes
+    // both directions false either way.
+    case ISD::SETOLT: Opc = CCG::PSEUDO_SETP_LT_F; break;
+    case ISD::SETOLE: Opc = CCG::PSEUDO_SETP_LE_F; break;
+    case ISD::SETOGT: Opc = CCG::PSEUDO_SETP_LT_F; std::swap(LHS, RHS); break;
+    case ISD::SETOGE: Opc = CCG::PSEUDO_SETP_LE_F; std::swap(LHS, RHS); break;
+    case ISD::SETOEQ: Opc = CCG::PSEUDO_SETP_EQ_F; break;
+    case ISD::SETUNE: Opc = CCG::PSEUDO_SETP_NE_F; break;
     default:
+      // SETONE, SETUEQ, SETO, SETUO and the unordered inequalities need either
+      // two compares or opcode points the map does not spend. Diagnosed rather
+      // than miscompiled; see F-24.
       report_fatal_error("CCG: condition code " + Twine(unsigned(CC)) +
-                         " not implemented (unsigned and FP compares are "
-                         "roadmap F-24)");
+                         " not implemented -- ordered/unordered FP variants "
+                         "beyond olt/ole/ogt/oge/oeq/une are roadmap F-24");
     }
     SDNode *True = CurDAG->getMachineNode(CCG::PSEUDO_PTRUE, DL, MVT::i1);
     ReplaceNode(N, CurDAG->getMachineNode(Opc, DL, MVT::i1,
@@ -189,6 +207,28 @@ void CCGDAGToDAGISel::Select(SDNode *N) {
                        {N->getOperand(1),
                         CurDAG->getTargetConstant(0, DL, MVT::i32),
                         N->getOperand(2), N->getOperand(0)}));
+    return;
+  }
+  case ISD::INTRINSIC_VOID: {
+    // __syncthreads() is an arrive followed by a wait on the same barrier
+    // (O-12): arriving and blocking are separate operations here, because with
+    // per-thread PCs a thread arrives individually.
+    if (N->getConstantOperandVal(1) != Intrinsic::nvvm_barrier0)
+      break;
+    // Format K payload. bar.arrive: [13:8] is the 6-bit barrier ID, so the ID
+    // sits in payload bits [5:0]. bar.wait adds the phase parity at [14],
+    // which is payload bit [6].
+    const unsigned BarrierID = 0;      // one CTA-wide barrier; see F-30
+    const unsigned Phase = 0;
+    SDValue Chain = N->getOperand(0);
+    SDNode *Arrive = CurDAG->getMachineNode(
+        CCG::C_BAR_ARRIVE, DL, MVT::Other,
+        {CurDAG->getTargetConstant(BarrierID, DL, MVT::i32), Chain});
+    ReplaceNode(N, CurDAG->getMachineNode(
+                       CCG::C_BAR_WAIT, DL, MVT::Other,
+                       {CurDAG->getTargetConstant(BarrierID | (Phase << 6), DL,
+                                                  MVT::i32),
+                        SDValue(Arrive, 0)}));
     return;
   }
   case ISD::INTRINSIC_WO_CHAIN: {

@@ -14,7 +14,8 @@ TD=llvm/CCG/CCG.td
 OUT=$(mktemp -d); trap 'rm -rf "$OUT"' EXIT
 
 fail=0
-for g in gen-register-info gen-instr-info gen-emitter gen-disassembler gen-asm-writer; do
+for g in gen-register-info gen-instr-info gen-emitter gen-disassembler \
+         gen-asm-writer gen-dag-isel gen-callingconv; do
   printf '  %-20s ' "$g"
   if llvm-tblgen -I "$INC" -I llvm/CCG --$g "$TD" -o "$OUT/$g.inc" 2>"$OUT/$g.err"; then
     printf 'ok (%s lines)\n' "$(wc -l < "$OUT/$g.inc")"

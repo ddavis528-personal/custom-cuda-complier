@@ -62,7 +62,13 @@ bool CCGExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
       case CCG::PSEUDO_SETP_LT:
       case CCG::PSEUDO_SETP_LE:
       case CCG::PSEUDO_SETP_EQ:
-      case CCG::PSEUDO_SETP_NE: {
+      case CCG::PSEUDO_SETP_NE:
+      case CCG::PSEUDO_SETP_LT_U:
+      case CCG::PSEUDO_SETP_LE_U:
+      case CCG::PSEUDO_SETP_LT_F:
+      case CCG::PSEUDO_SETP_LE_F:
+      case CCG::PSEUDO_SETP_EQ_F:
+      case CCG::PSEUDO_SETP_NE_F: {
         // The guard is tied to the destination, so this is the self-guarding
         // form: the compare reads the predicate it is about to overwrite.
         Register Pd = MI.getOperand(0).getReg();
@@ -70,10 +76,16 @@ bool CCGExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
         assert(Pd == Guard && "tie should have forced guard == destination");
         unsigned Opc;
         switch (MI.getOpcode()) {
-        case CCG::PSEUDO_SETP_LT: Opc = CCG::SETP_LT; break;
-        case CCG::PSEUDO_SETP_LE: Opc = CCG::SETP_LE; break;
-        case CCG::PSEUDO_SETP_EQ: Opc = CCG::SETP_EQ; break;
-        default:                  Opc = CCG::SETP_NE; break;
+        case CCG::PSEUDO_SETP_LT:   Opc = CCG::SETP_LT;   break;
+        case CCG::PSEUDO_SETP_LE:   Opc = CCG::SETP_LE;   break;
+        case CCG::PSEUDO_SETP_EQ:   Opc = CCG::SETP_EQ;   break;
+        case CCG::PSEUDO_SETP_LT_U: Opc = CCG::SETP_LT_U; break;
+        case CCG::PSEUDO_SETP_LE_U: Opc = CCG::SETP_LE_U; break;
+        case CCG::PSEUDO_SETP_LT_F: Opc = CCG::SETP_LT_F; break;
+        case CCG::PSEUDO_SETP_LE_F: Opc = CCG::SETP_LE_F; break;
+        case CCG::PSEUDO_SETP_EQ_F: Opc = CCG::SETP_EQ_F; break;
+        case CCG::PSEUDO_SETP_NE_F: Opc = CCG::SETP_NE_F; break;
+        default:                    Opc = CCG::SETP_NE;   break;
         }
         BuildMI(MBB, MI, DL, TII->get(Opc))
             .addReg(Pd, RegState::Define)

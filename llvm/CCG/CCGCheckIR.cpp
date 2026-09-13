@@ -18,7 +18,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "CCGCheckIR.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Dominators.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
@@ -105,6 +109,30 @@ bool llvm::checkCCGModule(Module &M, raw_ostream &Err) {
   SmallVector<std::string, 8> Problems;
 
   for (Function &F : M) {
+    // §3's `bar.wait #id, phase` takes the phase parity as an immediate, and
+    // O-12 justifies that by having the compiler "alternate the bit each time
+    // through the loop". It cannot: an immediate is fixed at assembly time and
+    // the barrier's epoch parity flips on every completion, so a barrier
+    // executed N times needs N alternating values from one encoded bit. The
+    // bit is only correct where the barrier executes at most once per kernel.
+    // Diagnosed rather than miscompiled -- see F-30, which needs an ISA
+    // decision, not a codegen fix.
+    if (!F.isDeclaration()) {
+      DominatorTree DT(F);
+      LoopInfo LI(DT);
+      for (BasicBlock &BB : F)
+        for (Instruction &I : BB)
+          if (auto *CI = dyn_cast<IntrinsicInst>(&I))
+            if (CI->getIntrinsicID() == Intrinsic::nvvm_barrier0 &&
+                LI.getLoopFor(&BB))
+              report(I, "barrier inside a loop",
+                     "bar.wait's phase parity is an immediate (§3, Format K "
+                     "point 52), so it cannot alternate across dynamic "
+                     "iterations. See F-30 -- the phase needs to come from a "
+                     "register or be tracked in hardware",
+                     Problems);
+    }
+
     for (BasicBlock &BB : F) {
       for (Instruction &I : BB) {
         // --- .const is read-only by contract (§3, §5.2) -------------------

@@ -61,6 +61,14 @@ CCGTargetLowering::CCGTargetLowering(const TargetMachine &TM,
   // brcond takes an i1; there is no BRCOND over a GPR bit pattern, because a
   // branch reads the predicate file directly (§3, Format E).
   setOperationAction(ISD::BRCOND, MVT::Other, Legal);
+
+  // There is no constant pool: §5.1 gives the AGU a window and an index, and a
+  // pool would need a third live pointer plus a relocation kind for it. The
+  // default expansion of ConstantFP is a pool load, so keep the node legal and
+  // let the f48 wide immediate carry the bit pattern -- a float constant costs
+  // exactly what an integer constant costs, which is the right answer for a
+  // machine whose GPRs hold either.
+  setOperationAction(ISD::ConstantFP, MVT::f32, Legal);
 }
 
 const char *CCGTargetLowering::getTargetNodeName(unsigned Opcode) const {

@@ -86,20 +86,54 @@ def UNPACKI : FormatB<22, (outs GPR:$rd), (ins GPR:$rs0, uimm3:$imm),
 // ---------------------------------------------------------------------------
 // Format C / C' -- compare. Predicate destination is mandatory.
 // ---------------------------------------------------------------------------
-// §3: the 5-bit opcode covers {6 comparison predicates} x {signed, unsigned,
-// FP} = 18 points. Signed integer forms; ASSIGNED 0-3. `gt` and `ge` come from
-// swapping the operands rather than spending points on them.
-def SETP_LT : FormatC<0, (outs PR:$pd, GPR:$rd), (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
-                      "@$pq setp.lt $pd, $rs0, $rs1">;
-def SETP_LE : FormatC<1, (outs PR:$pd, GPR:$rd), (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
-                      "@$pq setp.le $pd, $rs0, $rs1">;
-def SETP_EQ : FormatC<2, (outs PR:$pd, GPR:$rd), (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
-                      "@$pq setp.eq $pd, $rs0, $rs1">;
-def SETP_NE : FormatC<3, (outs PR:$pd, GPR:$rd), (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
-                      "@$pq setp.ne $pd, $rs0, $rs1">;
-def SETP_GE_I : FormatCp<3, (outs PR:$pd, GPR:$rd),
+// §3 allocates one 5-bit opcode map shared by C and C', so a mnemonic means the
+// same opcode value whichever way its second operand arrives. That matters:
+// the register form is reachable by swapping operands, but the immediate form
+// is not -- `setp.ge rs0, #imm` cannot be expressed as `setp.le #imm, rs0` --
+// so gt/ge need real points even though the selector never picks them for
+// register-register. See O-26.
+//
+// 16 points, not the 18 of §3's original count: integer eq/ne compare bit
+// patterns and are sign-agnostic, so they are not duplicated across the signed
+// and unsigned classes.
+class SetpOpc {
+  int LT = 0;  int LE = 1;  int EQ = 2;  int NE = 3;  int GT = 4;  int GE = 5;
+  int LT_U = 6;  int LE_U = 7;  int GT_U = 8;  int GE_U = 9;
+  int LT_F = 10; int LE_F = 11; int EQ_F = 12; int NE_F = 13;
+  int GT_F = 14; int GE_F = 15;
+}
+def setpOpc : SetpOpc;
+
+multiclass Setp<int opc, string suffix> {
+  def NAME    : FormatC<opc, (outs PR:$pd, GPR:$rd),
+                        (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
+                        "@$pq setp."#suffix#" $pd, $rs0, $rs1">;
+  def NAME#_I : FormatCp<opc, (outs PR:$pd, GPR:$rd),
                          (ins pqual:$pq, GPR:$rs0, simm8:$imm),
-                         "@$pq setp.ge $pd, $rs0, $imm">;
+                         "@$pq setp."#suffix#" $pd, $rs0, $imm">;
+}
+
+// Signed integer, and the sign-agnostic equalities.
+defm SETP_LT : Setp<setpOpc.LT, "lt">;
+defm SETP_LE : Setp<setpOpc.LE, "le">;
+defm SETP_EQ : Setp<setpOpc.EQ, "eq">;
+defm SETP_NE : Setp<setpOpc.NE, "ne">;
+defm SETP_GT : Setp<setpOpc.GT, "gt">;
+defm SETP_GE : Setp<setpOpc.GE, "ge">;
+// Unsigned integer. No eq/ne: they would be the same instruction.
+defm SETP_LT_U : Setp<setpOpc.LT_U, "lt.u">;
+defm SETP_LE_U : Setp<setpOpc.LE_U, "le.u">;
+defm SETP_GT_U : Setp<setpOpc.GT_U, "gt.u">;
+defm SETP_GE_U : Setp<setpOpc.GE_U, "ge.u">;
+// FP32. eq/ne are an exact complementary pair: `eq.f` is ordered-equal and
+// `ne.f` is unordered-or-not-equal, so exactly one holds for any operand pair
+// including NaN. The remaining orderings are reachable by negating a qualifier.
+defm SETP_LT_F : Setp<setpOpc.LT_F, "lt.f">;
+defm SETP_LE_F : Setp<setpOpc.LE_F, "le.f">;
+defm SETP_EQ_F : Setp<setpOpc.EQ_F, "eq.f">;
+defm SETP_NE_F : Setp<setpOpc.NE_F, "ne.f">;
+defm SETP_GT_F : Setp<setpOpc.GT_F, "gt.f">;
+defm SETP_GE_F : Setp<setpOpc.GE_F, "ge.f">;
 
 // ---------------------------------------------------------------------------
 // Format D -- load / store. §3 opcode map.
@@ -231,8 +265,10 @@ def SRD : FormatKsrd<28, (outs GPR:$rd), (ins srdsel:$sel), "srd $rd, $sel">;
 def C_CHWIDTH : FormatKraw<48, (outs), (ins uimm8:$payload), "chwidth $payload">;
 let isBranch = 1, isTerminator = 1, isBarrier = 1 in
 def C_BRA     : FormatKraw<49, (outs), (ins uimm8:$payload), "bra.short $payload">;
+let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in {
 def C_BAR_ARRIVE : FormatKraw<51, (outs), (ins uimm8:$payload), "bar.arrive $payload">;
 def C_BAR_WAIT   : FormatKraw<52, (outs), (ins uimm8:$payload), "bar.wait $payload">;
+}
 let isReturn = 1, isTerminator = 1 in
 def C_RET     : FormatKraw<53, (outs), (ins uimm8:$payload), "ret $payload">;
 let isTerminator = 1, isBarrier = 1 in
@@ -263,7 +299,9 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
   // of the O-24 addendum: `por P0,!P0,P0` then `@P0 setp P0, ...`. One
   // predicate, not two, so the effective file stays at four.
   let Constraints = "$pd = $guard" in {
-    foreach cc = ["LT", "LE", "EQ", "NE"] in
+    foreach cc = ["LT", "LE", "EQ", "NE",
+                  "LT_U", "LE_U",
+                  "LT_F", "LE_F", "EQ_F", "NE_F"] in
       def PSEUDO_SETP_#cc : CCGInst<0, (outs PR:$pd),
                                     (ins PR:$guard, GPR:$a, GPR:$b),
                                     "# setp."#cc#" $pd, $a, $b">;

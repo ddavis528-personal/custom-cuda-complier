@@ -19,8 +19,13 @@ else
   CLANG_LL="$TMP/clang.ll"; LOWERED_LL="$TMP/lowered.ll"
 fi
 
+# infer-address-spaces first: clang emits shared-memory accesses through a
+# generic-pointer addrspacecast, and a generic pointer is 64-bit. Inferring the
+# address space back restores native addrspace(3) accesses, which are flat
+# 32-bit (§5.1) and need no window at all. NVPTX runs the same pass for the
+# same reason.
 ./tools/cuda-to-ir.sh "$IN" "$CLANG_LL" >/dev/null
 opt -load-pass-plugin=build/CCGLowerKernelArgs.so \
-    -passes='ccg-lower-kernel-args,instcombine,gvn,simplifycfg' \
+    -passes='function(infer-address-spaces),ccg-lower-kernel-args,function(instcombine,gvn,simplifycfg)' \
     -S "$CLANG_LL" -o "$LOWERED_LL" 2>/dev/null
 build/ccg-llc "$LOWERED_LL" -o "$OUT"

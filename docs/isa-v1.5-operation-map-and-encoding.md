@@ -538,9 +538,30 @@ C′'s immediate is `[26:19]`, 8 bits, MSB at bit 26 — one more bit than the p
 layout. The sign bit sits at a different position than the B family's, which is a mux the
 decoder has to carry; unlike register fields, immediates are not on the rename path.
 
-The 5-bit opcode covers `{6 comparison predicates} × {signed int, unsigned int, FP}` = 18
-points for `setp`, plus the materializing `set` variants, inside 32. `rd` is always
-allocated and the opcode selects whether it is written.
+The 5-bit opcode map is **shared between C and C′**, so a mnemonic means the same opcode
+value whichever way its second operand arrives. That is what makes `setp.ge` expressible at
+all: the register form of `ge` is reachable by swapping operands, but `setp.ge rs0, #imm`
+is not — an immediate cannot be the left operand. See O-26.
+
+The map needs **16 points, not the 18** of `{6 predicates} × {signed, unsigned, FP}`:
+integer `eq`/`ne` compare bit patterns and are sign-agnostic, so they are not duplicated
+across the signed and unsigned classes.
+
+| point | | point | | point | |
+|---|---|---|---|---|---|
+| 0 | `setp.lt` | 6 | `setp.lt.u` | 10 | `setp.lt.f` |
+| 1 | `setp.le` | 7 | `setp.le.u` | 11 | `setp.le.f` |
+| 2 | `setp.eq` | 8 | `setp.gt.u` | 12 | `setp.eq.f` |
+| 3 | `setp.ne` | 9 | `setp.ge.u` | 13 | `setp.ne.f` |
+| 4 | `setp.gt` | | | 14 | `setp.gt.f` |
+| 5 | `setp.ge` | | | 15 | `setp.ge.f` |
+
+`eq.f` is ordered-equal and `ne.f` is unordered-or-not-equal, an exact complementary pair:
+for any operand pair, NaN included, exactly one holds. That makes C's `!=` on floats — which
+LLVM emits as `fcmp une` — a single instruction rather than a negation.
+
+That leaves 16 points for the materializing `set` variants, which is exactly enough and no
+more. `rd` is always allocated and the opcode selects whether it is written.
 
 **`chwidth` does not affect compares.** A compare reads one element per lane at whatever
 width the sources carry and writes one bit per lane, so the predicate destination is 32 bits
@@ -2103,6 +2124,42 @@ forms.
   divergence analysis already does the work; how many warp-invariant values are simultaneously
   live at peak is the only evidence that would size a uniform register file, and it is nearly
   free to collect now.
+
+**O-26 — Formats C and C′ share one compare opcode map; 16 points, not 18.**
+
+§3 previously described the 5-bit compare opcode as `{6 predicates} × {signed, unsigned,
+FP}` = 18 points without saying whether C (register) and C′ (immediate) draw from the same
+map. The backend initially assumed two independent spaces and landed `setp.ge` (C′) on the
+opcode value `setp.ne` holds in C. Both decode unambiguously — the format tag separates them
+— so nothing was broken, but the two readings give different hardware.
+
+**Decided: one map.** A mnemonic means one opcode value regardless of where its second
+operand comes from, so the compare-operation decode is one table that does not depend on the
+operand-source bit. That is the same argument invariant 8 makes for field positions, applied
+to the opcode.
+
+Two consequences follow.
+
+**`gt` and `ge` need real points** even though the register forms are unreachable by the
+selector, which gets them by swapping operands. `setp.ge rs0, #imm` has no such escape: an
+immediate cannot be the left operand of a swapped `le`. With a shared map, defining them for
+C′ defines them for C.
+
+**The count is 16, not 18.** Integer `eq`/`ne` compare bit patterns, so they are sign-
+agnostic and are not duplicated across the signed and unsigned classes. The unsigned class
+needs only `lt`, `le`, `gt`, `ge`. FP needs all six, because FP equality is not bit
+equality: `eq.f` is ordered-equal and `ne.f` is unordered-or-not-equal — an exact
+complementary pair, so exactly one holds for any operand pair including NaN, and C's float
+`!=` is one instruction.
+
+The two points this frees matter: the materializing `set` variants need 16, and 16 + 16 is
+the whole 5-bit space with nothing spare. At 18 the map would not have closed.
+
+**Still diagnosed, not encoded:** `SETONE`, `SETUEQ`, `SETO` and `SETUO` — the orderedness
+predicates that are not one of the six relations. Each needs two compares or a point the map
+cannot spare. No CUDA source construct produces them directly; they arrive from explicit
+`isnan`-style idioms. See F-24.
+
 
 ---
 

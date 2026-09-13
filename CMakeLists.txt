@@ -14,6 +14,11 @@ find_program(LLVM_TBLGEN NAMES llvm-tblgen-${LLVM_VERSION_MAJOR} llvm-tblgen
              HINTS ${LLVM_TOOLS_BINARY_DIR} REQUIRED)
 
 set(TD_DIR  ${CMAKE_SOURCE_DIR}/llvm/CCG)
+
+# Every .td, not a hand-kept subset: CCGInstrPatterns.td and CCGCallingConv.td
+# were missing from the dependency list, so pattern edits silently reused stale
+# tables and TableGen's own errors never reached the build log.
+file(GLOB CCG_TD_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/llvm/CCG/*.td)
 set(GEN_DIR ${CMAKE_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${GEN_DIR})
 
@@ -40,8 +45,7 @@ foreach(i RANGE ${_last})
     OUTPUT  ${GEN_DIR}/${_out}
     COMMAND ${LLVM_TBLGEN} -I ${LLVM_INCLUDE_DIRS} -I ${TD_DIR}
             --${_backend} ${TD_DIR}/CCG.td -o ${GEN_DIR}/${_out}
-    DEPENDS ${TD_DIR}/CCG.td ${TD_DIR}/CCGRegisterInfo.td
-            ${TD_DIR}/CCGInstrFormats.td ${TD_DIR}/CCGInstrInfo.td
+    DEPENDS ${CCG_TD_SOURCES}
     COMMENT "TableGen ${_backend}")
   list(APPEND GENERATED_INCS ${GEN_DIR}/${_out})
 endforeach()
@@ -53,7 +57,7 @@ add_custom_command(
           --dump-json ${TD_DIR}/CCG.td -o ${GEN_DIR}/CCG.json
   COMMAND ${CMAKE_SOURCE_DIR}/tools/gen-operand-widths.py
           ${GEN_DIR}/CCG.json ${GEN_DIR}/CCGOperandWidths.inc
-  DEPENDS ${TD_DIR}/CCG.td ${CMAKE_SOURCE_DIR}/tools/gen-operand-widths.py
+  DEPENDS ${CCG_TD_SOURCES} ${CMAKE_SOURCE_DIR}/tools/gen-operand-widths.py
   COMMENT "Generating operand field widths")
 list(APPEND GENERATED_INCS ${GEN_DIR}/CCGOperandWidths.inc)
 
@@ -74,6 +78,7 @@ add_library(CCGMC STATIC
   llvm/CCG/CCGAsmPrinter.cpp
   llvm/CCG/CCGCheckIR.cpp
   llvm/CCG/CCGExpandPseudos.cpp
+  llvm/CCG/CCGWindowRemat.cpp
   llvm/CCG/MCTargetDesc/CCGAsmBackend.cpp)
 add_dependencies(CCGMC CCGTableGen)
 target_include_directories(CCGMC PUBLIC

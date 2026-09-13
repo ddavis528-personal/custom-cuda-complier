@@ -46,6 +46,22 @@ def : Pat<(fma GPR:$a, GPR:$b, GPR:$c), (FFMA_F0 GPR:$a, GPR:$b, GPR:$c)>;
 // ---------------------------------------------------------------------------
 def : Pat<(i32 imm:$i), (MOVI48 imm:$i)>;
 
+// A float constant is an integer constant in a GPR. GPR holds i32 and f32
+// alike (§1: a lane is 32 bits and the width comes from `chwidth`, not from the
+// register), so the bit pattern goes in through the same wide immediate and no
+// conversion instruction exists or is needed.
+def fpimm_bits : SDNodeXForm<fpimm, [{
+  return CurDAG->getTargetConstant(
+      N->getValueAPF().bitcastToAPInt().getZExtValue(), SDLoc(N), MVT::i32);
+}]>;
+def : Pat<(f32 fpimm:$i), (MOVI48 (fpimm_bits $i))>;
+
+// bitcast between i32 and f32 is the identity on a GPR -- no instruction, and
+// the operand types have to be written out or TableGen cannot infer which
+// direction is meant, since GPR holds both.
+def : Pat<(i32 (bitconvert (f32 GPR:$a))), (i32 GPR:$a)>;
+def : Pat<(f32 (bitconvert (i32 GPR:$a))), (f32 GPR:$a)>;
+
 // ---------------------------------------------------------------------------
 // Loads and stores. AddrRI matches (rbase << 16) + index, which is the shape
 // CCGLowerKernelArgs leaves behind for a global pointer (§5.1). The scale is
