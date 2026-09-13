@@ -11,6 +11,11 @@
 
 using namespace llvm;
 
+// §5.2's address-space numbering, shared with CCGCheckIR.
+static constexpr unsigned AS_GLOBAL = 1;
+static constexpr unsigned AS_SHARED = 3;
+static constexpr unsigned AS_CONST  = 4;
+
 #include "CCGGenCallingConv.inc"
 
 CCGTargetLowering::CCGTargetLowering(const TargetMachine &TM,
@@ -209,8 +214,21 @@ SDValue CCGTargetLowering::PerformDAGCombine(SDNode *N,
   SelectionDAG &DAG = DCI.DAG;
   SDLoc DL(N);
 
+  // This combine folds §5.1's windowed address into a Format D addressing mode.
+  // §5.1 windows `.global`, `.const` and `.local` alike -- the shift comes from
+  // the address space and only `.shared` is exempt, being flat 32-bit. So the
+  // predicate is "not shared", not "is global": the launch block itself lives
+  // in `.const`, and excluding it leaves every launch-block load holding a
+  // 64-bit constant address that the type legalizer cannot expand.
+  //
+  // Shared has to be excluded, though, and not merely left unmatched:
+  // matchBaseOff matches any constant address, so `sdata[0]` would otherwise
+  // become an ld.global of the shared offset.
+  auto IsWindowed = [](unsigned AS) { return AS != AS_SHARED; };
+
   if (auto *LD = dyn_cast<LoadSDNode>(N)) {
-    if (LD->getExtensionType() != ISD::NON_EXTLOAD || !LD->isSimple())
+    if (LD->getExtensionType() != ISD::NON_EXTLOAD || !LD->isSimple() ||
+        !IsWindowed(LD->getAddressSpace()))
       return SDValue();
     SDVTList VTs = DAG.getVTList(LD->getValueType(0), MVT::Other);
     SDValue Base, Idx, New;
@@ -235,7 +253,8 @@ SDValue CCGTargetLowering::PerformDAGCombine(SDNode *N,
   }
 
   if (auto *ST = dyn_cast<StoreSDNode>(N)) {
-    if (ST->isTruncatingStore() || !ST->isSimple())
+    if (ST->isTruncatingStore() || !ST->isSimple() ||
+        !IsWindowed(ST->getAddressSpace()))
       return SDValue();
     SDVTList VTs = DAG.getVTList(MVT::Other);
     SDValue Base, Idx;

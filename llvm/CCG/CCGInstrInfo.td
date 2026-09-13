@@ -43,13 +43,86 @@ def srdsel  : Operand<i32>;   // srd selector
 // ---------------------------------------------------------------------------
 // Format A -- ALU register-register. §4 integer map, points 0-31.
 // ---------------------------------------------------------------------------
+// §4 lists 26 operations for points 0-31 but assigns no numbers. The numbering
+// below is the order §4 lists them in, which is what `add` = 0 and `mad.lo` = 5
+// already assumed. See O-28: this is now load-bearing in the encoder, the
+// decoder and the simulator, so it is spec, not a backend detail.
+class AluOpc {
+  int ADD = 0;      int SUB = 1;      int MUL_LO = 2;   int MUL_HI_S = 3;
+  int MUL_HI_U = 4; int MAD_LO = 5;   int MAD_HI = 6;   int AND = 7;
+  int OR = 8;       int XOR = 9;      int ANDN = 10;    int SHL = 11;
+  int SHR = 12;     int SRA = 13;     int MIN_S = 14;   int MIN_U = 15;
+  int MAX_S = 16;   int MAX_U = 17;   int MOV = 18;     int SEL = 19;
+  int ABS = 20;     int NEG = 21;     int POPC = 22;    int CLZ = 23;
+  int BREV = 24;    int PRMT = 25;
+}
+def aluOpc : AluOpc;
+
+// Two-source integer. Format A is three-source, so rs2 goes unread and is tied
+// to rs0 by the pattern rather than left as a second live value.
+multiclass AluRR<int opc, string mnem> {
+  def NAME : FormatA<opc, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                     mnem#" $rd, $rs0, $rs1">;
+}
 let isReMaterializable = 1 in
-def ADD  : FormatA<0,  (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
-                   "add $rd, $rs0, $rs1">;
-def MADLO : FormatA<5, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+defm ADD : AluRR<aluOpc.ADD, "add">;
+defm SUB     : AluRR<aluOpc.SUB,   "sub">;
+defm AND     : AluRR<aluOpc.AND,   "and">;
+defm OR      : AluRR<aluOpc.OR,    "or">;
+defm XOR     : AluRR<aluOpc.XOR,   "xor">;
+defm ANDN    : AluRR<aluOpc.ANDN,  "andn">;
+defm SHL     : AluRR<aluOpc.SHL,   "shl">;
+defm SHR     : AluRR<aluOpc.SHR,   "shr">;
+defm SRA     : AluRR<aluOpc.SRA,   "sra">;
+defm MIN_S   : AluRR<aluOpc.MIN_S, "min.s">;
+defm MIN_U   : AluRR<aluOpc.MIN_U, "min.u">;
+defm MAX_S   : AluRR<aluOpc.MAX_S, "max.s">;
+defm MAX_U   : AluRR<aluOpc.MAX_U, "max.u">;
+defm MUL_HI_S : AluRR<aluOpc.MUL_HI_S, "mul.hi.s">;
+defm MUL_HI_U : AluRR<aluOpc.MUL_HI_U, "mul.hi.u">;
+
+def MADLO : FormatA<aluOpc.MAD_LO, (outs GPR:$rd),
+                    (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
                     "mad.lo $rd, $rs0, $rs1, $rs2">;
-// FP lives at points 32-63, format code in the low 2 bits of the sub-range.
-def FFMA_F0 : FormatA<35, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+
+// One-source integer. rs1 and rs2 go unread.
+multiclass AluR<int opc, string mnem> {
+  def NAME : FormatA<opc, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                     mnem#" $rd, $rs0">;
+}
+defm NEG  : AluR<aluOpc.NEG,  "neg">;
+defm ABS  : AluR<aluOpc.ABS,  "abs">;
+defm POPC : AluR<aluOpc.POPC, "popc">;
+defm CLZ  : AluR<aluOpc.CLZ,  "clz">;
+defm BREV : AluR<aluOpc.BREV, "brev">;
+
+// FP lives at points 32-63: eight operations in a block per format code, so the
+// opcode is 32 + 8*fmt + op. That is what `ffma.f0` = 35 already assumed
+// (32 + 0 + 3), and it is why Format K can carry `fadd.f0`/`fadd.f1` as
+// adjacent points. See O-28.
+class FpOp {
+  int FADD = 0; int FSUB = 1; int FMUL = 2; int FFMA = 3;
+  int FMIN = 4; int FMAX = 5; int FNEG = 6; int FABS = 7;
+}
+def fpOp : FpOp;
+class FpOpc<int op, int fmt> { int V = !add(32, !add(!mul(8, fmt), op)); }
+
+multiclass FpRR<int op, string mnem> {
+  def NAME : FormatA<FpOpc<op, 0>.V, (outs GPR:$rd),
+                     (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                     mnem#".f0 $rd, $rs0, $rs1">;
+}
+defm FADD : FpRR<fpOp.FADD, "fadd">;
+defm FSUB : FpRR<fpOp.FSUB, "fsub">;
+defm FMUL : FpRR<fpOp.FMUL, "fmul">;
+defm FMIN : FpRR<fpOp.FMIN, "fmin">;
+defm FMAX : FpRR<fpOp.FMAX, "fmax">;
+def FNEG_F0 : FormatA<FpOpc<fpOp.FNEG, 0>.V, (outs GPR:$rd),
+                      (ins GPR:$rs0, GPR:$rs1, GPR:$rs2), "fneg.f0 $rd, $rs0">;
+def FABS_F0 : FormatA<FpOpc<fpOp.FABS, 0>.V, (outs GPR:$rd),
+                      (ins GPR:$rs0, GPR:$rs1, GPR:$rs2), "fabs.f0 $rd, $rs0">;
+def FFMA_F0 : FormatA<FpOpc<fpOp.FFMA, 0>.V, (outs GPR:$rd),
+                      (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
                       "ffma.f0 $rd, $rs0, $rs1, $rs2">;
 // dp4 lives at 64-127, signedness per operand. All operands are chwidth=32.
 def DP4_SS : FormatA<64, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
@@ -159,6 +232,17 @@ def ST_GLOBAL_IDX : FormatDidx<0b00101, (outs),
                                (ins GPR:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
                                "st.global $rdata, [$rbase, $rindex, $scale, $disp]">;
 
+// .shared does not shift (§5.1): the AGU computes rbase + (rindex << scale) +
+// disp, a plain three-input add. Chwidth-derived scaling applies unconditionally
+// here -- there is no window offset to fold into the index, which is the reason
+// O-7 fires for .shared and only for aligned .global.
+def LD_SHARED_IDX : FormatDidx<0b00110, (outs GPR:$rdata),
+                               (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                               "ld.shared $rdata, [$rbase, $rindex, $scale, $disp]">;
+def ST_SHARED_IDX : FormatDidx<0b00111, (outs),
+                               (ins GPR:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                               "st.shared $rdata, [$rbase, $rindex, $scale, $disp]">;
+
 // Predicate transfer (v1.3, O-19). [14:11] is a predicate mask, not rdata.
 def LD_PRED_G : FormatD<0b01000, (outs), (ins pmask4:$rdata, GPR:$rbase, simm13:$off),
                         "ld.pred $rdata, [$rbase + $off]">;
@@ -256,13 +340,51 @@ def MAD_ACC     : FormatJ<0b11, (outs GPR:$rd), (ins GPR:$rd_in, GPR:$rs0, GPR:$
 // ---------------------------------------------------------------------------
 // Format K -- compressed. Opcode map from §3.
 // ---------------------------------------------------------------------------
+// §3 points 0-23, in the order §3 lists them. `add` = 0, `shl` = 7, `fadd.f0`
+// = 18 and `mov` = 14 were already assigned and the order reproduces all four.
 let Constraints = "$rd = $rd_in" in {
-def C_ADD  : FormatKrr<0,  (outs GPR:$rd), (ins GPR:$rd_in, GPR:$rs), "add $rd, $rs">;
-def C_SHL  : FormatKrr<7,  (outs GPR:$rd), (ins GPR:$rd_in, GPR:$rs), "shl $rd, $rs">;
-def C_FADD : FormatKrr<18, (outs GPR:$rd), (ins GPR:$rd_in, GPR:$rs), "fadd $rd, $rs">;
-def C_ADDI : FormatKri<32, (outs GPR:$rd), (ins GPR:$rd_in, uimm4:$imm), "add $rd, $imm">;
-def C_SHLI : FormatKri<37, (outs GPR:$rd), (ins GPR:$rd_in, uimm4:$imm), "shl $rd, $imm">;
+multiclass CAlu<int opc, string mnem> {
+  def NAME : FormatKrr<opc, (outs GPR:$rd), (ins GPR:$rd_in, GPR:$rs),
+                       mnem#" $rd, $rs">;
 }
+defm C_ADD    : CAlu<0,  "add">;
+defm C_SUB    : CAlu<1,  "sub">;
+defm C_MUL_LO : CAlu<2,  "mul.lo">;
+defm C_AND    : CAlu<3,  "and">;
+defm C_OR     : CAlu<4,  "or">;
+defm C_XOR    : CAlu<5,  "xor">;
+defm C_ANDN   : CAlu<6,  "andn">;
+defm C_SHL    : CAlu<7,  "shl">;
+defm C_SHR    : CAlu<8,  "shr">;
+defm C_SRA    : CAlu<9,  "sra">;
+defm C_MIN_S  : CAlu<10, "min.s">;
+defm C_MIN_U  : CAlu<11, "min.u">;
+defm C_MAX_S  : CAlu<12, "max.s">;
+defm C_MAX_U  : CAlu<13, "max.u">;
+defm C_FADD   : CAlu<18, "fadd">;
+defm C_FMUL   : CAlu<20, "fmul">;
+defm C_FMIN   : CAlu<22, "fmin">;
+defm C_FMAX   : CAlu<23, "fmax">;
+
+// Reg-immediate, points 32-47, 4-bit unsigned immediate. `add` = 32 and
+// `shl` = 37 were already assigned; the set is a selection rather than a
+// mirror of 0-15, which is what those two numbers imply. See O-28.
+multiclass CAluI<int opc, string mnem> {
+  def NAME : FormatKri<opc, (outs GPR:$rd), (ins GPR:$rd_in, uimm4:$imm),
+                       mnem#" $rd, $imm">;
+}
+defm C_ADDI : CAluI<32, "add">;
+defm C_SUBI : CAluI<33, "sub">;
+defm C_ANDI : CAluI<34, "and">;
+defm C_ORI  : CAluI<35, "or">;
+defm C_XORI : CAluI<36, "xor">;
+defm C_SHLI : CAluI<37, "shl">;
+defm C_SHRI : CAluI<38, "shr">;
+defm C_SRAI : CAluI<39, "sra">;
+}
+def C_NEG  : FormatKrr<15, (outs GPR:$rd), (ins GPR:$rs), "neg $rd, $rs">;
+def C_NOT  : FormatKrr<16, (outs GPR:$rd), (ins GPR:$rs), "not $rd, $rs">;
+def C_ABS  : FormatKrr<17, (outs GPR:$rd), (ins GPR:$rs), "abs $rd, $rs">;
 def C_MOV  : FormatKrr<14, (outs GPR:$rd), (ins GPR:$rs), "mov $rd, $rs">;
 
 // Compressed load/store, implicit zero offset (points 24-27).

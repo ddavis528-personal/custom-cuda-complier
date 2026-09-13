@@ -1146,10 +1146,17 @@ ordering above is a constraint on the map rather than a description of it.
 
 ### Integer / bitwise / misc — points 0–31
 
-`add`, `sub`, `mul.lo`, `mul.hi.s`, `mul.hi.u`, `mad.lo`, `mad.hi`, `and`, `or`, `xor`,
-`andn`, `shl`, `shr`, `sra`, `min.s`, `min.u`, `max.s`, `max.u`, `mov`, `sel`,
-`abs`, `neg`, `popc`, `clz`, `brev`, `prmt`
-— **26 of 32 used.**
+**26 of 32 used.** The numbering is the list order, and it is normative — see O-28.
+
+| pt | | pt | | pt | | pt | |
+|---|---|---|---|---|---|---|---|
+| 0 | `add` | 7 | `and` | 14 | `min.s` | 21 | `neg` |
+| 1 | `sub` | 8 | `or` | 15 | `min.u` | 22 | `popc` |
+| 2 | `mul.lo` | 9 | `xor` | 16 | `max.s` | 23 | `clz` |
+| 3 | `mul.hi.s` | 10 | `andn` | 17 | `max.u` | 24 | `brev` |
+| 4 | `mul.hi.u` | 11 | `shl` | 18 | `mov` | 25 | `prmt` |
+| 5 | `mad.lo` | 12 | `shr` | 19 | `sel` | 26–31 | free |
+| 6 | `mad.hi` | 13 | `sra` | 20 | `abs` | | |
 
 ### Floating point — points 32–63
 
@@ -1157,8 +1164,12 @@ ordering above is a constraint on the map rather than a description of it.
 
 `fadd`, `fsub`, `fmul`, `ffma`, `fmin`, `fmax`, `fneg`, `fabs`
 
-FP format is encoded in the **low 2 bits of the FP opcode sub-range** rather than as a
-separate field — per-instruction, as settled, but at zero additional field cost:
+The opcode is `32 + 8×format + op`, with `op` indexing the eight operations in the order
+listed and `format` the 2-bit format code — so each format code owns a contiguous block of
+eight. `ffma.f0` is therefore 35, which is what the backend already assumed. O-28.
+
+FP format is encoded in the **format code** rather than as a separate field —
+per-instruction, as settled, but at zero additional field cost:
 
 | Register `chwidth` | Format `00` | Format `01` | `10` / `11` |
 |---|---|---|---|
@@ -1306,12 +1317,18 @@ with a read-only compiler contract." The launch block is `.const`.
 
 **Entry register state is undefined.** No register holds an ABI pointer at entry and no
 hardware convention is baked in. The block sits at a fixed architectural address and the
-prologue materializes the constant, which the 48-bit Format F form does in one instruction:
+prologue materializes it in one instruction:
 
 ```
-    f48        R0, #LAUNCH_BASE
+    movi       R0, #LAUNCH_WINDOW
     ld.global  R1, [R0 + #NTID_X]
 ```
+
+**The 32-bit form suffices, not the 48-bit one.** What the prologue materializes is the
+*window index*, `LAUNCH_BASE >> 16`, not the address — so Format F's 17-bit immediate covers
+any launch block below 2^33 bytes. Earlier revisions wrote `f48` here and in both worked
+listings, which cost 16 bits per kernel for range no launch block will use. The 48-bit
+sibling stays available and is what an arbitrary 32-bit constant still needs.
 
 This keeps the ISA free of ABI, consistent with §3 Format E choosing explicit link registers
 over a hardware call stack for the same reason.
@@ -1394,7 +1411,7 @@ against fresh `ccg-llc` output by `tools/check-spec-vs-codegen.py`, which runs i
 ;  __global__ void add(float* c, const float* a, const float* b, int n)
 ;  { int i = blockIdx.x*blockDim.x + threadIdx.x; if (i<n) c[i] = a[i] + b[i]; }
 
-    f48        r0, 2                ; 48   launch window
+    movi       r0, 2                ; 32   launch window (O-28: 17 bits is plenty)
     ld.global  r1, [r0 + 0]         ; 32   blockDim.x, from the block (§5.3)
     srd        r2, 0                ; 16   %ctatid
     srd        r3, 1                ; 16   %ctaid
@@ -1421,8 +1438,8 @@ Lexit:
     exit                            ; 16
 ```
 
-24 instructions, 656 bits — **27.3 bits per instruction**, against 768 for a
-fixed-32 encoding, a 15% saving. The compressed forms fire on `srd`, `por`, the
+24 instructions, 640 bits — **26.7 bits per instruction**, against 768 for a
+fixed-32 encoding, a 17% saving. The compressed forms fire on `srd`, `por`, the
 index shift, two of the three offset folds, `fadd` and `exit` without the
 allocator being asked for anything.
 
@@ -1467,7 +1484,7 @@ two sections are the same source file compiled twice: `test/cuda/vadd.cu` and
 pointer arguments.
 
 ```
-    f48        r0, 2                ; 48   launch window
+    movi       r0, 2                ; 32   launch window
     ld.global  r1, [r0 + 0]         ; 32   blockDim.x, from the block (§5.3)
     srd        r2, 0                ; 16   %ctatid
     srd        r3, 1                ; 16   %ctaid
@@ -1489,11 +1506,11 @@ Lexit:
 
 | | Instructions | Bits | Peak live GPRs | GPRs per pointer |
 |---|---|---|---|---|
-| Unaligned (§5.5) | 24 | 656 | 5 | 2 |
-| Aligned (§5.6) | 17 | 480 | **4** | 1 |
+| Unaligned (§5.5) | 24 | 640 | 5 | 2 |
+| Aligned (§5.6) | 17 | 464 | **4** | 1 |
 
 The alignment attribute is worth **7 instructions and 176 bits on a 24-instruction
-kernel** — a 27% code-size reduction on the smallest kernel that does anything,
+kernel** — a 28% code-size reduction on the smallest kernel that does anything,
 and it removes a whole GPR of pressure and half the launch-block traffic per
 pointer.
 
@@ -2230,6 +2247,38 @@ is a memory-model question, not an encoding one; the encoding permits it and the
 probably forbid it. And nothing in the compiler selects `bar.wait.phase` yet: CUDA C has no
 source construct that produces it without the async-pipeline intrinsics. It is encodable,
 assembler-reachable and round-trip tested. See F-35.
+
+**O-28 — Opcode numbering is normative, not a backend detail.**
+
+§4 and §3 named the operations in each opcode range and counted them — "26 of 32 used",
+"points 0–23" — but never said which number each operation gets. That was fine while the
+document stood alone. It is not fine now: the numbering is baked into the encoder, the
+generated decoder, the assembler and the simulator, and two independent implementations
+picking different orders would produce silently incompatible binaries.
+
+**Decided: the numbering is the order the lists are written in**, which is what the four
+opcodes assigned before this was noticed already assumed — Format A `add` = 0 and
+`mad.lo` = 5, Format K `add` = 0, `shl` = 7, `mov` = 14, `fadd.f0` = 18. All four fall out
+of list order, so nothing had to move. The tables are now written out in §3 and §4.
+
+Two places needed a rule rather than a list:
+
+- **Format A floating point** is `32 + 8×format + op`: each format code owns a contiguous
+  block of eight operations. `ffma.f0` = 35 confirms it. The alternative — four consecutive
+  points per operation — would have put `ffma.f0` at 44 and is ruled out.
+- **Format K's reg-immediate range (32–47)** is a *selection* of the reg-reg operations, not
+  a mirror of points 0–15: `add` = 32 with `shl` = 37 is inconsistent with mirroring, which
+  would put `shl` at 39. The eight assigned are `add`, `sub`, `and`, `or`, `xor`, `shl`,
+  `shr`, `sra` — the operations whose second operand is plausibly a small constant. Eight
+  points stay free.
+
+**Consequence: the launch prologue does not need a 48-bit constant.** Writing the numbering
+down forced an audit of what the prologue actually materialises, and it is the *window
+index* — `LAUNCH_BASE >> 16` — not the address. Format F's 32-bit form carries 17 unsigned
+bits, which covers every launch block below 2^33 bytes. §5.2 and both worked listings said
+`f48`, at 16 bits per kernel for range nothing will use. Both listings are 16 bits shorter
+as a result: §5.5 is 640 bits and §5.6 is 464.
+
 
 
 

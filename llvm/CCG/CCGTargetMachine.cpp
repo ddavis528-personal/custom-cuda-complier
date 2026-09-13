@@ -13,6 +13,7 @@ namespace llvm {
 FunctionPass *createCCGISelDag(CCGTargetMachine &TM, CodeGenOptLevel OL);
 FunctionPass *createCCGExpandPseudos();
 FunctionPass *createCCGWindowRemat();
+ModulePass *createCCGLowerShared();
 }
 
 // Pointers are 64 bits wide as clang emits them; no register holds one
@@ -51,6 +52,13 @@ public:
     addPass(createCCGISelDag(getCCGTargetMachine(), getOptLevel()));
     return false;
   }
+  /// §5.1 makes `.shared` flat 32-bit, so a shared object's address is a
+  /// compile-time constant and the layout is the whole of its lowering.
+  void addIRPasses() override {
+    addPass(createCCGLowerShared());
+    TargetPassConfig::addIRPasses();
+  }
+
   /// Last thing before instruction selection: §5.1's window arithmetic is
   /// cloned into every block that uses it, so the DAGCombine that folds it into
   /// an addressing mode always sees it locally. Placed after the default

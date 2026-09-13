@@ -124,7 +124,7 @@ one-register form arrives from `instcombine`, not from a backend special case.
 
 ```
 _Z4vaddPfPKfS1_i:
-	f48 r0, 2
+	movi r0, 2
 	ld.global r1, [r0 + 0]
 	srd r2, 0
 	srd r3, 1
@@ -167,10 +167,11 @@ and the generic folder could not act (F-26).
   figure           §5.6 listing    ccg-llc
   ------------------------------------------
   instructions               17         17
-  bits                      480        480
+  bits                      480        464   <-- DIVERGED
   peak_live                   4          4
 
-  spec listing matches codegen
+  1 figure(s) differ: the spec listing no longer describes what
+  the compiler emits. Regenerate the listing or fix codegen.
 ```
 
 ISA §5.6's worked listing is compared against this output on every build. That
@@ -187,7 +188,7 @@ scale-enable stays clear and the index carries bytes rather than elements:
 
 ```
 _Z4vaddPfPKfS1_i:
-	f48 r0, 2
+	movi r0, 2
 	ld.global r1, [r0 + 0]
 	srd r2, 0
 	srd r3, 1
@@ -219,10 +220,11 @@ Lfunc_end0:
   figure           §5.5 listing    ccg-llc
   ------------------------------------------
   instructions               24         24
-  bits                      656        656
+  bits                      656        640   <-- DIVERGED
   peak_live                   5          5
 
-  spec listing matches codegen
+  1 figure(s) differ: the spec listing no longer describes what
+  the compiler emits. Regenerate the listing or fix codegen.
 ```
 
 Seven more instructions and 176 more bits for the same arithmetic, which is what
@@ -232,51 +234,53 @@ landed on `rd != rs0` and nothing tries to prevent that (F-29).
 
 ## 5. The binary
 
-17 instructions in 60 bytes. Each length comes from bits `[1:0]` of
+17 instructions in 58 bytes. Each length comes from bits `[1:0]` of
 its first halfword alone — this walker never looks at the format tag, which is
 exactly what §2 claims.
 
 ```
   addr  bytes              len                fmt
 ----------------------------------------------------------
-0x0000  2f 00 01 00 00 00  48-bit             F
-0x0006  20 08 00 00        32-bit             D
-0x000a  72 02              16-bit, Format K   K
-0x000c  72 13              16-bit, Format K   K
-0x000e  40 89 09 01        32-bit             A
-0x0012  20 10 c0 01        32-bit             D
-0x0016  f6 10              16-bit, Format K   K
-0x0018  58 00 09 00        32-bit             C
-0x001c  68 68 00 00        32-bit             E
-0x0020  20 10 80 01        32-bit             D
-0x0024  20 11 89 00        32-bit             D
-0x0028  20 18 40 01        32-bit             D
-0x002c  20 99 89 00        32-bit             D
-0x0030  4a 23              16-bit, Format K   K
-0x0032  20 00 00 01        32-bit             D
-0x0036  60 19 88 00        32-bit             D
-0x003a  da 00              16-bit, Format K   K
+0x0000  2c 00 01 00        32-bit             F
+0x0004  20 08 00 00        32-bit             D
+0x0008  72 02              16-bit, Format K   K
+0x000a  72 13              16-bit, Format K   K
+0x000c  40 89 09 01        32-bit             A
+0x0010  20 10 c0 01        32-bit             D
+0x0014  f6 10              16-bit, Format K   K
+0x0016  58 00 09 00        32-bit             C
+0x001a  68 68 00 00        32-bit             E
+0x001e  20 10 80 01        32-bit             D
+0x0022  20 11 89 00        32-bit             D
+0x0026  20 18 40 01        32-bit             D
+0x002a  20 99 89 00        32-bit             D
+0x002e  4a 23              16-bit, Format K   K
+0x0030  20 00 00 01        32-bit             D
+0x0034  60 19 88 00        32-bit             D
+0x0038  da 00              16-bit, Format K   K
 
-60 bytes total
+58 bytes total
 ```
 
-60 bytes against 68 for a fixed-32 encoding.
+58 bytes against 68 for a fixed-32 encoding.
 
 ### Two instructions, field by field
 
 The O-24 bootstrap, decoded from the real bytes using the §3 bit map:
 
 ```
-  16-bit instruction at 0x0016: f6 10  ->  POR
-  raw = 0x10f6 = 0001000011110110
+  32-bit instruction at 0x0016: 58 00 09 00  ->  SETP_LE
+  raw = 0x00090058 = 00000000000010010000000001011000
 
   bits         field      value
   --------------------------------------------
-  [1:0]        class      0b10  (§2: length from bits [1:0] alone)
-  [7:2]        opcode     61
-  [9:8]        pd         0
-  [12:10]      ps0        4
-  [15:13]      ps1        0
+  [1:0]        class      0b00  (§2: length from bits [1:0] alone)
+  [5:2]        fmt tag    0b0110
+  [14:11]      rd         0
+  [18:15]      rs0        2
+  [22:19]      rs1        1
+  [29:27]      pq         0
+  [31:30]      pd         0
 ```
 
 `ps0 = 4` is `!P0` — bit 2 of a qualifier is the negate bit — and `ps1 = 0` is
@@ -285,15 +289,15 @@ The O-24 bootstrap, decoded from the real bytes using the §3 bit map:
 And the 48-bit constant:
 
 ```
-  48-bit instruction at 0x0000: 2f 00 01 00 00 00  ->  MOVI48
-  raw = 0x00000001002f = 000000000000000000000000000000010000000000101111
+  32-bit instruction at 0x0000: 2c 00 01 00  ->  MOVI
+  raw = 0x0001002c = 00000000000000010000000000101100
 
   bits         field      value
   --------------------------------------------
-  [1:0]        class      0b11  (§2: length from bits [1:0] alone)
+  [1:0]        class      0b00  (§2: length from bits [1:0] alone)
   [5:2]        fmt tag    0b1011
   [14:11]      rd         0
-  [47:15]      imm        2
+  [31:15]      imm        2
 ```
 
 ## 6. Disassembly and execution
@@ -304,23 +308,23 @@ back by a different TableGen backend than the one that wrote it. This run has
 set of lanes issuing together.
 
 ```
-  0000  mask=ffffffff  	f48 r0, 2
-  0006  mask=ffffffff  	ld.global r1, [r0 + 0]
-  000a  mask=ffffffff  	srd r2, 0
-  000c  mask=ffffffff  	srd r3, 1
-  000e  mask=ffffffff  	mad.lo r1, r3, r1, r2
-  0012  mask=ffffffff  	ld.global r2, [r0 + 56]
-  0016  mask=ffffffff  	por p0, 4, 0
-  0018  mask=ffffffff  	@p0 setp.le p0, r2, r1
-  001c  mask=ffffffff  	@p0 bra 13
-  0020  mask=000fffff  	ld.global r2, [r0 + 48]
-  0024  mask=000fffff  	ld.global r2, [r2, r1, 1, 0]
-  0028  mask=000fffff  	ld.global r3, [r0 + 40]
-  002c  mask=000fffff  	ld.global r3, [r3, r1, 1, 0]
-  0030  mask=000fffff  	fadd r3, r2
-  0032  mask=000fffff  	ld.global r0, [r0 + 32]
-  0036  mask=000fffff  	st.global r3, [r0, r1, 1, 0]
-  003a  mask=ffffffff  	exit
+  0000  mask=ffffffff  	movi r0, 2
+  0004  mask=ffffffff  	ld.global r1, [r0 + 0]
+  0008  mask=ffffffff  	srd r2, 0
+  000a  mask=ffffffff  	srd r3, 1
+  000c  mask=ffffffff  	mad.lo r1, r3, r1, r2
+  0010  mask=ffffffff  	ld.global r2, [r0 + 56]
+  0014  mask=ffffffff  	por p0, 4, 0
+  0016  mask=ffffffff  	@p0 setp.le p0, r2, r1
+  001a  mask=ffffffff  	@p0 bra 13
+  001e  mask=000fffff  	ld.global r2, [r0 + 48]
+  0022  mask=000fffff  	ld.global r2, [r2, r1, 1, 0]
+  0026  mask=000fffff  	ld.global r3, [r0 + 40]
+  002a  mask=000fffff  	ld.global r3, [r3, r1, 1, 0]
+  002e  mask=000fffff  	fadd r3, r2
+  0030  mask=000fffff  	ld.global r0, [r0 + 32]
+  0034  mask=000fffff  	st.global r3, [r0, r1, 1, 0]
+  0038  mask=ffffffff  	exit
 ```
 
 The mask is `ffffffff` through the prologue, narrows to `000fffff` for the body,

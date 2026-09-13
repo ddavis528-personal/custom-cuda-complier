@@ -79,6 +79,7 @@ add_library(CCGMC STATIC
   llvm/CCG/CCGCheckIR.cpp
   llvm/CCG/CCGExpandPseudos.cpp
   llvm/CCG/CCGWindowRemat.cpp
+  llvm/CCG/CCGLowerShared.cpp
   llvm/CCG/MCTargetDesc/CCGAsmBackend.cpp)
 add_dependencies(CCGMC CCGTableGen)
 target_include_directories(CCGMC PUBLIC
