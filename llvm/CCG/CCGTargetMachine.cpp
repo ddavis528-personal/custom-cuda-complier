@@ -1,10 +1,10 @@
 //===-- CCGTargetMachine.cpp ----------------------------------------------===//
 #include "CCGTargetMachine.h"
+#include "CCGTargetTransformInfo.h"
 #include "TargetInfo/CCGTargetInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
-#include <cstdlib>
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
 
@@ -16,6 +16,7 @@ FunctionPass *createCCGExpandPseudos();
 FunctionPass *createCCGWindowRemat();
 FunctionPass *createCCGCompress();
 FunctionPass *createCCGExpandDivision();
+FunctionPass *createCCGUniformity();
 ModulePass *createCCGLowerShared();
 }
 
@@ -58,9 +59,11 @@ public:
   /// §5.1 makes `.shared` flat 32-bit, so a shared object's address is a
   /// compile-time constant and the layout is the whole of its lowering.
   void addIRPasses() override {
-    if (!getenv("CCG_NO_SHARED")) addPass(createCCGLowerShared());
+    addPass(createCCGLowerShared());
     // Before anything can ask for a division libcall that does not exist.
-    if (!getenv("CCG_NO_DIV")) addPass(createCCGExpandDivision());
+    addPass(createCCGExpandDivision());
+    // Reporting only, behind -ccg-uniformity-stats; changes nothing.
+    addPass(createCCGUniformity());
     TargetPassConfig::addIRPasses();
   }
 
@@ -70,7 +73,7 @@ public:
   /// CodeGenPrepare so nothing can hoist it back out.
   void addCodeGenPrepare() override {
     TargetPassConfig::addCodeGenPrepare();
-    if (!getenv("CCG_NO_REMAT")) addPass(createCCGWindowRemat());
+    addPass(createCCGWindowRemat());
   }
 
   /// After register allocation: predicate registers become qualifier
@@ -79,10 +82,15 @@ public:
   /// too; then Format K compression, which only shrinks what already fits.
   void addPreEmitPass() override {
     addPass(createCCGExpandPseudos());
-    if (!getenv("CCG_NO_COMPRESS")) addPass(createCCGCompress());
+    addPass(createCCGCompress());
   }
 };
 } // namespace
+
+TargetTransformInfo
+CCGTargetMachine::getTargetTransformInfo(const Function &F) const {
+  return TargetTransformInfo(CCGTTIImpl(this, F));
+}
 
 TargetPassConfig *CCGTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new CCGPassConfig(*this, PM);

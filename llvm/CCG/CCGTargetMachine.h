@@ -3,6 +3,7 @@
 #define CCG_CCGTARGETMACHINE_H
 
 #include "CCGSubtarget.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Target/TargetMachine.h"
 #include <optional>
 
@@ -22,6 +23,7 @@ public:
     return &ST;
   }
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
+  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
   }
