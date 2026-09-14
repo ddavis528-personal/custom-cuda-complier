@@ -198,9 +198,18 @@ int main(int argc, char **argv) {
         ++S.Failed;
         break;
       }
-      if (Decoded.getOpcode() != Op) {
-        errs() << "FAIL " << Name << ": decoded as "
-               << MII->getName(Decoded.getOpcode()) << "\n";
+      // A `_W16` variant is the SAME ENCODING as its 32-bit namesake -- §1's
+      // invariant 1 says no instruction carries a width field, so `add` is
+      // opcode 0 at any register width. The two differ only in a TSFlags bit
+      // that exists to carry the width to CCVInsertChwidth (F-3) and is never
+      // emitted. So the decoder producing the base form is correct, not a
+      // round-trip failure; there is nothing in the bits to distinguish them
+      // and nothing downstream of emission that needs to.
+      StringRef DecName = MII->getName(Decoded.getOpcode());
+      bool WidthAlias = Name.ends_with("_W16") &&
+                        Name.drop_back(4) == DecName;
+      if (Decoded.getOpcode() != Op && !WidthAlias) {
+        errs() << "FAIL " << Name << ": decoded as " << DecName << "\n";
         ++S.Failed;
         break;
       }

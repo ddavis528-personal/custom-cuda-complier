@@ -106,6 +106,23 @@ echo
 echo "  --- per-register element width ---"
 run_chwidth || fail=1
 
+# The compiler side: CCVInsertChwidth places the mode switches, and the two
+# things that are easy to get wrong are both pinned here.
+chw=$(build/ccv-llc test/accept/chwidth-i16.ll -o - 2>/dev/null)
+if ! echo "$chw" | grep -q "chwidth r"; then
+  echo "  FAIL  no chwidth emitted for a 16-bit kernel"
+  fail=1
+elif echo "$chw" | grep -qE "chwidth r1,"; then
+  # r1 is the store's base address. §3 takes transfer size from rdata's
+  # chwidth alone, and invariant 11 says an address is never narrow. A
+  # per-instruction width tag sets the mode here; a per-operand one does not.
+  echo "  FAIL  chwidth set on the store's base address register"
+  echo "$chw" | sed 's/^/        /'
+  fail=1
+else
+  echo "  PASS  chwidth placed on data registers only ($(echo "$chw" | grep -c "chwidth r") inserted)"
+fi
+
 # --- select lowers to a predicated move, not `sel` (F-58) ------------------
 # `sel` (§4 point 19) writes all 32 lanes and spends the qualifier on the
 # selector; a predicated `mov` writes only the guarded lanes (invariant 10) and

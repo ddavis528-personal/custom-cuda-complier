@@ -32,6 +32,10 @@ def : Pat<(br bb:$t), (C_BRA bb:$t)>;
 // ---------------------------------------------------------------------------
 // rs2 is unread by the two-source operations, so it is tied to rs0 rather than
 // left as a second live value the allocator has to keep.
+// The result type has to be written out now that GPR holds i16 as well as i32
+// (F-3). Without it TableGen cannot infer which width a bare `add` means, and
+// the ambiguity is real rather than pedantic -- the two select to different
+// MachineInstr opcodes that encode the same bits.
 multiclass AluPat<SDPatternOperator node, Instruction inst> {
   def : Pat<(node GPR:$a, GPR:$b), (inst GPR:$a, GPR:$b, GPR:$a)>;
 }
@@ -221,3 +225,30 @@ def fpimm_one : PatLeaf<(fpimm), [{ return N->isExactlyValue(1.0); }]>;
 def : Pat<(fdiv fpimm_one, GPR:$a), (RCP_F32 GPR:$a, GPR:$a, GPR:$a)>;
 
 def : Pat<(fsqrt GPR:$a), (SQRT_F32 GPR:$a, GPR:$a, GPR:$a)>;
+
+// ---------------------------------------------------------------------------
+// 16-bit element width (§1, F-3).
+//
+// The register is the same register; only how many of its bits are the element
+// changes, and that is state rather than an operand. So these patterns pick
+// instructions that differ from their 32-bit namesakes ONLY in the TSFlags bit
+// that CCVInsertChwidth reads -- the encoding is identical.
+//
+// `trunc i32 -> i16` is free: the consumer reads at width 16 and the bits above
+// the element are not part of the register. The reverse is NOT free and has no
+// pattern here -- widening a narrow register yields unspecified high bits
+// (F-65), so zext and sext need real instructions. Nothing emits them yet.
+def : Pat<(i16 (trunc GPR:$a)), (COPY GPR:$a)>;
+
+def : Pat<(add GPR16:$a, GPR16:$b), (ADD_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
+def : Pat<(sub GPR16:$a, GPR16:$b), (SUB_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
+def : Pat<(and GPR16:$a, GPR16:$b), (AND_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
+def : Pat<(or GPR16:$a, GPR16:$b), (OR_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
+def : Pat<(xor GPR16:$a, GPR16:$b), (XOR_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
+
+def : Pat<(i16 (ld_shared GPR:$rbase)), (LD_SHARED_W16 GPR:$rbase, 0)>;
+def : Pat<(st_shared GPR16:$v, GPR:$rbase), (ST_SHARED_W16 GPR16:$v, GPR:$rbase, 0)>;
+def : Pat<(i16 (ld_shared (add GPR:$rbase, (i32 imm:$off)))),
+          (LD_SHARED_W16 GPR:$rbase, imm:$off)>;
+def : Pat<(st_shared GPR16:$v, (add GPR:$rbase, (i32 imm:$off))),
+          (ST_SHARED_W16 GPR16:$v, GPR:$rbase, imm:$off)>;

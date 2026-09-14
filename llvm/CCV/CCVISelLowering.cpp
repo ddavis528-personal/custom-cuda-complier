@@ -22,6 +22,11 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
                                      const CCVSubtarget &STI)
     : TargetLowering(TM) {
   addRegisterClass(MVT::i32, &CCV::GPRRegClass);
+  // §1: element width is per-register state, so the SAME sixteen registers
+  // hold 16-bit elements. There is no separate class -- the width is a
+  // property of the value, carried to the post-RA chwidth pass in TSFlags
+  // (F-3). i8 and i4 are not legal yet; i4 has no MVT at all.
+  addRegisterClass(MVT::i16, &CCV::GPR16RegClass);
   addRegisterClass(MVT::f32, &CCV::GPRRegClass);
   // A predicate is its own namespace with its own RAT (invariant 5), so i1
   // lives in PR rather than being promoted into a GPR. One bit per lane in

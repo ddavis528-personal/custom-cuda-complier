@@ -42,5 +42,20 @@ foreach i = 0-3 in {
 // chwidth=32 only, for now. See the note above on the narrow widths.
 def GPR : RegisterClass<"CCV", [i32, f32], 32, (sequence "R%u", 0, 15)>;
 
+// The SAME sixteen registers, viewed at 16-bit element width. §1 makes element
+// width per-register state, not a second register file, so this is not a
+// subregister relationship and there is no physical distinction -- a COPY
+// between the classes is a no-op the coalescer removes.
+//
+// A separate class rather than adding i16 to GPR's type list, which is what
+// F-3 proposed and which TableGen will not accept: with one multi-typed class
+// it cannot infer whether a bare `add` means the 32-bit or the 16-bit
+// instruction, and the ambiguity is real -- the two select to different
+// MachineInstr opcodes that encode identically and differ only in the TSFlags
+// bit CCVInsertChwidth reads.
+//
+// i8 would be a third class; i4 has no MVT at all.
+def GPR16 : RegisterClass<"CCV", [i16], 32, (sequence "R%u", 0, 15)>;
+
 // One bit per lane in hardware; i1 per thread in the type system.
 def PR : RegisterClass<"CCV", [i1], 32, (sequence "P%u", 0, 3)>;

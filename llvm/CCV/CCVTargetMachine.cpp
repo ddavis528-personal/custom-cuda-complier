@@ -17,6 +17,7 @@ FunctionPass *createCCVWindowRemat();
 FunctionPass *createCCVCompress();
 FunctionPass *createCCVMaskUniform();
 FunctionPass *createCCVFuseRcpSeed();
+FunctionPass *createCCVInsertChwidth();
 FunctionPass *createCCVExpandDivision();
 FunctionPass *createCCVUniformity();
 ModulePass *createCCVLowerShared();
@@ -94,6 +95,10 @@ public:
   /// Pseudo expansion first, so the instructions it produces are compressible
   /// too; then Format K compression, which only shrinks what already fits.
   void addPreEmitPass() override {
+    // Before pseudo expansion and compression, and after register allocation --
+    // `chwidth` names a physical register, so it cannot be placed any earlier
+    // (F-3).
+    addPass(createCCVInsertChwidth());
     addPass(createCCVExpandPseudos());
     addPass(createCCVCompress());
   }

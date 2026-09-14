@@ -428,12 +428,29 @@ against.
 **Produces:** width-transition frequency and `chwidth.multi` hoisting
 effectiveness — data on whether the O-6 multi-register form earns its format.
 
-**Not started yet.** The step has so far been spent on work the benchmarks
-surfaced rather than on `chwidth`: O-31 (division), O-32 (Format C″), O-33
-(lane-0 masking) and the F-57 metric fix. That is a deliberate reordering — each
-came from a measurement rather than from the plan — but the `chwidth` pass this
-step is named for has not been written, and F-3 remains argued rather than
-tested.
+**The `chwidth` pass now exists, for 16-bit width.** `CCVInsertChwidth` is a
+post-RA forward dataflow over physical registers, placing `chwidth` at width
+transitions; `ccv-sim` executes narrow-width integer ALU and memory, with
+transfer size taken from `rdata`'s width per §3. A 16-bit kernel compiles from
+LLVM IR and runs.
+
+Three things it produced that the argument did not:
+
+- **F-65** — the ISA never says what the bits above a narrow element hold after
+  widening. The pass is built to be correct either way: it inserts `chwidth`
+  only at a definition (old value dead) or as a *narrowing* of a live register
+  (a truncation, element bits preserved), never as a widening.
+- **The width is per OPERAND, not per instruction.** A 16-bit store takes a
+  16-bit data register and a 32-bit base address. A per-instruction width tag
+  was built first and set the mode on the address register.
+- **F-66** — narrow→wide extension has no lowering and fails loudly.
+
+**Still open from F-3's list:** `chwidth.multi` merging (O-6), i8 and i4, the
+width-affinity allocator objective and its conflict with O-8's destructive-form
+preference, and the width-transition measurement across real kernels rather
+than one test. Much of the earlier part of this step went to work the benchmarks
+surfaced instead — O-31 through O-37 — which was a deliberate reordering, each
+driven by a measurement rather than by the plan.
 
 ---
 
@@ -515,3 +532,4 @@ answered. Update as items resolve.
 | F-63 `ffma` was not fused in the simulator | Step 6 | **resolved.** Written `a * b + c` — two roundings — for an instruction whose name is the fusion, and it had been that way since the instruction was added. Nothing depended on single rounding until O-36's residual step, which rests on it entirely: 164 of 2048 divisions came out 1 ulp wrong against a model that was right. Now `std::fmaf`. **A wrong instruction semantic that no test could see, because every test that used `ffma` used it for arithmetic where the difference does not show** |
 | F-64 Two immediate-selection bugs, both pre-existing | Step 6 | **resolved.** (1) Any i32 constant with the top bit set reached `MOVI48` sign-extended and the encoder rejected it, so `and x, 0x807FFFFF` was a hard compiler error; the target constant is now carried as i64 so it arrives zero-extended. (2) `add reg, imm` had no range predicate, so a constant above 4095 selected into `ADDI` (13-bit field) and was rejected — the identical defect to F-43, sitting one line above the comment that explains F-43. Both found by the software divide needing a mask and a large addend; neither has anything to do with division, and nothing in the suite had used either shape |
 | F-65 The ISA does not say what widening a narrow register yields | Step 6 | open — §1 says a narrow register "occupies a narrower physical slice of a row" and §3 says `chwidth` "reinterprets the existing contents", but **nothing states what the bits above the element hold after a narrow→wide change**. They are not written while the register is narrow, so the answer is an implementation choice the specification has not made. The compiler must not assume zeros, and a `chwidth`-insertion pass that widens a live value is relying on an unstated guarantee. `ccv-sim` preserves the prior contents — deterministic, and adversarial in the right direction, the same reasoning as O-35's worst-case reciprocal seed — and `test/chwidth.s` pins it: widening yields `0xEFBEBEF2`, not `0x0000BEF2`. **Needs a sentence in §1**, whichever way it goes |
+| F-66 Narrow→wide extension has no lowering | Step 6 | open — `zext i16 to i32` and `sext` fail to select. **The fix is known and F-65 does not block it**: widen the register with `chwidth` and then mask (`and rd, rs, 0xFFFF`) or shift (`shl`/`sra`). The unspecified high bits are *readable*, just not meaningful, and the mask discards them — so widening a live register is safe exactly when the consumer masks. What stops it today is that `CCVInsertChwidth` rejects any widening read rather than recognising that pair, and making it recognise them means emitting the widen+mask as one pseudo at selection. Failing loudly is the right interim behaviour; a silent widening would read unspecified bits |

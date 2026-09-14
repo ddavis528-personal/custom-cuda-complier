@@ -101,6 +101,49 @@ defm MAX_U   : AluRR<aluOpc.MAX_U, "max.u">;
 defm MUL_HI_S : AluRR<aluOpc.MUL_HI_S, "mul.hi.s">;
 defm MUL_HI_U : AluRR<aluOpc.MUL_HI_U, "mul.hi.u">;
 
+// ---------------------------------------------------------------------------
+// 16-bit variants. §1, F-3.
+//
+// These ENCODE IDENTICALLY to their 32-bit namesakes -- invariant 1 says no
+// instruction carries a width field, and `add` is opcode 0 whatever the
+// register width happens to be. They are separate MachineInstr opcodes purely
+// so the width survives instruction selection and register allocation and
+// reaches CCVInsertChwidth, which is the only thing that needs to know.
+//
+// The width itself is carried by the OPERAND REGISTER CLASSES (GPR16 vs GPR),
+// not by a per-instruction flag. Per operand is the correct granularity and
+// the only one that works: a 16-bit store takes a 16-bit data register and a
+// 32-bit base address, and §4's `mad.lo` takes narrow sources with a wide
+// destination. A per-instruction width tag was tried first and set the mode on
+// the store's address register.
+//
+// ccv-roundtrip encodes and decodes both; the decoder produces the 32-bit
+// opcode for either, which is correct -- the bits genuinely do not distinguish
+// them, and nothing downstream of emission needs to.
+// isCodeGenOnly: they share an encoding with their 32-bit namesakes, so the
+// disassembler and any future asm matcher must not see them. Without it
+// `-gen-disassembler` cannot decode uniquely -- and it did not fail the build,
+// it silently dropped BOTH the variant and the base, so `add` stopped
+// decoding at all. The gate's strongest property is that unique decodability
+// is checked by construction; this is the escape hatch for the one case where
+// two MachineInstr opcodes legitimately mean the same bits.
+multiclass AluRR16<int opc, string mnem> {
+  def NAME : FormatA<opc, (outs GPR16:$rd),
+                     (ins GPR16:$rs0, GPR16:$rs1, GPR16:$rs2),
+                     mnem#" $rd, $rs0, $rs1">;
+}
+let isCodeGenOnly = 1 in {
+  defm ADD_W16   : AluRR16<aluOpc.ADD,   "add">;
+  defm SUB_W16   : AluRR16<aluOpc.SUB,   "sub">;
+  defm AND_W16   : AluRR16<aluOpc.AND,   "and">;
+  defm OR_W16    : AluRR16<aluOpc.OR,    "or">;
+  defm XOR_W16   : AluRR16<aluOpc.XOR,   "xor">;
+  defm MIN_S_W16 : AluRR16<aluOpc.MIN_S, "min.s">;
+  defm MAX_S_W16 : AluRR16<aluOpc.MAX_S, "max.s">;
+  def ADDI_W16 : FormatB<0, (outs GPR16:$rd), (ins GPR16:$rs0, simm13:$imm),
+                         "add $rd, $rs0, $imm">;
+}
+
 def MADLO : FormatA<aluOpc.MAD_LO, (outs GPR:$rd),
                     (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
                     "mad.lo $rd, $rs0, $rs1, $rs2">;
@@ -410,6 +453,21 @@ let mayLoad = 1 in
 // enabled -- but it is wrong for anything that reorders, and it made the
 // simulator's counters classify every global access as ALU.
 let mayLoad = 1 in
+let isCodeGenOnly = 1 in {
+  def LD_SHARED_W16 : FormatD<0b00010, (outs GPR16:$rdata),
+                             (ins GPR:$rbase, simm13:$off),
+                             "ld.shared $rdata, [$rbase + $off]">;
+  def ST_SHARED_W16 : FormatD<0b00011, (outs),
+                             (ins GPR16:$rdata, GPR:$rbase, simm13:$off),
+                             "st.shared $rdata, [$rbase + $off]">;
+  def LD_GLOBAL_W16 : FormatD<0b00000, (outs GPR16:$rdata),
+                             (ins GPR:$rbase, simm13:$off),
+                             "ld.global $rdata, [$rbase + $off]">;
+  def ST_GLOBAL_W16 : FormatD<0b00001, (outs),
+                             (ins GPR16:$rdata, GPR:$rbase, simm13:$off),
+                             "st.global $rdata, [$rbase + $off]">;
+}
+
 def LD_GLOBAL  : FormatD<0b00000, (outs GPR:$rdata), (ins GPR:$rbase, simm13:$off),
                          "ld.global $rdata, [$rbase + $off]">;
 let mayStore = 1 in

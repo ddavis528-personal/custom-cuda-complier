@@ -37,8 +37,9 @@ class CCVInst32<bits<4> tag, dag outs, dag ins, string asm>
   let Inst{5-2} = tag;
 }
 
-// 48-bit sibling: identical to its 32-bit form in [31:6], 16 more immediate
-// bits at [47:32], same tag. See §3, "Wide-immediate siblings".
+// 48-bit sibling: identical to its 32-bit form in [31:6], 16 more bits at
+// [47:32], same tag. Those bits are an immediate in B/C′/D/F and an opcode
+// extension in A′ (O-37). See §3, "Wide-immediate siblings".
 class CCVInst48<bits<4> tag, dag outs, dag ins, string asm>
     : CCVInst<6, outs, ins, asm> {
   field bits<48> Inst;
