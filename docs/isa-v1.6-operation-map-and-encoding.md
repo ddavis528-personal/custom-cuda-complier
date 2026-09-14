@@ -269,9 +269,11 @@ decode is therefore length-independent — the tag decoder does not care, and ne
 anything downstream of it except the immediate's sign-extension mux.
 
 The consequence that matters: **a 48-bit instruction is its 32-bit sibling with 16 more
-immediate bits at `[47:32]`.** Bits `[31:6]` are laid out identically. Every register field,
-the opcode, the predicate qualifier and the predicate destination stay exactly where they
-are in the 32-bit form, so invariant 8 holds across lengths and not just across tiers.
+bits at `[47:32]`.** Those bits carry an immediate in B, B′, B″, C′, D, D′ and F, and an
+opcode extension in A′ (O-37) — the rule is about the halfword, not about what goes in it.
+Bits `[31:6]` are laid out identically. Every register field, the opcode, the predicate
+qualifier and the predicate destination stay exactly where they are in the 32-bit form, so
+invariant 8 holds across lengths and not just across tiers.
 
 Compressed forms still get 14 bits of payload. Spending a full quarter of the low-2-bit
 space on the 48-bit form (rather than the RISC-V polarity, which gives compressed forms
@@ -322,9 +324,10 @@ Tag `1111` is the one place two unrelated formats share a code, and §2's length
 is what makes that safe: the length is known from `[1:0]` before the tag is read, so a 32-bit
 C″ and a 48-bit H are never candidates for the same decode.
 
-Nine of sixteen tags have a 48-bit form and none of them needed a new tag to get one. The
-formats with no immediate (A family, C, E, G, I) have nothing to widen and so have no
-48-bit rendering at all — consistent with invariant 7.
+Eleven of sixteen tags have a 48-bit form and none of them needed a new tag to get one. The
+formats with nothing to lengthen — A, A″, C, E, G — have no 48-bit rendering at all,
+consistent with invariant 7. A is already at its full 10-bit opcode and A″'s bounded subset
+lives in 0–31, so neither is short of reach; C, E and G carry no immediate worth widening.
 
 ---
 
@@ -1098,7 +1101,7 @@ Every immediate-carrying format has a 48-bit rendering under the **same tag**, w
 | D (base+index) | 8 | **24** | `[31:24]` | `[47:32]` |
 | D′ (base+offset) | 10 | **26** | `[31:30]`,`[26:19]` | `[47:32]` |
 | D′ (base+index) | 5 | **21** | `[31:30]`,`[26:24]` | `[47:32]` |
-| F | 18 | **34** | `[31:14]` | `[47:32]` |
+| F | 17 | **33** | `[31:15]` | `[47:32]` |
 
 The sign bit sits at 47 in every 48-bit form. In the 32-bit forms it sits at 31 everywhere
 except C′ and B″, which put it at 26 — two positions, not one, and that was already true of

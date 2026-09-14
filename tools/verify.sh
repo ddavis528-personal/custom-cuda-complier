@@ -58,6 +58,14 @@ fi
 echo "  documentation structure"
 python3 tools/check-docs.py || fail=1
 
+# Cross-table consistency inside the spec: the summary tables must agree with the
+# bit maps they summarize, and the prose counts must agree with the tables above
+# them. An external review found Format F given two immediate widths, stale since
+# 1.2 in a table nothing downstream read. Prose review missed that class three
+# times; it is mechanical, so it stops being the reviewer's job.
+echo "  spec cross-table consistency"
+python3 tools/check-spec-tables.py || fail=1
+
 # docs/walkthrough.md is assembled from generated artifacts and claims "nothing
 # here is transcribed". Regenerate it and require the tree copy to match, so the
 # claim is checked rather than trusted.
