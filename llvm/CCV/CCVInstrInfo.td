@@ -194,6 +194,14 @@ multiclass Sfu<int opc, string mnem> {
                      mnem#" $rd, $rs0">;
 }
 defm RCP_F32   : Sfu<sfuOpc.RCP,   "rcp.f32">;
+
+// The predicated reciprocal, Format A′ long (O-37). §4 puts the SFU at 256+,
+// outside A′'s 7-bit reach, so this is the only way `rcp.f32` can carry a
+// qualifier -- and it is the last instruction in the warp-uniform division
+// sequence that could not be masked to lane 0 (F-56).
+def RCP_F32_P : FormatAp48<sfuOpc.RCP, (outs GPR:$rd),
+                           (ins pqual:$pq, GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                           "@$pq rcp.f32 $rd, $rs0">;
 defm RSQRT_F32 : Sfu<sfuOpc.RSQRT, "rsqrt.f32">;
 defm SQRT_F32  : Sfu<sfuOpc.SQRT,  "sqrt.f32">;
 defm EX2_F32   : Sfu<sfuOpc.EX2,   "ex2.f32">;

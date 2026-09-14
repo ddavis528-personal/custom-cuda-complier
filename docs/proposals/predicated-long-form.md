@@ -1,7 +1,31 @@
 # A 48-bit predicated Format A — reaching the whole opcode map from A′
 
-**Status:** proposal, for decision. Raised by compiler work on CCV (the LLVM
-backend); nothing is implemented against it.
+**Status:** RESOLVED — accepted as O-37, with one mandatory constraint the
+proposal missed. Implemented; `tools/verify.sh` is green. Read the spec, not
+this document, for what shipped.
+
+> **The proposal was self-contradictory as written.** It did not constrain
+> `opcode[9:7]`, and at `000` the long form encodes points 0–127 — which the
+> 32-bit A′ already encodes. Two encodings of one instruction, which invariant
+> 7's second sentence forbids and which would hand the round trip a
+> canonicalization question with no answer. The encoding owner caught it.
+> Constrained, the form encodes exactly 128–1023 and is non-redundant by
+> construction. `tools/check-encoding.py` asserts it.
+>
+> **And §2's argument was weaker than it needed to be.** This document defends
+> the thirteen reserved bits by saying the qualifier earns the length despite
+> them. The stronger statement is that the content is 35 bits, so 48 is the
+> minimum length available at 16-bit granularity and the reserved bits are a
+> rounding artifact — the form is already at its shortest legal length, which is
+> what invariant 7 asks. "Earns its length despite waste" invites re-litigation;
+> "is at minimum length" does not.
+>
+> Also decided: `[36:35]` is reserved *for* a predicate destination rather than
+> merely reserved (§3's variant, designated but not defined); §2's sibling
+> sentence is amended from "16 more immediate bits" to "16 more bits"; and a
+> 32-bit predicated tier that drops `rs2` to buy opcode width is recorded as
+> considered and rejected — it fails on tag space, not on merit, and becomes the
+> better answer for single-source operations if a 32-bit tag ever frees up.
 
 **Against:** ISA v1.5 (`isa-v1.5-operation-map-and-encoding.md`), §2 length
 escape, §3 Formats A/A′/A″, §4 opcode map, invariants 7 and 8, O-33, O-34.

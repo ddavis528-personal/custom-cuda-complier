@@ -114,6 +114,46 @@ def check_fp_dp_collision(insts):
     return out
 
 
+def check_long_ap_not_redundant(insts):
+    """48-bit Format A′ must encode points 128-1023, never 0-127 (O-37).
+
+    With opcode[9:7] = 000 the long form would encode a point the 32-bit A′
+    already encodes -- two encodings of one instruction, which invariant 7's
+    second sentence forbids ("if it fits in 32, it has no 48-bit encoding") and
+    which hands the round trip a canonicalization question with no answer.
+
+    The original proposal did not state this; the encoding owner did, and it is
+    a constraint on the field rather than a size preference, so it is asserted
+    here rather than left to whoever writes the next instruction.
+    """
+    out = []
+    for name in sorted(insts):
+        r = insts[name]
+        inst = r["Inst"]
+        if len(inst) != 48:
+            continue
+        tag = 0
+        for b in range(5, 1, -1):
+            if not isinstance(inst[b], int):
+                break
+            tag = (tag << 1) | inst[b]
+        else:
+            if tag != 0b0001:
+                continue
+            hi = 0
+            for b in range(34, 31, -1):
+                if not isinstance(inst[b], int):
+                    hi = None
+                    break
+                hi = (hi << 1) | inst[b]
+            if hi == 0:
+                out.append(
+                    f"{name}: 48-bit Format A\u2032 with opcode[9:7] = 000 "
+                    f"encodes a point 0-127 that the 32-bit A\u2032 already "
+                    f"encodes -- two encodings of one instruction (O-37)")
+    return out
+
+
 def main(path):
     recs = json.load(open(path) if path != "-" else sys.stdin)
     insts = {k: v for k, v in recs.items()
@@ -180,6 +220,7 @@ def main(path):
     # checkable, so it is checked -- nothing else in this repository catches a
     # collision between two instructions that are each individually valid.
     errors += check_fp_dp_collision(insts)
+    errors += check_long_ap_not_redundant(insts)
 
     print(f"checked {len(insts)} instructions\n")
     for e in exempted:

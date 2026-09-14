@@ -203,7 +203,9 @@ several of them have no slack at all.
 
 | Tag | 32-bit | 48-bit |
 |---|---|---|
-| `0000`–`0010` | A / A′ / A″ | — (no immediate to widen) |
+| `0000` | A | — (already carries the full 10-bit opcode) |
+| `0001` | A′ | **A′ long** — opcode extension, not an immediate (O-37) |
+| `0010` | A″ | — (reaches 0–31, which is where its subset lives) |
 | `0011`–`0101` | B / B′ / B″ | wide-immediate siblings |
 | `0110` | C | — |
 | `0111` | C′ | wide-immediate sibling |
@@ -411,6 +413,51 @@ is interpreted per-tier.
 | `[31:30]` | 2 | `opcode[9:8]` | `opcode[6:5]` | **pred dest** |
 
 Resulting opcode widths: **A = 10 bits**, **A′ = 7 bits**, **A″ = 5 bits**.
+
+#### Format A′ long — 48-bit predicated ALU (O-37)
+
+A′'s seven bits reach opcode points 0–127. Everything above — the conversions before O-34
+moved them, and the SFU at 256+ — is Format A only and cannot carry a qualifier. This is
+A′'s 48-bit sibling, and it closes that gap for the whole map at once.
+
+| Bits | Width | Field |
+|---|---|---|
+| `[1:0]` | 2 | length = `11` (48-bit) |
+| `[5:2]` | 4 | fmt = `0001` — the same tag as 32-bit A′ |
+| `[10:6]` | 5 | `opcode[4:0]` |
+| `[14:11]` | 4 | `rd` |
+| `[18:15]` | 4 | `rs0` |
+| `[22:19]` | 4 | `rs1` |
+| `[26:23]` | 4 | `rs2` |
+| `[29:27]` | 3 | **predicate qualifier** |
+| `[31:30]` | 2 | `opcode[6:5]` |
+| `[34:32]` | 3 | **`opcode[9:7]` — must not be `000`** |
+| `[36:35]` | 2 | reserved, named for a future predicate destination |
+| `[47:37]` | 11 | reserved |
+
+**The low 32 bits are bit-identical to a 32-bit A′ instruction.** Every invariant-8 position
+holds and the decoder for the first halfword pair is unchanged; the opcode becomes a
+three-piece splice instead of two.
+
+**`opcode[9:7]` ≠ `000` is a constraint on the field, not a convention.** With those bits
+zero the form would encode points 0–127, which the 32-bit A′ already encodes — two encodings
+of one instruction, which invariant 7's second sentence forbids and which would hand the
+round trip a canonicalization question with no answer. So the long form encodes **exactly
+points 128–1023**, complementary to the short form rather than overlapping it.
+`tools/check-encoding.py` asserts it; an assembler emitting the long form for an opcode
+below 128 is a bug, not a size preference.
+
+**Invariant 7 is satisfied at minimum length, not despite waste.** The content is 35 bits — a
+32-bit A′ plus three opcode bits — and 48 is the shortest length available at 16-bit
+granularity. The reserved bits are a rounding artifact, exactly as `pmov`'s six are.
+
+**`[36:35]` is reserved *for* a predicate destination rather than merely reserved.** Nothing
+needs it: the intersection of "opcode above 127" and "produces a status predicate" looks
+genuinely empty rather than unmeasured, because the SFU and conversions have no status output
+and A″'s status-producing arithmetic lives in 0–31 by construction. Naming the two bits
+anyway costs nothing and stops two implementations allocating them differently — O-28's
+argument applied to reserved space.
+
 
 The point of this arrangement is that `rd`, `rs0`, `rs1`, `rs2` and `opcode[4:0]` are at
 identical positions in all three tiers, and the predicate qualifier is at an identical
@@ -962,8 +1009,16 @@ of pressure, on a machine with only 16. The sibling costs 16 bits and no registe
 means B/B′/B″ do not need generous 32-bit immediates "just in case," which is what let the
 short forms stay tight enough to fit the field-alignment scheme in the first place.
 
-Formats with no immediate — A, A′, A″, C, E, G — have no 48-bit rendering. There would be
+Formats with no immediate — A, A″, C, E, G — have no 48-bit rendering. There would be
 nothing to put in the extra halfword, and invariant 7 forbids reserved-bit padding.
+
+**Format A′ is the exception, and it is the same rule rather than a break from it.** Its
+48-bit sibling extends an **opcode** where B, C′, D, D′ and F extend an **immediate** — so
+the sibling rule reads "a 48-bit instruction is its 32-bit sibling with 16 more *bits* at
+`[47:32]`", not "16 more *immediate* bits". A′ is the one tier whose reach is narrower than
+the operations that want it: 7 opcode bits against Format A's 10. A and A″ have no long form
+because neither is short of reach — A already has all ten bits, and A″'s bounded subset
+genuinely lives in 0–31. See O-37.
 
 Two qualifications. Format I is absent from the table but *does* have a 48-bit form: `pmov`
 carries a 32-bit lane mask and exists only at that length, while `chwidth.multi` exists only
@@ -2919,6 +2974,61 @@ F-62, F-63 and F-64, and two were in code that had been exercised for weeks:
 - `add reg, imm` had no range predicate, so a constant above 4095 selected into `ADDI` and
   was rejected by the encoder — the same defect as F-43, on the line above the comment that
   describes F-43.
+
+---
+
+**O-37 — Format A′ gets a 48-bit sibling, and the predicated tier reaches the whole map.**
+
+Format A′ spends `[29:27]` on the predicate qualifier, which leaves it a 7-bit opcode
+reaching points 0–127. Everything above is Format A only and cannot be predicated. O-34
+relocated conversions into that range to work around it and in doing so packed 0–127 solid,
+so there was nowhere left to relocate anything else — the ceiling was structural and reached,
+with `rcp.f32` at point 256 sitting behind it as the last instruction O-33 could not mask.
+
+**A′'s 48-bit sibling, specified in §3.** The low 32 bits are bit-identical to a 32-bit A′
+instruction and `[34:32]` carries `opcode[9:7]`, which is the same sibling rule §2 already
+applies to B, D and F — except that A′ extends an **opcode** where the others extend an
+**immediate**. §2's wording was amended accordingly; without that the A′ sibling reads as
+irregular when it is the same rule.
+
+**No new format tag.** Tag `0001` at length `11` was unallocated. This matters: F-54 records
+that all sixteen **32-bit** tags are spoken for, and the 48-bit space under them is not.
+
+**Invariant 7 is satisfied at minimum length.** The content is 35 bits — a 32-bit A′ plus
+three opcode bits — so 48 is the shortest length available at 16-bit granularity, and the
+reserved bits are a rounding artifact exactly as `pmov`'s six are. The proposal argued
+instead that the qualifier "earns the length despite the waste"; that reading works but
+concedes more than it needs to and invites a future reader to re-litigate it.
+
+**`opcode[9:7]` ≠ `000`, as a constraint on the field.** The proposal did not state this and
+was self-contradictory without it: at `000` the long form encodes points 0–127, which the
+32-bit A′ already encodes. Two encodings of one instruction is what invariant 7's second
+sentence forbids and what the tier rule exists to prevent. Constrained, the long form encodes
+exactly points 128–1023 — non-redundant by construction, and the round trip needs no
+canonicalization tie-break. Asserted in `tools/check-encoding.py`, verified by adding a
+violating instruction on purpose.
+
+**Scope is A′ alone, and the asymmetry is principled.** Format A already carries the full
+10-bit opcode at 32 bits, so a 48-bit A gains nothing and invariant 7 forbids it. Format A″
+reaches 0–31, which is where its bounded subset lives, so there is no pressure. A′ is the
+only tier whose reach is narrower than the operations that want it. Stated in §3 so that a
+later reader does not "complete the family" and add two forms invariant 7 excludes.
+
+**Considered and rejected: a 32-bit predicated tier that drops `rs2` to buy opcode width.**
+Trading `[26:23]` for four opcode bits gives an 11-bit opcode reaching the whole map in four
+bytes rather than six, and every SFU operation is single-source, so it would cover the
+measured case. **It fails on tag space, not on merit** — it needs a new 32-bit format tag and
+all sixteen are allocated (F-54). Recorded because it is the obvious proposal and will be
+raised again; if a tag ever frees up it becomes the better answer for single- and two-source
+operations and the two forms could coexist. Dropping `rs2` from A′ itself is not an option:
+predicated `ffma`, `mad.lo` and `sel` are among the operations most worth predicating.
+
+**Effect.** `rcp.f32` gains a predicated form and the `no A′ form` bucket closes: on
+`transpose` it goes from 1 to **0**, maskable from 46 to 47, and the F-56 finding closes with
+it. Lane-activations move 1428 → 1429 — the broadcast accounting shifts by one instruction,
+which is the honest number and not the point. The point is that §4's extension space is no
+longer a one-way door: allocating an operation above 127 no longer forfeits its predicated
+form, which had already forced one relocation and had no room to force another.
 
 ---
 

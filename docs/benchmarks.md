@@ -61,7 +61,7 @@ questions and only one of them can be measured on both machines.
   saxpy      |     22     74   26.9 |     17     58 |     25    136   43.5 |     19
   dot        |     56    182   26.0 |     48    156 |     60    300   40.0 |     46
   reduce     |     51    166   26.0 |     45    146 |     54    268   39.7 |     41
-  transpose  |     86    314   29.2 |     78    284 |     64    308   38.5 |     43
+  transpose  |     87    320   29.4 |     79    290 |     64    308   38.5 |     43
 ```
 
 **Dynamic — instructions actually issued, per thread of work.**
@@ -73,7 +73,7 @@ questions and only one of them can be measured on both machines.
   saxpy          17.0   100%         25 |       544       100%   exact: no backward branch
   dot            78.9    64%         -- |      2526       100%   has 3 loops; not modelled
   reduce         75.9    63%         -- |      2430       100%   has 3 loops; not modelled
-  transpose      78.0   100%         64 |      1428        57%   exact: no backward branch
+  transpose      79.0   100%         64 |      1429        57%   exact: no backward branch
 ```
 
 **CCV's dynamic column is measured** on the simulator — lane-instructions
@@ -284,11 +284,11 @@ tile:
 ```
   tile  accs    instrs     bits b/instr  spills    fma sp/fma    K-hit
   -------------------------------------------------------------------------
-  1x1   1          173     4784    27.7      31     16   1.94      22%
-  1x2   2          255     6992    27.4      55     32   1.72      19%
-  2x2   4          380    10256    27.0      97     64   1.52      17%
-  2x4   8          638    17040    26.7     186    128   1.45      13%
-  4x4   16        1131    29824    26.4     407    256   1.59      13%
+  1x1   1          174     4816    27.7      31     16   1.94      22%
+  1x2   2          256     7024    27.4      55     32   1.72      19%
+  2x2   4          381    10288    27.0      97     64   1.52      17%
+  2x4   8          639    17072    26.7     186    128   1.45      13%
+  4x4   16        1132    29856    26.4     407    256   1.59      13%
 ```
 
 `sp/fma` — memory traffic the register file forced, per unit of arithmetic it

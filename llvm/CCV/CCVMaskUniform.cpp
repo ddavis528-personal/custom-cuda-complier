@@ -114,6 +114,11 @@ unsigned predicatedForm(unsigned Op) {
   case CCV::CVT_F32_U32: return CCV::CVT_F32_U32_P;
   case CCV::CVT_S32_F32: return CCV::CVT_S32_F32_P;
   case CCV::CVT_U32_F32: return CCV::CVT_U32_F32_P;
+  // O-37: the SFU is at §4 256+, outside A′'s 7-bit reach, so `rcp.f32` gets
+  // its qualifier from the 48-bit sibling instead. Six bytes rather than four,
+  // on the one instruction of the division sequence that was still burning all
+  // 32 lanes.
+  case CCV::RCP_F32:     return CCV::RCP_F32_P;
   default:         return 0;
   }
 }
@@ -274,6 +279,17 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
     return AnyDef;
   };
 
+  // TRIED AND WRONG: skipping the mask on any value that needs its own
+  // broadcast. The arithmetic looks compelling -- masking saves 31
+  // lane-activations and the broadcast spends 31, so it is break-even in energy
+  // and one instruction worse -- and it miscompiles. An unmasked instruction is
+  // not correct in all lanes, because its INPUTS were masked: lanes 1-31 hold
+  // whatever the masked region left them. The broadcast is not the price of
+  // masking this instruction, it is the price of the region.
+  //
+  // `transpose` went 79 instructions to 76 and produced wrong answers in 31 of
+  // 32 lanes. tools/check-mask.sh caught it immediately, which is what it is
+  // for.
   SmallVector<MachineInstr *, 16> NeedsBroadcast;
   for (MachineInstr *MI : Composable) {
     Register Def = MI->getOperand(0).getReg();

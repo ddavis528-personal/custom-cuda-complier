@@ -132,10 +132,15 @@ enum class Mask {
   /// Masking would change what the kernel does. Barriers are the case: a
   /// barrier reached by all 32 lanes and arrived at by one is a hang.
   Semantics,
-  /// The predicate qualifier field is already carrying data for this opcode,
-  /// so there is nowhere to put a mask. `sel` is the case: §4 point 19 reads
-  /// `[29:27]` as the selector, not as an execution condition.
-  QualifierTaken,
+  /// The predicate qualifier already carries a control-flow condition, so
+  /// masking also needs the CONJUNCTION of that condition with the lane mask --
+  /// one extra `pand`, §3's 16-bit Format K predicate logic.
+  ///
+  /// This bucket was `QualifierTaken` and read as a hard block, because F-58
+  /// mistook a field for a mechanism. The qualifier names a predicate
+  /// REGISTER, and the conjunction of two conditions is a predicate register.
+  /// Maskable, at a cost, and `-ccv-mask-compose` takes it by default.
+  Composable,
   /// Branches. Predication is not the mechanism they would need, and a warp
   /// executing a uniform branch is not redundant work in the sense being
   /// counted -- every lane has its own PC.
@@ -217,19 +222,21 @@ Mask classify(const Instruction &I) {
   // .td has no ST_GLOBAL_P, which is why it does not happen.
   case Instruction::Store:
     return Mask::NoMIForm;
-  // §4 point 19: the qualifier is the selector. See SEL in CCVInstrInfo.td.
+  // A select lowers to a predicated move (F-58), not to `sel`, so its qualifier
+  // carries a control-flow condition. Maskable by composing that with the lane
+  // mask.
   case Instruction::Select:
-    return Mask::QualifierTaken;
+    return Mask::Composable;
   // O-34 relocated conversions to §4 64-127, inside A′'s 7-bit reach, and gave
   // them predicated twins. They are maskable now.
   case Instruction::UIToFP: case Instruction::SIToFP:
   case Instruction::FPToUI: case Instruction::FPToSI:
     return Mask::Yes;
-  // THE F-56 BUCKET, and all that is left of it: `fdiv` lowers to `rcp.f32` at
-  // §4 point 256. A′ stops at 127 and 128-255 is Format A only, so relocating
-  // the SFU down one range would not help -- it has to come below 128.
+  // O-37 gave `rcp.f32` a 48-bit Format A′ sibling, so `fdiv 1.0, x` -- the one
+  // fdiv that selects to a single instruction -- is maskable. A general fdiv is
+  // a ~30-instruction sequence (O-36) whose parts are classified individually.
   case Instruction::FDiv:
-    return Mask::NoPredForm;
+    return Mask::Yes;
   case Instruction::Br: case Instruction::Switch: case Instruction::IndirectBr:
     return Mask::ControlFlow;
   default:
@@ -346,15 +353,19 @@ public:
          "Format K point, invariant 7 -- no qualifier exists"},
         {Mask::Semantics, "semantics",
          "masking it would change what the kernel does"},
-        {Mask::QualifierTaken, "qualifier used",
-         "the predicate field is data for this opcode"},
+        {Mask::Composable, "`pand`",
+         "guard must be composed with the lane mask -- taken by default"},
         {Mask::Unmodelled, "UNMODELLED",
          "this report does not know -- see below"},
     };
     for (const Row &R : Rows) {
       if (!Blocked[unsigned(R.M)])
         continue;
-      std::string Label = std::string("blocked: ") + R.Label;
+      // "Composable" is not blocked -- it is masked, at the cost of a `pand`.
+      // Printing it under the same prefix as the genuine blocks is how a
+      // ceiling number gets read as a limit, which is what F-58 was.
+      std::string Label = std::string(
+          R.M == Mask::Composable ? "also masked, via " : "blocked: ") + R.Label;
       // Pad to a display width, not a byte count: the A\u2032 label carries a
       // multi-byte prime and would otherwise sit two columns short.
       unsigned Cont = 0;

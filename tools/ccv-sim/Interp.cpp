@@ -275,12 +275,14 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   // division sequence's two `cvt`s can be masked to lane 0. The SFU is still
   // at 256+ and has no predicated form, which is what is left of F-56.
   case CCV::CVT_F32_S32_P: case CCV::CVT_F32_U32_P:
-  case CCV::CVT_S32_F32_P: case CCV::CVT_U32_F32_P: {
+  case CCV::CVT_S32_F32_P: case CCV::CVT_U32_F32_P:
+  case CCV::RCP_F32_P: {          // 48-bit Format A′ sibling, O-37
     static const std::pair<unsigned, unsigned> Map[] = {
         {CCV::CVT_F32_S32_P, CCV::CVT_F32_S32},
         {CCV::CVT_F32_U32_P, CCV::CVT_F32_U32},
         {CCV::CVT_S32_F32_P, CCV::CVT_S32_F32},
-        {CCV::CVT_U32_F32_P, CCV::CVT_U32_F32}};
+        {CCV::CVT_U32_F32_P, CCV::CVT_U32_F32},
+        {CCV::RCP_F32_P,     CCV::RCP_F32}};
     unsigned Base = 0;
     for (auto [P, B] : Map) if (P == Op) Base = B;
     unsigned D = regOf(MI, 0), A = regOf(MI, 2);

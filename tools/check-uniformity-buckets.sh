@@ -61,8 +61,9 @@ PY
     fail=1
   fi
   if [ "$want" != "0" ] && [ "$got" = "0" ]; then
-    echo "  note  $k: $want division site(s), none counted against F-56 --"
-    echo "        expected when the divisor is divergent."
+    echo "  note  $k: $want division site(s), none blocked by encoding --"
+    echo "        expected: O-37 gave rcp.f32 a 48-bit predicated form, and"
+    echo "        O-34 moved the conversions into Format A′'s reach."
   fi
   echo "  $k: maskable $(echo "$r" | sed -n 's/.*maskable to lane 0 *: *\([0-9]*\).*/\1/p'), F-56 blocks $got, unmodelled $u"
 done

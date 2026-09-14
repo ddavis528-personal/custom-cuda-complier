@@ -75,6 +75,38 @@ class FormatAp<bits<7> opc, dag outs, dag ins, string asm>
   let Inst{31-30} = opc{6-5};
 }
 
+// Format A′ long -- 48-bit predicated ALU. §3, O-37.
+//
+// A′'s 7-bit opcode reaches points 0-127 only, so everything above is Format A
+// and cannot carry a qualifier. This is A′'s 48-bit SIBLING: the low 32 bits
+// are bit-identical to a 32-bit A′ instruction and the third halfword carries
+// opcode[9:7], which is the same sibling rule §2 applies to B, D and F.
+//
+// CONTENT IS 35 BITS -- a 32-bit A′ plus three opcode bits -- so 48 is the
+// minimum length available at 16-bit granularity. The reserved bits are a
+// rounding artifact, not headroom; invariant 7 asks for minimum length and this
+// is at it.
+//
+// opcode[9:7] != 000 is a CONSTRAINT, not a convention. With those bits zero
+// the form would encode points 0-127, which the 32-bit A′ already encodes --
+// two encodings of one instruction, which invariant 7's second sentence
+// forbids. The long form encodes exactly points 128-1023: complementary to the
+// short one rather than overlapping it. tools/check-encoding.py asserts it.
+class FormatAp48<bits<10> opc, dag outs, dag ins, string asm>
+    : CCVInst48<0b0001, outs, ins, asm> {
+  bits<4> rd; bits<4> rs0; bits<4> rs1; bits<4> rs2; bits<3> pq;
+  let Inst{10-6}  = opc{4-0};
+  let Inst{14-11} = rd;
+  let Inst{18-15} = rs0;
+  let Inst{22-19} = rs1;
+  let Inst{26-23} = rs2;
+  let Inst{29-27} = pq;            // predicate qualifier, canonical position
+  let Inst{31-30} = opc{6-5};
+  let Inst{34-32} = opc{9-7};      // the extension; must not be 000
+  let Inst{36-35} = 0b00;          // reserved, named for a future `pd` (O-37)
+  let Inst{47-37} = 0;             // reserved
+}
+
 class FormatApp<bits<5> opc, dag outs, dag ins, string asm>
     : CCVInst32<0b0010, outs, ins, asm> {
   bits<4> rd; bits<4> rs0; bits<4> rs1; bits<4> rs2; bits<3> pq; bits<2> pd;
