@@ -2016,6 +2016,14 @@ would be a better use of the range than four separate address-space opcodes. Nee
 
 ---
 
+**O-11 — withdrawn.** The number was assigned during the V1.2 deep dive and its decision was
+folded into a neighbour before either was written up, leaving a gap rather than a decision.
+Recorded here so the gap is deliberate: `tools/check-docs.py` only verifies that *cited*
+O-numbers resolve, so an unused number is invisible to it and would otherwise read as a lost
+decision on every future audit. Nothing references O-11 and nothing should.
+
+---
+
 **O-12 — Barrier operand split — decided; one assumption to confirm against the barrier spec.**
 
 The three barrier operations need very different amounts of operand, and the previous split

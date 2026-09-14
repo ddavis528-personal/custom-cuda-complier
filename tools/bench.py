@@ -33,6 +33,19 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BENCH = os.path.join(ROOT, "test", "bench")
 KERNELS = ["vadd", "saxpy", "dot", "reduce", "transpose"]
 
+# Prior art, across generations rather than one. The original comparison used
+# only gfx900 -- a 2017 ISA -- which left the density claim open to the reading
+# that it beats an old encoding and not a current one. These are every AMD GPU
+# generation this toolchain can assemble: two encodings families (GCN and RDNA)
+# and the datacentre line, spanning 2017 to 2024.
+ARCHES = [
+    ("gfx900",  "GCN5 / Vega", "2017"),
+    ("gfx1030", "RDNA2",       "2020"),
+    ("gfx1100", "RDNA3",       "2022"),
+    ("gfx1200", "RDNA4",       "2024"),
+    ("gfx942",  "CDNA3 / MI300", "2023"),
+]
+
 def run(*a, **kw):
     return subprocess.run(a, capture_output=True, text=True, **kw)
 
@@ -83,28 +96,66 @@ def count_ccv(path):
         n += 1
     return n
 
-def amdgcn(src, tmp):
+# One disassembled instruction: mnemonic, address, and the encoding words that
+# follow the address in the trailing comment. objdump may append a branch's
+# symbolic target after the encoding, so the encoding group is not anchored to
+# end-of-line -- anchoring it dropped every branch and undercounted gfx900.
+AMD_LINE = re.compile(r"^\s*(\S+)[^/]*//\s+([0-9A-F]{12}):\s+((?:[0-9A-F]{8} ?)+)")
+
+# gfx10+ pads a kernel's tail with s_code_end and CDNA3 with s_nop, to fill the
+# instruction prefetch buffer. It is not code and must not be counted: uncut,
+# gfx1100's vadd reads 146 instructions and 640 bytes rather than 32 and 184,
+# which would have published CCV as ~5x denser than RDNA3 on padding alone.
+AMD_PAD = ("s_code_end", "s_nop")
+
+
+def amd_body(dis):
+    """Instructions and bytes of the real kernel, padding excluded.
+
+    Only a TRAILING RUN of padding is dropped. Two narrower-looking rules are
+    both wrong and were both tried: filtering the padding mnemonics anywhere
+    removes CDNA's real hazard-slot s_nops, and cutting at the last s_endpgm
+    removes real code, because an early-exit endpgm is followed by the block
+    that restores exec -- on dot that silently deleted the whole reduction
+    loop, 17 instructions. Validated by reproducing the published gfx900
+    column exactly on all five kernels."""
+    insns = []
+    for line in dis.splitlines():
+        m = AMD_LINE.match(line)
+        if m:
+            insns.append((m.group(1), int(m.group(2), 16),
+                          len(m.group(3).replace(" ", "")) // 2))
+    end = len(insns)
+    while end and insns[end - 1][0] in AMD_PAD:
+        end -= 1
+    body = insns[:end]
+    if not body:
+        return None
+    return len(body), body[-1][1] + body[-1][2] - body[0][1]
+
+
+def amdgcn(src, tmp, arch="gfx900"):
     """AMDGCN via clang's own backend. Instructions and bytes both come from
     the ASSEMBLED object, not from counting lines of .s: GCN mixes 4- and
     8-byte encodings, so a line count says nothing about size, and the .s
     carries kernel-descriptor directives that are not instructions."""
     asmf, obj, binf = (os.path.join(tmp, f"a.{x}") for x in ("s", "o", "bin"))
     r = run("clang", "-x", "hip", "--offload-device-only",
-            "--offload-arch=gfx900", "-nogpuinc", "-nogpulib", "-I", BENCH,
+            f"--offload-arch={arch}", "-nogpuinc", "-nogpulib", "-I", BENCH,
             "-O2", "-S", src, "-o", asmf)
     if r.returncode:
         return {"error": (r.stderr.strip().splitlines() or ["failed"])[0][:60]}
-    r = run("llvm-mc", "-triple=amdgcn-amd-amdhsa", "-mcpu=gfx900",
+    r = run("llvm-mc", "-triple=amdgcn-amd-amdhsa", f"-mcpu={arch}",
             "-filetype=obj", asmf, "-o", obj)
     if r.returncode:
         return {"error": "llvm-mc: " + (r.stderr.strip().splitlines() or [""])[0][:50]}
     if run("llvm-objcopy", "-O", "binary", "--only-section=.text",
            obj, binf).returncode:
         return {"error": "objcopy failed"}
-    dis = run("llvm-objdump", "-d", "--mcpu=gfx900", obj).stdout
-    # Every disassembled instruction carries its encoding in a trailing
-    # comment; directives and labels do not.
-    n = len(re.findall(r"//\s+[0-9A-F]{12}:", dis))
+    body = amd_body(run("llvm-objdump", "-d", f"--mcpu={arch}", obj).stdout)
+    if not body:
+        return {"error": "no instructions disassembled"}
+    n, nbytes = body
 
     # A kernel with no backward branch executes each instruction at most once,
     # so its static count IS its dynamic count -- no simulator needed and no
@@ -119,7 +170,7 @@ def amdgcn(src, tmp):
     loops = sum(1 for i, l in enumerate(text)
                 for m in [re.search(r"s_c?branch\S*\s+(\.\S+)", l)]
                 if m and label.get(m.group(1), 1 << 30) < i)
-    return {"instrs": n, "bytes": os.path.getsize(binf), "loops": loops}
+    return {"instrs": n, "bytes": nbytes, "loops": loops}
 
 def ptx(src, tmp):
     asm = run("clang", "-x", "cuda", "-nocudainc", "-nocudalib",
@@ -151,7 +202,7 @@ ARGS = {
     "transpose": [3, 4, 16],
 }
 
-def dynamic(src, tmp, kernel):
+def dynamic(src, tmp, kernel, extra=()):
     """Lane-instructions per thread, from the simulator. This is the number the
     static count is a proxy for, and the two diverge exactly where an
     instruction hides a loop -- which is the whole reason to measure it."""
@@ -177,7 +228,7 @@ def dynamic(src, tmp, kernel):
     if len(slots) != len(vals):
         return {"error": f"{len(slots)} args in layout, {len(vals)} values given"}
 
-    if run(f"{ROOT}/build/ccv-llc", low, "-o", obj, "-obj").returncode:
+    if run(f"{ROOT}/build/ccv-llc", low, "-o", obj, "-obj", *extra).returncode:
         return None
     if run("llvm-objcopy", "-O", "binary", "--only-section=.text",
            obj, binf).returncode:
@@ -217,6 +268,13 @@ def main():
                 "amdgcn": amdgcn(src, tmp),
                 "ptx": ptx(src, tmp),
                 "dyn": dynamic(src, tmp, k),
+                "arches": {a: amdgcn(src, tmp, a) for a, _, _ in ARCHES},
+                # O-33's A/B. Measured, not reconstructed from the pass's own
+                # stats: the published table had drifted from the machine by
+                # 128 lane-instructions and a whole percentage column, because
+                # it was hand-copied once and the divide sequence changed under
+                # it twice (O-35) and the counter was corrected once (F-60).
+                "mask_off": dynamic(src, tmp, k, ("-ccv-mask-uniform=false",)),
             })
     if "--json" in sys.argv:
         print(json.dumps(rows, indent=2))
@@ -271,6 +329,76 @@ def main():
                 if d and d.get("lane_instr") else "--")
         print(f"  {r['kernel']:<10} {mine:>8} {simt:>6}   {gd:>8} | "
               f"{act:>9} {frac:>10}   {how}")
+
+    print()
+    print("  O-33 A/B -- what lane-0 masking costs and buys, measured.")
+    print()
+    print(f"  {'':<26}{'issued/thread':>14}{'lane-instr':>12}"
+          f"{'lane-act':>10}{'of issued':>11}")
+    print("  " + "-" * 71)
+    for r in rows:
+        for lbl, d in (("masking off", r["mask_off"]), ("masking on", r["dyn"])):
+            if not d or not d.get("lane_instr"):
+                continue
+            share = 100.0 * d["lane_act"] / d["lane_instr"]
+            print(f"  {r['kernel'] + ', ' + lbl:<26}{d['per_thread']:>14.1f}"
+                  f"{d['lane_instr']:>12}{d['lane_act']:>10}{share:>10.0f}%")
+    print()
+    print("  Four of five kernels read identically in both rows: the pass DECLINED")
+    print("  to mask them, because every uniform value is consumed immediately by")
+    print("  divergent work and each masked op would need its own broadcast. That is")
+    print("  the cost model working, not the pass failing.")
+    print()
+    print("  PRIOR ART -- bits per instruction across AMD GPU generations.")
+    print()
+    hdr = f"  {'kernel':<10} {'CCV':>15}" + "".join(
+        f"{n:>15}" for _, n, _ in ARCHES)
+    print(hdr)
+    print(f"  {'':<10} {'':>15}" + "".join(f"{y:>15}" for _, _, y in ARCHES))
+    print("  " + "-" * (len(hdr) - 2))
+    tot = {a: [0, 0] for a, _, _ in ARCHES}
+    ctot = [0, 0]
+    for r in rows:
+        c = r["ccv"]
+        cells = []
+        if c and "instrs" in c:
+            ctot[0] += c["instrs"]; ctot[1] += c["bytes"]
+            cells.append(f"{8*c['bytes']/c['instrs']:.1f}")
+        else:
+            cells.append("--")
+        for a, _, _ in ARCHES:
+            d = r["arches"].get(a)
+            if d and "instrs" in d:
+                tot[a][0] += d["instrs"]; tot[a][1] += d["bytes"]
+                cells.append(f"{8*d['bytes']/d['instrs']:.1f}")
+            else:
+                cells.append("--")
+        print(f"  {r['kernel']:<10} " + "".join(f"{x:>15}" for x in cells))
+    print("  " + "-" * (len(hdr) - 2))
+    pooled = [f"{8*ctot[1]/ctot[0]:.1f}" if ctot[0] else "--"]
+    for a, _, _ in ARCHES:
+        pooled.append(f"{8*tot[a][1]/tot[a][0]:.1f}" if tot[a][0] else "--")
+    print(f"  {'pooled':<10} " + "".join(f"{x:>15}" for x in pooled))
+    print()
+    print("  Pooled is total bytes over total instructions across all five kernels,")
+    print("  not the mean of the per-kernel ratios, so a big kernel counts for more.")
+    print()
+    print("  Instruction counts, same sweep -- the control on the density claim:")
+    print()
+    print(f"  {'kernel':<10} {'CCV':>15}" + "".join(f"{n:>15}" for _, n, _ in ARCHES))
+    print("  " + "-" * (len(hdr) - 2))
+    for r in rows:
+        c = r["ccv"]
+        cells = [str(c["instrs"]) if c and "instrs" in c else "--"]
+        for a, _, _ in ARCHES:
+            d = r["arches"].get(a)
+            cells.append(str(d["instrs"]) if d and "instrs" in d else "--")
+        print(f"  {r['kernel']:<10} " + "".join(f"{x:>15}" for x in cells))
+    print()
+    print("  A kernel's tail padding is EXCLUDED: gfx10+ pads with s_code_end and")
+    print("  CDNA3 with s_nop to fill the instruction prefetch buffer. Counting it")
+    print("  reads gfx1100's vadd as 146 instructions and 640 bytes rather than 32")
+    print("  and 184 -- a 5x density win over RDNA3 made entirely of padding.")
 
     for r in rows:
         for name, d in (("ccv", r["ccv"]), ("amdgcn", r["amdgcn"])):
