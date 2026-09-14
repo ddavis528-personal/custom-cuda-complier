@@ -53,6 +53,23 @@ using namespace llvm;
 static cl::opt<bool> EnableMasking("ccv-mask-uniform", cl::init(true),
                                    cl::desc("run warp-uniform work on lane 0 "
                                             "and broadcast (O-33)"));
+/// F-58's composition, off by default. It works and it is measured; what is
+/// not measured is the hardware ratio it depends on.
+///
+/// O-33's broadcast costs one instruction to save 31 lane-activations. This
+/// costs one `pand` to save about 12 -- measured on `transpose`, 5 instructions
+/// for 62 activations. Still positive, but it rests on a SECOND unverified RTL
+/// property on top of O-33's: that a predicate-file operation is much cheaper
+/// than a warp-wide ALU operation. A predicate is 32 bits (invariant 5), so
+/// `pand` is 32 AND gates against 32 lanes of 32-bit datapath, and the ratio
+/// should be large -- but "should be" is exactly what O-33 already spends once.
+///
+/// Default off, so the design track decides with the number in hand rather than
+/// discovering it in RTL.
+static cl::opt<bool> ComposePredicates("ccv-mask-compose", cl::init(false),
+    cl::desc("also mask instructions that already carry a predicate, by "
+             "computing the conjunction with `pand` (F-58)"));
+
 static cl::opt<bool> ReportMasking("ccv-mask-stats",
                                    cl::desc("report what was masked"));
 
@@ -196,6 +213,37 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
     }
   }
 
+  // --- 3b. Instructions that ALREADY carry a predicate -------------------
+  //
+  // F-58 said these were unreachable: the qualifier field is three bits and
+  // one predicate, so an instruction guarded by a control-flow condition
+  // cannot also be guarded by the lane mask. That is true of the FIELD and
+  // false of the MACHINE. The qualifier names a predicate REGISTER, and the
+  // conjunction of two conditions is a predicate register -- §3's `pand` is a
+  // 16-bit Format K instruction that computes exactly that.
+  //
+  // So the cost is not "impossible", it is one compressed instruction per
+  // guarded value, and it buys the same 31 lane-activations any other masked
+  // instruction buys.
+  SmallVector<MachineInstr *, 8> Composable;
+  for (MachineBasicBlock &MBB : MF) {
+    if (DivReached.count(&MBB))
+      continue;
+    for (MachineInstr &MI : MBB) {
+      if (!ComposePredicates || MI.getOpcode() != CCV::PSEUDO_PMOV)
+        continue;
+      Register Def = MI.getOperand(0).getReg();
+      Register Cond = MI.getOperand(2).getReg();
+      // The guard has to be uniform too: masking to lane 0 under a guard only
+      // lane 5 satisfies would compute nothing and broadcast garbage.
+      if (!Def.isVirtual() || Divergent.count(Def) || !Cond.isVirtual() ||
+          Divergent.count(Cond))
+        continue;
+      Composable.push_back(&MI);
+      InSet.insert(&MI);
+    }
+  }
+
   // A broadcast is needed only where a uniform value reaches DIVERGENT work --
   // not merely where it reaches something unmaskable.
   //
@@ -222,6 +270,14 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
   };
 
   SmallVector<MachineInstr *, 16> NeedsBroadcast;
+  for (MachineInstr *MI : Composable) {
+    Register Def = MI->getOperand(0).getReg();
+    for (MachineInstr &U : MRI.use_nodbg_instructions(Def))
+      if (!inUniformRegion(&U)) {
+        NeedsBroadcast.push_back(MI);
+        break;
+      }
+  }
   for (MachineInstr *MI : Maskable) {
     Register Def = MI->getOperand(0).getReg();
     for (MachineInstr &U : MRI.use_nodbg_instructions(Def))
@@ -230,10 +286,11 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
         break;
       }
   }
-  if (Maskable.size() <= NeedsBroadcast.size()) {
+  if (Maskable.size() + Composable.size() <= NeedsBroadcast.size()) {
     if (ReportMasking)
       errs() << "  lane-0 masking, " << MF.getName() << ": "
-             << Maskable.size() << " maskable vs " << NeedsBroadcast.size()
+             << (Maskable.size() + Composable.size()) << " maskable vs "
+             << NeedsBroadcast.size()
              << " broadcasts -- does not pay, skipped\n";
     return false;
   }
@@ -282,11 +339,59 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
     ++Masked;
   }
 
+  // Compose each already-guarded instruction's condition with the lane mask.
+  // `pand` is 16 bits, so a region with more than one instruction under the
+  // same guard amortises it -- but the conjunction is computed per guarded
+  // instruction here rather than per guard, because two instructions under one
+  // guard may sit in different blocks and CSE will fold the duplicates.
+  unsigned Composed = 0;
+  for (MachineInstr *MI : Composable) {
+    Register Def = MI->getOperand(0).getReg();
+    Register Cond = MI->getOperand(2).getReg();
+    // MEASURED, not assumed: composing a crossing value costs a `pand` plus a
+    // 31-lane broadcast to save at most popcount(cond) - 1, and popcount(cond)
+    // is 0 whenever the guard is false -- which for a warp-uniform guard is
+    // half the time. Composing every candidate made `transpose` WORSE, 76
+    // instructions to 81 and 1587 lane-activations to 1685. Only the
+    // non-crossing ones pay.
+    if (WantsBroadcast.count(MI))
+      continue;
+    const bool Crossing = false;
+
+    Register Both = MRI.createVirtualRegister(&CCV::PRRegClass);
+    BuildMI(*MI->getParent(), *MI, MI->getDebugLoc(),
+            TII->get(CCV::PSEUDO_PAND), Both)
+        .addReg(Cond)
+        .addReg(CCV::P3);
+
+    Register Dst = Crossing ? MRI.createVirtualRegister(MRI.getRegClass(Def))
+                            : Def;
+    // Two-address: the tied false arm has to become the new destination too,
+    // or the excluded lanes would preserve the wrong register.
+    BuildMI(*MI->getParent(), *MI, MI->getDebugLoc(),
+            TII->get(CCV::PSEUDO_PMOV), Dst)
+        .addReg(Crossing ? Def : MI->getOperand(1).getReg())
+        .addReg(Both)
+        .add(MI->getOperand(3));
+
+    if (Crossing) {
+      BuildMI(*MI->getParent(), *MI, MI->getDebugLoc(),
+              TII->get(CCV::PSEUDO_BCAST), Def)
+          .addReg(Dst);
+      ++Broadcasts;
+    }
+    MI->eraseFromParent();
+    ++Composed;
+  }
+
   if (ReportMasking)
     errs() << "  lane-0 masking (O-33), " << MF.getName() << "\n"
+           << "    composed with `pand`  : " << Composed
+           << "   (already-predicated, F-58)\n"
            << "    masked to lane 0      : " << Masked << "\n"
            << "    broadcasts inserted   : " << Broadcasts << "\n"
-           << "    net lane-activations  : -" << (31 * (Masked - Broadcasts))
+           << "    net lane-activations  : -"
+           << (31 * (Masked + Composed - Broadcasts))
            << "   (31 saved per masked op, 31 spent per broadcast)\n";
   return true;
 }

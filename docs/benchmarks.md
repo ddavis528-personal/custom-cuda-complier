@@ -73,7 +73,7 @@ questions and only one of them can be measured on both machines.
   saxpy          17.0   100%         25 |       544       100%   exact: no backward branch
   dot            78.9    64%         -- |      2526       100%   has 3 loops; not modelled
   reduce         75.9    63%         -- |      2430       100%   has 3 loops; not modelled
-  transpose      76.0   100%         64 |      1747        72%   exact: no backward branch
+  transpose      76.0   100%         64 |      1555        64%   exact: no backward branch
 ```
 
 **CCV's dynamic column is measured** on the simulator — lane-instructions
@@ -147,16 +147,28 @@ The `lane-act` column is the measurement, from `ccv-sim -counters`:
 | | issued lane slots | activations | share |
 |---|---|---|---|
 | `transpose`, masking off | 2304 | 2304 | 100% |
-| `transpose`, masking on | 2432 | **1747** | **72%** |
+| `transpose`, masking on | 2432 | **1555** | **64%** |
 
 128 more lane slots issued — four broadcast instructions across 32 lanes — and
-557 fewer lanes actually switched, a 24% cut.
+749 fewer lanes actually switched, a **33% cut**, at no change in instruction
+count beyond those four.
 
-**1809 until O-34.** Relocating conversions from §4 128+ into 64–127 brought them
-inside Format A′'s 7-bit opcode, so the division sequence's `cvt.f32.u32` and
-`cvt.u32.f32` can be masked where they were burning all 32 lanes. `rcp.f32` still
-cannot — the SFU is at 256+ and Format A′ stops at 127 — so one instruction of
-that sequence remains unmaskable, and it is all that is left of F-56. Whether that
+Three changes got it there, and the middle one is the largest:
+
+| | activations | what changed |
+|---|---|---|
+| O-33 as first built | 1809 | mask uniform work to lane 0, broadcast the result |
+| after O-34 | 1747 | conversions moved into Format A′'s reach, so the division's two `cvt`s mask |
+| after F-58 | 1587 | `select` lowers to a predicated move, not `sel` |
+| counter corrected | **1555** | a predicate-file op is not 32 lane activations |
+
+**The last row is a measurement fix, not a saving**, and it is listed because it
+changes a published number. `pand`/`por`/`pxor`/`pmov` read and write the
+predicate file — 32 bits, one per lane — and never touch a GPR lane. Charging
+them the same 32 activations as a warp-wide ALU operation overstated them by
+roughly the width of a lane. They are now counted separately, and the effect was
+large enough to invert a design conclusion: F-58's `pand` composition measured as
+a loss against the broken counter and as a modest win against the fixed one. Whether that
 is a win is a hardware question, not a compiler one, and O-33 records the answer
 it assumes: **a predicated-off lane must not toggle its ALU operands, its
 register-file write port, or its result bus.** If the RTL does not deliver that,
@@ -238,11 +250,11 @@ tile:
 ```
   tile  accs    instrs     bits b/instr  spills    fma sp/fma    K-hit
   -------------------------------------------------------------------------
-  1x1   1          174     4896    28.1      31     17   1.82      22%
-  1x2   2          256     7104    27.8      55     33   1.67      19%
-  2x2   4          381    10368    27.2      97     65   1.49      17%
-  2x4   8          637    17088    26.8     183    129   1.42      13%
-  4x4   16        1132    29936    26.4     407    257   1.58      13%
+  1x1   1          174     4848    27.9      31     17   1.82      22%
+  1x2   2          256     7056    27.6      55     33   1.67      19%
+  2x2   4          381    10304    27.0      97     65   1.49      19%
+  2x4   8          639    17104    26.8     186    129   1.44      13%
+  4x4   16        1132    29888    26.4     407    257   1.58      13%
 ```
 
 `sp/fma` — memory traffic the register file forced, per unit of arithmetic it

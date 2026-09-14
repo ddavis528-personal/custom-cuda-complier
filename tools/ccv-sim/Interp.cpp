@@ -577,6 +577,20 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     });
     break;
   }
+  // §4 point 18 under a qualifier. Two-address: rd is tied to the false arm,
+  // so invariant 10 -- a predicated write preserves the lanes the guard
+  // excludes -- IS the false arm. Nothing writes it and no lane activates for
+  // it. That is the whole reason a select does not need `sel` here (F-58).
+  case CCV::MOV_P: {
+    unsigned D = regOf(MI, 0), A = regOf(MI, 3);
+    uint32_t G = guardMask(W, uint32_t(MI.getOperand(2).getImm())) & Mask;
+    R.Active = G; R.ActiveSet = true;
+    forEachLane([&](unsigned L) {
+      if ((G >> L) & 1)
+        W.GPR[D][L] = W.GPR[A][L];
+    });
+    break;
+  }
   case CCV::FADD_P: case CCV::FSUB_P: case CCV::FMUL_P: {
     unsigned Base = Op == CCV::FADD_P ? CCV::FADD
                   : Op == CCV::FSUB_P ? CCV::FSUB : CCV::FMUL;

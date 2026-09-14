@@ -75,6 +75,27 @@ echo
 echo "  --- predicate idiom (O-24) ---"
 run_remat || fail=1
 
+# --- select lowers to a predicated move, not `sel` (F-58) ------------------
+# `sel` (§4 point 19) writes all 32 lanes and spends the qualifier on the
+# selector; a predicated `mov` writes only the guarded lanes (invariant 10) and
+# gives the same answer for the conditional-overwrite shape, which is every
+# select the compiler has ever generated here. The difference is 31 lane
+# activations and it is invisible in results, so nothing else would catch a
+# regression.
+echo
+echo "  --- select lowering ---"
+sel_out=$(build/ccv-llc test/accept/select-predicated.ll -o - 2>/dev/null)
+if echo "$sel_out" | grep -qw sel; then
+  echo "  FAIL  select lowered to \`sel\`, which activates all 32 lanes"
+  echo "$sel_out" | grep -w sel | sed 's/^/        /'
+  fail=1
+elif echo "$sel_out" | grep -q "@p[0-9] mov"; then
+  echo "  PASS  select lowers to a predicated move ($(echo "$sel_out" | grep -c "@p[0-9] mov") of them)"
+else
+  echo "  FAIL  select produced neither \`sel\` nor a predicated move"
+  fail=1
+fi
+
 # --- backend: what it accepts, and what it refuses LOUDLY ------------------
 # Invariant 11 means no register holds an address, so the backend consumes
 # address arithmetic before type legalization (F-20). That combine is a

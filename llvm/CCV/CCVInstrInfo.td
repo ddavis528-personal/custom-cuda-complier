@@ -244,6 +244,14 @@ defm MAX_U_P : AluRRP<aluOpc.MAX_U, "max.u">;
 defm MUL_HI_S_P : AluRRP<aluOpc.MUL_HI_S, "mul.hi.s">;
 defm MUL_HI_U_P : AluRRP<aluOpc.MUL_HI_U, "mul.hi.u">;
 
+// §4 point 18, Format A′. A predicated move writes only the lanes the
+// qualifier selects and preserves the rest (invariant 10), which is exactly
+// `sel rd, a, rd` -- see PSEUDO_PMOV below and F-58.
+let Constraints = "$rd = $false" in
+def MOV_P : FormatAp<aluOpc.MOV, (outs GPR:$rd),
+                     (ins GPR:$false, pqual:$pq, GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                     "@$pq mov $rd, $rs0">;
+
 def MADLO_P : FormatAp<aluOpc.MAD_LO, (outs GPR:$rd),
                        (ins pqual:$pq, GPR:$rs0, GPR:$rs1, GPR:$rs2),
                        "@$pq mad.lo $rd, $rs0, $rs1, $rs2">;
@@ -632,9 +640,19 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
   // The condition arrives as a predicate REGISTER, which is what allocation has
   // to see; §3 encodes it as a qualifier immediate. Same two-representation
   // problem as the compares, solved the same way.
-  def PSEUDO_SEL : CCVInst<0, (outs GPR:$rd),
-                           (ins PR:$cond, GPR:$a, GPR:$b),
-                           "# sel $rd, $cond, $a, $b">;
+  // `rd = cond ? a : false`, written two-address so that `rd` and the false
+  // source coalesce. That is what turns a select into a PREDICATED WRITE
+  // rather than a `sel`: invariant 10 preserves the excluded lanes, so the
+  // false arm needs no instruction and no lane activation.
+  //
+  // Every select the compiler generates across the benchmark set is this
+  // shape -- `sel rd, a, rd`, a conditional overwrite -- so `sel` itself
+  // (§4 point 19) currently buys nothing. It earns its point only on a general
+  // three-register select, which nothing has emitted yet. See F-58.
+  let Constraints = "$rd = $false" in
+  def PSEUDO_PMOV : CCVInst<0, (outs GPR:$rd),
+                            (ins GPR:$false, PR:$cond, GPR:$a),
+                            "# @$cond mov $rd, $a">;
 
   let isBranch = 1, isTerminator = 1 in
   def PSEUDO_BRA_PRED : CCVInst<0, (outs),

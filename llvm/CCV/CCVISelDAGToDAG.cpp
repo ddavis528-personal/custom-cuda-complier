@@ -211,9 +211,12 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     // (select cond, a, b) -- cond is an i1 in a predicate register.
     if (N->getValueType(0) != MVT::i32 && N->getValueType(0) != MVT::f32)
       break;
+    // Two-address: the FALSE arm is the tied input, so the excluded lanes keep
+    // it for free under invariant 10 and only the true arm needs a write.
+    // (select cond, a, b) -> PSEUDO_PMOV b, cond, a
     ReplaceNode(N, CurDAG->getMachineNode(
-                       CCV::PSEUDO_SEL, DL, N->getValueType(0),
-                       {N->getOperand(0), N->getOperand(1), N->getOperand(2)}));
+                       CCV::PSEUDO_PMOV, DL, N->getValueType(0),
+                       {N->getOperand(2), N->getOperand(0), N->getOperand(1)}));
     return;
   }
   case ISD::BRCOND: {

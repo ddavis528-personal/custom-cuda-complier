@@ -2636,13 +2636,31 @@ measured shares in `transpose`, the kernel with the most uniform work:
 
 | bound | `transpose` | what would fix it |
 |---|---|---|
-| `sel` spends `[29:27]` on data (§4 point 19) | **10** | a second predicate field — 2 bits a 32-bit format does not have. F-58 |
 | the SFU is at §4 256+, and A′ reaches 127 | **1** | `rcp.f32` has to come *below* 128; 128–255 is Format A only, so the range O-34 freed does not help. F-56 |
 | `srd` is Format K only (invariant 7) | 1 | nothing: a 16-bit instruction has no qualifier field by design |
 | a barrier must not be masked | 1 | nothing: this one is semantics, not encoding |
 
-The conversion row was 3 before O-34 moved conversions into 64–127 and gave them Format A′
-twins. What is left of it is one `rcp.f32`.
+Two rows left this table. The conversion row was 3 until O-34 moved conversions into 64–127
+and gave them Format A′ twins; one `rcp.f32` is what remains of it.
+
+**The `sel` row was 10, and it was the largest bound here — but it was not a bound at all.**
+F-58 read §4 point 19's qualifier-as-selector as a field contention: an instruction already
+predicated for control flow cannot also carry the lane mask, and a second predicate field is
+2 bits a 32-bit format does not have. Both halves were wrong.
+
+Every one of those ten is the shape `sel rd, a, rd` — a conditional overwrite — which is
+`@q mov rd, a` under **invariant 10**, at the same instruction count and writing only the
+guarded lanes instead of all 32. The compiler now emits that, and `sel` earns its opcode
+point only on a general three-register select, which nothing has yet generated.
+
+And predication composes. The qualifier names a predicate **register**, and the conjunction
+of two conditions is a predicate register: §3's `pand` is a 16-bit Format K instruction that
+computes exactly it. So even where the field is genuinely spent, the cost of also masking is
+one compressed instruction — not a format change. What that buys is small enough to be a
+judgement call (about 12 lane-activations per `pand`, against the 31 a plain masked
+instruction saves) and it depends on a predicate-file operation being much cheaper than a
+warp-wide one, so the compiler has it off by default. But "impossible" was never the right
+word, and this document said it.
 
 Plus control flow, which in the reduction kernels dominates everything above: a block not
 reached by every lane cannot have work masked *to* lane 0, because lane 0 might not be one

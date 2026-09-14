@@ -122,14 +122,16 @@ bool CCVExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
         break;
       }
 
-      case CCV::PSEUDO_SEL: {
-        // rs2 is unread by `sel`; tie it to rs0 rather than leave a third
-        // register live, as the other two-source Format A forms do.
-        BuildMI(MBB, MI, DL, TII->get(CCV::SEL), MI.getOperand(0).getReg())
-            .addImm(qualFor(MI.getOperand(1).getReg(), /*Negate=*/false))
-            .add(MI.getOperand(2))
-            .add(MI.getOperand(3))
-            .add(MI.getOperand(2));
+      case CCV::PSEUDO_PMOV: {
+        // operands: rd(tied), false, cond, a  ->  @cond mov rd, a
+        // rs1 is unread by `mov`; tie it to rs0 rather than leave a third
+        // register live, as the other Format A′ forms do.
+        BuildMI(MBB, MI, DL, TII->get(CCV::MOV_P), MI.getOperand(0).getReg())
+            .add(MI.getOperand(1))                                   // $false
+            .addImm(qualFor(MI.getOperand(2).getReg(), /*Negate=*/false))
+            .add(MI.getOperand(3))                                   // rs0 = a
+            .add(MI.getOperand(3))                                   // rs1, unread
+            .add(MI.getOperand(3));                                  // rs2, unread
         break;
       }
 

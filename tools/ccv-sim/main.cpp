@@ -49,6 +49,20 @@ static cl::list<std::string> Pokes("poke", cl::desc("addr=value, before run"),
 static cl::list<std::string> Peeks("peek", cl::desc("addr, after run"),
                                    cl::value_desc("hex"));
 
+/// Operations that read and write only the predicate file. A predicate is 32
+/// bits, one per lane (invariant 5), so these are narrow bitwise ops rather
+/// than 32 lanes of ALU -- they belong in their own counter, not in
+/// `lane-activations`, whose definition is GPR lanes that toggled. Compares are
+/// NOT here: they read GPRs.
+static bool isPredicateFileOp(unsigned Op) {
+  switch (Op) {
+  case CCV::PAND: case CCV::POR: case CCV::PXOR: case CCV::PMOV_IMM:
+    return true;
+  default:
+    return false;
+  }
+}
+
 int main(int argc, char **argv) {
   cl::ParseCommandLineOptions(argc, argv, "CCV functional simulator\n");
 
@@ -165,7 +179,21 @@ int main(int argc, char **argv) {
     ++C.IssueGroups;
     C.LaneInstrs += llvm::popcount(Mask);
     // Lanes that actually switched, after predication (O-33).
-    C.ActiveLanes += llvm::popcount(R.ActiveSet ? R.Active : Mask);
+    // A predicate-file operation does not activate a GPR lane.
+    //
+    // `lane-activations` is defined as the energy proxy for O-33: lanes that
+    // toggled ALU operands, a register-file write port or a result bus. A
+    // predicate is 32 bits, one per lane (invariant 5), so `pand` is a 32-bit
+    // bitwise AND on a narrow file -- 32 gates, not 32 ALU lanes. Charging it
+    // the same 32 as a vector operation overstates it by roughly the width of
+    // a lane, and it did: it made F-58's `pand` composition look like a loss
+    // when measured against the counter rather than against the machine.
+    //
+    // Counted separately rather than dropped, because it is not free either.
+    if (isPredicateFileOp(MI.getOpcode()))
+      ++C.PredOps;
+    else
+      C.ActiveLanes += llvm::popcount(R.ActiveSet ? R.Active : Mask);
     C.Bytes += Size;
     {
       const MCInstrDesc &D = MII->get(MI.getOpcode());
@@ -265,6 +293,8 @@ int main(int argc, char **argv) {
                      double(C.LaneInstrs) / std::max(1u, Threads), Threads)
            << format("  SIMT efficiency         %9.1f%%   (lanes active per issue, of %u)\n",
                      pct(C.LaneInstrs, C.IssueGroups * Threads), Threads)
+           << format("  predicate-file ops      %10llu   (no GPR lane activates)\n",
+                     (unsigned long long)C.PredOps)
            << format("  instruction bytes       %10llu\n", (unsigned long long)C.Bytes)
            << format("  dynamic bits/instr      %10.1f\n",
                      C.IssueGroups ? 8.0 * double(C.Bytes) / double(C.IssueGroups) : 0.0)
