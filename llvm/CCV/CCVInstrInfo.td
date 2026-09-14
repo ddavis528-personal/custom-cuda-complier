@@ -1,6 +1,6 @@
 //===-- CCVInstrInfo.td - CCV instruction definitions -------*- tablegen -*-===//
 //
-// Instruction set for docs/isa-v1.5-operation-map-and-encoding.md.
+// Instruction set for docs/isa-v1.6-operation-map-and-encoding.md.
 // Coverage goal for Step 1 is one instruction per format plus everything the
 // worked prologue in §5.5 needs -- not full opcode-map coverage. Opcode values
 // are taken from §3 and §4; where the spec lists a range without fixing points,
@@ -483,18 +483,18 @@ let isCodeGenOnly = 1 in {
   def ST_SHARED_W16 : FormatD<0b00011, (outs),
                              (ins GPR16:$rdata, GPR:$rbase, simm13:$off),
                              "st.shared $rdata, [$rbase + $off]">;
-  // `@earlyclobber $rdata`: the destination is at 16-bit width and the base and
-  // index are addresses at 32 (invariant 11). One physical register cannot be
-  // at two widths in one instruction, and without this the allocator assigns
-  // the index register as the destination -- which it did, producing
+  // No earlyclobber: the destination MAY share a register with the base or the
+  // index. §3 now says the base and index are read at 32 bits whatever the
+  // register's `chwidth` (O-39), so
   //
   //     chwidth   r2, 1
-  //     ld.global r2, [r3, r2, 0, 0]      ; r2 is both 16-bit data and index
+  //     ld.global r2, [r3, r2, 0, 0]
   //
-  // and leaving the width the ADDRESS is read at unspecified. §3 says the
-  // scale comes from `rdata`'s chwidth and says nothing about the index, so
-  // this is not something to resolve by reading it more carefully (F-68).
-  let mayLoad = 1, Constraints = "@earlyclobber $rdata" in
+  // is well defined -- the index read takes all 32 bits, which narrowing left
+  // intact because `chwidth` reinterprets rather than converts, and the load
+  // then writes the 16-bit element. An earlyclobber was there while F-68 was
+  // open and cost an extra register per narrow load.
+  let mayLoad = 1 in
   def LD_GLOBAL_IDX_W16 : FormatDidx<0b00100, (outs GPR16:$rdata),
                              (ins GPR:$rbase, GPR:$rindex, uimm2:$scale,
                               simm8:$disp),

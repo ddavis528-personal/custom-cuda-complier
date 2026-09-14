@@ -1,48 +1,85 @@
 # CCV Native ISA — Operation Map and Encoding
 
-**Version 1.5** · 12 September 2026
-
-> **Superseded by [v1.6](isa-v1.6-operation-map-and-encoding.md).** Kept as the decision
-> trail. Everything through O-33 is here; O-34 onward — the conversion block's arithmetic,
-> `rcp.u32`, the 48-bit Format A′ sibling, clear-on-widening, and §1a's obligations on the
-> implementation — is in 1.6.
+**Version 1.6** · 14 September 2026
 
 **CCV — Custom CUDA Vector processing unit.** A VPU, not a GPU: the machine is a
 data-parallel compute engine and nothing in this document serves rasterization, texture or
-any other fixed-function graphics work. Earlier revisions of this specification named no
-machine at all, and the backend carried a working name of `CCG` whose "G" was never written
-down anywhere and did not survive being asked about. Renamed at the v1.5 audit.
+any other fixed-function graphics work. Revisions up to 1.4 named no machine at all, and the
+backend carried a working name of `CCG` whose "G" was never written down anywhere and did
+not survive being asked about.
 
 The compatibility contract is at the PTX / CUDA Runtime API level, so this ISA carries no
 PTX or SASS encoding constraints. A purpose-built CUDA compiler is the bridge.
 
 All bit maps in §3 have been checked for field-width mismatch, overlap and gaps, and are
-now checked mechanically rather than by reading. One parameter remains provisional — the
-predicate count — and is marked as such in §1. Open items are in §8; §9 is the decision log
-recording what was settled and why.
+checked mechanically rather than by reading. One parameter remains provisional — the
+predicate count — and is marked as such in §1. §9 is the decision log recording what was
+settled and why; §10 and §11 hold what is out of scope and what is deferred.
 
-**Changes since 1.4.**
+**§1a states three obligations this specification places on the implementation** and cannot
+check from the compiler side. One of them is a security requirement. Read that section
+before building anything.
 
-A short revision. No encoding changes at all — two parameters settle and one idiom is
-documented.
+---
 
-*Settled.* **The GPR count is 16, not provisional.** §1 previously carried four arguments
-pointing at 32. Argument 1 is retired — it was an artifact of naming a register group with a
-single field, which Format H need not do. Arguments 3 and 4 were dissolved by O-23, which
-removed the work they were measuring. Argument 2 survives but binds only on kernels holding
-three or more widths live at once. Against that, the cost of widening is now known exactly:
-three coordinated encoding changes, not one field. The one live risk — GEMM accumulator
-blocking under FP32 — is recorded, along with the response if it materialises, which is a
-warp-uniform register file rather than more GPRs. See O-25.
+## Changes since 1.5
 
-*Documented.* **The all-true predicate should be written into the compare's own
-destination.** O-24 established that every compare needs a guard and a kernel must
-manufacture one. What it did not say is that this applies to **every semantically
-unpredicated compare**, not once per kernel — so holding a true predicate live across a
-compare-heavy region would cost a quarter of a four-entry file. Targeting the compare's own
-destination, `por Pd, !Pd, Pd` then `@Pd setp Pd, …`, uses **one** predicate rather than two
-and keeps the effective file at four. Verified on the simulator, including
-re-materialisation from a mixed mask. See O-24.
+**1.5 was a short revision that changed no encoding. 1.6 is not.** Every change below came
+from compiler work that ran into something the document did not say, and each is recorded
+with the measurement that forced it.
+
+### The encoding
+
+**Conversions move from points 128+ to 64–127 and get an arithmetic (O-34).** §4 gave the
+conversion block a *count* — bases × source codes × rounding modes — and never said which
+number any conversion gets, so the backend assigned four points flat and nothing could have
+caught it. The destination is now a 2-bit **format code** read against the destination
+register's `chwidth`, symmetric with the source, which halves the block to 64 points and
+**removes an invariant-1 violation**: the old `cvt2fp32`/`cvt2fp16` bases differed only in
+element width, which is an element-width field sitting in an opcode.
+
+**`dp4`/`dp8` move to 48–63**, the points `32 + 8×format + op` generates for the two
+reserved FP format codes. The FP rule's domain is now `format ∈ {00, 01}`, and 0–127 is
+packed solid.
+
+**`rcp.u32` at point 263 (O-35)** — an integer reciprocal seed under a 16-bit
+relative-accuracy contract, never over-estimating. It exists because the fp32 round trip
+cost four instructions of format crossing, and because **a more accurate `rcp.f32` would
+have bought nothing**: fp32's 24-bit significand is what forces the Newton step, not the
+unit's error.
+
+**Format A′ gets a 48-bit sibling (O-37).** A′'s 7-bit opcode reached points 0–127 and O-34
+had just filled that range, so the predicated tier had nowhere left to grow. The long form
+carries the full 10-bit opcode and encodes **exactly points 128–1023** — `opcode[9:7] ≠ 000`
+is a constraint on the field, because at `000` it would duplicate encodings the 32-bit form
+already has. No new format tag: tag `0001` at length `11` was free.
+
+### Semantics the document did not state
+
+**Widening a narrow register clears the bits it exposes (O-38).** Nothing said what the bits
+above a narrow element held after a width change. They are cleared, and **the reason is
+security**: the register file is partitioned between resident warps and reused across kernel
+launches, so stale bits in a reclaimed slice are another warp's data or the previous
+kernel's, readable through an ordinary unprivileged instruction.
+
+**`rbase` and `rindex` are read at 32 bits whatever their own `chwidth` (O-39).** §3 took
+the addressing scale from `rdata`'s width and said nothing about the address registers.
+Invariant 11 implied the answer; it is now written down.
+
+### Not an encoding change, but the largest thing in this revision
+
+**§1a — three obligations on the implementation.** O-33's lane gating, F-58's cheap
+predicate logic, and O-38's clear-on-widening. The first two are performance assumptions
+that cost their benefit if wrong; the third is a correctness and security requirement. They
+were scattered across three decision-log entries; they are now one section, because the
+compiler emits code that depends on all three and can verify none of them.
+
+### Software, for the record
+
+`fdiv` is a software sequence over `rcp.f32` and `ffma` (O-36) — correctly rounded whenever
+the result is normal, about 30 instructions, and **no hardware divider**, whose latency would
+complicate scheduling. Integer division is 17 instructions. Neither is an encoding change;
+both are recorded because they are why the SFU points exist.
 
 ---
 
@@ -134,6 +171,11 @@ consequences follow throughout this document:
 
 - **A predicate register is 32 bits — one bit per lane — at every width.** Predicates do not
   narrow with `chwidth` and have no internal structure to address.
+- **Widening a register clears the bits the widening exposes.** A `chwidth` to a wider
+  element zero-fills the part of the row slice that was outside the old element. This is a
+  **security requirement**, not a convenience: the register file is partitioned between
+  resident warps and reused across kernel launches, so bits left over from whatever last
+  occupied that slice are another warp's data or the previous kernel's. See O-38.
 - **No register has sub-lane structure.** A register's elements are one per lane, always.
   Three instructions do address positions inside a lane — `packi`, `unpacki` and `dp4`/`dp8`
   — but they do so from an opcode or an immediate, on ordinary full-width registers. The
@@ -146,6 +188,59 @@ equivalent, an unpredicated instruction cannot be expressed as "predicated on tr
 Every predicated operation therefore requires a distinct unpredicated encoding. This is
 the structural reason the A/A′/A″ and B/B′/B″ ladders, and the D/D′ pair, exist as separate
 formats rather than one format with an optional field.
+
+---
+
+## 1a. Obligations on the implementation
+
+Three properties the compiler depends on, emits code against, and **cannot verify**. They
+were scattered across three decision-log entries; they are collected here because a reader
+building the machine needs all three and will not find them by reading §3.
+
+They are not the same kind of obligation, and the difference matters more than the list.
+
+### 1. A predicated-off lane must not switch (O-33)
+
+> A lane excluded by the predicate qualifier must not toggle its ALU operands, its
+> register-file write port, or its result bus.
+
+`ccv-mask-uniform` runs warp-uniform work on lane 0 and broadcasts the result, which cuts
+lane-activations by about a third on an addressing-heavy kernel. Gating only the *write* is
+not enough: the extra issued lane slots buy nothing and the whole saving collapses into a
+code-size regression.
+
+**Cost if wrong:** the benefit, and a few instructions per kernel. Detectable in silicon by
+measuring; not detectable from here.
+
+### 2. Predicate-file logic must be much cheaper than warp-wide logic (F-58)
+
+> `pand`/`por`/`pxor` must cost far less than an instruction that drives the vector
+> datapath.
+
+A predicate is 32 bits, one per lane (invariant 5), so `pand` is 32 AND gates against 32
+lanes of 32-bit datapath and the ratio should be about the width of a lane. The compiler
+spends one `pand` per guarded value to mask instructions that already carry a control-flow
+predicate. If predicate logic runs through the vector path instead, that is a loss of a few
+instructions per kernel.
+
+**Cost if wrong:** one optimisation, withdrawn by `-ccv-mask-compose=false` without
+touching anything else.
+
+### 3. Widening a register must clear the bits it exposes (O-38)
+
+> A `chwidth` to a wider element zero-fills the part of the row slice that was outside the
+> old element.
+
+**This one is not a performance assumption.** §1 makes a narrow register a narrower physical
+slice of a row, so the bits above the element hold whatever last occupied that slice — and
+the register file is partitioned between resident warps and reused across kernel launches
+without being scrubbed. Handing those bits back on a width change is a cross-context read of
+another warp's data or the previous kernel's, through an ordinary unprivileged instruction.
+
+A machine that skips the clear is not slower. It leaks.
+
+**Cost if wrong:** an information-disclosure channel between mutually distrusting contexts
+on the same device, and a compiler that has been emitting zero-extensions which are not.
 
 ---
 
@@ -208,7 +303,9 @@ several of them have no slack at all.
 
 | Tag | 32-bit | 48-bit |
 |---|---|---|
-| `0000`–`0010` | A / A′ / A″ | — (no immediate to widen) |
+| `0000` | A | — (already carries the full 10-bit opcode) |
+| `0001` | A′ | **A′ long** — opcode extension, not an immediate (O-37) |
+| `0010` | A″ | — (reaches 0–31, which is where its subset lives) |
 | `0011`–`0101` | B / B′ / B″ | wide-immediate siblings |
 | `0110` | C | — |
 | `0111` | C′ | wide-immediate sibling |
@@ -416,6 +513,51 @@ is interpreted per-tier.
 | `[31:30]` | 2 | `opcode[9:8]` | `opcode[6:5]` | **pred dest** |
 
 Resulting opcode widths: **A = 10 bits**, **A′ = 7 bits**, **A″ = 5 bits**.
+
+#### Format A′ long — 48-bit predicated ALU (O-37)
+
+A′'s seven bits reach opcode points 0–127. Everything above — the conversions before O-34
+moved them, and the SFU at 256+ — is Format A only and cannot carry a qualifier. This is
+A′'s 48-bit sibling, and it closes that gap for the whole map at once.
+
+| Bits | Width | Field |
+|---|---|---|
+| `[1:0]` | 2 | length = `11` (48-bit) |
+| `[5:2]` | 4 | fmt = `0001` — the same tag as 32-bit A′ |
+| `[10:6]` | 5 | `opcode[4:0]` |
+| `[14:11]` | 4 | `rd` |
+| `[18:15]` | 4 | `rs0` |
+| `[22:19]` | 4 | `rs1` |
+| `[26:23]` | 4 | `rs2` |
+| `[29:27]` | 3 | **predicate qualifier** |
+| `[31:30]` | 2 | `opcode[6:5]` |
+| `[34:32]` | 3 | **`opcode[9:7]` — must not be `000`** |
+| `[36:35]` | 2 | reserved, named for a future predicate destination |
+| `[47:37]` | 11 | reserved |
+
+**The low 32 bits are bit-identical to a 32-bit A′ instruction.** Every invariant-8 position
+holds and the decoder for the first halfword pair is unchanged; the opcode becomes a
+three-piece splice instead of two.
+
+**`opcode[9:7]` ≠ `000` is a constraint on the field, not a convention.** With those bits
+zero the form would encode points 0–127, which the 32-bit A′ already encodes — two encodings
+of one instruction, which invariant 7's second sentence forbids and which would hand the
+round trip a canonicalization question with no answer. So the long form encodes **exactly
+points 128–1023**, complementary to the short form rather than overlapping it.
+`tools/check-encoding.py` asserts it; an assembler emitting the long form for an opcode
+below 128 is a bug, not a size preference.
+
+**Invariant 7 is satisfied at minimum length, not despite waste.** The content is 35 bits — a
+32-bit A′ plus three opcode bits — and 48 is the shortest length available at 16-bit
+granularity. The reserved bits are a rounding artifact, exactly as `pmov`'s six are.
+
+**`[36:35]` is reserved *for* a predicate destination rather than merely reserved.** Nothing
+needs it: the intersection of "opcode above 127" and "produces a status predicate" looks
+genuinely empty rather than unmeasured, because the SFU and conversions have no status output
+and A″'s status-producing arithmetic lives in 0–31 by construction. Naming the two bits
+anyway costs nothing and stops two implementations allocating them differently — O-28's
+argument applied to reserved space.
+
 
 The point of this arrangement is that `rd`, `rs0`, `rs1`, `rs2` and `opcode[4:0]` are at
 identical positions in all three tiers, and the predicate qualifier is at an identical
@@ -661,6 +803,12 @@ it is the rarest of the four and the index register carries most of the addressi
 
 Transfer size is inherited from `rdata`'s `chwidth` — no size field. Address space is in
 the opcode.
+
+**`rbase` and `rindex` are read at 32 bits, whatever their own `chwidth`** (O-39). They are
+address components, and invariant 11 keeps addresses outside the element-width model
+entirely; only `rdata` is narrow. A consequence worth stating because a compiler will rely
+on it: `rdata` may name the same register as `rbase` or `rindex`, since the address read
+takes all 32 bits and the narrow write lands inside them.
 
 Effective address in the base+index modes is `rbase + (rindex << scale) + disp`, where
 `scale` is `log2(element_size)` taken from `rdata`'s current `chwidth` when bit `[23]` is
@@ -967,8 +1115,16 @@ of pressure, on a machine with only 16. The sibling costs 16 bits and no registe
 means B/B′/B″ do not need generous 32-bit immediates "just in case," which is what let the
 short forms stay tight enough to fit the field-alignment scheme in the first place.
 
-Formats with no immediate — A, A′, A″, C, E, G — have no 48-bit rendering. There would be
+Formats with no immediate — A, A″, C, E, G — have no 48-bit rendering. There would be
 nothing to put in the extra halfword, and invariant 7 forbids reserved-bit padding.
+
+**Format A′ is the exception, and it is the same rule rather than a break from it.** Its
+48-bit sibling extends an **opcode** where B, C′, D, D′ and F extend an **immediate** — so
+the sibling rule reads "a 48-bit instruction is its 32-bit sibling with 16 more *bits* at
+`[47:32]`", not "16 more *immediate* bits". A′ is the one tier whose reach is narrower than
+the operations that want it: 7 opcode bits against Format A's 10. A and A″ have no long form
+because neither is short of reach — A already has all ten bits, and A″'s bounded subset
+genuinely lives in 0–31. See O-37.
 
 Two qualifications. Format I is absent from the table but *does* have a 48-bit form: `pmov`
 carries a 32-bit lane mask and exists only at that length, while `chwidth.multi` exists only
@@ -1155,10 +1311,20 @@ predicate. Drain semantics belong to the operation, never to the format.
 | Range | Contents | Reachable from |
 |---|---|---|
 | 0–31 | integer, bitwise, misc | A, A′, A″ |
-| 32–63 | floating point (8 ops × 4 format codes) | A, A′ |
-| 64–127 | packed dot-product-accumulate | A, A′ |
-| 128–255 | conversions | A only |
-| 256–1023 | unallocated — SFU and future extension | A only |
+| 32–47 | floating point, 8 ops × format codes `00`/`01` | A, A′ |
+| 48–63 | packed dot-product-accumulate | A, A′ |
+| 64–127 | conversions, `64 + 16×dest + 4×src + round` | A, A′ |
+| 128–255 | unallocated — freed by O-34, previously conversions | A only |
+| 256–1023 | SFU (256–263 allocated) and future extension | A only |
+
+**Everything below 128 is now allocated solid.** O-34 packed 32–127 so that
+conversions and packed dot-product could both keep a predicated encoding rather
+than compete for one range. The consequence is that the two rules that generate
+opcodes in this span — `32 + 8×format + op` and `64 + 16×dest + 4×src + round` —
+are adjacent with no gap, and the first one's domain is now **format ∈ {`00`,
+`01`} only**. `tools/check-encoding.py` rejects any instruction that lands in
+48–63 without being `dp4`/`dp8`, because both sides of that collision would be
+well-formed Format A and the decoder would accept either silently.
 
 Per the tier allocation rule, A′'s 7-bit opcode reaches the low 128 and A″'s 5-bit opcode
 the low 32. Operations that want predication therefore have to live low, which is why the
@@ -1178,15 +1344,20 @@ ordering above is a constraint on the map rather than a description of it.
 | 5 | `mad.lo` | 12 | `shr` | 19 | `sel` | 26–31 | free |
 | 6 | `mad.hi` | 13 | `sra` | 20 | `abs` | | |
 
-### Floating point — points 32–63
+### Floating point — points 32–47
 
-8 operations × 4 format codes:
+8 operations × format codes `00` and `01`:
 
 `fadd`, `fsub`, `fmul`, `ffma`, `fmin`, `fmax`, `fneg`, `fabs`
 
 The opcode is `32 + 8×format + op`, with `op` indexing the eight operations in the order
 listed and `format` the 2-bit format code — so each format code owns a contiguous block of
 eight. `ffma.f0` is therefore 35, which is what the backend already assumed. O-28.
+
+**The rule's domain is `format` ∈ {`00`, `01`}.** Codes `10` and `11` are reserved at every
+`chwidth` (below) and the points the rule would generate for them — 48–63 — went to
+`dp4`/`dp8` in O-34. Allocating a third or fourth FP format code now requires moving `dp`
+first; it is not a free extension.
 
 FP format is encoded in the **format code** rather than as a separate field —
 per-instruction, as settled, but at zero additional field cost:
@@ -1204,7 +1375,7 @@ applied to width mismatches generally.
 
 ---
 
-### Packed dot-product-accumulate — points 64–127
+### Packed dot-product-accumulate — points 48–63
 
 | Opcode | Operation |
 |---|---|
@@ -1227,8 +1398,14 @@ the *register* and therefore leaked into shuffles, compares, predicates and allo
 Mixed signedness matters: quantized inference commonly pairs unsigned activations with
 signed weights, so all four combinations get a point.
 
-Living at 64–127 makes these reachable from A′ (predicated) but not A″, which is correct —
+Living at 48–63 makes these reachable from A′ (predicated) but not A″, which is correct —
 a dot product has no status output to write.
+
+**These were at 64–127 until O-34**, which needed that range for the conversion product and
+found 48–63 free: it is what `32 + 8×format + op` generates for FP format codes `10` and
+`11`, which are reserved at every `chwidth` and hold nothing. Eight points are used of
+sixteen. The cost is not paid by `dp` — it keeps its predicated tier — but by the FP block,
+whose two spare format codes are now spoken for.
 
 **`mad.lo` remains the alternative**, with `rs0`/`rs1` at narrow `chwidth` and `rs2`/`rd`
 wide: one MAC per lane, no packing anywhere. It costs roughly 3× the instructions of `dp4`
@@ -1238,30 +1415,111 @@ See O-15.
 Shifts are uniform-amount only: one shift count broadcast across all packed elements, no
 cross-element bit movement.
 
-### Conversions — points 128+ (extension space)
+### Conversions — points 64–127
 
-The destination format is **part of the opcode**; the source format rides in the low 2 bits
-of the opcode as it does for every other FP operation. Widths come from the source and
-destination registers' `chwidth` as usual, so the instruction never names a width.
+Both formats are **2-bit format codes**, read against their own register's `chwidth` exactly
+as `fadd.f0`'s format code is. The instruction names no width, which is invariant 1.
 
-| Opcode base | Destination |
+| Code | Read at that register's `chwidth` |
 |---|---|
-| `cvt2fp32` | IEEE binary32 |
-| `cvt2fp16` | IEEE binary16 |
-| `cvt2bf16` | BF16 |
-| `cvt2e4m3` | FP8 E4M3 |
-| `cvt2e5m2` | FP8 E5M2 |
-| `cvt2e2m1` | FP4 E2M1 |
-| `cvt2int.s` / `cvt2int.u` | signed / unsigned integer |
+| `00` | FP format 0 — FP32 / FP16 / E4M3 / E2M1 |
+| `01` | FP format 1 — BF16 / E5M2 (reserved at 32-bit and 4-bit) |
+| `10` | **signed integer** — s32 / s16 / s8 / s4 |
+| `11` | **unsigned integer** — u32 / u16 / u8 / u4 |
 
-Each base × 4 source-format codes × 4 rounding modes = 128 points, sitting well inside the
-extension space. **This resolves O-2** — the two-format problem disappears because the two
-formats never have to share one field: one is the opcode, the other is the opcode's low
-bits. No new format, no new field.
+Codes `00` and `01` are the FP format table above, unchanged. Codes `10` and `11` were
+reserved there and are allocated here, which is why an integer source needs no new
+mechanism — it was always expressible, just never assigned.
 
-Conversions live above point 128 and are therefore not reachable from A′ or A″. Predicated
-conversions would need a `mov` under predication instead, which is the right trade for an
-operation this rare.
+**The arithmetic is normative** (O-34, applying O-28 to the third range that needed a rule
+rather than a list):
+
+```
+opcode = 64 + 16×dest + 4×src + round
+```
+
+| Field | Width | Values |
+|---|---|---|
+| `dest` | 2 | format code, read at the **destination** register's `chwidth` |
+| `src` | 2 | format code, read at the **source** register's `chwidth` |
+| `round` | 2 | `rn` 0, `rz` 1, `rm` 2, `rp` 3 |
+
+`dest` and `src` are adjacent so the pair forms one 4-bit field naming the conversion path,
+which is what a converter datapath selects on. Rounding is rounding-logic control and sits
+in the low bits. 2 + 2 + 2 = 6 bits fills 64–127 exactly.
+
+Worked points:
+
+| | `dest` | `src` | `round` | opcode |
+|---|---|---|---|---|
+| `cvt.f32.s32` | `00` | `10` | `rn` | 64 + 0 + 8 + 0 = **72** |
+| `cvt.f32.u32` | `00` | `11` | `rn` | 64 + 0 + 12 + 0 = **76** |
+| `cvt.s32.f32` | `10` | `00` | `rz` | 64 + 32 + 0 + 1 = **97** |
+| `cvt.u32.f32` | `11` | `00` | `rz` | 64 + 48 + 0 + 1 = **113** |
+| `cvt.bf16.f32` | `01` | `00` | `rn` | 64 + 16 + 0 + 0 = **80** |
+| `cvt.e4m3.f16` | `00` | `00` | `rn` | 64 + 0 + 0 + 0 = **64** |
+| `cvt.s32.s8` | `10` | `10` | — | 64 + 32 + 8 + 0 = **104** |
+
+The last row is a real instruction, not a formality: `chwidth` reinterprets a register's
+elements rather than extending them, so widening an integer is a conversion. Mixed-`chwidth`
+operands are established practice — see `mad.lo`, which reads narrow and writes wide.
+
+**Rounding is meaningless on some combinations** — integer to integer has nothing to round.
+Those points are reserved rather than reclaimed: the block is a product, and carving
+exceptions out of a product costs more than the dead space.
+
+**Being inside 64–127 puts conversions within Format A′'s 7-bit opcode**, so they can carry a
+predicate qualifier. That is what O-33's lane-0 masking needs and what the previous
+placement at 128+ denied it.
+
+**This resolves O-2, and O-34 amends how.** The destination format is still in the opcode
+and the source format still in its low bits, so the two never share a field and there is
+nothing to disambiguate. What changed is that the destination is a *code within* the opcode
+rather than one of eight bases. The eight-base scheme (`cvt2fp32`, `cvt2fp16`, `cvt2bf16`, …)
+distinguished its FP destinations **by element width**, which is an element-width field in
+the opcode and therefore a violation of invariant 1 — and it left `cvt2fp16` targeting a
+32-bit register with no defined meaning. The format-code scheme has no such case.
+
+### SFU — points 256+
+
+| pt | | pt | |
+|---|---|---|---|
+| 256 | `rcp.f32` | 260 | `lg2.f32` |
+| 257 | `rsqrt.f32` | 261 | `sin.f32` |
+| 258 | `sqrt.f32` | 262 | `cos.f32` |
+| 259 | `ex2.f32` | 263 | **`rcp.u32`** — integer reciprocal seed (O-35) |
+
+Accuracy of the floating-point set is implementation-defined and approximate, as on every
+machine that has one. `rcp.u32` is the exception: it carries a **contract**, because a
+compiler-generated sequence depends on it and cannot check it.
+
+**`rcp.u32 rd, rs`** returns an under-estimate of ⌊2³²/`rs`⌋ with 16 bits of relative
+accuracy:
+
+> ⌊2³²/`rs`⌋ · (1 − 2⁻¹⁶) ≤ `rd` ≤ ⌊2³²/`rs`⌋
+
+Both halves bind.
+
+**Relative, not absolute.** A reciprocal unit produces N correct leading bits, so the
+absolute error scales with the result and a large divisor — whose reciprocal is small — is
+cheap to get right. An absolute bound would demand that a 16-bit unit return garbage for
+`rs` = 2³¹, where the true answer is 2.
+
+**Never an over-estimate.** The Newton step that follows converges only from below: if the
+seed exceeds 2³²/d then `e·d` wraps past 2³² and the correction term becomes huge instead of
+small, pushing the estimate further out. This is the same requirement that makes O-31's fp32
+path scale by `0x4F7FFFFE` rather than by 2³²; it is now the hardware's to honour rather
+than the compiler's to engineer around.
+
+**Sixteen is measured, not chosen.** `tools/model-rcp.py` runs the full sequence against
+exact integer division over the edge cases and a large random sample, at every accuracy from
+one bit upward. Sixteen is the least that is exact — which is what one Newton step doubling
+to 32 predicts — and `tools/check-div.sh` fails on eight cases at fifteen. The simulator
+returns the **worst value the contract permits**, so the gate tests the bound rather than a
+convenient implementation.
+
+**The result for `rs` = 0 is unspecified.** Division by zero is poison at the language level
+and nothing in the sequence loops, so no behaviour needs pinning.
 
 ## 5. Execution environment and launch ABI
 
@@ -1781,10 +2039,15 @@ everywhere: A/A′/A″, B/B′/B″, D/D′. Format D got tag `1101`, freed by 
 deletions. Consequence: the prime suffix now means "predicated" consistently, so the old
 Format D′ (atomics) was renamed **Format M**, with the 48-bit CAS form as M′.
 
-**O-2 — `cvt` two format specifiers — resolved.** Destination format is the opcode
-(`cvt2e4m3`, `cvt2bf16`, …); source format is the opcode's low 2 bits, exactly as for every
-other FP operation. Widths come from `chwidth` on each register. The two formats never
-share a field, so there is nothing to disambiguate. See §4.
+**O-2 — `cvt` two format specifiers — resolved; amended by O-34.** Destination format is in
+the opcode, source format in its low bits, widths from `chwidth` on each register. The two
+formats never share a field, so there is nothing to disambiguate.
+
+**O-34 amends how the destination half is spelled**, and does not reverse this. The original
+form named eight destination *bases* (`cvt2e4m3`, `cvt2bf16`, …); the destination is now a
+2-bit format code read against the destination register's `chwidth`, symmetric with the
+source. The reason is invariant 1: `cvt2fp32` and `cvt2fp16` differ only in element width,
+so the base was an element-width field in the opcode. See §4 and O-34.
 
 **O-3 — SFU operations — resolved.** Format A's opcode is now 10 bits (1024 points) with only
 64 allocated. `rcp`, `rsqrt`, `ex2`, `lg2`, `sin`, `cos` and their rounding-mode variants
@@ -2541,15 +2804,32 @@ gates mask-off lanes — clock-gated, operand-isolated, or both. If predicated-o
 burn dynamic power, this transformation costs one broadcast per region and returns
 **nothing**.
 
-That is an obligation on the implementation, recorded here because it is invisible at this
-level and easy to lose between here and RTL:
+Those are obligations on the implementation, recorded here because they are invisible at
+this level and easy to lose between here and RTL. **There are two of them**, and the
+compiler now generates code by default that depends on both:
 
-> **Lane gating is required, not optional.** A predicated-off lane must not toggle its ALU
-> operands, its register-file write port, or its result bus. The compiler is now generating
-> code whose entire value rests on it.
+> **1. Lane gating is required, not optional.** A predicated-off lane must not toggle its
+> ALU operands, its register-file write port, or its result bus. Gating only the *write* is
+> not enough. Everything O-33 does rests on this.
+>
+> **2. Predicate-file logic must be much cheaper than warp-wide logic.** A predicate is 32
+> bits, one per lane (invariant 5), so `pand`/`por`/`pxor` are 32 gates against 32 lanes of
+> 32-bit datapath, and the ratio should be about the width of a lane. F-58's composition —
+> masking an instruction that already carries a control-flow predicate, by computing the
+> conjunction with `pand` — spends one compressed instruction per guarded value on that
+> assumption. If predicate logic runs through the vector path instead, that part is a loss.
+
+The second is the cheaper one to be wrong about: it costs the `pand` composition alone, and
+`-ccv-mask-compose=false` withdraws it without touching the rest. The first, if it fails,
+makes the whole scheme a code-size regression and nothing else.
 
 The measurement below is in **lane-activations** — lanes that actually did work — precisely
-so that the thing the hardware must deliver is what the tooling counts.
+so that the thing the hardware must deliver is what the tooling counts. **And a counter that
+measures the wrong thing hides exactly this**: predicate-file operations were being charged
+32 lane-activations each, which is the cost of a vector operation, and that made the `pand`
+composition read as a loss (1587 → 1685) when it is a win (1555 → 1493). See F-60. A number
+defined as an energy proxy has to be audited against its own definition, not just kept
+consistent.
 
 ---
 
@@ -2575,10 +2855,31 @@ measured shares in `transpose`, the kernel with the most uniform work:
 
 | bound | `transpose` | what would fix it |
 |---|---|---|
-| `sel` spends `[29:27]` on data (§4 point 19) | **10** | a second predicate field — 2 bits a 32-bit format does not have. F-58 |
-| §4 puts conversions at 128+ and the SFU at 256+ | **3** | relocate the five points the compiler uses into 64–127. F-56, blocked on F-59 |
+| the SFU is at §4 256+, and A′ reaches 127 | **1** | `rcp.f32` has to come *below* 128; 128–255 is Format A only, so the range O-34 freed does not help. F-56 |
 | `srd` is Format K only (invariant 7) | 1 | nothing: a 16-bit instruction has no qualifier field by design |
 | a barrier must not be masked | 1 | nothing: this one is semantics, not encoding |
+
+Two rows left this table. The conversion row was 3 until O-34 moved conversions into 64–127
+and gave them Format A′ twins; one `rcp.f32` is what remains of it.
+
+**The `sel` row was 10, and it was the largest bound here — but it was not a bound at all.**
+F-58 read §4 point 19's qualifier-as-selector as a field contention: an instruction already
+predicated for control flow cannot also carry the lane mask, and a second predicate field is
+2 bits a 32-bit format does not have. Both halves were wrong.
+
+Every one of those ten is the shape `sel rd, a, rd` — a conditional overwrite — which is
+`@q mov rd, a` under **invariant 10**, at the same instruction count and writing only the
+guarded lanes instead of all 32. The compiler now emits that, and `sel` earns its opcode
+point only on a general three-register select, which nothing has yet generated.
+
+And predication composes. The qualifier names a predicate **register**, and the conjunction
+of two conditions is a predicate register: §3's `pand` is a 16-bit Format K instruction that
+computes exactly it. So even where the field is genuinely spent, the cost of also masking is
+one compressed instruction — not a format change. It buys about 12 lane-activations per
+`pand` against the 31 a plainly masked instruction saves, which made it a judgement call
+rather than an obvious one; it is **on**, and the obligation it spends — a predicate-file
+operation costing much less than a warp-wide one — is recorded as the second RTL property
+above. But "impossible" was never the right word, and this document said it.
 
 Plus control flow, which in the reduction kernels dominates everything above: a block not
 reached by every lane cannot have work masked *to* lane 0, because lane 0 might not be one
@@ -2610,6 +2911,295 @@ O-32 removing the manufactured guards is most of why it is free.
 
 
 
+
+**O-34 — The conversion block gets an arithmetic, a format-code destination, and Format A′.**
+
+Three things, from a compiler-side proposal (`proposals/conversion-encoding.md`) and the
+design-track decision on it.
+
+**1. It had a count and no rule.** §4 described the conversion block as a product — bases ×
+source-format codes × rounding modes = 128 points — and never said which number any
+conversion gets. O-28 had already settled that numbering is normative, *"two independent
+implementations picking different orders would produce silently incompatible binaries"*, and
+supplied rules for the two ranges where list order was not enough. Conversions are a third
+such range and were missed. The backend, having nothing to read, assigned 128–131 flat.
+
+**2. The destination is a format code, not a base — and this is a correction, not a
+compression.** The eight bases (`cvt2fp32`, `cvt2fp16`, `cvt2bf16`, `cvt2e4m3`, `cvt2e5m2`,
+`cvt2e2m1`, `cvt2int.s`, `cvt2int.u`) distinguished their FP members **by element width**.
+That is an element-width field sitting in the opcode, and **invariant 1 says no instruction
+carries one.** It also left a case the specification had no rule for: `cvt2fp16` targeting a
+register whose `chwidth` is 32. Under invariant 1 the register wins, so the mnemonic is
+simply wrong, and there was no clean answer available.
+
+A 2-bit destination code read against the destination register's `chwidth` removes the case
+entirely — identical mechanism to `fadd.f0`, which is already FP32, FP16 or E4M3 depending
+on the register. That it also halves the block from 128 points to 64 is a consequence, not
+the argument. The proposal led with the halving and with F-56; the decision was taken on
+invariant 1, which stands without either.
+
+Source codes `10`/`11` become signed and unsigned integer. Bit `[1]` then reads as "integer
+rather than FP" and bit `[0]` as "the variant" — BF16/E5M2 on one side, unsigned on the
+other — which extends the existing table's structure rather than sitting beside it.
+
+**3. `dp4`/`dp8` did not have to be demoted.** The proposal posed 64–127 as a contest
+between conversions and packed dot-product, with `dp` moving above 128 and losing its
+predicated tier. It is not a contest: `32 + 8×format + op` generates 48–63 for FP format
+codes `10` and `11`, which are reserved at every `chwidth` and hold nothing. `dp` needs
+eight of those sixteen points and both ranges stay inside A′'s ceiling.
+
+**What that actually costs is the two spare FP format codes**, which is the trade worth
+arguing about rather than `dp` predication. With MXFP, FP6 and further FP8 variants active
+in the field it is a real forward-compatibility cost. Accepted on the judgement that a third
+FP format code is not expected within this machine's life; if that changes, `dp` moves above
+128 then, and the proposal's argument for why it is the right thing to demote applies
+unchanged.
+
+**Resulting map below 128:** 0–31 integer, 32–47 FP at codes `00`/`01`, 48–63 `dp`, 64–127
+conversions. Solid, with no spare. Two adjacent generating rules and no gap between them is
+a hazard — an FP instruction emitted at format code `10` lands on a `dp` opcode, and both
+are well-formed Format A, so the decoder accepts either without complaint. The decision
+document called that a documentation wart. It is checkable, so `tools/check-encoding.py`
+checks it: any instruction landing in 48–63 that is not `dp4`/`dp8` is an error, and so is
+any two instructions sharing a point in 32–127.
+
+**Effect on F-56, stated precisely.** The finding was that the division sequence's
+`cvt.f32.u32`, `rcp.f32` and `cvt.u32.f32` cannot be masked to lane 0. Two of the three are
+conversions and are now inside A′'s reach. **`rcp.f32` is not**: the SFU is at 256+, Format
+A′ reaches 0–127, and the 128–255 range this frees is Format A only — so relocating the SFU
+down one range would buy nothing. Measured on `transpose`, lane-activations fall from 1809
+to 1747 and the "no A′ form" bucket goes from 3 to 1. The proposal claimed 3 to 0; that was
+wrong, and the decision document was careful to say "closes for the conversion rows."
+
+**Costs.** 64 opcode points and the FP block's two spare format codes. A `cvt` can no longer
+be disassembled to a precise type without knowing `chwidth` at that program point — already
+true of every FP instruction in the ISA, and it inherits the same contract: mismatching
+format against contents is deterministic garbage, not a hazard.
+
+---
+
+**O-35 — `rcp.u32`, an integer reciprocal seed, because the fp32 round trip was never about
+precision.**
+
+O-31 built integer division on a floating-point reciprocal because §4 had no integer one.
+The seed costs five instructions — `cvt.f32.u32`, `rcp.f32`, a 48-bit constant, `fmul`,
+`cvt.u32.f32` — of which four exist only to cross between integer and floating point.
+
+**The fp32 format, not the unit, is what forces the Newton step.** fp32 has a 24-bit
+significand, so even a correctly-rounded `rcp.f32` leaves an error near 2⁸ once scaled to
+2³². Making the floating-point reciprocal more accurate therefore buys **nothing** in this
+sequence — a conclusion worth recording, because "improve the reciprocal" is the obvious
+first answer and it is wrong.
+
+What pays is a reciprocal that is not routed through a floating-point format at all.
+`rcp.u32` at point 263 returns the seed directly, under the contract in §4.
+
+**Measured, `tools/model-rcp.py`**, sweeping the required accuracy against exact integer
+division:
+
+| sequence | instructions | minimum accuracy |
+|---|---|---|
+| fp32 seed + Newton + 2 corrections (O-31) | **21** | — |
+| `rcp.u32` + Newton + 2 corrections | **17** | **16 bits** |
+| `rcp.u32`, no Newton, 2 corrections | 13 | 32 bits |
+| `rcp.u32`, no Newton, 1 correction | 8 | an exact seed |
+| `rcp.u32`, no Newton, no correction | 5 | never |
+
+Sixteen bits with the Newton step retained is the choice. The rows below it are not
+available at acceptable cost: skipping Newton needs a seed accurate to essentially the last
+bit, which is a divider — the latency and scheduling complexity this design is explicitly
+avoiding in its first implementation.
+
+**This is an instruction-count and code-size win, not an energy one.** The four instructions
+it removes are conversions, which O-34 made maskable, so in warp-uniform code they were
+already costing about one lane-activation each. The `rcp` itself remains unmaskable — §4 256+
+is outside Format A′'s reach — and that is unchanged: see F-56 and
+`proposals/predicated-long-form.md`.
+
+**The compiler reaches it by fusion, after instruction selection.** `CCVFuseRcpSeed` matches
+the five-instruction idiom and replaces it. Matching machine instructions rather than IR
+means the middle end has already run and cannot reassociate the idiom out from under the
+matcher — and a failure to match is not a correctness problem, because the fp32 sequence
+stands and computes the same answer four instructions more slowly. An optimisation that
+cannot be wrong is worth an awkward placement. It also found its own bug: the multiply in
+that idiom is selected as the *compressed* Format K `fmul`, not the 32-bit one, so a matcher
+written against the obvious opcode matched nothing.
+
+---
+
+**O-36 — fp32 division is software, over `rcp.f32` and `ffma`, and no divider is built.**
+
+CUDA's default `/` on floats is IEEE-correct, so a general `a/b` is a compatibility
+requirement rather than an optimisation. Until now only `1.0f/x` selected, to `rcp.f32`;
+everything else was a hard "cannot select" (F-49).
+
+**No hardware divider in the first implementation.** Its latency is much longer than the
+SFU's and would complicate hardware scheduling — a design-track decision, and the right one:
+the quotient costs instructions instead, and instructions are the resource this machine has
+most of.
+
+The sequence, over instructions that already exist:
+
+```
+ea, eb = exponent(a), exponent(b)      am, bm = a, b with exponent forced to 0
+y  = rcp(bm)                           q  = am * y
+y  = fma(-bm·y + 1) refinement  ×2     r  = fma(-bm, q, am)     exact residual
+                                       qm = fma(r, y, q)        one rounding
+result = qm · 2^(k>>1) · 2^(k − (k>>1))            k = ea − eb
+```
+
+Two parts carry it. **The FMA residual** is what makes the result correctly rounded rather
+than merely close: `fma(-b, q, a)` is the exact remainder, because an FMA rounds once.
+**Forcing both exponents to zero** keeps every intermediate near 1, so nothing overflows or
+goes subnormal on the way, whatever the operands' magnitudes. Scaling only the divisor was
+tried and left the residual computed on a near-subnormal product; it failed 64 of 40000.
+
+**Correctly rounded whenever the result is normal.** Measured two ways, because they catch
+different things: `tools/model-fdiv.py` checks the algorithm against exact rational
+arithmetic (40184/40184), and `tools/check-fdiv.sh` executes the emitted kernel on the
+simulator against the same reference (10240/10240).
+
+**Subnormal results are up to 1 ulp out.** The final scale is two multiplies and the last
+one rounds a value that was already rounded; multiplies cannot fix double rounding. This is
+a stated gap, not an unknown — F-62 — and the gate measures it rather than assuming it stays
+at 1 ulp.
+
+**Cost: about 30 instructions.** That is what IEEE division costs in software, and it is the
+price of not building a divider. `1.0f/x` still selects to a single `rcp.f32` and is
+unaffected.
+
+**Three defects fell out of writing it, none of them about division.** They are recorded as
+F-62, F-63 and F-64, and two were in code that had been exercised for weeks:
+
+- `ffma` was **not fused** in the simulator — written `a * b + c`, two roundings, for an
+  instruction whose name is the fusion. 164 of 2048 divisions came out 1 ulp wrong against a
+  model that was right.
+- Any i32 constant with the top bit set could not be materialised: it reached `MOVI48`
+  sign-extended and the encoder's range check rejected it. `and x, 0x807FFFFF` was a hard
+  compiler error.
+- `add reg, imm` had no range predicate, so a constant above 4095 selected into `ADDI` and
+  was rejected by the encoder — the same defect as F-43, on the line above the comment that
+  describes F-43.
+
+---
+
+**O-37 — Format A′ gets a 48-bit sibling, and the predicated tier reaches the whole map.**
+
+Format A′ spends `[29:27]` on the predicate qualifier, which leaves it a 7-bit opcode
+reaching points 0–127. Everything above is Format A only and cannot be predicated. O-34
+relocated conversions into that range to work around it and in doing so packed 0–127 solid,
+so there was nowhere left to relocate anything else — the ceiling was structural and reached,
+with `rcp.f32` at point 256 sitting behind it as the last instruction O-33 could not mask.
+
+**A′'s 48-bit sibling, specified in §3.** The low 32 bits are bit-identical to a 32-bit A′
+instruction and `[34:32]` carries `opcode[9:7]`, which is the same sibling rule §2 already
+applies to B, D and F — except that A′ extends an **opcode** where the others extend an
+**immediate**. §2's wording was amended accordingly; without that the A′ sibling reads as
+irregular when it is the same rule.
+
+**No new format tag.** Tag `0001` at length `11` was unallocated. This matters: F-54 records
+that all sixteen **32-bit** tags are spoken for, and the 48-bit space under them is not.
+
+**Invariant 7 is satisfied at minimum length.** The content is 35 bits — a 32-bit A′ plus
+three opcode bits — so 48 is the shortest length available at 16-bit granularity, and the
+reserved bits are a rounding artifact exactly as `pmov`'s six are. The proposal argued
+instead that the qualifier "earns the length despite the waste"; that reading works but
+concedes more than it needs to and invites a future reader to re-litigate it.
+
+**`opcode[9:7]` ≠ `000`, as a constraint on the field.** The proposal did not state this and
+was self-contradictory without it: at `000` the long form encodes points 0–127, which the
+32-bit A′ already encodes. Two encodings of one instruction is what invariant 7's second
+sentence forbids and what the tier rule exists to prevent. Constrained, the long form encodes
+exactly points 128–1023 — non-redundant by construction, and the round trip needs no
+canonicalization tie-break. Asserted in `tools/check-encoding.py`, verified by adding a
+violating instruction on purpose.
+
+**Scope is A′ alone, and the asymmetry is principled.** Format A already carries the full
+10-bit opcode at 32 bits, so a 48-bit A gains nothing and invariant 7 forbids it. Format A″
+reaches 0–31, which is where its bounded subset lives, so there is no pressure. A′ is the
+only tier whose reach is narrower than the operations that want it. Stated in §3 so that a
+later reader does not "complete the family" and add two forms invariant 7 excludes.
+
+**Considered and rejected: a 32-bit predicated tier that drops `rs2` to buy opcode width.**
+Trading `[26:23]` for four opcode bits gives an 11-bit opcode reaching the whole map in four
+bytes rather than six, and every SFU operation is single-source, so it would cover the
+measured case. **It fails on tag space, not on merit** — it needs a new 32-bit format tag and
+all sixteen are allocated (F-54). Recorded because it is the obvious proposal and will be
+raised again; if a tag ever frees up it becomes the better answer for single- and two-source
+operations and the two forms could coexist. Dropping `rs2` from A′ itself is not an option:
+predicated `ffma`, `mad.lo` and `sel` are among the operations most worth predicating.
+
+**Effect.** `rcp.f32` gains a predicated form and the `no A′ form` bucket closes: on
+`transpose` it goes from 1 to **0**, maskable from 46 to 47, and the F-56 finding closes with
+it. Lane-activations move 1428 → 1429 — the broadcast accounting shifts by one instruction,
+which is the honest number and not the point. The point is that §4's extension space is no
+longer a one-way door: allocating an operation above 127 no longer forfeits its predicated
+form, which had already forced one relocation and had no room to force another.
+
+---
+
+**O-38 — Widening a narrow register clears the bits it exposes.**
+
+§1 says a narrow register "occupies a narrower physical slice of a row" and §3 says
+`chwidth` "reinterprets the existing contents". Between them the document never said what
+the bits *above* the element hold after a narrow→wide change — they are not written while
+the register is narrow, so the answer was an implementation choice nobody had made. Raised
+as F-65 by the first `chwidth` work, because a compiler that widens a live value is
+otherwise relying on a guarantee the ISA does not give.
+
+**Decided: they are cleared, and the reason is security rather than convenience.** A GPU
+register file is partitioned between resident warps and reused across kernel launches
+without being scrubbed. Bits left in the part of a row slice that a narrow register stopped
+addressing belong to whatever last occupied it — another warp of the same kernel, or a
+different kernel entirely. Handing them back on a width change is a cross-context read, and
+the width change is an ordinary unprivileged instruction.
+
+**This is an obligation on the implementation.** Like O-33's lane gating it cannot be
+checked from the compiler side, and unlike O-33's it is not a performance assumption: a
+machine that skips the clear is not slower, it leaks. §1 states it as a bullet rather than
+leaving it to this log.
+
+**The compiler side got it backwards first, for a defensible reason.** `ccv-sim` originally
+preserved the stale bits, on the O-35 principle that a simulator should model the worst the
+contract permits so nothing can depend on a guarantee it was never given. That principle is
+right in general and wrong here — it optimises against a correctness mistake at the cost of
+an information leak, and those are not the same size of problem. `test/chwidth.s` now
+asserts the clear, and names what a failure would mean.
+
+**It also makes zero-extension free.** `zext i16 → i32` is exactly "widen the register and
+clear the exposed bits", which is what the width change now does, so it costs no masking
+instruction — only the `chwidth` that would be needed anyway. `sext` is not free: zeros do
+not replicate a sign, and it still has no lowering (F-66). And `CCVInsertChwidth` may now
+insert a width change on a **live** register in either direction — narrowing is a
+truncation, widening is a zero-extension — where before only definitions were safe.
+
+---
+
+**O-39 — `rbase` and `rindex` are read at 32 bits.**
+
+§3 said the base+index scale comes from `rdata`'s `chwidth` and said nothing about the width
+the address registers themselves are read at. Invariant 11 implies the answer — an index is
+an address component and no register holds an address — but implication is not specification,
+and it stopped being academic the moment a register allocator had a reason to care.
+
+It had one immediately. Given a 16-bit indexed load, the allocator assigned a single physical
+register as both the narrow destination and the 32-bit index:
+
+```
+    chwidth   r2, 1
+    ld.global r2, [r3, r2, 0, 0]
+```
+
+Correct under this decision and undefined without it. The compiler worked around the gap with
+an earlyclobber constraint, at the cost of one extra register per narrow load on a
+sixteen-register machine — a real price for a sentence that was missing.
+
+**Decided: 32 bits, always.** Only `rdata` participates in the element-width model. §3 now
+says so, along with the consequence that `rdata` may share a register with `rbase` or
+`rindex`: the address read takes all 32 bits, which a narrowing `chwidth` leaves intact
+because it reinterprets rather than converts, and the narrow write then lands inside them.
+
+---
 
 ---
 

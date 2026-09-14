@@ -1,7 +1,7 @@
 # ccv-sim — functional simulator
 
 Executes one warp of the ISA in
-[`../../docs/isa-v1.5-operation-map-and-encoding.md`](../../docs/isa-v1.5-operation-map-and-encoding.md).
+[`../../docs/isa-v1.6-operation-map-and-encoding.md`](../../docs/isa-v1.6-operation-map-and-encoding.md).
 
 ## What it models, and what it does not
 

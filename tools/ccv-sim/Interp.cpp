@@ -561,6 +561,10 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     // the in-window offset is zero -- see O-23.
     unsigned ScaleEn = unsigned(MI.getOperand(3).getImm());
     int64_t Disp = MI.getOperand(4).getImm();
+    // O-39: `rbase` and `rindex` are read at 32 bits whatever their own
+    // `chwidth`. They are address components, and invariant 11 keeps addresses
+    // out of the element-width model entirely -- only `rdata` is narrow, which
+    // is also where §3 takes the scale and the transfer size from.
     unsigned Sh = ScaleEn ? (2 - W.ChWidth[Data]) : 0;
     unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
     forEachLane([&](unsigned L) {

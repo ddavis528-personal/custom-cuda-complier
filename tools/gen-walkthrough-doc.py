@@ -18,7 +18,7 @@ dec_f48  = run("python3","tools/decode-one.py","build/generated/CCV.json",str(W/
 trace    = "\n".join(l for l in open(W/"6-trace.txt").read().splitlines()
                      if re.match(r'^\s+[0-9a-f]{4}\s', l))
 e2e      = run("./tools/run-e2e.sh")
-SPEC = "docs/isa-v1.5-operation-map-and-encoding.md"
+SPEC = "docs/isa-v1.6-operation-map-and-encoding.md"
 prov     = run("python3","tools/check-spec-vs-codegen.py", SPEC, "5.6", str(W/"4-asm.s"))
 prov55   = run("python3","tools/check-spec-vs-codegen.py", SPEC, "5.5",
                str(W/"4-asm-unaligned.s"))

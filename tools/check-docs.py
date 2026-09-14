@@ -24,7 +24,7 @@ import sys
 import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-CURRENT_SPEC = "isa-v1.5-operation-map-and-encoding.md"
+CURRENT_SPEC = "isa-v1.6-operation-map-and-encoding.md"
 
 DOCS = sorted(
     list(ROOT.glob("docs/*.md"))
@@ -33,7 +33,7 @@ DOCS = sorted(
 )
 # Superseded spec revisions are kept verbatim as the decision trail. They are
 # supposed to name their own version and their own era's file paths.
-HISTORICAL = re.compile(r"isa-v1\.[0-4]-|compiler-findings-v1\.[0-4]\.md")
+HISTORICAL = re.compile(r"isa-v1\.[0-5]-|compiler-findings-v1\.[0-5]\.md")
 
 
 def rel(p):

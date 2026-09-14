@@ -1,6 +1,6 @@
 # Compiler Backend — Design Context
 
-**Companion to:** `isa-v1.5-operation-map-and-encoding.md`
+**Companion to:** `isa-v1.6-operation-map-and-encoding.md`
 **Purpose:** Carries project context that the ISA spec doesn't capture — target
 strategy, priorities, and the open items that specifically depend on compiler output.
 Read this alongside the ISA spec, not instead of it; the spec is ground truth for

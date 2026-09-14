@@ -18,8 +18,9 @@ generated documentation.
 
 | File | Role |
 |---|---|
-| [`docs/isa-v1.5-operation-map-and-encoding.md`](docs/isa-v1.5-operation-map-and-encoding.md) | **Current.** Ground truth for encoding. Formats, opcode maps, execution environment and launch ABI, design invariants, open items. |
-| [`docs/isa-v1.4-operation-map-and-encoding.md`](docs/isa-v1.4-operation-map-and-encoding.md) | Superseded by 1.5. Kept for the decision trail. |
+| [`docs/isa-v1.6-operation-map-and-encoding.md`](docs/isa-v1.6-operation-map-and-encoding.md) | **Current.** Ground truth for encoding. Formats, opcode maps, execution environment and launch ABI, design invariants, and **§1a, the three obligations this ISA places on the implementation** — one of them a security requirement. |
+| [`docs/isa-v1.5-operation-map-and-encoding.md`](docs/isa-v1.5-operation-map-and-encoding.md) | Superseded by 1.6. Kept for the decision trail. |
+| [`docs/isa-v1.4-operation-map-and-encoding.md`](docs/isa-v1.4-operation-map-and-encoding.md) | Superseded by 1.5. |
 | [`docs/isa-v1.3-operation-map-and-encoding.md`](docs/isa-v1.3-operation-map-and-encoding.md) | Superseded by 1.4. |
 | [`docs/isa-v1.2-operation-map-and-encoding.md`](docs/isa-v1.2-operation-map-and-encoding.md) | Superseded by 1.3. |
 | [`llvm/CCV/`](llvm/CCV/) | TableGen machine description. `tools/verify.sh` checks it against the invariants above. |
@@ -65,7 +66,7 @@ limit for instructions that were not encoding-limited — became a checker here.
 **Steps 0–5 complete; Step 6 in progress.** CUDA kernels compile from source
 and execute correctly on the simulator (`tools/run-e2e.sh`;
 [walkthrough](docs/walkthrough.md)) — elementwise, reduction with shared memory
-and barriers, and a tiled GEMM. ISA v1.5 incorporates every finding from the
+and barriers, and a tiled GEMM. ISA v1.6 incorporates every finding from the
 compiler-side work so far; the proposals behind the larger ones are in
 `docs/proposals/` and the decision trail is §9 of the spec.
 
