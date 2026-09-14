@@ -2,7 +2,7 @@
 """
 Decode one instruction field by field, straight from the TableGen bit maps.
 
-Usage: decode-one.py <ccg.json> <binary> <byte-offset>
+Usage: decode-one.py <ccv.json> <binary> <byte-offset>
 
 Identifies the instruction by matching every fixed bit, then prints each field
 with its bit range and value. The field ranges come from the same .td the
@@ -17,7 +17,7 @@ LEN = {0b00: 4, 0b01: 2, 0b10: 2, 0b11: 6}
 recs = json.load(open(sys.argv[1]))
 insts = {k: v for k, v in recs.items()
          if isinstance(v, dict) and "Inst" in v and isinstance(v.get("Size"), int)
-         and v["Size"] > 0 and "CCGInst" in v.get("!superclasses", [])}
+         and v["Size"] > 0 and "CCVInst" in v.get("!superclasses", [])}
 
 data = open(sys.argv[2], "rb").read()
 off = int(sys.argv[3], 0)

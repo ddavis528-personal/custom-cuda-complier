@@ -1,6 +1,6 @@
 ; F-31: `.shared` is flat 32-bit (§5.1) -- no window, no launch-block
 ; indirection -- so a shared object's address is its offset in the CTA's
-; allocation, known at compile time. CCGLowerShared lays them out and replaces
+; allocation, known at compile time. CCVLowerShared lays them out and replaces
 ; each global with an inttoptr constant; ordinary patterns select the access.
 ; The DAGCombine that folds windowed addresses must NOT see these: it matches
 ; any constant address, so sdata[0] would become an ld.global of the offset.

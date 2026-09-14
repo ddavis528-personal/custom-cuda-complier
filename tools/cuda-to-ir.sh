@@ -12,8 +12,8 @@ IN=${1:?usage: cuda-to-ir.sh <kernel.cu> [out.ll]}
 OUT=${2:-${IN%.cu}.ll}
 BV=$(find "$(clang -print-resource-dir)/include" -name '__clang_cuda_builtin_vars.h' | head -1)
 [ -n "$BV" ] || { echo "cannot find __clang_cuda_builtin_vars.h" >&2; exit 1; }
-# CCG_CFLAGS lets a caller pass -D for kernels parameterised at compile
+# CCV_CFLAGS lets a caller pass -D for kernels parameterised at compile
 # time, which is how the accumulator-tile sweep is driven.
 clang -x cuda -nocudainc -nocudalib --cuda-device-only --cuda-gpu-arch=sm_70 \
-      -I "$(dirname "$BV")" -O2 ${CCG_CFLAGS:-} -emit-llvm -S "$IN" -o "$OUT"
+      -I "$(dirname "$BV")" -O2 ${CCV_CFLAGS:-} -emit-llvm -S "$IN" -o "$OUT"
 echo "  $IN -> $OUT"

@@ -13,10 +13,10 @@ printf '  %-5s %-5s %8s %8s %7s %7s %6s %6s %8s\n' \
 printf '  %s\n' "-------------------------------------------------------------------------"
 for t in 1x1 1x2 2x2 2x4 4x4; do
   tm=${t%x*}; tn=${t#*x}
-  CCG_CFLAGS="-DTM=$tm -DTN=$tn" ./tools/cuda-to-asm.sh test/cuda/sgemm.cu \
+  CCV_CFLAGS="-DTM=$tm -DTN=$tn" ./tools/cuda-to-asm.sh test/cuda/sgemm.cu \
       "$TMP/s.s" "$TMP/s" >/dev/null 2>"$TMP/err"
   if [ ! -s "$TMP/s.s" ]; then
-    why=$(grep -oP 'CCG: \K.*?(?= --|$)' "$TMP/err" | head -1)
+    why=$(grep -oP 'CCV: \K.*?(?= --|$)' "$TMP/err" | head -1)
     printf '  %-5s %-5s %8s %8s %7s %7s %6s %6s %8s  %s\n' \
         "$t" "$((tm*tn))" — — — — — — — "${why:-did not compile}"
     continue
@@ -26,7 +26,7 @@ for t in 1x1 1x2 2x2 2x4 4x4; do
   # it is reserved (O-30), so this count is exact rather than a heuristic.
   sst=$(grep -cE '^\s*st\.(global|pred).*\[r15' "$TMP/s.s")
   sld=$(grep -cE '^\s*ld\.(global|pred).*\[r15' "$TMP/s.s")
-  hit=$(build/ccg-llc "$TMP/s-lowered.ll" -o /dev/null -ccg-compress-stats 2>&1 |
+  hit=$(build/ccv-llc "$TMP/s-lowered.ll" -o /dev/null -ccv-compress-stats 2>&1 |
         grep -oP 'rd == rs0 already\s*:\s*\d+\s*\(\K\d+' || echo 0)
   sp=$((sst + sld))
   fma=$(grep -cE '^\s*(ffma|fadd|fmul)' "$TMP/s.s")

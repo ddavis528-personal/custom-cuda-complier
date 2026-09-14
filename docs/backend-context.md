@@ -10,7 +10,11 @@ encoding, this file is ground truth for "why the backend is built the way it's b
 
 ## 1. Project framing
 
-Custom CUDA-compatible GPU-class processor for AI/ML workloads, personal project.
+**CCV — Custom CUDA Vector processing unit.** A CUDA-compatible VPU for AI/ML
+workloads, personal project. Vector, not graphics: nothing in the ISA serves
+rasterization, texture or fixed-function graphics, which is why the target was
+renamed from `CCG` at the v1.5 audit. "GPU-class" describes the throughput
+model — warps, per-thread PCs, a wide register file — not the workload.
 Compatibility contract is at the **PTX / CUDA Runtime API level**, not the hardware
 ISA level — the native ISA has no PTX/SASS encoding constraints. A purpose-built
 compiler is the bridge, not a microcode translation layer.
@@ -73,7 +77,7 @@ live in the spec's §9 and in `docs/roadmap.md` Part 3 — this section records 
 the question was and what the data said.
 
 - **O-8 — Compressed-form density.** *Answered, and the answer was "not yet
-  worth buying."* `-ccg-compress-stats` reports the hit rate: 2 of 3 candidates
+  worth buying."* `-ccv-compress-stats` reports the hit rate: 2 of 3 candidates
   on §5.5, 0 of 1 on the reduction, and 13–22% across the GEMM tile sweep,
   **falling as register pressure rises** — the allocator lands `rd == rs0` less
   often when it has less freedom. So making destructive-form preference an
@@ -101,7 +105,7 @@ the question was and what the data said.
   `ffffffff` at `exit` with no bracket instruction and no mask stack. Whether
   join-PC pairing would help a real scheduler is still a Phase 2 question.
 - **O-14 — `unballot` (GPR mask → predicate).** *Resolved — added in v1.3*, at
-  Format G point 9, and defined in `CCGInstrInfo.td`. The trigger this item
+  Format G point 9, and defined in `CCVInstrInfo.td`. The trigger this item
   described (a computed lane mask needing to become a predicate) arrived with
   predicate spilling, which O-19/O-30 route through `ld.pred`/`st.pred`.
 

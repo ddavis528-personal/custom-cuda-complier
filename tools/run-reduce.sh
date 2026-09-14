@@ -2,7 +2,7 @@
 # Step 4's milestone: a block reduction compiled from CUDA source and executed.
 #
 #   reduce.cu -> clang -> NVVM IR -> infer-address-spaces
-#             -> CCGLowerKernelArgs -> ccg-llc -> ELF -> .text -> ccg-sim
+#             -> CCVLowerKernelArgs -> ccv-llc -> ELF -> .text -> ccv-sim
 #
 # What this exercises that vadd does not: shared memory, barriers, a loop with
 # a backward branch, unsigned compares, and lanes that reach the barrier at
@@ -16,7 +16,7 @@ fail=0
 
 ./tools/cuda-to-asm.sh test/cuda/reduce.cu "$TMP/r.s" "$TMP/r" >/dev/null 2>&1 || {
   echo "  FAIL  reduce.cu did not compile"; exit 1; }
-build/ccg-llc "$TMP/r-lowered.ll" -o "$TMP/r.o" -obj || exit 1
+build/ccv-llc "$TMP/r-lowered.ll" -o "$TMP/r.o" -obj || exit 1
 llvm-objcopy -O binary --only-section=.text "$TMP/r.o" "$TMP/r.bin" || exit 1
 
 run() {           # $1 = n (elements, also the CTA size the kernel reduces over)
@@ -35,7 +35,7 @@ a.append("-peek 0x30000")
 print(" ".join(a))
 PY
   # shellcheck disable=SC2046
-  build/ccg-sim "$TMP/r.bin" $(cat "$TMP/args") > "$TMP/out" 2>&1 || {
+  build/ccv-sim "$TMP/r.bin" $(cat "$TMP/args") > "$TMP/out" 2>&1 || {
     echo "  FAIL  n=$n: $(head -1 "$TMP/out")"; return 1; }
 
   python3 - "$n" "$TMP/out" <<'PY'

@@ -1,7 +1,7 @@
 # Findings — Step 1 machine description
 
 **Status:** five findings from transcribing §3 of ISA v1.3 into TableGen.
-**Source:** `llvm/CCG/`, verified by `tools/verify.sh`.
+**Source:** `llvm/CCV/`, verified by `tools/verify.sh`.
 
 The value of writing a machine description is not the description. It is that a
 bit map which reads correctly in prose has to be *exactly* right in a form a
@@ -50,7 +50,7 @@ real ISA fork with real consequences:
 **What this changes about the experiment.** Spill counts can still be measured at
 16 versus 32 by restricting allocation order — that part is a flag. But a working
 32-GPR machine is a second encoding, and the decision has to price that in
-alongside the spill data. `GPR` in `CCGRegisterInfo.td` therefore contains R0–R15
+alongside the spill data. `GPR` in `CCVRegisterInfo.td` therefore contains R0–R15
 only, with R16–R31 defined but unallocatable, and `GPRC` exists as a separate
 class so the compressed-form constraint stays expressed rather than implied.
 
@@ -104,7 +104,7 @@ reserved." Those are not one layout with flexible fields — they are three
 distinct layouts sharing a tag, and a fourth once `unballot` is added.
 
 TableGen rejected the single-class transcription outright, which is how this
-surfaced. Split in `CCGInstrFormats.td` into `FormatGshfl`, `FormatGvote`,
+surfaced. Split in `CCVInstrFormats.td` into `FormatGshfl`, `FormatGvote`,
 `FormatGballot` and `FormatGunballot`.
 
 Editorial, but worth fixing in the spec: a decoder implementer reading the merged

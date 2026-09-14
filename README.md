@@ -1,6 +1,11 @@
-# Custom CUDA-Compatible Compiler
+# CCV — Custom CUDA Vector processing unit
 
-LLVM backend targeting a custom GPU-class native ISA, with the compatibility
+**CCV** is a **C**ustom **C**UDA **V**ector processing unit: a VPU, not a GPU.
+The distinction is load-bearing — the ISA serves data-parallel compute and
+carries nothing for rasterization, texture or any other fixed-function graphics
+work — and it is why the target was renamed from `CCG` at the v1.5 audit.
+
+LLVM backend targeting that custom native ISA, with the compatibility
 contract held at the **PTX / CUDA Runtime API level** rather than at the
 hardware ISA level. The native ISA carries no PTX or SASS encoding constraints;
 this compiler is the bridge.
@@ -17,7 +22,7 @@ generated documentation.
 | [`docs/isa-v1.4-operation-map-and-encoding.md`](docs/isa-v1.4-operation-map-and-encoding.md) | Superseded by 1.5. Kept for the decision trail. |
 | [`docs/isa-v1.3-operation-map-and-encoding.md`](docs/isa-v1.3-operation-map-and-encoding.md) | Superseded by 1.4. |
 | [`docs/isa-v1.2-operation-map-and-encoding.md`](docs/isa-v1.2-operation-map-and-encoding.md) | Superseded by 1.3. |
-| [`llvm/CCG/`](llvm/CCG/) | TableGen machine description. `tools/verify.sh` checks it against the invariants above. |
+| [`llvm/CCV/`](llvm/CCV/) | TableGen machine description. `tools/verify.sh` checks it against the invariants above. |
 | [`docs/backend-context.md`](docs/backend-context.md) | Ground truth for *why the backend is built the way it is*. Target strategy, bring-up phasing, the open ISA items that compiler output is meant to resolve. |
 | [`docs/walkthrough.md`](docs/walkthrough.md) | **Start here.** One kernel traced from CUDA source through IR, assembly, binary, disassembly and execution, with every listing generated rather than transcribed. |
 | [`docs/64-bit-addressing-summary.md`](docs/64-bit-addressing-summary.md) | How 64-bit addressing is specified, lowered and verified — self-contained, for the architecture track. |

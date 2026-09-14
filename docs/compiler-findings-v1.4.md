@@ -5,6 +5,10 @@
 > §3's manufactured compare predicate was removed by O-32, and the "open items
 > are down to four" count is a v1.4 count. The current report is
 > [`compiler-findings-v1.5.md`](compiler-findings-v1.5.md).
+>
+> Tool names in this document were rewritten from `ccg-` to `ccv-` when the
+> target was renamed, so that the commands it names are runnable. Nothing else
+> was touched.
 
 **Covers:** everything since the v1.3 review, up to v1.4. Written for the
 architecture side, so it is organised by what the compiler work found about the
@@ -166,7 +170,7 @@ change:
 | Five TableGen backends | double-assigned bits; **`-gen-disassembler` fails if the encoding is not uniquely decodable** |
 | `check-encoding.py` | gaps, length/size disagreement, any field off its invariant-8 position |
 | `check-listings.py` | worked-listing arithmetic disagreeing with the prose |
-| `ccg-roundtrip` | 4160 encode→decode round trips; encoder and decoder come from *different* generators |
+| `ccv-roundtrip` | 4160 encode→decode round trips; encoder and decoder come from *different* generators |
 | `run-tests.sh` | kernels execute and produce correct results, at three divergence levels |
 
 Current state: 0 errors, 0 invariant-8 deviations, all figures match, 4160/4160

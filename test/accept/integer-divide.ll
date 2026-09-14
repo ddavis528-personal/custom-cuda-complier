@@ -1,6 +1,6 @@
 ; §4's integer map ends at `prmt` with no divide and there is no runtime
 ; library, so LLVM's default expansion -- a libcall -- failed as "Cannot
-; select: udivrem". CCGExpandDivision applies the shift-subtract expansion in
+; select: udivrem". CCVExpandDivision applies the shift-subtract expansion in
 ; IR instead, which is what nvcc does for the same reason.
 ;
 ; This one kernel found three separate bugs, none of which it is obviously

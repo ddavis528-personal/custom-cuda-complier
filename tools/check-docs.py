@@ -29,7 +29,7 @@ CURRENT_SPEC = "isa-v1.5-operation-map-and-encoding.md"
 DOCS = sorted(
     list(ROOT.glob("docs/*.md"))
     + list(ROOT.glob("docs/proposals/*.md"))
-    + [ROOT / "README.md", ROOT / "llvm/CCG/README.md", ROOT / "tools/ccg-sim/README.md"]
+    + [ROOT / "README.md", ROOT / "llvm/CCV/README.md", ROOT / "tools/ccv-sim/README.md"]
 )
 # Superseded spec revisions are kept verbatim as the decision trail. They are
 # supposed to name their own version and their own era's file paths.
@@ -69,9 +69,9 @@ def main():
     decisions = set(re.findall(r"^\*\*(O-\d+)", spec, re.M))
 
     sources = DOCS + sorted(
-        list(ROOT.glob("llvm/CCG/*.cpp")) + list(ROOT.glob("llvm/CCG/*.h"))
-        + list(ROOT.glob("llvm/CCG/*.td")) + list(ROOT.glob("tools/*.py"))
-        + list(ROOT.glob("tools/*.sh")) + list(ROOT.glob("tools/ccg-sim/*"))
+        list(ROOT.glob("llvm/CCV/*.cpp")) + list(ROOT.glob("llvm/CCV/*.h"))
+        + list(ROOT.glob("llvm/CCV/*.td")) + list(ROOT.glob("tools/*.py"))
+        + list(ROOT.glob("tools/*.sh")) + list(ROOT.glob("tools/ccv-sim/*"))
     )
     for src in sources:
         if src.is_dir() or HISTORICAL.search(src.name):

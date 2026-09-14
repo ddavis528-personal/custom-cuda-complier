@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Instruction density and instruction count, CCG against what can be measured.
+Instruction density and instruction count, CCV against what can be measured.
 
 WHAT THIS MEASURES AND WHAT IT DOES NOT
 ---------------------------------------
 Three targets, one source, one frontend:
 
-  CCG      this backend, via clang's CUDA frontend
+  CCV      this backend, via clang's CUDA frontend
   AMDGCN   clang's AMD GPU backend (gfx900), a REAL ISA with real encodings
   PTX      nvptx64 -- a VIRTUAL ISA
 
@@ -45,33 +45,33 @@ def clang_cuda_include():
 
 CUDA_INC = clang_cuda_include()
 
-def ccg(src, tmp, aligned):
-    """CCG: instructions and BYTES, the latter straight from the .text section
+def ccv(src, tmp, aligned):
+    """CCV: instructions and BYTES, the latter straight from the .text section
     rather than from counting mnemonics -- it is the number that matters and
     the object file is the authority on it."""
     ll, low, obj, binf = (os.path.join(tmp, f"c.{x}") for x in
                           ("ll", "low.ll", "o", "bin"))
-    flags = ["-DCCG_ALIGNED"] if aligned else []
+    flags = ["-DCCV_ALIGNED"] if aligned else []
     r = run("clang", "-x", "cuda", "-nocudainc", "-nocudalib",
             "--cuda-device-only", "--cuda-gpu-arch=sm_70", "-I", CUDA_INC,
             "-I", BENCH, "-O2", *flags, "-emit-llvm", "-S", src, "-o", ll)
     if r.returncode:
         return None
-    r = run("opt", f"-load-pass-plugin={ROOT}/build/CCGLowerKernelArgs.so",
-            "-passes=function(infer-address-spaces),ccg-lower-kernel-args,"
+    r = run("opt", f"-load-pass-plugin={ROOT}/build/CCVLowerKernelArgs.so",
+            "-passes=function(infer-address-spaces),ccv-lower-kernel-args,"
             "function(instcombine,gvn,simplifycfg)", "-S", ll, "-o", low)
     if r.returncode:
         return None
-    r = run(f"{ROOT}/build/ccg-llc", low, "-o", obj, "-obj")
+    r = run(f"{ROOT}/build/ccv-llc", low, "-o", obj, "-obj")
     if r.returncode:
         return {"error": (r.stderr.strip().splitlines() or ["failed"])[0]}
     if run("llvm-objcopy", "-O", "binary", "--only-section=.text",
            obj, binf).returncode:
         return None
-    n = count_ccg(binf)
+    n = count_ccv(binf)
     return {"instrs": n, "bytes": os.path.getsize(binf)}
 
-def count_ccg(path):
+def count_ccv(path):
     """Walk the stream by §2's length rule: bits [1:0] of the first halfword,
     before any format decode. Counting mnemonics in the .s would miss branch
     relaxation, which changes sizes after the .s is written."""
@@ -138,7 +138,7 @@ def ptx(src, tmp):
     return {"instrs": n}
 
 # Argument VALUES in declaration order, one list per kernel. The byte offsets
-# are not written here: the compiler emits them as a `ccg-arg-layout` attribute
+# are not written here: the compiler emits them as a `ccv-arg-layout` attribute
 # and this reads them, because a pointer takes 8 bytes and a scalar packs into
 # 4, so the offsets depend on the signature. Hardcoding them produced a
 # benchmark that measured saxpy's guard failing for every lane -- its `n` is at
@@ -161,23 +161,23 @@ def dynamic(src, tmp, kernel):
                           ("ll", "low.ll", "o", "bin"))
     if run("clang", "-x", "cuda", "-nocudainc", "-nocudalib",
            "--cuda-device-only", "--cuda-gpu-arch=sm_70", "-I", CUDA_INC,
-           "-I", BENCH, "-O2", "-DCCG_ALIGNED", "-emit-llvm", "-S", src,
+           "-I", BENCH, "-O2", "-DCCV_ALIGNED", "-emit-llvm", "-S", src,
            "-o", ll).returncode:
         return None
-    if run("opt", f"-load-pass-plugin={ROOT}/build/CCGLowerKernelArgs.so",
-           "-passes=function(infer-address-spaces),ccg-lower-kernel-args,"
+    if run("opt", f"-load-pass-plugin={ROOT}/build/CCVLowerKernelArgs.so",
+           "-passes=function(infer-address-spaces),ccv-lower-kernel-args,"
            "function(instcombine,gvn,simplifycfg)", "-S", ll, "-o",
            low).returncode:
         return None
-    m = re.search(r'ccg-arg-layout"="([^"]*)"', open(low).read())
+    m = re.search(r'ccv-arg-layout"="([^"]*)"', open(low).read())
     if not m:
-        return {"error": "no ccg-arg-layout attribute"}
+        return {"error": "no ccv-arg-layout attribute"}
     slots = [e for e in m.group(1).split(",") if e]
     vals = ARGS[kernel]
     if len(slots) != len(vals):
         return {"error": f"{len(slots)} args in layout, {len(vals)} values given"}
 
-    if run(f"{ROOT}/build/ccg-llc", low, "-o", obj, "-obj").returncode:
+    if run(f"{ROOT}/build/ccv-llc", low, "-o", obj, "-obj").returncode:
         return None
     if run("llvm-objcopy", "-O", "binary", "--only-section=.text",
            obj, binf).returncode:
@@ -187,7 +187,7 @@ def dynamic(src, tmp, kernel):
     pokes = ["-poke", f"{hex(LAUNCH)}=32"]             # ntid.x
     for slot, v in zip(slots, vals):
         pokes += ["-poke", f"{hex(LAUNCH + int(slot[1:]))}={v}"]
-    r = run(f"{ROOT}/build/ccg-sim", binf, *pokes, "-counters")
+    r = run(f"{ROOT}/build/ccv-sim", binf, *pokes, "-counters")
     if r.returncode:
         return {"error": (r.stderr.strip().splitlines() or ["ran off"])[0][:50]}
     pt = re.search(r"per thread\s+([0-9.]+)", r.stdout)
@@ -212,8 +212,8 @@ def main():
             src = os.path.join(BENCH, k + ".cu")
             rows.append({
                 "kernel": k,
-                "ccg": ccg(src, tmp, aligned=False),
-                "ccg_aligned": ccg(src, tmp, aligned=True),
+                "ccv": ccv(src, tmp, aligned=False),
+                "ccv_aligned": ccv(src, tmp, aligned=True),
                 "amdgcn": amdgcn(src, tmp),
                 "ptx": ptx(src, tmp),
                 "dyn": dynamic(src, tmp, k),
@@ -235,14 +235,14 @@ def main():
     print()
     print("  STATIC -- code size. Every column is a measurement.")
     print()
-    print(f"  {'kernel':<10} | {'CCG unaligned':^21} | {'CCG aligned':^14} | "
+    print(f"  {'kernel':<10} | {'CCV unaligned':^21} | {'CCV aligned':^14} | "
           f"{'AMDGCN gfx900':^21} | {'PTX':^6}")
     print(f"  {'':<10} | {'instr':>6} {'bytes':>6} {'b/i':>6} | "
           f"{'instr':>6} {'bytes':>6} | {'instr':>6} {'bytes':>6} {'b/i':>6} | "
           f"{'instr':>6}")
     print("  " + "-" * 80)
     for r in rows:
-        c, ca, g, p = r["ccg"], r["ccg_aligned"], r["amdgcn"], r["ptx"]
+        c, ca, g, p = r["ccv"], r["ccv_aligned"], r["amdgcn"], r["ptx"]
         cbi = f"{8*c['bytes']/c['instrs']:.1f}" if c and "instrs" in c else "--"
         gbi = f"{8*g['bytes']/g['instrs']:.1f}" if g and "instrs" in g else "--"
         print(f"  {r['kernel']:<10} | {cell(c,'instrs',6)} {cell(c,'bytes',6)} "
@@ -253,7 +253,7 @@ def main():
     print()
     print("  DYNAMIC -- instructions actually issued, per thread of work.")
     print()
-    print(f"  {'kernel':<10} {'CCG':>8} {'SIMT':>6}   {'AMDGCN':>8} | "
+    print(f"  {'kernel':<10} {'CCV':>8} {'SIMT':>6}   {'AMDGCN':>8} | "
           f"{'lane-act':>9} {'of issued':>10}   how AMDGCN was obtained")
     print("  " + "-" * 94)
     for r in rows:
@@ -273,20 +273,20 @@ def main():
               f"{act:>9} {frac:>10}   {how}")
 
     for r in rows:
-        for name, d in (("ccg", r["ccg"]), ("amdgcn", r["amdgcn"])):
+        for name, d in (("ccv", r["ccv"]), ("amdgcn", r["amdgcn"])):
             if d and "error" in d:
                 print(f"  note: {r['kernel']} {name}: {d['error']}")
     print()
-    print("  CCG dynamic is MEASURED on the simulator: lane-instructions divided by")
+    print("  CCV dynamic is MEASURED on the simulator: lane-instructions divided by")
     print("  threads, which for a fully-active warp is the issue count. AMDGCN has no")
     print("  simulator here, so its dynamic column is filled in only where the kernel")
     print("  provably has no loop and static and dynamic must therefore agree. The two")
     print("  reduction kernels loop on both sides and are left blank rather than")
     print("  modelled.")
     print()
-    print("  SIMT is CCG ONLY and is not comparable as printed: a CCG warp is 32 lanes")
+    print("  SIMT is CCV ONLY and is not comparable as printed: a CCV warp is 32 lanes")
     print("  (§1) and a gfx900 wavefront is 64, so the same 32-thread block that fills")
-    print("  a CCG warp half-fills theirs. Comparing occupancy needs the same block")
+    print("  a CCV warp half-fills theirs. Comparing occupancy needs the same block")
     print("  size expressed in each machine's own warp width, which these kernels do")
     print("  not hold fixed.")
     print()

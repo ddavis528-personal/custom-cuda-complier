@@ -1,6 +1,12 @@
-# Native ISA — Operation Map and Encoding
+# CCV Native ISA — Operation Map and Encoding
 
 **Version 1.5** · 12 September 2026
+
+**CCV — Custom CUDA Vector processing unit.** A VPU, not a GPU: the machine is a
+data-parallel compute engine and nothing in this document serves rasterization, texture or
+any other fixed-function graphics work. Earlier revisions of this specification named no
+machine at all, and the backend carried a working name of `CCG` whose "G" was never written
+down anywhere and did not survive being asked about. Renamed at the v1.5 audit.
 
 The compatibility contract is at the PTX / CUDA Runtime API level, so this ISA carries no
 PTX or SASS encoding constraints. A purpose-built CUDA compiler is the bridge.
@@ -1413,7 +1419,7 @@ revision. The pointer arguments carry no alignment guarantee, so each one costs
 two launch-block slots and an in-window fold — the general case.
 
 **This listing is emitted by the compiler, not written by hand.** It is checked
-against fresh `ccg-llc` output by `tools/check-spec-vs-codegen.py`, which runs in
+against fresh `ccv-llc` output by `tools/check-spec-vs-codegen.py`, which runs in
 `tools/verify.sh`; a divergence is a build failure, not a review catch.
 
 ```
@@ -1454,7 +1460,7 @@ allocator being asked for anything.
 **The third fold is the interesting one.** `add r1, r2, r1` computes the same
 shape as the two above it and pays 32 bits instead of 16, purely because the
 allocator landed on `rd != rs0`. The compiler now takes the two that do fit --
-`CCGCompress` rewrites a three-operand ALU instruction to Format K whenever the
+`CCVCompress` rewrites a three-operand ALU instruction to Format K whenever the
 registers it already has satisfy the constraint, and never inserts a copy to
 create one. Nothing yet *biases* allocation toward the tie, which is what the
 remaining third would need. O-8's hit rate on this kernel is 2 of 3; see
@@ -2308,7 +2314,7 @@ is, and it is not free: making the constraint hold can cost a `mov`, which is 16
 exactly what the compression saves. Paying a copy to earn a compression is a wash at best,
 and a loss when it also lengthens a live range.
 
-**So the rule is: compress what already fits, never create the fit.** `CCGCompress` runs
+**So the rule is: compress what already fits, never create the fit.** `CCVCompress` runs
 after register allocation and rewrites a three-operand instruction to its compressed form
 only when the registers it already holds satisfy the constraint. Every rewrite is 16 bits
 saved and none can cost anything.
@@ -2319,7 +2325,7 @@ immediate at all: the alternatives are the compressed form plus a possible copy 
 materialising the constant into a register first (`movi` + Format A, 64 bits). There the
 tied form is selected up front, copy or no copy, because the fallback is twice the size.
 
-**What the measurement says so far**, from `ccg-llc -ccg-compress-stats`:
+**What the measurement says so far**, from `ccv-llc -ccv-compress-stats`:
 
 | kernel | two-source candidates | already `rd == rs0` |
 |---|---|---|
@@ -2542,7 +2548,7 @@ so that the thing the hardware must deliver is what the tooling counts.
 
 ---
 
-**Measured**, `ccg-sim -counters`, masking on against off:
+**Measured**, `ccv-sim -counters`, masking on against off:
 
 | kernel | lane-activations | | instructions | |
 |---|---|---|---|---|

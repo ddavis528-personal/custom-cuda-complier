@@ -1,5 +1,5 @@
 ; The window arithmetic is formed in one block and used in another. Before
-; CCGWindowRemat this reached the type legalizer as a cross-block i64 and
+; CCVWindowRemat this reached the type legalizer as a cross-block i64 and
 ; aborted with "Do not know how to expand this operator's operand" -- no
 ; diagnostic, just a crash. Any kernel with control flow hits this; vadd only
 ; escaped it by being a single basic block.

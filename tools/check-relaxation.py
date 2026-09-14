@@ -2,7 +2,7 @@
 """
 Check that branch relaxation actually happened (F-28).
 
-Usage: check-relaxation.py <ccg.json> <short.bin> <relaxed.bin>
+Usage: check-relaxation.py <ccv.json> <short.bin> <relaxed.bin>
 
 The selector always emits the 16-bit `bra.short`; whether it survives depends
 on the final layout, so the assembler grows it to Format E's 32-bit `bra` when
@@ -21,7 +21,7 @@ LEN = {0b00: 4, 0b01: 2, 0b10: 2, 0b11: 6}
 recs = json.load(open(sys.argv[1]))
 insts = {k: v for k, v in recs.items()
          if isinstance(v, dict) and "Inst" in v and isinstance(v.get("Size"), int)
-         and v["Size"] > 0 and "CCGInst" in v.get("!superclasses", [])}
+         and v["Size"] > 0 and "CCVInst" in v.get("!superclasses", [])}
 
 def decode(word, size):
     """Name every instruction whose fixed bits match, longest match first."""

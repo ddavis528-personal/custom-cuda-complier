@@ -3,9 +3,9 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-AS=tools/ccg-as.py
-JSON=build/generated/CCG.json
-SIM=build/ccg-sim
+AS=tools/ccv-as.py
+JSON=build/generated/CCV.json
+SIM=build/ccv-sim
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 fail=0
 
@@ -92,16 +92,16 @@ for d in test/accept test/reject; do
     echo "  FAIL  $d is empty -- the suite is missing, not passing"; fail=1
   fi
 done
-if [ -x build/ccg-llc ]; then
+if [ -x build/ccv-llc ]; then
   for f in test/accept/*.ll; do
-    if build/ccg-llc "$f" -o "$TMP/a.s" >/dev/null 2>&1; then
+    if build/ccv-llc "$f" -o "$TMP/a.s" >/dev/null 2>&1; then
       echo "  PASS  accepts $(basename "$f")"
     else
       echo "  FAIL  rejects $(basename "$f") -- should compile"; fail=1
     fi
   done
   for f in test/reject/*.ll; do
-    out=$(build/ccg-llc "$f" -o "$TMP/r.s" 2>&1); rc=$?
+    out=$(build/ccv-llc "$f" -o "$TMP/r.s" 2>&1); rc=$?
     if [ $rc -eq 1 ] && echo "$out" | grep -q "cannot be lowered"; then
       echo "  PASS  diagnoses $(basename "$f")"
     elif [ $rc -eq 0 ]; then
@@ -111,7 +111,7 @@ if [ -x build/ccg-llc ]; then
     fi
   done
 else
-  echo "  (ccg-llc not built; skipping)"
+  echo "  (ccv-llc not built; skipping)"
 fi
 
 # --- the whole pipeline: CUDA source -> executed result --------------------
@@ -126,8 +126,8 @@ echo
 # still wrong. Only executing it finds that.
 echo
 echo "  --- integer division (expanded in IR) ---"
-if [ -x build/ccg-llc ]; then
-  if build/ccg-llc test/accept/integer-divide.ll -o "$TMP/dv.o" -obj 2>/dev/null &&
+if [ -x build/ccv-llc ]; then
+  if build/ccv-llc test/accept/integer-divide.ll -o "$TMP/dv.o" -obj 2>/dev/null &&
      llvm-objcopy -O binary --only-section=.text "$TMP/dv.o" "$TMP/dv.bin"; then
     dargs=(-poke 0x20020=3)
     for i in $(seq 0 15); do dargs+=(-peek $((0x30000 + i*4))); done
@@ -167,12 +167,12 @@ echo "  --- uniformity report buckets ---"
 # the assembler grew it. So check the objects.
 echo
 echo "  --- branch relaxation ---"
-if [ -x build/ccg-llc ]; then
+if [ -x build/ccv-llc ]; then
   relax_ok=1
   ./tools/cuda-to-asm.sh test/cuda/reduce.cu "$TMP/rd.s" "$TMP/rd" >/dev/null 2>&1 &&
-    build/ccg-llc "$TMP/rd-lowered.ll" -o "$TMP/rd.o" -obj &&
+    build/ccv-llc "$TMP/rd-lowered.ll" -o "$TMP/rd.o" -obj &&
     llvm-objcopy -O binary --only-section=.text "$TMP/rd.o" "$TMP/short.bin" || relax_ok=0
-  build/ccg-llc test/accept/branch-relax.ll -o "$TMP/rx.o" -obj &&
+  build/ccv-llc test/accept/branch-relax.ll -o "$TMP/rx.o" -obj &&
     llvm-objcopy -O binary --only-section=.text "$TMP/rx.o" "$TMP/relaxed.bin" || relax_ok=0
   if [ $relax_ok -eq 1 ]; then
     python3 tools/check-relaxation.py "$JSON" "$TMP/short.bin" "$TMP/relaxed.bin" || fail=1
@@ -182,7 +182,7 @@ if [ -x build/ccg-llc ]; then
 fi
 
 # --- assembler / encoder cross-check --------------------------------------
-# ccg-as.py encodes from the TableGen JSON; the C++ MCCodeEmitter encodes from
+# ccv-as.py encodes from the TableGen JSON; the C++ MCCodeEmitter encodes from
 # gen-emitter. Two independent paths over one description (roadmap F-6).
 echo
 echo "  --- assembler vs generated encoder ---"

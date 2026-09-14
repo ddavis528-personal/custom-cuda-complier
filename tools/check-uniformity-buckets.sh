@@ -19,7 +19,7 @@ fail=0
 report() {               # $1 = benchmark name -> report on stdout
   ./tools/cuda-to-asm.sh "test/bench/$1.cu" "$TMP/$1.s" "$TMP/$1" >/dev/null 2>&1 \
     || { echo "  FAIL  $1 did not compile"; return 1; }
-  ./build/ccg-llc "$TMP/$1-lowered.ll" -o /dev/null -ccg-uniformity-stats 2>&1
+  ./build/ccv-llc "$TMP/$1-lowered.ll" -o /dev/null -ccv-uniformity-stats 2>&1
 }
 
 bucket() {               # $1 = report text, $2 = label -> count (0 if absent)
@@ -34,7 +34,7 @@ for k in vadd saxpy dot reduce transpose; do
   u=$(bucket "$r" "UNMODELLED")
   if [ "$u" != "0" ]; then
     echo "  FAIL  $k: $u unmodelled instruction(s) -- $(echo "$r" | grep 'unmodelled opcodes')"
-    echo "        add them to classify() in CCGUniformity.cpp; do NOT let them"
+    echo "        add them to classify() in CCVUniformity.cpp; do NOT let them"
     echo "        fall into a bucket that names an encoding limit."
     fail=1
   fi

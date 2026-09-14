@@ -2,8 +2,8 @@
 # The Phase 1 milestone (backend-context.md §5.1): a CUDA kernel compiled from
 # source and executed, producing correct results.
 #
-#   vadd.cu -> clang -> NVVM IR -> CCGLowerKernelArgs -> ccg-llc -> ELF
-#           -> .text -> ccg-sim
+#   vadd.cu -> clang -> NVVM IR -> CCVLowerKernelArgs -> ccv-llc -> ELF
+#           -> .text -> ccv-sim
 #
 # Nothing hand-written anywhere in that chain.
 set -uo pipefail
@@ -11,15 +11,15 @@ cd "$(dirname "$0")/.."
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 fail=0
 
-for t in build/ccg-llc build/ccg-sim build/CCGLowerKernelArgs.so; do
+for t in build/ccv-llc build/ccv-sim build/CCVLowerKernelArgs.so; do
   [ -e "$t" ] || { echo "  $t not built"; exit 1; }
 done
 
 ./tools/cuda-to-ir.sh test/cuda/vadd-aligned.cu "$TMP/v.ll" >/dev/null || exit 1
-opt -load-pass-plugin=build/CCGLowerKernelArgs.so \
-    -passes='ccg-lower-kernel-args,instcombine,gvn,simplifycfg' \
+opt -load-pass-plugin=build/CCVLowerKernelArgs.so \
+    -passes='ccv-lower-kernel-args,instcombine,gvn,simplifycfg' \
     -S "$TMP/v.ll" -o "$TMP/v.low.ll" 2>/dev/null || exit 1
-build/ccg-llc "$TMP/v.low.ll" -o "$TMP/v.o" -obj || exit 1
+build/ccv-llc "$TMP/v.low.ll" -o "$TMP/v.o" -obj || exit 1
 llvm-objcopy -O binary --only-section=.text "$TMP/v.o" "$TMP/v.bin" || exit 1
 
 run() {           # $1 = n (active threads)
@@ -39,7 +39,7 @@ a += [f"-peek {0x50000+i*4}" for i in range(32)]
 print(" ".join(a))
 PY
   # shellcheck disable=SC2046
-  build/ccg-sim "$TMP/v.bin" $(cat "$TMP/args") > "$TMP/out" 2>&1 || {
+  build/ccv-sim "$TMP/v.bin" $(cat "$TMP/args") > "$TMP/out" 2>&1 || {
     echo "  FAIL  n=$n: $(head -1 "$TMP/out")"; return 1; }
 
   python3 - "$n" "$TMP/out" <<'PY'

@@ -68,8 +68,8 @@ def compare(name, want, got):
 
 
 def main():
-    if not (ROOT / "build/ccg-llc").exists():
-        print("  (build/ccg-llc not built -- skipping benchmark document check)")
+    if not (ROOT / "build/ccv-llc").exists():
+        print("  (build/ccv-llc not built -- skipping benchmark document check)")
         return 0
     doc = DOC.read_text()
     fail = 0
@@ -83,7 +83,7 @@ def main():
 
     for name, header, blocks in (
             ("static table", "STATIC --", fenced(doc, "kernel     |")),
-            ("dynamic table", "DYNAMIC --", fenced(doc, "kernel          CCG"))):
+            ("dynamic table", "DYNAMIC --", fenced(doc, "kernel          CCV"))):
         if not blocks:
             print(f"  FAIL  {name} not found in docs/benchmarks.md")
             fail = 1

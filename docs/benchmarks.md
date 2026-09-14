@@ -1,6 +1,6 @@
 # Instruction density and instruction count, measured
 
-**What this is:** a reproducible comparison of the CCG ISA against what can
+**What this is:** a reproducible comparison of the CCV ISA against what can
 actually be measured on this machine, with the things that cannot be measured
 marked as such rather than estimated.
 
@@ -14,7 +14,7 @@ Three targets, one source per kernel, one frontend:
 
 | target | what it is | density claim? |
 |---|---|---|
-| **CCG** | this backend, via clang's CUDA frontend | yes |
+| **CCV** | this backend, via clang's CUDA frontend | yes |
 | **AMDGCN** (gfx900) | clang's AMD GPU backend — a **real ISA** | yes |
 | **PTX** (nvptx64) | a **virtual ISA** | **no** |
 
@@ -54,7 +54,7 @@ questions and only one of them can be measured on both machines.
 **Static — code size. Every column is a measurement.**
 
 ```
-  kernel     |     CCG unaligned     |  CCG aligned   |     AMDGCN gfx900     |  PTX  
+  kernel     |     CCV unaligned     |  CCV aligned   |     AMDGCN gfx900     |  PTX  
              |  instr  bytes    b/i |  instr  bytes |  instr  bytes    b/i |  instr
   --------------------------------------------------------------------------------
   vadd       |     23     78   27.1 |     16     56 |     29    152   41.9 |     21
@@ -67,7 +67,7 @@ questions and only one of them can be measured on both machines.
 **Dynamic — instructions actually issued, per thread of work.**
 
 ```
-  kernel          CCG   SIMT     AMDGCN |  lane-act  of issued   how AMDGCN was obtained
+  kernel          CCV   SIMT     AMDGCN |  lane-act  of issued   how AMDGCN was obtained
   ----------------------------------------------------------------------------------------------
   vadd           16.0   100%         29 |       512       100%   exact: no backward branch
   saxpy          17.0   100%         25 |       544       100%   exact: no backward branch
@@ -76,33 +76,33 @@ questions and only one of them can be measured on both machines.
   transpose      76.0   100%         64 |      1809        74%   exact: no backward branch
 ```
 
-**CCG's dynamic column is measured** on the simulator — lane-instructions
+**CCV's dynamic column is measured** on the simulator — lane-instructions
 divided by threads, which for a fully-active warp is the issue count. **AMDGCN
 has no simulator here**, so its dynamic column is filled in only where the
 kernel provably has no backward branch and static and dynamic must therefore
 agree. The two reduction kernels loop on both sides and are left blank rather
 than modelled.
 
-**SIMT is CCG only, and is not comparable as printed.** A CCG warp is 32 lanes
-(§1); a gfx900 wavefront is 64. The same 32-thread block that fills a CCG warp
+**SIMT is CCV only, and is not comparable as printed.** A CCV warp is 32 lanes
+(§1); a gfx900 wavefront is 64. The same 32-thread block that fills a CCV warp
 half-fills theirs, so the numbers measure different things. Comparing occupancy
 needs the block size held fixed in each machine's own warp width, which these
 kernels do not do.
 
 ### Density: 26–29 bits per instruction against GCN's 38–44
 
-This is the headline and it holds across every kernel: **CCG encodes at roughly
+This is the headline and it holds across every kernel: **CCV encodes at roughly
 0.65× the bits per instruction of a real contemporary GPU ISA.** The variable
 16/32/48 encoding is doing what §6 claimed it would.
 
 ### The control that matters: instruction counts are comparable
 
 A denser encoding that needs twice the instructions has gained nothing. The
-counts are within 30% everywhere and CCG is *lower* on four of five:
+counts are within 30% everywhere and CCV is *lower* on four of five:
 
 | | vadd | saxpy | dot | reduce | transpose |
 |---|---|---|---|---|---|
-| CCG | 23 | 22 | 56 | 51 | 84 |
+| CCV | 23 | 22 | 56 | 51 | 84 |
 | GCN | 29 | 25 | 60 | 54 | 64 |
 
 So the density is not bought with instruction count. **Code size lands below
@@ -142,7 +142,7 @@ instruction to one lane costs an extra broadcast *instruction* and saves 31 lane
 *activations*, so a table with only an instruction column reports the price and
 hides the goods. That is exactly what happened to `transpose` above.
 
-The `lane-act` column is the measurement, from `ccg-sim -counters`:
+The `lane-act` column is the measurement, from `ccv-sim -counters`:
 
 | | issued lane slots | activations | share |
 |---|---|---|---|
@@ -161,14 +161,14 @@ uniform value is consumed immediately by divergent work, so each masked
 instruction would need its own broadcast and the trade is a wash. That is the
 cost model working, not the pass failing.
 
-### Where CCG still loses: `transpose`, and it is instructive
+### Where CCV still loses: `transpose`, and it is instructive
 
-76 instructions issued against 64 — the only kernel where CCG issues more. Two
+76 instructions issued against 64 — the only kernel where CCV issues more. Two
 causes, both structural rather than accidental:
 
 **AMD does the division on the scalar unit.** The divisor is warp-uniform (it
 depends on `blockIdx` and `n`), so their sequence is `s_mul_i32`, `s_sub_i32`,
-`s_cselect_b32` — one instruction per operation *for the whole wavefront*. CCG
+`s_cselect_b32` — one instruction per operation *for the whole wavefront*. CCV
 issues it to all 32 lanes and, since O-33, activates only one of them for the
 part of the sequence that can be masked. That closes the energy gap partway and
 none of the issue-bandwidth gap: a scalar unit does not issue to the vector
@@ -260,7 +260,7 @@ where code size matters most.
 
 - **SASS.** The comparison the project's density argument is actually written
   against, and the one missing. Needs `ptxas`.
-- **Dynamic counts for GCN.** CCG's are measured; AMD's are not, because there
+- **Dynamic counts for GCN.** CCV's are measured; AMD's are not, because there
   is no AMD simulator here. For these kernels their code is straight-line where
   ours is, so static is a fair proxy for both — but that is an argument about
   these five kernels, not a general one.

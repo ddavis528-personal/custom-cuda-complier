@@ -1,6 +1,6 @@
 //===-- portable.h - one source, three compilers -------------------------===//
 //
-// The benchmark kernels are compiled unchanged for CCG (via clang's CUDA
+// The benchmark kernels are compiled unchanged for CCV (via clang's CUDA
 // frontend), for PTX (nvptx64) and for AMDGCN. That is the whole point: an
 // instruction-count comparison is only meaningful when the three compilers are
 // given the same algorithm, and a density comparison is only meaningful when
@@ -11,8 +11,8 @@
 // macro renames it; it never emulates.
 //
 //===----------------------------------------------------------------------===//
-#ifndef CCG_BENCH_PORTABLE_H
-#define CCG_BENCH_PORTABLE_H
+#ifndef CCV_BENCH_PORTABLE_H
+#define CCV_BENCH_PORTABLE_H
 
 #define __global__ __attribute__((global))
 #define __device__ __attribute__((device))
@@ -33,7 +33,7 @@
 // O-23's per-argument alignment attribute. AMDGCN has no equivalent and does
 // not need one -- it has 64-bit pointers in registers -- so the comparison is
 // run BOTH ways and both are reported. See the benchmark notes.
-#ifdef CCG_ALIGNED
+#ifdef CCV_ALIGNED
 #define ALIGNED __attribute__((align_value(65536)))
 #else
 #define ALIGNED

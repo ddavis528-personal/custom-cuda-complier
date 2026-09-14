@@ -55,7 +55,7 @@ which is the one we went looking for.
 §1 named a warp-uniform file as the fallback if GEMM register pressure came back
 bad. The pressure data did not force it; **redundant execution did.**
 
-`ccg-llc -ccg-uniformity-stats` reports, per kernel, the share of instructions
+`ccv-llc -ccv-uniformity-stats` reports, per kernel, the share of instructions
 that are warp-uniform and the peak number of uniform values simultaneously live:
 
 | kernel | warp-uniform | peak uniform live |
@@ -95,7 +95,7 @@ affordable.
 **But §4's conversion scheme has no encoding for an integer source.** It reads
 `base × 4 source-format codes × 4 rounding modes`, where the source-format code
 is the 2-bit *FP* format. `cvt.f32.u32` — the one integer division needs — has
-no slot in it, while `CCGInstrInfo.td` assigns it point 128 anyway. This has to
+no slot in it, while `CCVInstrInfo.td` assigns it point 128 anyway. This has to
 be settled before anything is relocated. F-59.
 
 ## 5. Two decisions the compiler forced
@@ -129,9 +129,9 @@ Measured, not cited — `tools/bench.py`, full tables and caveats in
 
 | | vadd | saxpy | dot | reduce | transpose |
 |---|---|---|---|---|---|
-| CCG bits/instr | 27.1 | 26.9 | 26.0 | 26.0 | 30.1 |
+| CCV bits/instr | 27.1 | 26.9 | 26.0 | 26.0 | 30.1 |
 | AMDGCN gfx900 | 41.9 | 43.5 | 40.0 | 39.7 | 38.5 |
-| CCG instructions | 23 | 22 | 56 | 51 | 84 |
+| CCV instructions | 23 | 22 | 56 | 51 | 84 |
 | AMDGCN instructions | 29 | 25 | 60 | 54 | 64 |
 
 **Roughly 0.65× the bits per instruction of a real contemporary GPU ISA, at

@@ -12,15 +12,15 @@ TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 fail=0
 
 run_one() {              # $1 = label, $2 = extra llc flags
-  build/ccg-llc test/accept/mask-uniform.ll -o "$TMP/$1.o" -obj $2 2>/dev/null || return 1
+  build/ccv-llc test/accept/mask-uniform.ll -o "$TMP/$1.o" -obj $2 2>/dev/null || return 1
   llvm-objcopy -O binary --only-section=.text "$TMP/$1.o" "$TMP/$1.bin" || return 1
   local args=(-poke 0x20020=3 -poke 0x20030=1234)
   for i in $(seq 0 31); do args+=(-peek $((0x30000 + i*4))); done
-  build/ccg-sim "$TMP/$1.bin" "${args[@]}" 2>&1
+  build/ccv-sim "$TMP/$1.bin" "${args[@]}" 2>&1
 }
 
 on=$(run_one on "")                        || { echo "  FAIL  masked build did not run"; exit 1; }
-off=$(run_one off "-ccg-mask-uniform=false") || { echo "  FAIL  unmasked build did not run"; exit 1; }
+off=$(run_one off "-ccv-mask-uniform=false") || { echo "  FAIL  unmasked build did not run"; exit 1; }
 
 got_on=$(echo "$on" | grep -oP '= \K\d+' | tr '\n' ' ')
 got_off=$(echo "$off" | grep -oP '= \K\d+' | tr '\n' ' ')
@@ -45,9 +45,9 @@ if [ "$got_on" != "$want" ]; then
 elif [ "$got_on" != "$got_off" ]; then
   echo "  FAIL  masking changed the result"; fail=1
 else
-  n=$(build/ccg-llc test/accept/mask-uniform.ll -o /dev/null -ccg-mask-stats 2>&1 |
+  n=$(build/ccv-llc test/accept/mask-uniform.ll -o /dev/null -ccv-mask-stats 2>&1 |
       grep -oP 'masked to lane 0\s+: \K\d+')
-  b=$(build/ccg-llc test/accept/mask-uniform.ll -o /dev/null -ccg-mask-stats 2>&1 |
+  b=$(build/ccv-llc test/accept/mask-uniform.ll -o /dev/null -ccv-mask-stats 2>&1 |
       grep -oP 'broadcasts inserted\s+: \K\d+')
   echo "  PASS  lane-0 masking is result-identical ($n masked, $b broadcasts)"
   # A run where nothing was masked would pass vacuously.

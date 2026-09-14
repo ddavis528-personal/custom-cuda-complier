@@ -7,14 +7,14 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-PLUGIN=build/CCGLowerKernelArgs.so
+PLUGIN=build/CCVLowerKernelArgs.so
 fail=0
 
 [ -f "$PLUGIN" ] || { echo "  plugin not built"; exit 1; }
 
 lower() {
   ./tools/cuda-to-ir.sh "$1" "$TMP/$2.ll" >/dev/null || return 1
-  opt -load-pass-plugin="$PLUGIN" -passes='ccg-lower-kernel-args,instcombine,gvn' \
+  opt -load-pass-plugin="$PLUGIN" -passes='ccv-lower-kernel-args,instcombine,gvn' \
       -S "$TMP/$2.ll" -o "$TMP/$2.low.ll" 2>/dev/null
 }
 

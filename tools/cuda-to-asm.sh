@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CUDA source -> CCG assembly, the whole pipeline in one step.
+# CUDA source -> CCV assembly, the whole pipeline in one step.
 #
 # Factored out so that tools/verify.sh can regenerate the assembly it checks the
 # spec's worked listings against, rather than reading a committed .s file. The
@@ -25,7 +25,7 @@ fi
 # 32-bit (§5.1) and need no window at all. NVPTX runs the same pass for the
 # same reason.
 ./tools/cuda-to-ir.sh "$IN" "$CLANG_LL" >/dev/null
-opt -load-pass-plugin=build/CCGLowerKernelArgs.so \
-    -passes='function(infer-address-spaces),ccg-lower-kernel-args,function(instcombine,gvn,simplifycfg)' \
+opt -load-pass-plugin=build/CCVLowerKernelArgs.so \
+    -passes='function(infer-address-spaces),ccv-lower-kernel-args,function(instcombine,gvn,simplifycfg)' \
     -S "$CLANG_LL" -o "$LOWERED_LL" 2>/dev/null
-build/ccg-llc "$LOWERED_LL" -o "$OUT"
+build/ccv-llc "$LOWERED_LL" -o "$OUT"

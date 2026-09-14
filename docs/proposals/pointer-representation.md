@@ -24,18 +24,18 @@ legalizer. Matching the address there and rewriting the memory operation to a
 target node that takes **two i32 operands** means the 64-bit value is dead before
 anything tries to legalize it.
 
-`CCGTargetLowering::PerformDAGCombine` handles two shapes, which are exactly the
+`CCVTargetLowering::PerformDAGCombine` handles two shapes, which are exactly the
 two Format D addressing modes:
 
 | IR shape | Target node | Selected to |
 |---|---|---|
-| `(rbase << 16) + idx` | `CCGISD::LD/ST_BASEIDX` | Format D base+index |
-| a constant address | `CCGISD::LD/ST_BASEOFF` | Format D base+offset |
+| `(rbase << 16) + idx` | `CCVISD::LD/ST_BASEIDX` | Format D base+index |
+| a constant address | `CCVISD::LD/ST_BASEOFF` | Format D base+offset |
 
 The second is the launch block, whose base the prologue materialises with a
 48-bit Format F constant (§5.2).
 
-**Verified.** From IR in the shape `CCGLowerKernelArgs` produces:
+**Verified.** From IR in the shape `CCVLowerKernelArgs` produces:
 
 ```
 	f48        r0, 2                ; launch base >> 16

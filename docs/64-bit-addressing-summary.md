@@ -97,7 +97,7 @@ Three consequences pinned down in the spec rather than left to the ABI document:
 
 Two stages, and the division between them is deliberate.
 
-**Stage 1 — IR.** `CCGLowerKernelArgs` rewrites kernel parameters into invariant
+**Stage 1 — IR.** `CCVLowerKernelArgs` rewrites kernel parameters into invariant
 loads from the launch block and materialises the address model as **explicit IR
 arithmetic**: `(zext rbase << 16) + zext roffset`.
 
@@ -174,7 +174,7 @@ stack-smashing abort, with no diagnostic, because a live `i64` reached a type
 legalizer with no register class to expand into.
 
 A crash is not an acceptable failure mode: it is indistinguishable from a bug in
-the compiler and tells the user nothing. `CCGCheckIR` now runs before codegen and
+the compiler and tells the user nothing. `CCVCheckIR` now runs before codegen and
 turns each into a diagnostic naming the construct and the reason:
 
 | Construct | Now reports |

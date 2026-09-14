@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Compare an ISA worked listing against what ccg-llc actually emits.
+Compare an ISA worked listing against what ccv-llc actually emits.
 
 check-listings.py verifies that the spec's prose matches the spec's listings.
 That is internal consistency: it cannot notice when the listing stops matching
@@ -78,7 +78,7 @@ def derive(lines, sizes):
 
 def main(spec, section, asm):
     a, b = parse_spec(spec, section), parse_asm(asm)
-    print(f"  {'figure':<14} {'§'+section+' listing':>14} {'ccg-llc':>10}")
+    print(f"  {'figure':<14} {'§'+section+' listing':>14} {'ccv-llc':>10}")
     print("  " + "-" * 42)
     bad = 0
     for k in ("instructions", "bits", "peak_live"):

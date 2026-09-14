@@ -1,6 +1,6 @@
 # Proposal — `srd`, the Identity Primitive (F-1a)
 
-**Status:** RESOLVED — `srd rd, #sel` is Format K point 28 with a 4-bit selector, specified in §3 and §5.3 and defined in `CCGInstrInfo.td`. Selectors 0 (`%ctatid`) and 1 (`%ctaid`) are allocated; everything else a kernel needs comes from the launch block. This document records the argument, not the current state.
+**Status:** RESOLVED — `srd rd, #sel` is Format K point 28 with a 4-bit selector, specified in §3 and §5.3 and defined in `CCVInstrInfo.td`. Selectors 0 (`%ctatid`) and 1 (`%ctaid`) are allocated; everything else a kernel needs comes from the launch block. This document records the argument, not the current state.
 **Depends on:** `launch-abi.md` (which values the block can carry),
 `address-model.md` (S = 16, settled).
 
@@ -167,7 +167,7 @@ add with no tiling, no unrolling, no shared memory, and no reuse.
 code, the unaligned prologue peaks at **5 of 16** and the aligned one at **4 of
 16** — the allocator never holds two pointers fully materialised, because each
 base is loaded only when the fold consuming it is ready. See ISA v1.5 §5.5/§5.6,
-both of which are now generated and checked against `ccg-llc` output. The
+both of which are now generated and checked against `ccv-llc` output. The
 argument does not survive its own measurement, alignment aside.
 
 That is the **fourth** independent argument toward 32 GPRs, and unlike the other

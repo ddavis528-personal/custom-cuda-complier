@@ -1,8 +1,8 @@
 # Warp-uniform execution: three designs, and what the measurement says
 
-**Status:** PARTLY RESOLVED — option B (mask to lane 0 and broadcast) was adopted as O-33 and is on by default; it takes the energy of redundant execution and not the issue slots. **Option C, the uniform-operand encoding bit, is still open** and is the cheaper of the two remaining shapes — F-52. O-33 also measured what masking cannot reach, which produced F-58: `sel` spends the predicate qualifier field on data, so no `select` can be masked, and that is a larger block than the opcode-range one. Measured with `ccg-llc -ccg-uniformity-stats`. Measured with `ccg-llc -ccg-uniformity-stats`
+**Status:** PARTLY RESOLVED — option B (mask to lane 0 and broadcast) was adopted as O-33 and is on by default; it takes the energy of redundant execution and not the issue slots. **Option C, the uniform-operand encoding bit, is still open** and is the cheaper of the two remaining shapes — F-52. O-33 also measured what masking cannot reach, which produced F-58: `sel` spends the predicate qualifier field on data, so no `select` can be masked, and that is a larger block than the opcode-range one. Measured with `ccv-llc -ccv-uniformity-stats`. Measured with `ccv-llc -ccv-uniformity-stats`
 (O-25's warp-invariance reporting, finally implemented) and
-`ccg-sim -counters`.
+`ccv-sim -counters`.
 **Touches:** O-25, §1's "one live risk", F-52.
 
 ---
@@ -13,7 +13,7 @@ O-25 said warp-invariance reporting was "the only evidence that would size a
 warp-uniform register file". Here it is. *Warp*-uniform, not grid-uniform —
 every lane of a warp is in one CTA, so `ctaid` and `ntid` are uniform and only
 `tid` is not. LLVM's stock NVPTX answer calls `ctaid` divergent, which is right
-across a grid and wrong here; `CCGTTIImpl` supplies the warp-scoped notion.
+across a grid and wrong here; `CCVTTIImpl` supplies the warp-scoped notion.
 
 | kernel | instructions | warp-uniform | lane-activations wasted | peak uniform live |
 |---|---|---|---|---|

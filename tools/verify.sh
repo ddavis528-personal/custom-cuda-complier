@@ -10,14 +10,14 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 INC=${LLVM_INCLUDEDIR:-$(llvm-config --includedir)}
-TD=llvm/CCG/CCG.td
+TD=llvm/CCV/CCV.td
 OUT=$(mktemp -d); trap 'rm -rf "$OUT"' EXIT
 
 fail=0
 for g in gen-register-info gen-instr-info gen-emitter gen-disassembler \
          gen-asm-writer gen-dag-isel gen-callingconv; do
   printf '  %-20s ' "$g"
-  if llvm-tblgen -I "$INC" -I llvm/CCG --$g "$TD" -o "$OUT/$g.inc" 2>"$OUT/$g.err"; then
+  if llvm-tblgen -I "$INC" -I llvm/CCV --$g "$TD" -o "$OUT/$g.inc" 2>"$OUT/$g.err"; then
     printf 'ok (%s lines)\n' "$(wc -l < "$OUT/$g.inc")"
   else
     printf 'FAIL\n'; sed 's/^/      /' "$OUT/$g.err" | head -8; fail=1
@@ -25,8 +25,8 @@ for g in gen-register-info gen-instr-info gen-emitter gen-disassembler \
 done
 
 echo
-llvm-tblgen -I "$INC" -I llvm/CCG --dump-json "$TD" -o "$OUT/ccg.json" 2>/dev/null
-python3 tools/check-encoding.py "$OUT/ccg.json" || fail=1
+llvm-tblgen -I "$INC" -I llvm/CCV --dump-json "$TD" -o "$OUT/ccv.json" 2>/dev/null
+python3 tools/check-encoding.py "$OUT/ccv.json" || fail=1
 
 echo "  worked-listing arithmetic"
 python3 tools/check-listings.py docs/isa-v1.5-operation-map-and-encoding.md || fail=1
@@ -38,7 +38,7 @@ python3 tools/check-listings.py docs/isa-v1.5-operation-map-and-encoding.md || f
 # tree: the .s files are gitignored, so reading them would make this check skip
 # silently on a fresh clone.
 SPEC=docs/isa-v1.5-operation-map-and-encoding.md
-if [ -x build/ccg-llc ] && [ -f build/CCGLowerKernelArgs.so ]; then
+if [ -x build/ccv-llc ] && [ -f build/CCVLowerKernelArgs.so ]; then
   for pair in "5.5:test/cuda/vadd.cu" "5.6:test/cuda/vadd-aligned.cu"; do
     sec=${pair%%:*}; src=${pair#*:}
     echo "  §$sec listing vs codegen"
@@ -49,7 +49,7 @@ if [ -x build/ccg-llc ] && [ -f build/CCGLowerKernelArgs.so ]; then
     fi
   done
 else
-  echo "  (build/ccg-llc or the kernel-arg plugin not built -- skipping listing provenance)"
+  echo "  (build/ccv-llc or the kernel-arg plugin not built -- skipping listing provenance)"
 fi
 
 # Documentation structure: paths that resolve, findings and decisions that are
@@ -61,7 +61,7 @@ python3 tools/check-docs.py || fail=1
 # docs/walkthrough.md is assembled from generated artifacts and claims "nothing
 # here is transcribed". Regenerate it and require the tree copy to match, so the
 # claim is checked rather than trusted.
-if [ -x build/ccg-llc ] && [ -x build/ccg-sim ]; then
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   echo "  walkthrough document vs toolchain"
   cp docs/walkthrough.md "$OUT/walkthrough.before"
   if ./tools/make-walkthrough.sh >/dev/null 2>&1 \
@@ -81,7 +81,7 @@ fi
 # docs/benchmarks.md carries measured tables. Regenerate and compare, for the
 # same reason the spec listings are regenerated: a hand-copied number is only
 # as current as whoever last remembered to copy it, and four of them were not.
-if [ -x build/ccg-llc ] && [ -x build/ccg-sim ]; then
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   echo "  benchmark document vs tools"
   python3 tools/check-bench-doc.py || fail=1
 fi
@@ -89,14 +89,14 @@ fi
 # Round trip, if the MC layer has been built. The encoder and the disassembler
 # come from different TableGen backends, so a disagreement means the encoding is
 # ambiguous or the tables are inconsistent -- not visible from reading §3.
-if [ -x build/ccg-roundtrip ]; then
+if [ -x build/ccv-roundtrip ]; then
   echo "  encode -> decode round trip"
-  ./build/ccg-roundtrip || fail=1
+  ./build/ccv-roundtrip || fail=1
 else
-  echo "  (build/ccg-roundtrip not built -- see llvm/CCG/README.md; skipping round trip)"
+  echo "  (build/ccv-roundtrip not built -- see llvm/CCV/README.md; skipping round trip)"
 fi
 
-if [ -x build/ccg-sim ]; then
+if [ -x build/ccv-sim ]; then
   echo
   ./tools/run-tests.sh || fail=1
 fi

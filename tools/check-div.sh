@@ -13,7 +13,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 
-build/ccg-llc test/accept/divide-all.ll -o "$TMP/d.o" -obj || exit 1
+build/ccv-llc test/accept/divide-all.ll -o "$TMP/d.o" -obj || exit 1
 llvm-objcopy -O binary --only-section=.text "$TMP/d.o" "$TMP/d.bin" || exit 1
 
 BATCHES=${1:-40}
@@ -46,7 +46,7 @@ for g in range(0, len(pairs), 32):
         args += [f"-poke {0x30000+4*i}={n}", f"-poke {0x30400+4*i}={d}"]
     for base in (0x30800, 0x30c00, 0x31000, 0x31400):
         args += [f"-peek {base+4*i}" for i in range(len(chunk))]
-    out = subprocess.run(["build/ccg-sim", binf, *" ".join(args).split()],
+    out = subprocess.run(["build/ccv-sim", binf, *" ".join(args).split()],
                          capture_output=True, text=True)
     got = [int(x) for x in
            __import__("re").findall(r"= (\d+)", out.stdout)]
