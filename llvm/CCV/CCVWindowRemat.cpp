@@ -23,6 +23,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
@@ -41,6 +42,28 @@ FunctionPass *createCCVWindowRemat();
 #define DEBUG_TYPE "ccv-window-remat"
 
 namespace {
+
+static cl::opt<bool> StopAtGPR(
+    "ccv-window-remat-stop-at-gpr", cl::init(true), cl::Hidden,
+    cl::desc("Stop the cloned window chain at values that fit a GPR. The i64 "
+             "arithmetic is what cannot cross a block; the i32 launch-block "
+             "load feeding it can, and cloning it too re-executes a "
+             "loop-invariant load every iteration."));
+
+/// Does a value of this type cross a basic block without trouble? That is the
+/// whole question this pass exists to answer: an i64 window address has no
+/// register class and the type legalizer aborts on it, but an i32 is an
+/// ordinary GPR value and crossing blocks is what SSA is for.
+///
+/// This is the boundary the chain should stop at. Cloning PAST it -- down into
+/// the `.const` load that produces `rbase` -- buys nothing for correctness and
+/// costs a load in every block that uses the window, which in a LOOP means
+/// every iteration. Straight-line kernels cannot show the difference, and every
+/// benchmark kernel was straight-line in its hot path when this pass was
+/// written.
+bool fitsRegister(const Type *T) {
+  return T->isIntegerTy() && T->getIntegerBitWidth() <= 32;
+}
 
 /// Can this instruction be cloned to an arbitrary point without changing
 /// behaviour? Launch-block loads qualify because §5.2 makes the block read-only
@@ -88,8 +111,14 @@ bool collectChain(Instruction *Root, SmallVectorImpl<Instruction *> &Order) {
       return false;
     Stack.push_back({I, true});
     for (Value *Op : I->operands())
-      if (auto *OpI = dyn_cast<Instruction>(Op))
+      if (auto *OpI = dyn_cast<Instruction>(Op)) {
+        // A GPR-width operand is a leaf: it stays where it is and reaches the
+        // clone as an ordinary cross-block register value. Operands not in the
+        // clone map keep pointing at the original, which is exactly right.
+        if (StopAtGPR && fitsRegister(OpI->getType()))
+          continue;
         Stack.push_back({OpI, false});
+      }
   }
   return true;
 }

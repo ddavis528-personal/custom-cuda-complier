@@ -129,10 +129,17 @@ PreservedAnalyses LowerKernelArgs::run(Module &M, ModuleAnalysisManager &) {
         ConstantInt::get(I64, LaunchBase),
         PointerType::get(Ctx, /*AddressSpace=*/4), "launch.base");
 
+    // The most recent instruction this pass inserted. Used to re-anchor the
+    // builder when the instruction it was pointing at gets erased below; it is
+    // always positioned after `Base`, so re-anchoring cannot move an insert
+    // above the pointer every one of these loads is derived from.
+    Instruction *Anchor = nullptr;
+
     auto loadSlot = [&](unsigned Off, const Twine &Name) -> Value * {
       Value *P = B.CreateConstInBoundsGEP1_64(Type::getInt8Ty(Ctx), Base, Off);
       auto *L = B.CreateAlignedLoad(I32, P, Align(4), Name);
       L->setMetadata(LLVMContext::MD_invariant_load, Invariant);
+      Anchor = L;
       return L;
     };
 
@@ -147,7 +154,22 @@ PreservedAnalyses LowerKernelArgs::run(Module &M, ModuleAnalysisManager &) {
               DimCalls.emplace_back(CI, *O);
     for (auto &[CI, O] : DimCalls) {
       CI->replaceAllUsesWith(loadSlot(O, "ntid"));
+      // The builder may be anchored on this very call. `getFirstInsertionPt()`
+      // is the entry block's first non-PHI instruction, and in a kernel whose
+      // first statement reads `blockDim` that instruction IS a dimension call
+      // -- so erasing it leaves the builder holding a dangling iterator and the
+      // next insert writes through it.
+      //
+      // Nothing caught this for the life of the pass because it depends on
+      // clang's instruction ordering: `vadd` opens with `ctaid`, which is not
+      // erased, and `vadd16_loop` opens with `ntid`, which is. Every benchmark
+      // kernel happened to be the first shape until a kernel with a loop
+      // reordered the reads, and then the pass segfaulted.
+      const bool WasAnchor = B.GetInsertBlock() == CI->getParent() &&
+                             B.GetInsertPoint() == CI->getIterator();
       CI->eraseFromParent();
+      if (WasAnchor)
+        B.SetInsertPoint(Anchor->getNextNode());
       Changed = true;
     }
 

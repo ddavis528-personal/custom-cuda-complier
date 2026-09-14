@@ -81,7 +81,8 @@ def row_numbers(doc, prefix):
 def check_markdown_claims(doc, rows):
     """Markdown tables and prose figures that restate generated numbers."""
     fail = 0
-    KERNELS = ["vadd", "saxpy", "vadd16", "dot", "reduce", "transpose"]
+    KERNELS = ["vadd", "saxpy", "vadd16", "vadd_loop", "vadd16_loop",
+               "dot", "reduce", "transpose"]
 
     # The control table: CCV and GCN static instruction counts, per kernel.
     for label, get in (("| CCV |", lambda k: rows[k]["ccv"]["instrs"]),

@@ -28,4 +28,5 @@ fi
 opt -load-pass-plugin=build/CCVLowerKernelArgs.so \
     -passes='function(infer-address-spaces),ccv-lower-kernel-args,function(instcombine,gvn,simplifycfg)' \
     -S "$CLANG_LL" -o "$LOWERED_LL" 2>/dev/null
-build/ccv-llc "$LOWERED_LL" -o "$OUT"
+# CCV_LLCFLAGS lets a caller A/B a backend flag without editing this script.
+build/ccv-llc "$LOWERED_LL" -o "$OUT" ${CCV_LLCFLAGS:-}

@@ -72,8 +72,10 @@ questions and only one of them can be measured on both machines.
   vadd       |     23     78   27.1 |     16     56 |     29    152   41.9 |     21
   saxpy      |     22     74   26.9 |     17     58 |     25    136   43.5 |     19
   vadd16     |     26     86   26.5 |     18     62 |     29    152   41.9 |     21
-  dot        |     56    182   26.0 |     48    156 |     60    300   40.0 |     46
-  reduce     |     51    166   26.0 |     45    146 |     54    268   39.7 |     41
+  vadd_loop  |     27     94   27.9 |     19     66 |     35    184   42.1 |     23
+  vadd16_loop |     30    104   27.7 |     21     74 |     35    184   42.1 |     23
+  dot        |     55    178   25.9 |     47    152 |     60    300   40.0 |     46
+  reduce     |     50    162   25.9 |     44    142 |     54    268   39.7 |     41
   transpose  |     87    320   29.4 |     79    290 |     64    308   38.5 |     43
 ```
 
@@ -85,8 +87,10 @@ questions and only one of them can be measured on both machines.
   vadd           16.0   100%         29 |       512       100%   exact: no backward branch
   saxpy          17.0   100%         25 |       544       100%   exact: no backward branch
   vadd16         18.0   100%         29 |       576       100%   exact: no backward branch
-  dot            78.9    64%         -- |      2526       100%   has 3 loops; not modelled
-  reduce         75.9    63%         -- |      2430       100%   has 3 loops; not modelled
+  vadd_loop      68.0   100%         -- |      2176       100%   has 1 loops; not modelled
+  vadd16_loop     84.0   100%         -- |      2688       100%   has 1 loops; not modelled
+  dot            79.9    66%         -- |      2556       100%   has 3 loops; not modelled
+  reduce         76.9    65%         -- |      2460       100%   has 3 loops; not modelled
   transpose      79.0   100%         64 |      1429        57%   exact: no backward branch
 ```
 
@@ -125,11 +129,13 @@ spanning both encoding families and the datacentre line.
   vadd                  27.1           41.9           48.6           46.0           48.0           48.7
   saxpy                 26.9           43.5           47.3           44.6           46.9           47.2
   vadd16                26.5           41.9           49.8           47.0           49.0           48.7
-  dot                   26.0           40.0           41.5           40.9           42.3           42.1
-  reduce                26.0           39.7           42.9           39.2           41.4           40.2
+  vadd_loop             27.9           42.1           42.9           41.8           45.9           45.2
+  vadd16_loop            27.7           42.1           43.6           42.4           46.8           45.2
+  dot                   25.9           40.0           41.5           40.9           42.3           42.1
+  reduce                25.9           39.7           42.9           39.2           41.4           40.2
   transpose             29.4           38.5           41.1           39.6           39.2           38.7
   -----------------------------------------------------------------------------------------------------
-  pooled                27.4           40.3           43.9           41.7           43.1           42.5
+  pooled                27.4           40.7           43.7           41.8           43.8           43.1
 ```
 
 **Instruction counts, same sweep — the control:**
@@ -140,8 +146,10 @@ spanning both encoding families and the datacentre line.
   vadd                    23             29             27             32             32             23
   saxpy                   22             25             23             28             28             21
   vadd16                  26             29             27             32             32             23
-  dot                     56             60             64             68             62             54
-  reduce                  51             54             50             71             58             51
+  vadd_loop               27             35             44             49             39             29
+  vadd16_loop              30             35             44             49             39             29
+  dot                     55             60             64             68             62             54
+  reduce                  50             54             50             71             58             51
   transpose               87             64             60             76             76             62
 ```
 
@@ -173,15 +181,15 @@ reproduces the published gfx900 column **exactly** on all five kernels.
 ### The control that matters: instruction counts are comparable
 
 A denser encoding that needs twice the instructions has gained nothing. The
-counts are within 30% everywhere and CCV is *lower* on five of six:
+counts are within 30% everywhere and CCV is *lower* on seven of eight:
 
-| | vadd | saxpy | vadd16 | dot | reduce | transpose |
-|---|---|---|---|---|---|---|
-| CCV | 23 | 22 | 26 | 56 | 51 | 87 |
-| GCN | 29 | 25 | 29 | 60 | 54 | 64 |
+| | vadd | saxpy | vadd16 | vadd_loop | vadd16_loop | dot | reduce | transpose |
+|---|---|---|---|---|---|---|---|---|
+| CCV | 23 | 22 | 26 | 27 | 30 | 55 | 50 | 87 |
+| GCN | 29 | 25 | 29 | 35 | 35 | 60 | 54 | 64 |
 
 So the density is not bought with instruction count. **Code size lands below
-GCN on five of six kernels** — 166 against 268 bytes on the reduction, and
+GCN on seven of eight kernels** — 166 against 268 bytes on the reduction, and
 with the alignment attribute `vadd` is 56 bytes against 152, which is 2.7×.
 
 **This table is not a fair comparison, and the next section is the fair one.**
@@ -211,11 +219,15 @@ emits `.amdhsa_wavefront_size32` and its absence means wave64.
     vadd                  512            464            864           1024           1024            368
     saxpy                 544            400            736            896            896            336
     vadd16                576            464            864           1024           1024            368
+    vadd_loop             272             --             --             --             --             --
+    vadd16_loop            336             --             --             --             --             --
     transpose            2528           1024           1920           2432           2432            992
   instr bytes / 1K elem
     vadd                 1792           2432           5248           5888           6144           2240
     saxpy                1856           2176           4352           4992           5248           1984
     vadd16               1984           2432           5376           6016           6272           2240
+    vadd_loop             264             --             --             --             --             --
+    vadd16_loop            296             --             --             --             --             --
     transpose            9280           4928           9856          12032          11904           4800
 ```
 
@@ -328,6 +340,64 @@ that would show a win is one where a thread handles two adjacent 16-bit
 elements in a single 32-bit lane; that is what the packed form exists for, and
 no benchmark kernel does it. Recorded as F-79.
 
+#### What amortizes, and what does not
+
+`vadd16` is straight-line: one element per thread, every width transition and
+every argument load paid once per element. That measures the **prologue** and
+calls it the kernel. A real 16-bit kernel runs many elements per thread, and the
+expectation — reasonably — is that the width-handling overhead approaches zero
+as iterations grow. `vadd_loop` and `vadd16_loop` are the same two kernels with
+a grid-stride loop, measured on the simulator across iteration counts:
+
+| elements/thread | `vadd_loop` issues/elem | `vadd16_loop` issues/elem |
+|---|---|---|
+| 1 | 19.00 | 21.00 |
+| 2 | 13.00 | 15.00 |
+| 4 | 10.00 | 12.00 |
+| 8 | 8.50 | 10.50 |
+| 16 | 7.75 | 9.75 |
+| 32 | 7.38 | 9.38 |
+| **∞ (loop body)** | **7** | **9** |
+
+Both fit `issues = 12 + iterations × body` exactly, so the prologue is 12
+instructions and amortizes away cleanly. **The width overhead does not.** The
+gap between the two columns is 2.0 instructions per element at every iteration
+count, and as a *fraction* it gets worse as the prologue amortizes — 10.5% at
+one element per thread, **22% in steady state**.
+
+The steady-state loop bodies say why:
+
+```
+vadd_loop (f32), 7 per element        vadd16_loop (i16), 9 per element
+  ld.global r6, [r2, r1, 1, 0]          chwidth.multi 192, 1        <-- overhead
+  ld.global r7, [r3, r1, 1, 0]          ld.global r6, [r3, r1, 1, 0]
+  fadd r7, r6                           ld.global r7, [r2, r1, 1, 0]
+  st.global r7, [r4, r1, 1, 0]          add r6, r7, r6
+  add r1, r0                            st.global r6, [r4, r1, 1, 0]
+  setp.lt.u p0, r1, r5                  chwidth r6, 0               <-- overhead
+  @p0 bra LBB0_1                        add r1, r0
+                                        setp.lt.u p0, r1, r5
+                                        @p0 bra LBB0_1
+```
+
+**The two width transitions are loop-carried and pure artifact.** `r6` and `r7`
+are narrowed at the top of the body and `r6` is widened back at the bottom, so
+that the width state at the back-edge matches the state at loop entry. Nothing
+in the loop needs `r6` wide — the restore exists only to satisfy a fixed point
+the dataflow chose. **Had the dataflow chosen "narrow at loop entry", both
+transitions would hoist into the preheader and the body would be 7 instructions,
+identical to the fp32 kernel.**
+
+The compiler cannot make that choice today. `CCVInsertChwidth` hoists within a
+block and stops at block entry — "hoisting across a block boundary would need
+the dataflow to agree on every predecessor, which is a separate problem," as the
+pass says of itself. For a straight-line kernel that ceiling costs nothing. For
+a loop it converts a one-time cost into a per-iteration one, permanently.
+
+**This is a compiler limitation, not an ISA property.** `chwidth` here is loop-
+invariant and belongs in the preheader; nothing in §3 prevents that. Recorded as
+F-87, with the payoff measured below.
+
 #### The instruction count is not the whole cost: O-40's retire rate
 
 The instruction-count deficit above is answered by IPC, not by instruction
@@ -346,8 +416,10 @@ had measured that. The simulator now counts it:
   vadd              16         14       0   0.000        16.0   1.000x
   saxpy             17         15       0   0.000        17.0       --
   vadd16            18         14       4   0.286        16.0   1.000x
-  dot              123        102       0   0.000       123.0       --
-  reduce           120         99       0   0.000       120.0       --
+  vadd_loop         68         58       0   0.000        68.0       --
+  vadd16_loop       84         58      32   0.552        68.0       --
+  dot              122        101       0   0.000       122.0       --
+  reduce           119         98       0   0.000       119.0       --
   transpose         79         72       0   0.000        79.0       --
 ```
 
@@ -385,6 +457,33 @@ a tidiness item; it is what converts this kernel from break-even to a gain.
 enough for the retire rate to carry the feature on its own; the fraction has to
 rise, which is F-79 (pack two elements per lane) and F-80 (stop spending
 instructions on avoidable transitions).
+
+#### Steady state, where the feature was supposed to pay
+
+The straight-line break-even is not an artifact of the prologue. Applying the
+same model to the loop bodies:
+
+| | instrs/elem | narrow | cycles @2× | vs f32 |
+|---|---|---|---|---|
+| `vadd_loop` (f32) | 7 | 0 | 7.0 | 1.000× |
+| `vadd16_loop` (i16), today | 9 | 4 | **7.0** | **1.000×** |
+| `vadd16_loop`, with F-87 | 7 | 4 | **5.0** | **1.400×** |
+
+**In steady state the narrow kernel is again exactly break-even** — the 2× retire
+rate pays for the two loop-carried `chwidth` instructions and nothing else, the
+same arithmetic as the straight-line case and for the same reason.
+
+The third row is the point. Four of the nine instructions in that loop body are
+narrow element work — two loads, the add, the store — which is a 44% narrow
+fraction, well above `vadd16`'s 28.6%. **With the two loop-carried transitions
+hoisted into the preheader, the body drops to seven instructions and the model
+gives 5.0 cycles against fp32's 7.0: a 1.40× speedup per element.** That is the
+return O-40 was designed to deliver, and it is currently being spent, in full,
+on two instructions the compiler does not need to emit.
+
+So the honest summary of the element-width model as it stands: **the ISA side
+works and the compiler is giving the whole benefit back.** F-87 is the single
+change with the largest measured payoff anywhere in this document.
 
 **The cycles column is a model and is labelled as one everywhere it appears.**
 The simulator retires one instruction per step; the column applies O-40's
@@ -555,11 +654,11 @@ tile:
 ```
   tile  accs    instrs     bits b/instr  spills    fma sp/fma    K-hit
   -------------------------------------------------------------------------
-  1x1   1          174     4816    27.7      31     16   1.94      22%
-  1x2   2          256     7024    27.4      55     32   1.72      19%
-  2x2   4          381    10288    27.0      97     64   1.52      17%
-  2x4   8          639    17072    26.7     186    128   1.45      13%
-  4x4   16        1132    29856    26.4     407    256   1.59      13%
+  1x1   1          182     4992    27.4      37     16   2.31      23%
+  1x2   2          261     7136    27.3      61     32   1.91      23%
+  2x2   4          382    10304    27.0     102     64   1.59      24%
+  2x4   8          639    17008    26.6     186    128   1.45      12%
+  4x4   16        1118    29296    26.2     407    256   1.59      14%
 ```
 
 `sp/fma` — memory traffic the register file forced, per unit of arithmetic it

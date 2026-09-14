@@ -31,7 +31,8 @@ import re, os, subprocess, sys, tempfile, json
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BENCH = os.path.join(ROOT, "test", "bench")
-KERNELS = ["vadd", "saxpy", "vadd16", "dot", "reduce", "transpose"]
+KERNELS = ["vadd", "saxpy", "vadd16", "vadd_loop", "vadd16_loop",
+           "dot", "reduce", "transpose"]
 
 # Warp/wavefront width, which is what makes an instruction count comparable
 # between machines. Read from the generated kernel descriptor, not assumed:
@@ -47,7 +48,8 @@ WIDTH = {"ccv": 32, "gfx900": 64, "gfx1030": 32, "gfx1100": 32,
 # dot and reduce are excluded: a thread there consumes several elements and
 # then joins a tree reduction, so there is no such constant, and AMD's dynamic
 # count is unknown anyway because both loop.
-ELEMENTWISE = ("vadd", "saxpy", "vadd16", "transpose")
+ELEMENTWISE = ("vadd", "saxpy", "vadd16", "vadd_loop", "vadd16_loop",
+               "transpose")
 
 # O-40's claimed retire rate for narrow element work, relative to 32-bit. The
 # ISA asks for 2x from the split datapath allocation. It is a hardware target
@@ -223,7 +225,17 @@ ARGS = {
     "reduce":    [3, 4, 32],
     "transpose": [3, 4, 16],
     "vadd16":    [3, 4, 5, 32],          # c, a, b windows; n -- as vadd
+    # The loop pair runs 256 elements over 32 threads: 8 iterations each, so
+    # per-thread prologue cost is spread over eight elements instead of one.
+    # That is the whole point of these two -- a straight-line kernel measures
+    # the prologue and calls it the kernel.
+    "vadd_loop":   [3, 4, 5, 256],
+    "vadd16_loop": [3, 4, 5, 256],
 }
+
+# Elements each thread processes, for the work-normalized table. One unless the
+# kernel loops.
+PER_THREAD = {"vadd_loop": 8, "vadd16_loop": 8}
 
 def dynamic(src, tmp, kernel, extra=()):
     """Lane-instructions per thread, from the simulator. This is the number the
@@ -429,12 +441,13 @@ def main():
             cells = []
             d = r["dyn"]
             ca = r["ccv_aligned"]
+            ept = PER_THREAD.get(k, 1)
             if d and ca and "bytes" in ca:
                 # CCV's measured per-thread issue count matches its ALIGNED
                 # static count on these kernels, so the aligned build is the
                 # one whose bytes correspond to the instructions executed.
                 v = d["per_thread"] if per == "instr" else ca["bytes"]
-                cells.append(f"{1024.0 * v / WIDTH['ccv']:.0f}")
+                cells.append(f"{1024.0 * v / (WIDTH['ccv'] * ept):.0f}")
             else:
                 cells.append("--")
             for a, _, _ in ARCHES:
@@ -442,7 +455,7 @@ def main():
                 # Static is the dynamic count only with no backward branch.
                 if g and "instrs" in g and g.get("loops") == 0:
                     v = g["instrs"] if per == "instr" else g["bytes"]
-                    cells.append(f"{1024.0 * v / WIDTH[a]:.0f}")
+                    cells.append(f"{1024.0 * v / (WIDTH[a] * ept):.0f}")
                 else:
                     cells.append("--")
             print(f"    {k:<10}" + "".join(f"{c:>15}" for c in cells))
