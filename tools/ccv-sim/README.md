@@ -43,17 +43,29 @@ An instruction without semantics stops the run and names itself rather than
 silently doing nothing.
 
 **`chwidth` and narrow width, partially.** `chwidth`/`chwidth.multi` set the
-state, and the integer ALU, `ADDI` and global load/store read and write their
-operands at the register's width — including transfer size, which §3 inherits
-from `rdata`'s `chwidth`. Everything else is 32-bit-only, and an instruction
-that has not been made width-aware **refuses to execute** when any GPR it
-touches is narrow rather than quietly computing a 32-bit answer for 16-bit
-data. Unimplemented is a stop that names itself; a silent wrong answer in
-narrow arithmetic is exactly what would not show up in a result comparison.
+state, and the integer ALU, `ADDI`, global and shared load/store, `CVT_SEXT` and
+both compare forms read and write their operands at the register's width —
+including transfer size, which §3 inherits from `rdata`'s `chwidth`. Everything
+else is 32-bit-only, and an instruction that has not been made width-aware
+**refuses to execute** when any GPR it touches is narrow rather than quietly
+computing a 32-bit answer for 16-bit data. Unimplemented is a stop that names
+itself; a silent wrong answer in narrow arithmetic is exactly what would not
+show up in a result comparison.
+
+The compares were the last addition and they are the cautionary one. A compare's
+operands are read at their element width — signed relations sign-extending,
+unsigned zero-extending — and a narrow *floating-point* compare refuses, because
+§4 has no narrow FP. Format C's materialization destination `rd` is exempt from
+the width guard, since these semantics never write it; that exemption is what
+lets the compiler leave a dead `rd` narrow instead of spending a `chwidth`
+restoring a register no one reads (F-89). **The order matters:** the semantics
+were made width-correct first and the whitelist entry added second. Doing it the
+other way round is how `ld.shared` came to vouch for itself while still calling
+`read32` (F-67).
 
 **Not implemented:** atomics (Format M), `packi`/`unpacki`, `dp4`/`dp8`,
-`call`/`ret`, and the floating-point, shuffle and compare paths at narrow
-width. None is reachable from any kernel that compiles today.
+`call`/`ret`, and the floating-point and shuffle paths at narrow width. None is
+reachable from any kernel that compiles today.
 
 ## Running
 
@@ -67,9 +79,21 @@ both take hex or decimal. `-trace` prints the issue mask and disassembly of each
 group, which is the quickest way to see divergence.
 
 `-counters` reports issue groups, lane-instructions, lane-activations, per-thread
-work, SIMT efficiency, dynamic bits per instruction, and a breakdown by class
-with spill traffic separated. It is named `-counters` rather than `-stats`
-because LLVM's own `-stats` option is already in the namespace.
+work, SIMT efficiency, dynamic bits per instruction, a breakdown by class with
+spill traffic separated, and **element-work instructions by width**. It is named
+`-counters` rather than `-stats` because LLVM's own `-stats` option is already in
+the namespace.
+
+The by-width counter exists for O-40, which gives narrow element work a higher
+retire rate: what that is worth is bounded by how much of the stream is narrow,
+and nothing measured that before. Width is taken from the instruction's GPR
+operands rather than an opcode table — element width is per-register state, so
+the registers are the authority — and where operands disagree the narrowest
+wins, because that is the datapath slice the operation occupies. Two operands
+are excluded, both for the same reason: `chwidth` itself is pipeline control
+rather than element work, and Format C's `rd` is a register the compare never
+writes. Counting the latter made a 32-bit comparison read as narrow work once
+per loop iteration and overstated a published speedup (F-91).
 
 `tools/run-tests.sh` drives the whole thing and checks results; `tools/bench.py`
 and `tools/sweep-tiles.sh` use the counters.

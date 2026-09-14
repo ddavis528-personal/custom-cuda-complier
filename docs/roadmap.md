@@ -138,6 +138,35 @@ Two consequences worth flagging back to the ISA side:
   width. Like the span argument, it is a structural limit that raw spill
   numbers will not surface.
 
+**Outcome — the pass is built, and the plan above held up better than it had to.**
+`CCVInsertChwidth.cpp` is post-RA with a per-physical-register width dataflow,
+as predicted, and `RISCVInsertVSETVLI` was the right prior art. Three things the
+plan did not anticipate:
+
+- **Placement inside the block is not enough.** Transitions also have to go on
+  CFG **edges** where predecessors disagree, or a loop-invariant width change
+  sits in the loop body and re-executes forever (F-87). The plan's "hoist to a
+  point where the affected registers are cold" is an intra-block notion; the
+  coldest point is often in another block entirely.
+- **A dead definition needs no width.** The single largest per-iteration cost
+  was a `chwidth` accommodating Format C's materialization destination on a
+  loop's back-edge test — a register nothing reads (F-89).
+- **The width-affinity objective is the allocation ORDER**, not a new heuristic.
+  The plan called for "softly partitioning the register file by width", which is
+  exactly right, and the cheapest expression of it is giving `GPR16` the
+  opposite allocation order to `GPR` (F-80). The register class is the only
+  width signal the allocator has, so there was nowhere else to put it.
+
+**The predicted conflict with O-8 did not appear — on these kernels.** Measured
+both ways on `vadd16` and `vadd16_loop`: total bytes identical (496 and 576),
+and the destructive-form hit rate unchanged (0, and 1 at 100%). The
+one-instruction difference is the `chwidth.multi` merge, which is byte-neutral
+by construction — two 16-bit transitions against one 32-bit one. **This is weak
+evidence and should not be read as more:** both kernels have almost no
+compression opportunity to lose, so a kernel with real `rd == rs0` pressure
+could still show the conflict the plan expects. The 32-GPR argument is likewise
+untouched — nothing here fills the file with narrow values (F-92).
+
 ### F-4 — The per-thread-PC model is a large scope reduction, and `reconv.hint` is cheap
 
 Good news, recorded because it changes the build estimate. NVPTX and AMDGPU both

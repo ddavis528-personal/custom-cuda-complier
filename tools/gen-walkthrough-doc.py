@@ -18,6 +18,35 @@ dec_f48  = run("python3","tools/decode-one.py","build/generated/CCV.json",str(W/
 trace    = "\n".join(l for l in open(W/"6-trace.txt").read().splitlines()
                      if re.match(r'^\s+[0-9a-f]{4}\s', l))
 e2e      = run("./tools/run-e2e.sh")
+def body_of(path, label="LBB0_1"):
+    """The loop body of a listing: the label through its backward branch."""
+    out, inside = [], False
+    for l in open(path).read().splitlines():
+        if l.startswith(label + ":"):
+            inside = True
+        if inside and l.strip() and not re.match(r'^\s*\.[a-z]', l):
+            out.append(l)
+        if inside and re.search(r'bra\s+' + label + r'\s*$', l):
+            break
+    return "\n".join(out)
+
+def listing(path):
+    return "\n".join(l for l in open(path).read().splitlines()
+                      if not re.match(r'^\s*\.[a-z]', l) and l.strip())
+
+def count_chwidth(text):
+    return len([l for l in text.splitlines() if re.match(r'\s*chwidth', l)])
+
+narrow_asm    = listing(W/"8-narrow-asm.s")
+narrow_body   = body_of(W/"8-narrow-asm.s")
+wide_body     = body_of(W/"8-wide-asm.s")
+noedge_body   = body_of(W/"8-narrow-asm-noedge.s")
+unal_body     = body_of(W/"8-narrow-asm-unaligned.s")
+chw_stats     = open(W/"8-chwidth-stats.txt").read().rstrip()
+narrow_src    = open("test/bench/vadd16_loop.cu").read().rstrip()
+nb_n, nb_w    = len(narrow_body.splitlines()) - 1, len(wide_body.splitlines()) - 1
+nb_noedge     = len(noedge_body.splitlines()) - 1
+
 SPEC = "docs/isa-v1.6-operation-map-and-encoding.md"
 prov     = run("python3","tools/check-spec-vs-codegen.py", SPEC, "5.6", str(W/"4-asm.s"))
 prov55   = run("python3","tools/check-spec-vs-codegen.py", SPEC, "5.5",
@@ -46,9 +75,12 @@ vadd.cu → clang → NVVM IR → CCVLowerKernelArgs → ccv-llc → ELF
 ```
 
 `align_value(65536)` is O-23's per-argument alignment attribute — the only
-target-specific thing in this source. It is not optional today: codegen does not
-yet implement the unaligned shape, which needs four addends against a
-three-input AGU, and rejects it with a diagnostic (F-27).
+target-specific thing in this source. It is an optimisation, not a requirement:
+the unaligned shape compiles too, and §4 below shows what it costs. Codegen
+once rejected it with a diagnostic, because folding the in-window offset needs a
+fourth addend against a three-input AGU; `matchBaseIdx` now folds
+`roffset + (i << scale)` into one index register with scale-enable clear,
+trading O-7's scaling for the addend (F-27).
 
 ## 2. clang, unmodified
 
@@ -89,12 +121,12 @@ one-register form arrives from `instcombine`, not from a backend special case.
 
 | | |
 |---|---|
-| `f48 r0, 2` | Format F's 48-bit form materialises the launch window in one instruction |
+| `movi r0, 2` | Format F's 48-bit form materialises the launch window in one instruction |
 | `ld.global r1, [r0 + 0]` | `blockDim.x` — launch-*time* data, so the block supplies it (§5.3) |
 | `srd r2, 0` / `srd r3, 1` | thread and CTA identity — the only values no memory location can supply |
 | `mad.lo r1, r3, r1, r2` | the three-source form takes `ctaid*ntid + tid` in one instruction |
-| `por p0, 4, 0` | O-24: Formats C/C′ carry a *mandatory* qualifier and there is no unpredicated compare, so a kernel must manufacture a true predicate. Compressed forms are never predicated, which breaks the cycle |
-| `@p0 setp.le p0, r2, r1` | self-guarding — guard and destination are the same predicate, so the effective file stays at four |
+| `setp.le p0, r2, r1` | Format C″ (O-32), the **unpredicated** compare. Earlier revisions had no such form: Formats C/C′ carry a mandatory qualifier, so every compare had to be preceded by a `por` manufacturing a true predicate (O-24). That cost one instruction per compare — 13% of dynamically issued instructions in the reduction kernels — and is now zero |
+| `@p0 bra LBB0_2` | the guard branches *over* the body, so the fall-through path has no branch at all |
 | `[r2, r1, 1, 0]` | Format D base+index with **scale-enable set**: the AGU supplies the `chwidth`-derived shift. O-7 only fires like this for aligned pointers |
 | `fadd r3, r2` | the compressed destructive form, 16 bits, because `rd == rs0` fell out naturally |
 
@@ -191,6 +223,101 @@ fail rather than coincidentally agree.
 
 `n=0` is the case where every lane takes the guard and the body is skipped, which
 is why its issue-group count is lower.
+
+---
+
+## 8. Element width, and where the mode switches go
+
+Everything above is 32-bit. §1's invariant 1 makes element width **per-logical-
+register state** rather than an instruction field, so a narrow kernel is the
+same instructions against a narrower slice — and somebody has to set the mode.
+This section is that path end to end, because it is where the compiler can give
+the whole feature away and did.
+
+The kernel is `vadd_loop` at half the element width, so the pair differs in
+nothing but width:
+
+```cuda
+{narrow_src}
+```
+
+### The mode switches are not in the loop
+
+```
+{narrow_body}
+```
+
+Against the fp32 kernel's body, which is the control:
+
+```
+{wide_body}
+```
+
+**{nb_n} instructions against {nb_w}** — the same, and not a `chwidth` among
+them. Every width transition is in the preheader, executed once per thread,
+where it belongs: the width is loop-invariant, so paying for it per iteration is
+pure waste. The pass's own account:
+
+```
+{chw_stats}
+```
+
+`placed on an edge` is the line that matters. Where predecessors disagree about
+a register's width — a preheader supplying 32 and a back-edge supplying 16 — the
+transition goes on the **incoming edges**, not at the first access inside the
+block. Three conditions guard it: no back-edge may need the insert, or the
+instruction has only moved from the top of the loop to the bottom; the register
+must be dead on the predecessor's other edges, because a terminator's `chwidth`
+runs whichever way the branch goes; and it is placed before the first terminator
+so the width holds on every path out.
+
+Turning that placement off (`-ccv-chwidth-cross-block=false`) puts it back:
+
+```
+{noedge_body}
+```
+
+{nb_noedge} instructions, and the transition re-executes on every iteration.
+
+### Two registers, two widths, one file
+
+The unaligned form of the same kernel is where the **allocator** decides the
+outcome:
+
+```
+{unal_body}
+```
+
+Also clean, and it was not always. The in-window offset has to be folded into
+the index, so this body does 32-bit address arithmetic *and* 16-bit data — and
+O-39 lets a load's `rdata` share a register with its `rbase`/`rindex`, because
+the address read takes all 32 bits whatever the narrowing left. That saves a
+register and costs a width change per iteration, which no placement pass can
+lift out: the width genuinely changes inside the body.
+
+The allocator is the only pass that can prevent the handover, and **the register
+class is the only width information it has** — `chwidth` names physical
+registers, so width is otherwise entirely a post-RA concept. So `GPR16`
+allocates **descending** where `GPR` allocates ascending: the same sixteen
+registers, opposite preference, 32-bit values clustering from `r0` up and 16-bit
+from `r14` down. Under low pressure they never meet and there is no handover to
+pay for; under pressure they meet in the middle and share exactly as before.
+
+That is why the narrow data above is in `r14`/`r13` while the addresses stay low.
+
+### What the mode switch costs when it is right
+
+```
+{narrow_asm}
+```
+
+One `chwidth.multi` for the whole kernel. O-6 gave Format I a register mask so
+that a kernel entering a packed section collapses N drain events into one, and
+it fires here because width affinity put the two narrow registers next to each
+other — their transitions are adjacent, so they merge. An earlier measurement of
+this kernel found the merge firing **zero** times and concluded the kernel shape
+was wrong for it; the shape was right and the allocation was wrong.
+
 """
 open("docs/walkthrough.md","w").write(doc)
 print(f"  wrote docs/walkthrough.md ({len(doc.splitlines())} lines)")

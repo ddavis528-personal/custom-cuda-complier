@@ -118,9 +118,16 @@ the question was and what the data said.
 - **F-52** — whether a warp-uniform register file or the cheaper uniform-operand
   encoding bit is worth it. O-33 bought the energy half of this; the issue-slot
   half needs one of the two.
-- **F-3 / `chwidth`** — the mode-insertion pass is the one piece of Step 6 not
-  started, so width-transition frequency and `chwidth.multi` hoisting
-  effectiveness are still argued rather than measured.
+- **F-3 / `chwidth`** — built and measured, so the arguments here are now
+  numbers. Width-transition frequency: `vadd16_loop` needs **one** instruction
+  for the whole kernel, because transitions go on CFG edges (F-87) and the
+  allocator keeps narrow and wide values apart (F-80). `chwidth.multi` merging
+  fires when those two put the narrow registers adjacent, and does not otherwise
+  — F-69 measured it at zero on a kernel whose shape was fine and whose
+  allocation was not. What is still argued rather than measured is the
+  **register-pressure** case: no kernel fills the file with narrow values, so
+  the claim that opposite allocation orders degrade gracefully under pressure is
+  reasoning only (F-92).
 
 ---
 

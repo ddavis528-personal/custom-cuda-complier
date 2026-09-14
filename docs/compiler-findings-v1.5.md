@@ -1,5 +1,12 @@
 # Compiler-side findings — the v1.5 review
 
+> **Superseded by [the v1.6 review](compiler-findings-v1.6.md).** Kept as written
+> at the v1.5 review, and deliberately not re-measured: §6's figures are what the
+> v1.5-era compiler produced, and several have since moved because the compiler
+> improved rather than because they were wrong. `docs/benchmarks.md` is the live
+> measurement; a dated report is a record of what was believed when it was
+> written.
+
 **Covers:** everything since the v1.4 review — Steps 4, 5 and the part of Step 6
 done so far. Written for the architecture side, so it is organised by what the
 compiler work found about the ISA, not by what was built.

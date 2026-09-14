@@ -28,9 +28,12 @@ __global__ void vadd(float *ALIGNED c, const float *ALIGNED a,
 ```
 
 `align_value(65536)` is O-23's per-argument alignment attribute — the only
-target-specific thing in this source. It is not optional today: codegen does not
-yet implement the unaligned shape, which needs four addends against a
-three-input AGU, and rejects it with a diagnostic (F-27).
+target-specific thing in this source. It is an optimisation, not a requirement:
+the unaligned shape compiles too, and §4 below shows what it costs. Codegen
+once rejected it with a diagnostic, because folding the in-window offset needs a
+fourth addend against a three-input AGU; `matchBaseIdx` now folds
+`roffset + (i << scale)` into one index register with scale-enable clear,
+trading O-7's scaling for the addend (F-27).
 
 ## 2. clang, unmodified
 
@@ -146,12 +149,12 @@ Lfunc_end0:
 
 | | |
 |---|---|
-| `f48 r0, 2` | Format F's 48-bit form materialises the launch window in one instruction |
+| `movi r0, 2` | Format F's 48-bit form materialises the launch window in one instruction |
 | `ld.global r1, [r0 + 0]` | `blockDim.x` — launch-*time* data, so the block supplies it (§5.3) |
 | `srd r2, 0` / `srd r3, 1` | thread and CTA identity — the only values no memory location can supply |
 | `mad.lo r1, r3, r1, r2` | the three-source form takes `ctaid*ntid + tid` in one instruction |
-| `por p0, 4, 0` | O-24: Formats C/C′ carry a *mandatory* qualifier and there is no unpredicated compare, so a kernel must manufacture a true predicate. Compressed forms are never predicated, which breaks the cycle |
-| `@p0 setp.le p0, r2, r1` | self-guarding — guard and destination are the same predicate, so the effective file stays at four |
+| `setp.le p0, r2, r1` | Format C″ (O-32), the **unpredicated** compare. Earlier revisions had no such form: Formats C/C′ carry a mandatory qualifier, so every compare had to be preceded by a `por` manufacturing a true predicate (O-24). That cost one instruction per compare — 13% of dynamically issued instructions in the reduction kernels — and is now zero |
+| `@p0 bra LBB0_2` | the guard branches *over* the body, so the fall-through path has no branch at all |
 | `[r2, r1, 1, 0]` | Format D base+index with **scale-enable set**: the AGU supplies the `chwidth`-derived shift. O-7 only fires like this for aligned pointers |
 | `fadd r3, r2` | the compressed destructive form, 16 bits, because `rd == rs0` fell out naturally |
 
@@ -340,3 +343,178 @@ fail rather than coincidentally agree.
 
 `n=0` is the case where every lane takes the guard and the body is skipped, which
 is why its issue-group count is lower.
+
+---
+
+## 8. Element width, and where the mode switches go
+
+Everything above is 32-bit. §1's invariant 1 makes element width **per-logical-
+register state** rather than an instruction field, so a narrow kernel is the
+same instructions against a narrower slice — and somebody has to set the mode.
+This section is that path end to end, because it is where the compiler can give
+the whole feature away and did.
+
+The kernel is `vadd_loop` at half the element width, so the pair differs in
+nothing but width:
+
+```cuda
+// `vadd16` with a loop, so per-thread overhead amortizes.
+//
+// vadd16 is one element per thread and entirely straight-line, so every width
+// transition, argument load and address setup is paid once per element. That
+// makes it a measurement of the PROLOGUE, not of the steady state. A real
+// 16-bit kernel runs many elements per thread and the question that matters is
+// what the loop body costs once the prologue is behind it -- and in particular
+// whether the `chwidth` transitions are inside the loop or above it.
+#include "portable.h"
+__global__ void vadd16_loop(short *ALIGNED c, const short *ALIGNED a,
+                            const short *ALIGNED b, int n) {
+    unsigned stride = NTID_X;
+    for (unsigned i = CTAID_X * NTID_X + TID_X; i < (unsigned)n; i += stride)
+        c[i] = (short)(a[i] + b[i]);
+}
+```
+
+### The mode switches are not in the loop
+
+```
+LBB0_1:
+	ld.global r14, [r3, r1, 1, 0]
+	ld.global r13, [r2, r1, 1, 0]
+	add r14, r13, r14
+	st.global r14, [r4, r1, 1, 0]
+	add r1, r0
+	setp.lt.u p0, r1, r5
+	@p0 bra LBB0_1
+```
+
+Against the fp32 kernel's body, which is the control:
+
+```
+LBB0_1:
+	ld.global r6, [r2, r1, 1, 0]
+	ld.global r7, [r3, r1, 1, 0]
+	fadd r7, r6
+	st.global r7, [r4, r1, 1, 0]
+	add r1, r0
+	setp.lt.u p0, r1, r5
+	@p0 bra LBB0_1
+```
+
+**7 instructions against 7** — the same, and not a `chwidth` among
+them. Every width transition is in the preheader, executed once per thread,
+where it belongs: the width is loop-invariant, so paying for it per iteration is
+pure waste. The pass's own account:
+
+```
+  chwidth insertion (F-3), _Z11vadd16_loopPsPKsS1_i
+    blocks                : 3
+    width transitions     : 2
+      at a definition     : 0   (old value dead -- nothing reinterpreted)
+      narrowing a live reg: 0   (a truncation; the element bits are preserved)
+      widening a live reg : 0   (a zero-extension -- O-38 clears the exposed bits)
+    placed on an edge     : 2   (F-87: loop-invariant, so out of the body)
+    hoisted               : 2   (O-6: as early as legal, to make merging possible)
+    merged by chwidth.multi: 2 into 1   (O-6: N drain events become one)
+    instructions emitted  : 1
+```
+
+`placed on an edge` is the line that matters. Where predecessors disagree about
+a register's width — a preheader supplying 32 and a back-edge supplying 16 — the
+transition goes on the **incoming edges**, not at the first access inside the
+block. Three conditions guard it: no back-edge may need the insert, or the
+instruction has only moved from the top of the loop to the bottom; the register
+must be dead on the predecessor's other edges, because a terminator's `chwidth`
+runs whichever way the branch goes; and it is placed before the first terminator
+so the width holds on every path out.
+
+Turning that placement off (`-ccv-chwidth-cross-block=false`) puts it back:
+
+```
+LBB0_1:
+	chwidth.multi 24576, 1
+	ld.global r14, [r3, r1, 1, 0]
+	ld.global r13, [r2, r1, 1, 0]
+	add r14, r13, r14
+	st.global r14, [r4, r1, 1, 0]
+	add r1, r0
+	setp.lt.u p0, r1, r5
+	@p0 bra LBB0_1
+```
+
+8 instructions, and the transition re-executes on every iteration.
+
+### Two registers, two widths, one file
+
+The unaligned form of the same kernel is where the **allocator** decides the
+outcome:
+
+```
+LBB0_1:
+	mov r9, r1
+	shl r9, 1
+	add r10, r4, r9
+	ld.global r14, [r5, r10, 0, 0]
+	add r10, r2, r9
+	ld.global r13, [r3, r10, 0, 0]
+	add r14, r13, r14
+	add r9, r6, r9
+	st.global r14, [r7, r9, 0, 0]
+	add r1, r0
+	setp.lt.u p0, r1, r8
+	@p0 bra LBB0_1
+```
+
+Also clean, and it was not always. The in-window offset has to be folded into
+the index, so this body does 32-bit address arithmetic *and* 16-bit data — and
+O-39 lets a load's `rdata` share a register with its `rbase`/`rindex`, because
+the address read takes all 32 bits whatever the narrowing left. That saves a
+register and costs a width change per iteration, which no placement pass can
+lift out: the width genuinely changes inside the body.
+
+The allocator is the only pass that can prevent the handover, and **the register
+class is the only width information it has** — `chwidth` names physical
+registers, so width is otherwise entirely a post-RA concept. So `GPR16`
+allocates **descending** where `GPR` allocates ascending: the same sixteen
+registers, opposite preference, 32-bit values clustering from `r0` up and 16-bit
+from `r14` down. Under low pressure they never meet and there is no handover to
+pay for; under pressure they meet in the middle and share exactly as before.
+
+That is why the narrow data above is in `r14`/`r13` while the addresses stay low.
+
+### What the mode switch costs when it is right
+
+```
+_Z11vadd16_loopPsPKsS1_i:
+	chwidth.multi 24576, 1
+	movi r5, 2
+	ld.global r0, [r5 + 0]
+	srd r1, 0
+	srd r2, 1
+	mad.lo r1, r2, r0, r1
+	ld.global r2, [r5 + 48]
+	ld.global r3, [r5 + 40]
+	ld.global r4, [r5 + 32]
+	ld.global r5, [r5 + 56]
+	setp.le.u p0, r5, r1
+	@p0 bra LBB0_2
+LBB0_1:
+	ld.global r14, [r3, r1, 1, 0]
+	ld.global r13, [r2, r1, 1, 0]
+	add r14, r13, r14
+	st.global r14, [r4, r1, 1, 0]
+	add r1, r0
+	setp.lt.u p0, r1, r5
+	@p0 bra LBB0_1
+LBB0_2:
+	exit
+Lfunc_end0:
+```
+
+One `chwidth.multi` for the whole kernel. O-6 gave Format I a register mask so
+that a kernel entering a packed section collapses N drain events into one, and
+it fires here because width affinity put the two narrow registers next to each
+other — their transitions are adjacent, so they merge. An earlier measurement of
+this kernel found the merge firing **zero** times and concluded the kernel shape
+was wrong for it; the shape was right and the allocation was wrong.
+

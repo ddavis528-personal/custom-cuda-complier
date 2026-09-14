@@ -66,6 +66,12 @@ python3 tools/check-docs.py || fail=1
 echo "  spec cross-table consistency"
 python3 tools/check-spec-tables.py || fail=1
 
+# The walkthrough regenerates its listings and says "nothing here is
+# transcribed". The prose beside them is not regenerated, and it drifted three
+# instructions behind the compiler before anything noticed.
+echo "  walkthrough prose vs its own listings"
+python3 tools/check-walkthrough.py || fail=1
+
 # docs/walkthrough.md is assembled from generated artifacts and claims "nothing
 # here is transcribed". Regenerate it and require the tree copy to match, so the
 # claim is checked rather than trusted.

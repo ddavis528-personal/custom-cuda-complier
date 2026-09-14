@@ -118,8 +118,18 @@ is what the checks test. Opcode points not fixed by the spec are marked
 - **`chwidth`=4 has no value type.** LLVM has no `v32i4` MVT, so `GPR` carries
   `v32i32`/`v32i16`/`v32i8` only. Deferred; it affects nothing until 4-bit
   kernels exist.
-- **No `chwidth` insertion pass.** The F-3 pass, and the one piece of Step 6 not
-  started. `chwidth`/`chwidth.multi` are encodable and nothing emits them.
+- **`chwidth` insertion is built** (`CCVInsertChwidth.cpp`, post-RA). Forward
+  width dataflow over physical registers, transitions placed at definitions, and
+  — since F-87 — on CFG **edges** where predecessors disagree, which is what
+  keeps a loop-invariant width change out of a loop body. Runs of the same width
+  merge into `chwidth.multi` (O-6). Two flags: `-ccv-chwidth-cross-block=false`
+  restores the intra-block placement, `-ccv-chwidth-stats` reports where every
+  transition went and why.
+- **Width affinity lives in the allocation order.** `GPR16` allocates descending
+  where `GPR` allocates ascending — the same sixteen registers, opposite
+  preference — so narrow and wide values cluster apart and a register does not
+  change width mid-loop. It is the only width signal the allocator has, since
+  `chwidth` names physical registers and width is otherwise post-RA (F-80).
 - **No scheduler.** `mayLoad`/`mayStore` are set correctly (F-50) so one could be
   enabled, but none is, and the dynamic counts assume in-order issue.
 - **32 GPRs are gone, not disabled.** `GPRC` and R16–R31 were removed outright
