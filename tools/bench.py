@@ -31,7 +31,23 @@ import re, os, subprocess, sys, tempfile, json
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BENCH = os.path.join(ROOT, "test", "bench")
-KERNELS = ["vadd", "saxpy", "dot", "reduce", "transpose"]
+KERNELS = ["vadd", "saxpy", "vadd16", "dot", "reduce", "transpose"]
+
+# Warp/wavefront width, which is what makes an instruction count comparable
+# between machines. Read from the generated kernel descriptor, not assumed:
+# gfx10+ emits .amdhsa_wavefront_size32, and its absence means wave64.
+# A wave64 machine covers twice the elements per issued instruction, so
+# comparing per-thread instruction counts across widths -- which this document
+# did for five revisions -- silently flatters the narrower machine.
+WIDTH = {"ccv": 32, "gfx900": 64, "gfx1030": 32, "gfx1100": 32,
+         "gfx1200": 32, "gfx942": 64}
+
+# Kernels where one thread processes exactly one element, so "instructions to
+# finish the whole kernel" is (elements / warp width) * instructions per warp.
+# dot and reduce are excluded: a thread there consumes several elements and
+# then joins a tree reduction, so there is no such constant, and AMD's dynamic
+# count is unknown anyway because both loop.
+ELEMENTWISE = ("vadd", "saxpy", "vadd16", "transpose")
 
 # Prior art, across generations rather than one. The original comparison used
 # only gfx900 -- a 2017 ISA -- which left the density claim open to the reading
@@ -200,6 +216,7 @@ ARGS = {
     "dot":       [3, 4, 5, 32],
     "reduce":    [3, 4, 32],
     "transpose": [3, 4, 16],
+    "vadd16":    [3, 4, 5, 32],          # c, a, b windows; n -- as vadd
 }
 
 def dynamic(src, tmp, kernel, extra=()):
@@ -348,6 +365,51 @@ def main():
     print("  to mask them, because every uniform value is consumed immediately by")
     print("  divergent work and each masked op would need its own broadcast. That is")
     print("  the cost model working, not the pass failing.")
+    print()
+    print("  WORK -- what it costs to finish the kernel, per 1024 elements.")
+    print()
+    names = ["CCV"] + [n for _, n, _ in ARCHES]
+    widths = [WIDTH["ccv"]] + [WIDTH[a] for a, _, _ in ARCHES]
+    print(f"  {'':<12}" + "".join(f"{n:>15}" for n in names))
+    print(f"  {'warp width':<12}" + "".join(f"{w:>15}" for w in widths))
+    print("  " + "-" * (12 + 15 * len(names)))
+    for metric, per in (("issues", "instr"), ("instr bytes", "bytes")):
+        print(f"  {metric + ' / 1K elem':<12}")
+        for r in rows:
+            k = r["kernel"]
+            if k not in ELEMENTWISE:
+                continue
+            cells = []
+            d = r["dyn"]
+            ca = r["ccv_aligned"]
+            if d and ca and "bytes" in ca:
+                # CCV's measured per-thread issue count matches its ALIGNED
+                # static count on these kernels, so the aligned build is the
+                # one whose bytes correspond to the instructions executed.
+                v = d["per_thread"] if per == "instr" else ca["bytes"]
+                cells.append(f"{1024.0 * v / WIDTH['ccv']:.0f}")
+            else:
+                cells.append("--")
+            for a, _, _ in ARCHES:
+                g = r["arches"].get(a)
+                # Static is the dynamic count only with no backward branch.
+                if g and "instrs" in g and g.get("loops") == 0:
+                    v = g["instrs"] if per == "instr" else g["bytes"]
+                    cells.append(f"{1024.0 * v / WIDTH[a]:.0f}")
+                else:
+                    cells.append("--")
+            print(f"    {k:<10}" + "".join(f"{c:>15}" for c in cells))
+    print()
+    print("  One thread handles one element in these four, so a machine covers")
+    print("  `warp width` elements per instruction it issues. Counts are the")
+    print("  DYNAMIC ones: measured for CCV, and equal to static for AMD only")
+    print("  where the kernel has no backward branch.")
+    print()
+    print("  This is the comparison the per-thread instruction table cannot make.")
+    print("  A wave64 machine finishes twice the elements per issued instruction,")
+    print("  so 23 CCV instructions against gfx900's 29 is not 1.3x in CCV's")
+    print("  favour -- normalized, gfx900 issues FEWER. Bits fetched per element")
+    print("  is where the encoding pays, and it is a separate column for a reason.")
     print()
     print("  PRIOR ART -- bits per instruction across AMD GPU generations.")
     print()

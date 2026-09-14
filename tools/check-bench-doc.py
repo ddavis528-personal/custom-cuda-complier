@@ -81,7 +81,7 @@ def row_numbers(doc, prefix):
 def check_markdown_claims(doc, rows):
     """Markdown tables and prose figures that restate generated numbers."""
     fail = 0
-    KERNELS = ["vadd", "saxpy", "dot", "reduce", "transpose"]
+    KERNELS = ["vadd", "saxpy", "vadd16", "dot", "reduce", "transpose"]
 
     # The control table: CCV and GCN static instruction counts, per kernel.
     for label, get in (("| CCV |", lambda k: rows[k]["ccv"]["instrs"]),
@@ -177,6 +177,10 @@ def main():
     else:
         print("  FAIL  the two prior-art tables were not both found")
         fail = 1
+
+    fail |= compare("work-per-element table",
+                    section(bench.stdout, "WORK --"),
+                    (fenced(doc, "CCV    GCN5") or [""])[0])
 
     # Markdown tables restating the generated numbers. These are the ones prose
     # review kept missing: the control table's transpose cell was three

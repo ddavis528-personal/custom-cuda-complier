@@ -71,6 +71,7 @@ questions and only one of them can be measured on both machines.
   --------------------------------------------------------------------------------
   vadd       |     23     78   27.1 |     16     56 |     29    152   41.9 |     21
   saxpy      |     22     74   26.9 |     17     58 |     25    136   43.5 |     19
+  vadd16     |     26     86   26.5 |     18     62 |     29    152   41.9 |     21
   dot        |     56    182   26.0 |     48    156 |     60    300   40.0 |     46
   reduce     |     51    166   26.0 |     45    146 |     54    268   39.7 |     41
   transpose  |     87    320   29.4 |     79    290 |     64    308   38.5 |     43
@@ -83,6 +84,7 @@ questions and only one of them can be measured on both machines.
   ----------------------------------------------------------------------------------------------
   vadd           16.0   100%         29 |       512       100%   exact: no backward branch
   saxpy          17.0   100%         25 |       544       100%   exact: no backward branch
+  vadd16         18.0   100%         29 |       576       100%   exact: no backward branch
   dot            78.9    64%         -- |      2526       100%   has 3 loops; not modelled
   reduce         75.9    63%         -- |      2430       100%   has 3 loops; not modelled
   transpose      79.0   100%         64 |      1429        57%   exact: no backward branch
@@ -122,11 +124,12 @@ spanning both encoding families and the datacentre line.
   -----------------------------------------------------------------------------------------------------
   vadd                  27.1           41.9           48.6           46.0           48.0           48.7
   saxpy                 26.9           43.5           47.3           44.6           46.9           47.2
+  vadd16                26.5           41.9           49.8           47.0           49.0           48.7
   dot                   26.0           40.0           41.5           40.9           42.3           42.1
   reduce                26.0           39.7           42.9           39.2           41.4           40.2
   transpose             29.4           38.5           41.1           39.6           39.2           38.7
   -----------------------------------------------------------------------------------------------------
-  pooled                27.4           40.1           43.1           41.1           42.4           41.9
+  pooled                27.4           40.3           43.9           41.7           43.1           42.5
 ```
 
 **Instruction counts, same sweep — the control:**
@@ -136,6 +139,7 @@ spanning both encoding families and the datacentre line.
   -----------------------------------------------------------------------------------------------------
   vadd                    23             29             27             32             32             23
   saxpy                   22             25             23             28             28             21
+  vadd16                  26             29             27             32             32             23
   dot                     56             60             64             68             62             54
   reduce                  51             54             50             71             58             51
   transpose               87             64             60             76             76             62
@@ -169,16 +173,79 @@ reproduces the published gfx900 column **exactly** on all five kernels.
 ### The control that matters: instruction counts are comparable
 
 A denser encoding that needs twice the instructions has gained nothing. The
-counts are within 30% everywhere and CCV is *lower* on four of five:
+counts are within 30% everywhere and CCV is *lower* on five of six:
 
-| | vadd | saxpy | dot | reduce | transpose |
-|---|---|---|---|---|---|
-| CCV | 23 | 22 | 56 | 51 | 87 |
-| GCN | 29 | 25 | 60 | 54 | 64 |
+| | vadd | saxpy | vadd16 | dot | reduce | transpose |
+|---|---|---|---|---|---|---|
+| CCV | 23 | 22 | 26 | 56 | 51 | 87 |
+| GCN | 29 | 25 | 29 | 60 | 54 | 64 |
 
 So the density is not bought with instruction count. **Code size lands below
-GCN on four of five kernels** — 166 against 268 bytes on the reduction, and
+GCN on five of six kernels** — 166 against 268 bytes on the reduction, and
 with the alignment attribute `vadd` is 56 bytes against 152, which is 2.7×.
+
+**This table is not a fair comparison, and the next section is the fair one.**
+Both rows count instructions issued *per warp*, and the warps are not the same
+size: a CCV warp is 32 lanes, a gfx900 wavefront is 64. The document has said
+exactly this about SIMT efficiency since 1.4 and never applied it here. Read
+normalized, 23 against 29 is not a 1.3× win — it is a loss.
+
+### Work: instructions to finish the kernel, per 1024 elements
+
+The question the table above cannot answer is how many instructions each machine
+issues *to do the same work*. One thread handles one element in four of the six
+kernels, so a machine covers `warp width` elements per instruction it issues,
+and the count that matters is `1024 × instructions ÷ warp width`. `dot` and
+`reduce` are excluded: a thread there consumes several elements and then joins a
+tree reduction, so there is no such constant, and both loop on both machines so
+AMD's dynamic count is unknown anyway.
+
+Warp width is read from the generated kernel descriptor, not assumed — gfx10+
+emits `.amdhsa_wavefront_size32` and its absence means wave64.
+
+```
+                          CCV    GCN5 / Vega          RDNA2          RDNA3          RDNA4  CDNA3 / MI300
+  warp width               32             64             32             32             32             64
+  ------------------------------------------------------------------------------------------------------
+  issues / 1K elem
+    vadd                  512            464            864           1024           1024            368
+    saxpy                 544            400            736            896            896            336
+    vadd16                576            464            864           1024           1024            368
+    transpose            2528           1024           1920           2432           2432            992
+  instr bytes / 1K elem
+    vadd                 1792           2432           5248           5888           6144           2240
+    saxpy                1856           2176           4352           4992           5248           1984
+    vadd16               1984           2432           5376           6016           6272           2240
+    transpose            9280           4928           9856          12032          11904           4800
+```
+
+**Two results, and they point opposite ways.**
+
+**CCV loses the issue-count comparison to every wave64 machine.** On `vadd`,
+CDNA3 issues 368 instructions per 1024 elements against CCV's 512 — 0.72× — and
+gfx900 issues 464. A wave64 machine finishes twice the elements per instruction,
+and that advantage is larger than anything the encoding recovers. Against the
+wave32 parts, which are the like-for-like comparison, CCV wins decisively: RDNA3
+issues 1024 against CCV's 512, exactly 2×.
+
+**CCV wins the instruction-bytes comparison against everything except CDNA3 on
+`transpose`.** On `vadd` it fetches 1792 bytes per 1024 elements against
+gfx900's 2432 (0.74×) and RDNA3's 5888 (0.30×). So on the same kernel CCV issues
+**10% more instructions than gfx900 while fetching 26% fewer instruction
+bytes** — which is the encoding doing precisely what it was designed to do, and
+is invisible in any table that counts instructions alone.
+
+Whether that trade is good is a hardware question this benchmark cannot answer:
+it exchanges instruction-fetch bandwidth and I-cache footprint, which CCV wins,
+for issue slots and scheduler bandwidth, which wave64 wins. A design that is
+fetch-bound prefers CCV's side; one that is issue-bound prefers wave64's. **The
+honest statement is that CCV's encoding beats wave32 prior art outright and
+trades against wave64 prior art**, and the previous table's "lower on five of
+six" overstated it by ignoring warp width.
+
+`transpose` is the worst case on both columns — 2528 issues against gfx900's
+1024 — for the reasons §2 already gives: AMD does the division on the scalar
+unit, one instruction for the whole wavefront.
 
 **`transpose` is the exception, and it became one deliberately.** After O-31 it
 was 294 bytes against GCN's 308 — below, and an earlier version of this document
@@ -205,6 +272,61 @@ the tree structure idling half the lanes each round.
 `transpose` was 143 static instructions and its integer division cost a
 32-iteration loop; the static number understated the real cost by roughly three
 times, and a benchmark reporting only static size called a 9× problem a 2× one.
+
+### `vadd16`: what the narrow element widths actually cost
+
+v1.6's headline capability is `chwidth` and the sub-32-bit element model, and
+until this revision no benchmark kernel touched it. `vadd16` is `vadd` at half
+the element width and otherwise identical, so the two are directly comparable.
+
+| | instrs (aligned) | bytes | issued/thread | issues / 1K elem |
+|---|---|---|---|---|
+| `vadd` (f32) | 16 | 56 | 16.0 | 512 |
+| `vadd16` (i16) | 18 | 62 | 18.0 | 576 |
+
+**The narrow form costs two instructions and buys nothing in issue count.** At
+one element per thread there is no packing to exploit: a 16-bit element occupies
+a 32-bit lane exactly as a float does, so the same number of lanes does the same
+number of adds. What it buys is elsewhere — **half the memory traffic**, and
+stores that write two bytes instead of four, which is the correctness bug F-67
+was.
+
+The two instructions are three `chwidth` transitions net of one saving, and the
+third is the interesting one:
+
+```
+	add r2, r1
+	chwidth r2, 1          ; narrow, for the load's destination
+	ld.global r2, [r3, r2, 0, 0]
+	...
+	add r2, r3, r2         ; the 16-bit add
+	chwidth r3, 0          ; widen r3 BACK -- r3 is about to hold a 32-bit value
+	ld.global r3, [r0 + 36]
+```
+
+That last `chwidth` is not dead code: §3 takes transfer size from the
+destination register's width, so the 32-bit load into `r3` would write two bytes
+if `r3` were left narrow. It is also **entirely avoidable** — eleven registers
+were free, and the allocator chose to reuse the one it had just narrowed. This
+is the width-affinity allocator objective F-3 left open, and `vadd16` puts a
+number on it for the first time: **one instruction in eighteen, 5.6%.**
+
+`ld.global r2, [r3, r2, 0, 0]` is also worth noting as O-39 in the generated
+code: `r2` is the index *and* the destination. The address read takes all 32
+bits regardless of `r2`'s narrowed width, which is exactly the consequence O-39
+records, and it is what lets the sequence avoid a second register.
+
+**AMD gets narrow types for free and gains nothing either.** gfx900's `vadd16`
+is 29 instructions and 152 bytes — identical to its `vadd`, and genuinely
+16-bit (`global_load_ushort`, `v_add_u16_e32`, `global_store_short`). GCN
+encodes 16-bit operations in the same instruction formats as 32-bit ones, so the
+width is free and also worthless at the instruction level. CCV is the machine
+that *pays* for narrow types here.
+
+So the feature is not yet earning its instructions on this shape. The kernel
+that would show a win is one where a thread handles two adjacent 16-bit
+elements in a single 32-bit lane; that is what the packed form exists for, and
+no benchmark kernel does it. Recorded as F-79.
 
 ### Lane-activations: the column O-33 exists to move
 
@@ -414,11 +536,16 @@ where code size matters most.
   instruction where CCV does thirty-two. Promoting this to a table needs its own
   argument about what is being compared.
 
-- **A kernel where the narrow element widths pay.** v1.6's headline capability
-  is `chwidth` and the sub-32-bit element model (O-6, O-38, F-3), and **not one
-  of the five benchmark kernels exercises it** — they are all fp32 and i32.
-  `test/bench/vadd16.cu` exists and is measured by the chwidth work, but it is
-  not in these tables, so the density and instruction-count claims here say
-  nothing about the feature the last revision was mostly about. AMD has packed
-  16-bit math on every generation swept above, so there is a real comparison to
-  be made and it has not been made.
+- **A kernel that packs two narrow elements into one lane.** `vadd16` is now in
+  the tables, and it shows the narrow-width model costing two instructions and
+  returning nothing in issue count — because at one element per thread there is
+  no packing to exploit. The kernel that would show a win puts two adjacent
+  16-bit elements in a single 32-bit lane, halving the issue count for the same
+  element count. No benchmark kernel does that, so the tables currently show the
+  cost of O-6's element model and none of its benefit. F-79.
+
+- **Dynamic counts for the reduction kernels, work-normalized.** The work table
+  covers four of six kernels. `dot` and `reduce` are excluded because a thread
+  consumes several elements and then joins a tree reduction, so there is no
+  constant elements-per-thread, and both loop on both machines. Getting them in
+  needs either an AMD simulator or an argument that their loop trip counts match.
