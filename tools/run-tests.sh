@@ -152,6 +152,10 @@ fi
 
 # A 16-bit kernel end to end, including the bytes it must NOT touch.
 ./tools/check-narrow.sh || fail=1
+# The same kernel with a loop. F-87 moved the width transitions onto the
+# incoming edges, so the loop runs narrow for its whole lifetime and never
+# re-establishes the mode -- which is the saving and also the risk.
+./tools/check-narrow-loop.sh || fail=1
 
 # --- select lowers to a predicated move, not `sel` (F-58) ------------------
 # `sel` (§4 point 19) writes all 32 lanes and spends the qualifier on the

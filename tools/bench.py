@@ -398,7 +398,12 @@ def main():
     print(f"  {'kernel':<12}{'issues':>8}{'elem work':>11}{'narrow':>8}"
           f"{'frac':>8}{'cycles @2x':>12}{'vs f32':>9}")
     print("  " + "-" * 68)
-    base = None
+    # The 32-bit member of each width pair, for the ratio column.
+    bases = {}
+    for r in rows:
+        d = r["dyn"]
+        if d and d.get("element_work") and r["kernel"] in ("vadd", "vadd_loop"):
+            bases[r["kernel"]] = (d["issues"] - d["narrow"]) + d["narrow"] / RETIRE
     for r in rows:
         d = r["dyn"]
         if not d or not d.get("element_work"):
@@ -409,12 +414,12 @@ def main():
         # element work at RETIRE per cycle. A MODEL of hardware that does not
         # exist -- see the caveat below and ISA section 1a.4.
         cyc = (i - n) + n / RETIRE
-        if r["kernel"] == "vadd":
-            base = cyc
-        # Only vadd/vadd16 are the same kernel at two widths, so only that pair
-        # has a meaningful ratio. dot against vadd would be comparing kernels.
-        rel = (f"{base / cyc:.3f}x"
-               if base and r["kernel"] in ("vadd", "vadd16") else "--")
+        # Only a kernel and its own other-width twin have a meaningful ratio;
+        # dot against vadd would be comparing kernels, not widths.
+        PAIRS = {"vadd": "vadd", "vadd16": "vadd",
+                 "vadd_loop": "vadd_loop", "vadd16_loop": "vadd_loop"}
+        base = bases.get(PAIRS.get(r["kernel"], ""))
+        rel = f"{base / cyc:.3f}x" if base else "--"
         print(f"  {r['kernel']:<12}{i:>8}{d['element_work']:>11}{n:>8}"
               f"{n / d['element_work']:>8.3f}{cyc:>12.1f}{rel:>9}")
     print()

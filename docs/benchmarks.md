@@ -73,7 +73,7 @@ questions and only one of them can be measured on both machines.
   saxpy      |     22     74   26.9 |     17     58 |     25    136   43.5 |     19
   vadd16     |     26     86   26.5 |     18     62 |     29    152   41.9 |     21
   vadd_loop  |     27     94   27.9 |     19     66 |     35    184   42.1 |     23
-  vadd16_loop |     30    104   27.7 |     21     74 |     35    184   42.1 |     23
+  vadd16_loop |     30    104   27.7 |     21     72 |     35    184   42.1 |     23
   dot        |     55    178   25.9 |     47    152 |     60    300   40.0 |     46
   reduce     |     50    162   25.9 |     44    142 |     54    268   39.7 |     41
   transpose  |     87    320   29.4 |     79    290 |     64    308   38.5 |     43
@@ -88,7 +88,7 @@ questions and only one of them can be measured on both machines.
   saxpy          17.0   100%         25 |       544       100%   exact: no backward branch
   vadd16         18.0   100%         29 |       576       100%   exact: no backward branch
   vadd_loop      68.0   100%         -- |      2176       100%   has 1 loops; not modelled
-  vadd16_loop     84.0   100%         -- |      2688       100%   has 1 loops; not modelled
+  vadd16_loop     70.0   100%         -- |      2240       100%   has 1 loops; not modelled
   dot            79.9    66%         -- |      2556       100%   has 3 loops; not modelled
   reduce         76.9    65%         -- |      2460       100%   has 3 loops; not modelled
   transpose      79.0   100%         64 |      1429        57%   exact: no backward branch
@@ -220,14 +220,14 @@ emits `.amdhsa_wavefront_size32` and its absence means wave64.
     saxpy                 544            400            736            896            896            336
     vadd16                576            464            864           1024           1024            368
     vadd_loop             272             --             --             --             --             --
-    vadd16_loop            336             --             --             --             --             --
+    vadd16_loop            280             --             --             --             --             --
     transpose            2528           1024           1920           2432           2432            992
   instr bytes / 1K elem
     vadd                 1792           2432           5248           5888           6144           2240
     saxpy                1856           2176           4352           4992           5248           1984
     vadd16               1984           2432           5376           6016           6272           2240
     vadd_loop             264             --             --             --             --             --
-    vadd16_loop            296             --             --             --             --             --
+    vadd16_loop            288             --             --             --             --             --
     transpose            9280           4928           9856          12032          11904           4800
 ```
 
@@ -347,56 +347,63 @@ every argument load paid once per element. That measures the **prologue** and
 calls it the kernel. A real 16-bit kernel runs many elements per thread, and the
 expectation — reasonably — is that the width-handling overhead approaches zero
 as iterations grow. `vadd_loop` and `vadd16_loop` are the same two kernels with
-a grid-stride loop, measured on the simulator across iteration counts:
+a grid-stride loop, measured on the simulator across iteration counts.
 
-| elements/thread | `vadd_loop` issues/elem | `vadd16_loop` issues/elem |
-|---|---|---|
-| 1 | 19.00 | 21.00 |
-| 2 | 13.00 | 15.00 |
-| 4 | 10.00 | 12.00 |
-| 8 | 8.50 | 10.50 |
-| 16 | 7.75 | 9.75 |
-| 32 | 7.38 | 9.38 |
-| **∞ (loop body)** | **7** | **9** |
+It did not, in the revision that first measured it. Two width transitions sat
+**inside** the loop body and re-executed every iteration, so the i16 kernel cost
+2 instructions per element more than the f32 one at every iteration count — a
+gap that got *worse* as a fraction the longer the loop ran, because the prologue
+amortized and the transitions did not.
 
-Both fit `issues = 12 + iterations × body` exactly, so the prologue is 12
-instructions and amortizes away cleanly. **The width overhead does not.** The
-gap between the two columns is 2.0 instructions per element at every iteration
-count, and as a *fraction* it gets worse as the prologue amortizes — 10.5% at
-one element per thread, **22% in steady state**.
-
-The steady-state loop bodies say why:
+Both were compiler artifacts and both are now fixed. The steady-state bodies:
 
 ```
-vadd_loop (f32), 7 per element        vadd16_loop (i16), 9 per element
-  ld.global r6, [r2, r1, 1, 0]          chwidth.multi 192, 1        <-- overhead
-  ld.global r7, [r3, r1, 1, 0]          ld.global r6, [r3, r1, 1, 0]
-  fadd r7, r6                           ld.global r7, [r2, r1, 1, 0]
-  st.global r7, [r4, r1, 1, 0]          add r6, r7, r6
-  add r1, r0                            st.global r6, [r4, r1, 1, 0]
-  setp.lt.u p0, r1, r5                  chwidth r6, 0               <-- overhead
-  @p0 bra LBB0_1                        add r1, r0
-                                        setp.lt.u p0, r1, r5
-                                        @p0 bra LBB0_1
+vadd_loop (f32), 7 per element        vadd16_loop (i16), 7 per element
+  ld.global r6, [r2, r1, 1, 0]          ld.global r6, [r3, r1, 1, 0]
+  ld.global r7, [r3, r1, 1, 0]          ld.global r7, [r2, r1, 1, 0]
+  fadd r7, r6                           add r6, r7, r6
+  st.global r7, [r4, r1, 1, 0]          st.global r6, [r4, r1, 1, 0]
+  add r1, r0                            add r1, r0
+  setp.lt.u p0, r1, r5                  setp.lt.u p0, r1, r5
+  @p0 bra LBB0_1                        @p0 bra LBB0_1
 ```
 
-**The two width transitions are loop-carried and pure artifact.** `r6` and `r7`
-are narrowed at the top of the body and `r6` is widened back at the bottom, so
-that the width state at the back-edge matches the state at loop entry. Nothing
-in the loop needs `r6` wide — the restore exists only to satisfy a fixed point
-the dataflow chose. **Had the dataflow chosen "narrow at loop entry", both
-transitions would hoist into the preheader and the body would be 7 instructions,
-identical to the fp32 kernel.**
+**The loop bodies are now identical in length**, and the entire width cost is in
+the prologue, where it amortizes. Measured: `issues = 12 + 7n` for fp32 and
+`14 + 7n` for i16 — two instructions, once per thread, for the whole kernel.
 
-The compiler cannot make that choice today. `CCVInsertChwidth` hoists within a
-block and stops at block entry — "hoisting across a block boundary would need
-the dataflow to agree on every predecessor, which is a separate problem," as the
-pass says of itself. For a straight-line kernel that ceiling costs nothing. For
-a loop it converts a one-time cost into a per-iteration one, permanently.
+What the two transitions were:
 
-**This is a compiler limitation, not an ISA property.** `chwidth` here is loop-
-invariant and belongs in the preheader; nothing in §3 prevents that. Recorded as
-F-87, with the payoff measured below.
+**One was a mode switch for a register nobody reads.** O-32's unpredicated
+compare writes a materialization destination `rd` beside its predicate, and on a
+loop's back-edge test that destination is dead. The allocator gave it a register
+the body had narrowed, so the pass emitted a widening `chwidth` to accommodate a
+value no instruction reads — every iteration. A dead definition needs no width at
+all, and `chwidth` is not free even for a dead one: §3 has it drain in-flight
+dependents. (F-89.)
+
+**The other was the cross-block problem proper.** `r6`/`r7` were narrowed at the
+top of the body because the preheader left them at 32 and the back-edge brought
+them back at 16, so the dataflow marked the loop header's entry width Unknown and
+the pass resolved it *inside* the block. The width is loop-invariant and its
+natural home is the preheader. `CCVInsertChwidth` now places the transition on
+the **incoming edges** when predecessors disagree, under three conditions: no
+back-edge may need the insert — otherwise the instruction has merely moved from
+the top of the loop to the bottom; the register must be dead on the
+predecessor's other edges, because a terminator's `chwidth` runs whichever way
+the branch goes; and the insert goes before the first terminator so the width is
+established on every path out. (F-87.)
+
+**Both were compiler limitations, not ISA properties** — `chwidth` here is
+loop-invariant and nothing in §3 prevented hoisting it.
+
+`tools/check-narrow-loop.sh` holds this down: it runs 256 elements over eight
+iterations per thread and checks **every** element, not just the first, because
+the saving is precisely that the loop never re-establishes the mode — so if the
+width did not survive the back edge, iteration two onward would be wrong while
+iteration one stayed right. It also asserts the body contains no `chwidth` at
+all, since a regression there is invisible in the results.
+
 
 #### The instruction count is not the whole cost: O-40's retire rate
 
@@ -416,8 +423,8 @@ had measured that. The simulator now counts it:
   vadd              16         14       0   0.000        16.0   1.000x
   saxpy             17         15       0   0.000        17.0       --
   vadd16            18         14       4   0.286        16.0   1.000x
-  vadd_loop         68         58       0   0.000        68.0       --
-  vadd16_loop       84         58      32   0.552        68.0       --
+  vadd_loop         68         58       0   0.000        68.0   1.000x
+  vadd16_loop       70         58      40   0.690        50.0   1.360x
   dot              122        101       0   0.000       122.0       --
   reduce           119         98       0   0.000       119.0       --
   transpose         79         72       0   0.000        79.0       --
@@ -463,27 +470,25 @@ instructions on avoidable transitions).
 The straight-line break-even is not an artifact of the prologue. Applying the
 same model to the loop bodies:
 
-| | instrs/elem | narrow | cycles @2× | vs f32 |
-|---|---|---|---|---|
-| `vadd_loop` (f32) | 7 | 0 | 7.0 | 1.000× |
-| `vadd16_loop` (i16), today | 9 | 4 | **7.0** | **1.000×** |
-| `vadd16_loop`, with F-87 | 7 | 4 | **5.0** | **1.400×** |
+Measured over eight iterations per thread, whole-kernel:
 
-**In steady state the narrow kernel is again exactly break-even** — the 2× retire
-rate pays for the two loop-carried `chwidth` instructions and nothing else, the
-same arithmetic as the straight-line case and for the same reason.
+| | issues | element work | narrow | narrow frac | cycles @2× | vs f32 |
+|---|---|---|---|---|---|---|
+| `vadd_loop` (f32) | 68 | 58 | 0 | 0.000 | 68.0 | 1.000× |
+| `vadd16_loop` (i16) | 70 | 58 | 40 | **0.690** | **50.0** | **1.360×** |
 
-The third row is the point. Four of the nine instructions in that loop body are
-narrow element work — two loads, the add, the store — which is a 44% narrow
-fraction, well above `vadd16`'s 28.6%. **With the two loop-carried transitions
-hoisted into the preheader, the body drops to seven instructions and the model
-gives 5.0 cycles against fp32's 7.0: a 1.40× speedup per element.** That is the
-return O-40 was designed to deliver, and it is currently being spent, in full,
-on two instructions the compiler does not need to emit.
+**This is where the element-width model pays.** The narrow fraction reaches 69%
+— against `vadd16`'s 28.6% — because the loop body is nothing *but* element work
+once the prologue and the width transitions are out of it. At O-40's 2× retire
+rate that is 50.0 cycles against the fp32 kernel's 68.0: **a 1.36× speedup for
+the same kernel at half the element width**, on top of half the memory traffic.
 
-So the honest summary of the element-width model as it stands: **the ISA side
-works and the compiler is giving the whole benefit back.** F-87 is the single
-change with the largest measured payoff anywhere in this document.
+The contrast with the straight-line kernels is the lesson. `vadd16` is exactly
+break-even at 28.6% narrow; `vadd16_loop` is 1.36× at 69%. **Nothing about the
+ISA differs between them** — the same instructions, the same retire rate. What
+differs is how much of the issued stream is element work rather than prologue,
+and that is a property of the kernel, which is the same conclusion O-6's
+`chwidth.multi` measurement reached from the other direction (F-69).
 
 **The cycles column is a model and is labelled as one everywhere it appears.**
 The simulator retires one instruction per step; the column applies O-40's

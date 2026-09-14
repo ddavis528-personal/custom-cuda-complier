@@ -117,6 +117,8 @@ static uint32_t writeElem(uint32_t Old, uint32_t V, uint8_t Code) {
 /// Opcodes whose semantics below read and write their operands at the
 /// register's current width. Everything else is 32-bit-only and the guard in
 /// step() stops it rather than letting it compute the wrong thing.
+static unsigned baseCompare(unsigned Op);   // defined with the compare map below
+
 static bool isWidthAware(unsigned Op) {
   switch (Op) {
   case CCV::C_CHWIDTH: case CCV::CHWIDTH_MULTI:
@@ -128,6 +130,21 @@ static bool isWidthAware(unsigned Op) {
   case CCV::LD_SHARED: case CCV::ST_SHARED:
   case CCV::MOVI: case CCV::MOVI48:
   case CCV::C_MOV: case CCV::C_EXIT:
+    return true;
+  default:
+    break;
+  }
+  // The compares, both formats. Added only once they actually read their
+  // operands at the register's width and refuse narrow FP -- a whitelist entry
+  // in front of 32-bit-only code is how `ld.shared` came to vouch for itself
+  // while calling read32 (F-67, twice).
+  switch (baseCompare(Op)) {
+  case CCV::SETP_LT: case CCV::SETP_LE: case CCV::SETP_EQ:
+  case CCV::SETP_NE: case CCV::SETP_GT: case CCV::SETP_GE:
+  case CCV::SETP_LT_U: case CCV::SETP_LE_U:
+  case CCV::SETP_GT_U: case CCV::SETP_GE_U:
+  case CCV::SETP_LT_F: case CCV::SETP_LE_F: case CCV::SETP_EQ_F:
+  case CCV::SETP_NE_F: case CCV::SETP_GT_F: case CCV::SETP_GE_F:
     return true;
   default:
     return false;
@@ -256,6 +273,40 @@ static unsigned baseCompare(unsigned Op) {
 #undef NP
   default: return Op;
   }
+}
+
+/// Is this compare a floating-point one? FP has no narrow form in §4 -- the
+/// element-width model is integer-only for now -- so a narrow FP compare is a
+/// selection bug and must stop rather than silently compare 16 bits as a float.
+static bool isFloatCompare(unsigned Op) {
+  switch (baseCompare(Op)) {
+  case CCV::SETP_LT_F: case CCV::SETP_LE_F: case CCV::SETP_EQ_F:
+  case CCV::SETP_NE_F: case CCV::SETP_GT_F: case CCV::SETP_GE_F:
+    return true;
+  default:
+    return false;
+  }
+}
+
+/// Is this compare's integer relation a signed one? It decides how a narrow
+/// element reaches the 32-bit comparison: sign-extended, or zero-extended.
+/// eq/ne are sign-agnostic and either extension gives the same answer.
+static bool isSignedCompare(unsigned Op) {
+  switch (baseCompare(Op)) {
+  case CCV::SETP_LT: case CCV::SETP_LE: case CCV::SETP_GT: case CCV::SETP_GE:
+    return true;
+  default:
+    return false;
+  }
+}
+
+/// One compare operand, read at its register's element width. A compare at
+/// 16-bit width compares 16-bit elements; the bits above the element are not
+/// part of the value and must not reach the relation.
+static uint32_t cmpOperand(uint32_t V, uint8_t Code, bool Signed) {
+  if (Code == 0)
+    return V;
+  return Signed ? uint32_t(sextTo32(V, Code)) : narrow(V, Code);
 }
 
 static bool compare(unsigned Op, uint32_t XB, uint32_t YB) {
@@ -518,10 +569,14 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     unsigned B = Imm ? 0 : regOf(MI, 4);
     int32_t IV = Imm ? int32_t(MI.getOperand(4).getImm()) : 0;
     uint32_t G = guardMask(W, uint32_t(MI.getOperand(2).getImm())) & Mask;
+    const bool Sgn = isSignedCompare(Op);
+    const uint8_t WA = W.ChWidth[A], WB = Imm ? 0 : W.ChWidth[B];
+    if (isFloatCompare(Op) && (WA || WB))
+      return {Result::Unimplemented, 0};   // §4 has no narrow FP
     forEachLane([&](unsigned L) {
       if (!((G >> L) & 1)) return;   // invariant 10: excluded lanes preserved
-      uint32_t X = W.GPR[A][L];
-      uint32_t Y = Imm ? uint32_t(IV) : W.GPR[B][L];
+      uint32_t X = cmpOperand(W.GPR[A][L], WA, Sgn);
+      uint32_t Y = Imm ? uint32_t(IV) : cmpOperand(W.GPR[B][L], WB, Sgn);
       bool T = compare(Op, X, Y);
       W.Pred[P] = (W.Pred[P] & ~(1u << L)) | (uint32_t(T) << L);
     });
@@ -549,9 +604,19 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     unsigned B = Imm ? 0 : regOf(MI, 3);
     int32_t IV = Imm ? int32_t(MI.getOperand(3).getImm()) : 0;
     unsigned Base = baseCompare(Op);
+    // Operand 1 is Format C's materialization destination `rd`, and nothing
+    // here writes it -- the predicate is the result. Its element width is
+    // therefore irrelevant to this instruction, which matters because the
+    // register allocator hands the back-edge compare of a narrow loop a `rd`
+    // the loop body has narrowed, and the compiler no longer spends a `chwidth`
+    // restoring a register no one reads (F-87).
+    const bool Sgn = isSignedCompare(Op);
+    const uint8_t WA = W.ChWidth[A], WB = Imm ? 0 : W.ChWidth[B];
+    if (isFloatCompare(Op) && (WA || WB))
+      return {Result::Unimplemented, 0};   // §4 has no narrow FP
     forEachLane([&](unsigned L) {
-      uint32_t X = W.GPR[A][L];
-      uint32_t Y = Imm ? uint32_t(IV) : W.GPR[B][L];
+      uint32_t X = cmpOperand(W.GPR[A][L], WA, Sgn);
+      uint32_t Y = Imm ? uint32_t(IV) : cmpOperand(W.GPR[B][L], WB, Sgn);
       bool T = compare(Base, X, Y);
       W.Pred[P] = (W.Pred[P] & ~(1u << L)) | (uint32_t(T) << L);
     });
