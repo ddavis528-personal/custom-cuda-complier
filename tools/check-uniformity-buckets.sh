@@ -39,26 +39,30 @@ for k in vadd saxpy dot reduce transpose; do
     fail=1
   fi
 
-  # 2. The F-56 bucket tracks conversions and SFU, and nothing else. Count the
-  #    uniform ones independently, from the IR, and require agreement.
+  # 2. The F-56 bucket tracks operations with no Format A′ form. Since O-34 that
+  #    is the SFU alone -- conversions moved to 64-127 and gained predicated
+  #    twins. Count the sites that can reach the SFU independently, from the IR.
   want=$(python3 - "$TMP/$k-lowered.ll" <<'PY'
 import re, sys
 # A conversion or fdiv anywhere in the kernel is a candidate; whether it is
 # warp-uniform is the report's job, so this is an upper bound and the check
 # below is one-sided on purpose.
 src = open(sys.argv[1]).read()
-print(len(re.findall(r'\b(uitofp|sitofp|fptoui|fptosi|fdiv|udiv|sdiv|urem|srem)\b', src)))
+# Only operations that lower onto the SFU (§4 256+) can land in this bucket
+# now. Division is the reachable one: CCVExpandDivision emits `fdiv 1.0, x`,
+# which selects to `rcp.f32`. Conversions are no longer a cause -- O-34.
+print(len(re.findall(r'\b(fdiv|udiv|sdiv|urem|srem)\b', src)))
 PY
 )
   got=$(bucket "$r" "no A′ form")
   if [ "$want" = "0" ] && [ "$got" != "0" ]; then
-    echo "  FAIL  $k: report blames $got instruction(s) on §4 128+/256+, but the"
-    echo "        kernel has no conversion, no SFU call and no division."
+    echo "  FAIL  $k: report blames $got instruction(s) on the SFU at §4 256+,"
+    echo "        but the kernel has no division and no SFU call."
     fail=1
   fi
   if [ "$want" != "0" ] && [ "$got" = "0" ]; then
-    echo "  note  $k: $want division/conversion site(s), none counted against"
-    echo "        F-56 -- expected when the divisor is divergent."
+    echo "  note  $k: $want division site(s), none counted against F-56 --"
+    echo "        expected when the divisor is divergent."
   fi
   echo "  $k: maskable $(echo "$r" | sed -n 's/.*maskable to lane 0 *: *\([0-9]*\).*/\1/p'), F-56 blocks $got, unmodelled $u"
 done

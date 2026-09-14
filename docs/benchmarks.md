@@ -73,7 +73,7 @@ questions and only one of them can be measured on both machines.
   saxpy          17.0   100%         25 |       544       100%   exact: no backward branch
   dot            78.9    64%         -- |      2526       100%   has 3 loops; not modelled
   reduce         75.9    63%         -- |      2430       100%   has 3 loops; not modelled
-  transpose      76.0   100%         64 |      1809        74%   exact: no backward branch
+  transpose      76.0   100%         64 |      1747        72%   exact: no backward branch
 ```
 
 **CCV's dynamic column is measured** on the simulator — lane-instructions
@@ -147,10 +147,16 @@ The `lane-act` column is the measurement, from `ccv-sim -counters`:
 | | issued lane slots | activations | share |
 |---|---|---|---|
 | `transpose`, masking off | 2304 | 2304 | 100% |
-| `transpose`, masking on | 2432 | **1809** | **74%** |
+| `transpose`, masking on | 2432 | **1747** | **72%** |
 
 128 more lane slots issued — four broadcast instructions across 32 lanes — and
-495 fewer lanes actually switched, a 21.5% cut. Whether that
+557 fewer lanes actually switched, a 24% cut.
+
+**1809 until O-34.** Relocating conversions from §4 128+ into 64–127 brought them
+inside Format A′'s 7-bit opcode, so the division sequence's `cvt.f32.u32` and
+`cvt.u32.f32` can be masked where they were burning all 32 lanes. `rcp.f32` still
+cannot — the SFU is at 256+ and Format A′ stops at 127 — so one instruction of
+that sequence remains unmaskable, and it is all that is left of F-56. Whether that
 is a win is a hardware question, not a compiler one, and O-33 records the answer
 it assumes: **a predicated-off lane must not toggle its ALU operands, its
 register-file write port, or its result bus.** If the RTL does not deliver that,

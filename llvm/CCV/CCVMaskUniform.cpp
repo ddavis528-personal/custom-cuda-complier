@@ -85,6 +85,13 @@ unsigned predicatedForm(unsigned Op) {
   // made the pass fire on nothing at all, because launch-block loads ARE the
   // uniform work in these kernels.
   case CCV::LD_GLOBAL: return CCV::LD_GLOBAL_P;
+  // O-34 moved conversions from 128+ into 64-127, which is inside Format A′'s
+  // 7-bit reach, so the division sequence's two `cvt`s can now be masked.
+  // `rcp.f32` still cannot -- the SFU is at 256+ and Format A′ stops at 127.
+  case CCV::CVT_F32_S32: return CCV::CVT_F32_S32_P;
+  case CCV::CVT_F32_U32: return CCV::CVT_F32_U32_P;
+  case CCV::CVT_S32_F32: return CCV::CVT_S32_F32_P;
+  case CCV::CVT_U32_F32: return CCV::CVT_U32_F32_P;
   default:         return 0;
   }
 }

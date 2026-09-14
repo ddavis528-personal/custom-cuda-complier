@@ -1150,10 +1150,20 @@ predicate. Drain semantics belong to the operation, never to the format.
 | Range | Contents | Reachable from |
 |---|---|---|
 | 0–31 | integer, bitwise, misc | A, A′, A″ |
-| 32–63 | floating point (8 ops × 4 format codes) | A, A′ |
-| 64–127 | packed dot-product-accumulate | A, A′ |
-| 128–255 | conversions | A only |
+| 32–47 | floating point, 8 ops × format codes `00`/`01` | A, A′ |
+| 48–63 | packed dot-product-accumulate | A, A′ |
+| 64–127 | conversions, `64 + 16×dest + 4×src + round` | A, A′ |
+| 128–255 | unallocated — freed by O-34, previously conversions | A only |
 | 256–1023 | unallocated — SFU and future extension | A only |
+
+**Everything below 128 is now allocated solid.** O-34 packed 32–127 so that
+conversions and packed dot-product could both keep a predicated encoding rather
+than compete for one range. The consequence is that the two rules that generate
+opcodes in this span — `32 + 8×format + op` and `64 + 16×dest + 4×src + round` —
+are adjacent with no gap, and the first one's domain is now **format ∈ {`00`,
+`01`} only**. `tools/check-encoding.py` rejects any instruction that lands in
+48–63 without being `dp4`/`dp8`, because both sides of that collision would be
+well-formed Format A and the decoder would accept either silently.
 
 Per the tier allocation rule, A′'s 7-bit opcode reaches the low 128 and A″'s 5-bit opcode
 the low 32. Operations that want predication therefore have to live low, which is why the
@@ -1173,15 +1183,20 @@ ordering above is a constraint on the map rather than a description of it.
 | 5 | `mad.lo` | 12 | `shr` | 19 | `sel` | 26–31 | free |
 | 6 | `mad.hi` | 13 | `sra` | 20 | `abs` | | |
 
-### Floating point — points 32–63
+### Floating point — points 32–47
 
-8 operations × 4 format codes:
+8 operations × format codes `00` and `01`:
 
 `fadd`, `fsub`, `fmul`, `ffma`, `fmin`, `fmax`, `fneg`, `fabs`
 
 The opcode is `32 + 8×format + op`, with `op` indexing the eight operations in the order
 listed and `format` the 2-bit format code — so each format code owns a contiguous block of
 eight. `ffma.f0` is therefore 35, which is what the backend already assumed. O-28.
+
+**The rule's domain is `format` ∈ {`00`, `01`}.** Codes `10` and `11` are reserved at every
+`chwidth` (below) and the points the rule would generate for them — 48–63 — went to
+`dp4`/`dp8` in O-34. Allocating a third or fourth FP format code now requires moving `dp`
+first; it is not a free extension.
 
 FP format is encoded in the **format code** rather than as a separate field —
 per-instruction, as settled, but at zero additional field cost:
@@ -1199,7 +1214,7 @@ applied to width mismatches generally.
 
 ---
 
-### Packed dot-product-accumulate — points 64–127
+### Packed dot-product-accumulate — points 48–63
 
 | Opcode | Operation |
 |---|---|
@@ -1222,8 +1237,14 @@ the *register* and therefore leaked into shuffles, compares, predicates and allo
 Mixed signedness matters: quantized inference commonly pairs unsigned activations with
 signed weights, so all four combinations get a point.
 
-Living at 64–127 makes these reachable from A′ (predicated) but not A″, which is correct —
+Living at 48–63 makes these reachable from A′ (predicated) but not A″, which is correct —
 a dot product has no status output to write.
+
+**These were at 64–127 until O-34**, which needed that range for the conversion product and
+found 48–63 free: it is what `32 + 8×format + op` generates for FP format codes `10` and
+`11`, which are reserved at every `chwidth` and hold nothing. Eight points are used of
+sixteen. The cost is not paid by `dp` — it keeps its predicated tier — but by the FP block,
+whose two spare format codes are now spoken for.
 
 **`mad.lo` remains the alternative**, with `rs0`/`rs1` at narrow `chwidth` and `rs2`/`rd`
 wide: one MAC per lane, no packing anywhere. It costs roughly 3× the instructions of `dp4`
@@ -1233,30 +1254,70 @@ See O-15.
 Shifts are uniform-amount only: one shift count broadcast across all packed elements, no
 cross-element bit movement.
 
-### Conversions — points 128+ (extension space)
+### Conversions — points 64–127
 
-The destination format is **part of the opcode**; the source format rides in the low 2 bits
-of the opcode as it does for every other FP operation. Widths come from the source and
-destination registers' `chwidth` as usual, so the instruction never names a width.
+Both formats are **2-bit format codes**, read against their own register's `chwidth` exactly
+as `fadd.f0`'s format code is. The instruction names no width, which is invariant 1.
 
-| Opcode base | Destination |
+| Code | Read at that register's `chwidth` |
 |---|---|
-| `cvt2fp32` | IEEE binary32 |
-| `cvt2fp16` | IEEE binary16 |
-| `cvt2bf16` | BF16 |
-| `cvt2e4m3` | FP8 E4M3 |
-| `cvt2e5m2` | FP8 E5M2 |
-| `cvt2e2m1` | FP4 E2M1 |
-| `cvt2int.s` / `cvt2int.u` | signed / unsigned integer |
+| `00` | FP format 0 — FP32 / FP16 / E4M3 / E2M1 |
+| `01` | FP format 1 — BF16 / E5M2 (reserved at 32-bit and 4-bit) |
+| `10` | **signed integer** — s32 / s16 / s8 / s4 |
+| `11` | **unsigned integer** — u32 / u16 / u8 / u4 |
 
-Each base × 4 source-format codes × 4 rounding modes = 128 points, sitting well inside the
-extension space. **This resolves O-2** — the two-format problem disappears because the two
-formats never have to share one field: one is the opcode, the other is the opcode's low
-bits. No new format, no new field.
+Codes `00` and `01` are the FP format table above, unchanged. Codes `10` and `11` were
+reserved there and are allocated here, which is why an integer source needs no new
+mechanism — it was always expressible, just never assigned.
 
-Conversions live above point 128 and are therefore not reachable from A′ or A″. Predicated
-conversions would need a `mov` under predication instead, which is the right trade for an
-operation this rare.
+**The arithmetic is normative** (O-34, applying O-28 to the third range that needed a rule
+rather than a list):
+
+```
+opcode = 64 + 16×dest + 4×src + round
+```
+
+| Field | Width | Values |
+|---|---|---|
+| `dest` | 2 | format code, read at the **destination** register's `chwidth` |
+| `src` | 2 | format code, read at the **source** register's `chwidth` |
+| `round` | 2 | `rn` 0, `rz` 1, `rm` 2, `rp` 3 |
+
+`dest` and `src` are adjacent so the pair forms one 4-bit field naming the conversion path,
+which is what a converter datapath selects on. Rounding is rounding-logic control and sits
+in the low bits. 2 + 2 + 2 = 6 bits fills 64–127 exactly.
+
+Worked points:
+
+| | `dest` | `src` | `round` | opcode |
+|---|---|---|---|---|
+| `cvt.f32.s32` | `00` | `10` | `rn` | 64 + 0 + 8 + 0 = **72** |
+| `cvt.f32.u32` | `00` | `11` | `rn` | 64 + 0 + 12 + 0 = **76** |
+| `cvt.s32.f32` | `10` | `00` | `rz` | 64 + 32 + 0 + 1 = **97** |
+| `cvt.u32.f32` | `11` | `00` | `rz` | 64 + 48 + 0 + 1 = **113** |
+| `cvt.bf16.f32` | `01` | `00` | `rn` | 64 + 16 + 0 + 0 = **80** |
+| `cvt.e4m3.f16` | `00` | `00` | `rn` | 64 + 0 + 0 + 0 = **64** |
+| `cvt.s32.s8` | `10` | `10` | — | 64 + 32 + 8 + 0 = **104** |
+
+The last row is a real instruction, not a formality: `chwidth` reinterprets a register's
+elements rather than extending them, so widening an integer is a conversion. Mixed-`chwidth`
+operands are established practice — see `mad.lo`, which reads narrow and writes wide.
+
+**Rounding is meaningless on some combinations** — integer to integer has nothing to round.
+Those points are reserved rather than reclaimed: the block is a product, and carving
+exceptions out of a product costs more than the dead space.
+
+**Being inside 64–127 puts conversions within Format A′'s 7-bit opcode**, so they can carry a
+predicate qualifier. That is what O-33's lane-0 masking needs and what the previous
+placement at 128+ denied it.
+
+**This resolves O-2, and O-34 amends how.** The destination format is still in the opcode
+and the source format still in its low bits, so the two never share a field and there is
+nothing to disambiguate. What changed is that the destination is a *code within* the opcode
+rather than one of eight bases. The eight-base scheme (`cvt2fp32`, `cvt2fp16`, `cvt2bf16`, …)
+distinguished its FP destinations **by element width**, which is an element-width field in
+the opcode and therefore a violation of invariant 1 — and it left `cvt2fp16` targeting a
+32-bit register with no defined meaning. The format-code scheme has no such case.
 
 ## 5. Execution environment and launch ABI
 
@@ -1776,10 +1837,15 @@ everywhere: A/A′/A″, B/B′/B″, D/D′. Format D got tag `1101`, freed by 
 deletions. Consequence: the prime suffix now means "predicated" consistently, so the old
 Format D′ (atomics) was renamed **Format M**, with the 48-bit CAS form as M′.
 
-**O-2 — `cvt` two format specifiers — resolved.** Destination format is the opcode
-(`cvt2e4m3`, `cvt2bf16`, …); source format is the opcode's low 2 bits, exactly as for every
-other FP operation. Widths come from `chwidth` on each register. The two formats never
-share a field, so there is nothing to disambiguate. See §4.
+**O-2 — `cvt` two format specifiers — resolved; amended by O-34.** Destination format is in
+the opcode, source format in its low bits, widths from `chwidth` on each register. The two
+formats never share a field, so there is nothing to disambiguate.
+
+**O-34 amends how the destination half is spelled**, and does not reverse this. The original
+form named eight destination *bases* (`cvt2e4m3`, `cvt2bf16`, …); the destination is now a
+2-bit format code read against the destination register's `chwidth`, symmetric with the
+source. The reason is invariant 1: `cvt2fp32` and `cvt2fp16` differ only in element width,
+so the base was an element-width field in the opcode. See §4 and O-34.
 
 **O-3 — SFU operations — resolved.** Format A's opcode is now 10 bits (1024 points) with only
 64 allocated. `rcp`, `rsqrt`, `ex2`, `lg2`, `sin`, `cos` and their rounding-mode variants
@@ -2571,9 +2637,12 @@ measured shares in `transpose`, the kernel with the most uniform work:
 | bound | `transpose` | what would fix it |
 |---|---|---|
 | `sel` spends `[29:27]` on data (§4 point 19) | **10** | a second predicate field — 2 bits a 32-bit format does not have. F-58 |
-| §4 puts conversions at 128+ and the SFU at 256+ | **3** | relocate the five points the compiler uses into 64–127. F-56, blocked on F-59 |
+| the SFU is at §4 256+, and A′ reaches 127 | **1** | `rcp.f32` has to come *below* 128; 128–255 is Format A only, so the range O-34 freed does not help. F-56 |
 | `srd` is Format K only (invariant 7) | 1 | nothing: a 16-bit instruction has no qualifier field by design |
 | a barrier must not be masked | 1 | nothing: this one is semantics, not encoding |
+
+The conversion row was 3 before O-34 moved conversions into 64–127 and gave them Format A′
+twins. What is left of it is one `rcp.f32`.
 
 Plus control flow, which in the reduction kernels dominates everything above: a block not
 reached by every lane cannot have work masked *to* lane 0, because lane 0 might not be one
@@ -2605,6 +2674,72 @@ O-32 removing the manufactured guards is most of why it is free.
 
 
 
+
+**O-34 — The conversion block gets an arithmetic, a format-code destination, and Format A′.**
+
+Three things, from a compiler-side proposal (`proposals/conversion-encoding.md`) and the
+design-track decision on it.
+
+**1. It had a count and no rule.** §4 described the conversion block as a product — bases ×
+source-format codes × rounding modes = 128 points — and never said which number any
+conversion gets. O-28 had already settled that numbering is normative, *"two independent
+implementations picking different orders would produce silently incompatible binaries"*, and
+supplied rules for the two ranges where list order was not enough. Conversions are a third
+such range and were missed. The backend, having nothing to read, assigned 128–131 flat.
+
+**2. The destination is a format code, not a base — and this is a correction, not a
+compression.** The eight bases (`cvt2fp32`, `cvt2fp16`, `cvt2bf16`, `cvt2e4m3`, `cvt2e5m2`,
+`cvt2e2m1`, `cvt2int.s`, `cvt2int.u`) distinguished their FP members **by element width**.
+That is an element-width field sitting in the opcode, and **invariant 1 says no instruction
+carries one.** It also left a case the specification had no rule for: `cvt2fp16` targeting a
+register whose `chwidth` is 32. Under invariant 1 the register wins, so the mnemonic is
+simply wrong, and there was no clean answer available.
+
+A 2-bit destination code read against the destination register's `chwidth` removes the case
+entirely — identical mechanism to `fadd.f0`, which is already FP32, FP16 or E4M3 depending
+on the register. That it also halves the block from 128 points to 64 is a consequence, not
+the argument. The proposal led with the halving and with F-56; the decision was taken on
+invariant 1, which stands without either.
+
+Source codes `10`/`11` become signed and unsigned integer. Bit `[1]` then reads as "integer
+rather than FP" and bit `[0]` as "the variant" — BF16/E5M2 on one side, unsigned on the
+other — which extends the existing table's structure rather than sitting beside it.
+
+**3. `dp4`/`dp8` did not have to be demoted.** The proposal posed 64–127 as a contest
+between conversions and packed dot-product, with `dp` moving above 128 and losing its
+predicated tier. It is not a contest: `32 + 8×format + op` generates 48–63 for FP format
+codes `10` and `11`, which are reserved at every `chwidth` and hold nothing. `dp` needs
+eight of those sixteen points and both ranges stay inside A′'s ceiling.
+
+**What that actually costs is the two spare FP format codes**, which is the trade worth
+arguing about rather than `dp` predication. With MXFP, FP6 and further FP8 variants active
+in the field it is a real forward-compatibility cost. Accepted on the judgement that a third
+FP format code is not expected within this machine's life; if that changes, `dp` moves above
+128 then, and the proposal's argument for why it is the right thing to demote applies
+unchanged.
+
+**Resulting map below 128:** 0–31 integer, 32–47 FP at codes `00`/`01`, 48–63 `dp`, 64–127
+conversions. Solid, with no spare. Two adjacent generating rules and no gap between them is
+a hazard — an FP instruction emitted at format code `10` lands on a `dp` opcode, and both
+are well-formed Format A, so the decoder accepts either without complaint. The decision
+document called that a documentation wart. It is checkable, so `tools/check-encoding.py`
+checks it: any instruction landing in 48–63 that is not `dp4`/`dp8` is an error, and so is
+any two instructions sharing a point in 32–127.
+
+**Effect on F-56, stated precisely.** The finding was that the division sequence's
+`cvt.f32.u32`, `rcp.f32` and `cvt.u32.f32` cannot be masked to lane 0. Two of the three are
+conversions and are now inside A′'s reach. **`rcp.f32` is not**: the SFU is at 256+, Format
+A′ reaches 0–127, and the 128–255 range this frees is Format A only — so relocating the SFU
+down one range would buy nothing. Measured on `transpose`, lane-activations fall from 1809
+to 1747 and the "no A′ form" bucket goes from 3 to 1. The proposal claimed 3 to 0; that was
+wrong, and the decision document was careful to say "closes for the conversion rows."
+
+**Costs.** 64 opcode points and the FP block's two spare format codes. A `cvt` can no longer
+be disassembled to a precise type without knowing `chwidth` at that program point — already
+true of every FP instruction in the ISA, and it inherits the same contract: mismatching
+format against contents is deterministic garbage, not a hazard.
+
+---
 
 ---
 

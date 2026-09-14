@@ -45,6 +45,42 @@ static uint32_t guardMask(const Warp &W, uint32_t Q) {
 static float bitsToFloat(uint32_t B) { float F; std::memcpy(&F, &B, 4); return F; }
 static uint32_t floatToBits(float F) { uint32_t B; std::memcpy(&B, &F, 4); return B; }
 
+/// One lane of a conversion or SFU operation. Lifted out of the dispatch so the
+/// Format A′ twins O-34 made possible share the semantics rather than copying
+/// them -- a predicated instruction that rounds differently from its base would
+/// be invisible until it produced a wrong answer in one lane.
+static uint32_t cvtSfuLane(unsigned Op, uint32_t X) {
+  float F = bitsToFloat(X);
+  switch (Op) {
+  case CCV::CVT_F32_S32: return floatToBits(float(int32_t(X)));
+  case CCV::CVT_F32_U32: return floatToBits(float(X));
+  // Toward zero, and out-of-range saturates rather than trapping -- the same
+  // contract §4 gives width mismatches: deterministic garbage, no interlock.
+  case CCV::CVT_S32_F32:
+    return uint32_t(F >= 2147483647.0f    ? INT32_MAX
+                    : F <= -2147483648.0f ? INT32_MIN
+                    : std::isnan(F)       ? 0
+                                          : int32_t(F));
+  case CCV::CVT_U32_F32:
+    return F >= 4294967295.0f ? UINT32_MAX
+           : (F <= 0.0f || std::isnan(F)) ? 0u
+                                          : uint32_t(F);
+  // The SFU is specified as correctly-rounded here. Real units are approximate,
+  // and the division sequence is written not to depend on more than ~1 ulp --
+  // but simulating an approximation would make results unreproducible without
+  // pinning a specific hardware's error, which does not exist yet. See O-31.
+  case CCV::RCP_F32:   return floatToBits(1.0f / F);
+  case CCV::RSQRT_F32: return floatToBits(1.0f / std::sqrt(F));
+  case CCV::SQRT_F32:  return floatToBits(std::sqrt(F));
+  case CCV::EX2_F32:   return floatToBits(std::exp2f(F));
+  case CCV::LG2_F32:   return floatToBits(std::log2f(F));
+  case CCV::SIN_F32:   return floatToBits(std::sin(F));
+  default:             return floatToBits(std::cos(F));
+  }
+}
+
+
+
 /// Two-source integer ALU, shared by Format A (points 0-17) and Format K's
 /// compressed forms, which are the same operations at a different length.
 static uint32_t aluRR(unsigned Op, uint32_t X, uint32_t Y) {
@@ -209,45 +245,34 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     break;
   }
 
-  // ---- §4 128+: conversions, and 256+: SFU (O-31) -------------------------
+  // ---- §4 64-127: conversions, and 256+: SFU (O-31, relocated by O-34) ----
   case CCV::CVT_F32_S32: case CCV::CVT_F32_U32:
   case CCV::CVT_S32_F32: case CCV::CVT_U32_F32:
   case CCV::RCP_F32: case CCV::RSQRT_F32: case CCV::SQRT_F32:
   case CCV::EX2_F32: case CCV::LG2_F32: case CCV::SIN_F32: case CCV::COS_F32: {
     unsigned D = regOf(MI, 0), A = regOf(MI, 1);
+    forEachLane([&](unsigned L) { W.GPR[D][L] = cvtSfuLane(Op, W.GPR[A][L]); });
+    break;
+  }
+
+  // Format A′ twins. O-34 put conversions inside A′'s 7-bit reach, so the
+  // division sequence's two `cvt`s can be masked to lane 0. The SFU is still
+  // at 256+ and has no predicated form, which is what is left of F-56.
+  case CCV::CVT_F32_S32_P: case CCV::CVT_F32_U32_P:
+  case CCV::CVT_S32_F32_P: case CCV::CVT_U32_F32_P: {
+    static const std::pair<unsigned, unsigned> Map[] = {
+        {CCV::CVT_F32_S32_P, CCV::CVT_F32_S32},
+        {CCV::CVT_F32_U32_P, CCV::CVT_F32_U32},
+        {CCV::CVT_S32_F32_P, CCV::CVT_S32_F32},
+        {CCV::CVT_U32_F32_P, CCV::CVT_U32_F32}};
+    unsigned Base = 0;
+    for (auto [P, B] : Map) if (P == Op) Base = B;
+    unsigned D = regOf(MI, 0), A = regOf(MI, 2);
+    uint32_t G = guardMask(W, uint32_t(MI.getOperand(1).getImm())) & Mask;
+    R.Active = G; R.ActiveSet = true;
     forEachLane([&](unsigned L) {
-      uint32_t X = W.GPR[A][L];
-      float F = bitsToFloat(X);
-      switch (Op) {
-      case CCV::CVT_F32_S32: W.GPR[D][L] = floatToBits(float(int32_t(X))); break;
-      case CCV::CVT_F32_U32: W.GPR[D][L] = floatToBits(float(X)); break;
-      // Toward zero, and out-of-range saturates rather than trapping -- the
-      // same contract §4 gives width mismatches: deterministic garbage, no
-      // interlock.
-      case CCV::CVT_S32_F32:
-        W.GPR[D][L] = uint32_t(F >= 2147483647.0f    ? INT32_MAX
-                               : F <= -2147483648.0f ? INT32_MIN
-                               : std::isnan(F)       ? 0
-                                                     : int32_t(F));
-        break;
-      case CCV::CVT_U32_F32:
-        W.GPR[D][L] = F >= 4294967295.0f ? UINT32_MAX
-                      : (F <= 0.0f || std::isnan(F)) ? 0u
-                                                     : uint32_t(F);
-        break;
-      // The SFU is specified as correctly-rounded here. Real units are
-      // approximate, and the division sequence is written not to depend on
-      // more than ~1 ulp -- but simulating an approximation would make results
-      // unreproducible without pinning a specific hardware's error, which does
-      // not exist yet. See O-31.
-      case CCV::RCP_F32:   W.GPR[D][L] = floatToBits(1.0f / F); break;
-      case CCV::RSQRT_F32: W.GPR[D][L] = floatToBits(1.0f / std::sqrt(F)); break;
-      case CCV::SQRT_F32:  W.GPR[D][L] = floatToBits(std::sqrt(F)); break;
-      case CCV::EX2_F32:   W.GPR[D][L] = floatToBits(std::exp2f(F)); break;
-      case CCV::LG2_F32:   W.GPR[D][L] = floatToBits(std::log2f(F)); break;
-      case CCV::SIN_F32:   W.GPR[D][L] = floatToBits(std::sin(F)); break;
-      default:             W.GPR[D][L] = floatToBits(std::cos(F)); break;
-      }
+      if ((G >> L) & 1)                 // invariant 10: excluded lanes preserved
+        W.GPR[D][L] = cvtSfuLane(Base, W.GPR[A][L]);
     });
     break;
   }

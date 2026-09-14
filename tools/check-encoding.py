@@ -60,6 +60,60 @@ def bit_span(inst, var):
     lo, hi = min(pos), max(pos)
     return (hi, lo) if hi - lo + 1 == len(pos) else None
 
+# §4 ranges that O-34 made adjacent. Points 32-47 are FP at format codes
+# 00/01; 48-63 is dp4/dp8; 64-127 is the conversion product.
+FP_RANGE, DP_RANGE, CVT_RANGE = (32, 47), (48, 63), (64, 127)
+
+
+def format_a_opcode(inst):
+    """Format A/A'/A" opcode, or None if it is not one or the opcode is not fixed."""
+    if len(inst) != 32:
+        return None
+    fixed = lambda hi, lo: (
+        None if any(not isinstance(inst[b], int) for b in range(lo, hi + 1))
+        else sum(inst[b] << (b - lo) for b in range(lo, hi + 1)))
+    tag = fixed(5, 2)
+    if tag not in (0b0000, 0b0001, 0b0010):
+        return None
+    low = fixed(10, 6)                      # opcode[4:0], same in all three tiers
+    if low is None:
+        return None
+    if tag == 0b0000:                       # A  -- opcode[9:5] at [31:27]
+        high = fixed(31, 27)
+    elif tag == 0b0001:                     # A' -- opcode[6:5] at [31:30]
+        high = fixed(31, 30)
+    else:                                   # A" -- 5-bit opcode, nothing above
+        high = 0
+    return None if high is None else (high << 5) | low
+
+
+def check_fp_dp_collision(insts):
+    """Nothing but dp4/dp8 may sit in 48-63, and no two instructions may share a point.
+
+    O-34 packed 32-127 solid: FP at 32-47 (format codes 00/01 only), dp4/dp8 at
+    48-63, conversions at 64-127. Both halves of that are silently breakable --
+    an FP instruction at format code 10 lands on a dp opcode, and every one of
+    these is a well-formed Format A that the decoder will happily accept.
+    """
+    out, seen = [], {}
+    strip_p = lambda n: n[:-2] if n.endswith("_P") else n
+    for name in sorted(insts):
+        opc = format_a_opcode(insts[name]["Inst"])
+        if opc is None or not (FP_RANGE[0] <= opc <= CVT_RANGE[1]):
+            continue
+        # A predicated twin shares its base's point by design (the tier rule).
+        if opc in seen and strip_p(seen[opc]) != strip_p(name):
+            out.append(f"{name}: opcode {opc} is already {seen[opc]} -- "
+                       f"O-34 packs 32-127 with no spare")
+        seen.setdefault(opc, name)
+        if DP_RANGE[0] <= opc <= DP_RANGE[1] and not strip_p(name).startswith("DP"):
+            out.append(
+                f"{name}: opcode {opc} is inside {DP_RANGE[0]}-{DP_RANGE[1]}, "
+                f"which O-34 gave to dp4/dp8. `32 + 8*format + op` is restricted "
+                f"to format codes 00 and 01; 10 and 11 are no longer available.")
+    return out
+
+
 def main(path):
     recs = json.load(open(path) if path != "-" else sys.stdin)
     insts = {k: v for k, v in recs.items()
@@ -112,6 +166,20 @@ def main(path):
                 warnings.append(
                     f"{name}: {var} (slot {slot}) at [{hi}:{lo}], "
                     f"invariant 8 says [{chi}:{clo}]")
+
+    # 5. O-34's domain restriction on the Format A floating-point rule.
+    #
+    # `32 + 8*format + op` generates 48-63 for format codes 10 and 11. Those
+    # codes are reserved at every `chwidth`, so O-34 put dp4/dp8 there rather
+    # than make conversions and packed dot-product compete for 64-127. The
+    # price is that the FP rule's domain is now format in {00, 01}: an FP
+    # instruction emitted at code 10 or 11 would land on a dp opcode and the
+    # decoder would accept it silently, because both are well-formed Format A.
+    #
+    # The decision document called this "a documentation wart". It is
+    # checkable, so it is checked -- nothing else in this repository catches a
+    # collision between two instructions that are each individually valid.
+    errors += check_fp_dp_collision(insts)
 
     print(f"checked {len(insts)} instructions\n")
     for e in exempted:

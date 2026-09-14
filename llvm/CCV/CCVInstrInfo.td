@@ -146,17 +146,41 @@ def FABS_F0 : FormatA<FpOpc<fpOp.FABS, 0>.V, (outs GPR:$rd),
 // float-reciprocal algorithm every GPU uses needs exactly these two things.
 // Only the points actually needed are assigned; the rest of both ranges stays
 // reserved rather than being filled in speculatively. See O-31.
-class CvtOpc { int F32_S32 = 128; int F32_U32 = 129;
-               int S32_F32 = 130; int U32_F32 = 131; }
-def cvtOpc : CvtOpc;
+// Conversions, §4 points 64-127. The block is a product, and the arithmetic is
+// normative (O-34, extending O-28 to the third range that needed a rule rather
+// than a list):
+//
+//     opcode = 64 + 16*dest + 4*src + round
+//
+// `dest` and `src` are 2-bit FORMAT CODES, read against each register's
+// `chwidth` exactly as `fadd.f0`'s format code is -- 00/01 are the two FP
+// interpretations at that width, 10 is signed integer, 11 is unsigned. The
+// instruction therefore names no width, which is invariant 1, and which the
+// superseded eight-base scheme (`cvt2fp32`, `cvt2fp16`, ...) did not satisfy:
+// those bases differed only in element width.
+//
+// dest and src are adjacent so the pair forms one 4-bit field naming the
+// conversion path, which is what a converter datapath selects on; rounding is
+// rounding-logic control and sits in the low bits.
+class FmtCode { int FP0 = 0; int FP1 = 1; int SINT = 2; int UINT = 3; }
+def fmtCode : FmtCode;
+class Round { int RN = 0; int RZ = 1; int RM = 2; int RP = 3; }
+def round : Round;
+class CvtOpc<int dest, int src, int rnd> {
+  int V = !add(64, !add(!mul(16, dest), !add(!mul(4, src), rnd)));
+}
 multiclass Cvt<int opc, string mnem> {
   def NAME : FormatA<opc, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
                      mnem#" $rd, $rs0">;
+  // Inside A′'s 7-bit reach now, so conversions can be masked to lane 0 (O-33).
+  def NAME#_P : FormatAp<opc, (outs GPR:$rd),
+                         (ins pqual:$pq, GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                         "@$pq "#mnem#" $rd, $rs0">;
 }
-defm CVT_F32_S32 : Cvt<cvtOpc.F32_S32, "cvt.f32.s32">;
-defm CVT_F32_U32 : Cvt<cvtOpc.F32_U32, "cvt.f32.u32">;
-defm CVT_S32_F32 : Cvt<cvtOpc.S32_F32, "cvt.s32.f32">;  // toward zero
-defm CVT_U32_F32 : Cvt<cvtOpc.U32_F32, "cvt.u32.f32">;  // toward zero
+defm CVT_F32_S32 : Cvt<CvtOpc<fmtCode.FP0,  fmtCode.SINT, round.RN>.V, "cvt.f32.s32">;
+defm CVT_F32_U32 : Cvt<CvtOpc<fmtCode.FP0,  fmtCode.UINT, round.RN>.V, "cvt.f32.u32">;
+defm CVT_S32_F32 : Cvt<CvtOpc<fmtCode.SINT, fmtCode.FP0,  round.RZ>.V, "cvt.s32.f32">;
+defm CVT_U32_F32 : Cvt<CvtOpc<fmtCode.UINT, fmtCode.FP0,  round.RZ>.V, "cvt.u32.f32">;
 
 // SFU, §4 point 256+. `rcp` is the one the division algorithm needs; the rest
 // of the classic set is here because they share the unit and CUDA requires
@@ -179,8 +203,15 @@ defm COS_F32   : Sfu<sfuOpc.COS,   "cos.f32">;
 def FFMA_F0 : FormatA<FpOpc<fpOp.FFMA, 0>.V, (outs GPR:$rd),
                       (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
                       "ffma.f0 $rd, $rs0, $rs1, $rs2">;
-// dp4 lives at 64-127, signedness per operand. All operands are chwidth=32.
-def DP4_SS : FormatA<64, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+// dp4/dp8 live at 48-63, signedness per operand. All operands are chwidth=32.
+//
+// That range is what `32 + 8*format + op` would generate for FP format codes
+// 10 and 11, which are reserved at every `chwidth` and hold nothing. Taking it
+// keeps dp inside A′'s reach AND leaves 64-127 for conversions -- the two do
+// not have to compete (O-34). The price is that the FP formula's domain is now
+// format in {00, 01}: an FP instruction emitted at code 10 or 11 would silently
+// alias a dp opcode. tools/check-encoding.py rejects that.
+def DP4_SS : FormatA<48, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
                      "dp4.ss $rd, $rs0, $rs1, $rs2">;
 
 // Predicated twins, Format A′ (O-33). These are what mask-and-broadcast
@@ -188,9 +219,11 @@ def DP4_SS : FormatA<64, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
 // result is broadcast, so lanes 1-31 never switch.
 //
 // §4 puts A′'s opcode at SEVEN bits, so only points 0-127 are reachable this
-// way. The conversions at 128+ and the SFU at 256+ have no predicated form at
-// all, which is a real limit on how much of a kernel can be masked -- the
-// division sequence's `cvt` and `rcp` cannot be, however uniform they are.
+// way. O-34 moved conversions into that range, so the division sequence's two
+// `cvt`s can now be masked. `rcp.f32` still cannot: the SFU is at 256+ and
+// 128-255 is Format A only, so relocating the SFU there would not help. One
+// instruction of the division sequence therefore still burns all 32 lanes --
+// see F-56.
 multiclass AluRRP<int opc, string mnem> {
   def NAME : FormatAp<opc, (outs GPR:$rd),
                       (ins pqual:$pq, GPR:$rs0, GPR:$rs1, GPR:$rs2),

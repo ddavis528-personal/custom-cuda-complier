@@ -1,7 +1,32 @@
 # Conversion encoding — give §4's `cvt` block an arithmetic, and halve it
 
-**Status:** proposal, for decision. Raised by compiler work on CCV (the LLVM
-backend); nothing is implemented against it yet.
+**Status:** RESOLVED — accepted as O-34, with two changes from the design track
+and one error of mine corrected. Implemented; `tools/verify.sh` is green.
+
+> **Decided differently in two places, and read the spec rather than this
+> document for what shipped:**
+>
+> 1. **Field order is `64 + 16×dest + 4×src + round`**, not `4×round + src`.
+>    This document put `src` in the low bits to honour a §4 sentence written
+>    about the FP block, which has one format dimension. Conversions have two,
+>    and `dest`/`src` adjacent form a 4-bit field naming the conversion path —
+>    which is what a converter datapath selects on.
+> 2. **`dp4`/`dp8` keep their predicated encoding.** §6 below poses 64–127 as a
+>    contest and it is not one: `32 + 8×format + op` generates 48–63 for FP
+>    format codes `10`/`11`, which are reserved at every `chwidth`. `dp` moved
+>    there. The real cost is the two spare FP format codes, not `dp`
+>    predication — a better trade and one this document did not identify.
+>
+> **And the argument here is the weaker one.** §5 leads with compression and
+> F-56. The decision was taken on invariant 1: `cvt2fp32` versus `cvt2fp16`
+> differ only in element width, so the eight-base scheme put an element-width
+> field in the opcode, and left `cvt2fp16` targeting a 32-bit register with no
+> defined meaning. That stands without F-56 entirely.
+>
+> **One error of mine:** §7 claims `transpose`'s "no A′ form" bucket goes from 3
+> to 0. It goes to **1**. Two of the three are conversions; the third is
+> `rcp.f32` at §4 point 256, and Format A′ reaches 127. Measured after
+> implementation: 3 → 1, lane-activations 1809 → 1747.
 
 **Against:** ISA v1.5 (`isa-v1.5-operation-map-and-encoding.md`), §3 Formats
 A/A′/A″, §4 opcode map, O-2, O-28, O-31, O-33.

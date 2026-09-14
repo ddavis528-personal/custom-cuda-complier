@@ -220,9 +220,14 @@ Mask classify(const Instruction &I) {
   // §4 point 19: the qualifier is the selector. See SEL in CCVInstrInfo.td.
   case Instruction::Select:
     return Mask::QualifierTaken;
-  // THE F-56 BUCKET. Conversions are §4 128+, `rcp` is 256.
+  // O-34 relocated conversions to §4 64-127, inside A′'s 7-bit reach, and gave
+  // them predicated twins. They are maskable now.
   case Instruction::UIToFP: case Instruction::SIToFP:
   case Instruction::FPToUI: case Instruction::FPToSI:
+    return Mask::Yes;
+  // THE F-56 BUCKET, and all that is left of it: `fdiv` lowers to `rcp.f32` at
+  // §4 point 256. A′ stops at 127 and 128-255 is Format A only, so relocating
+  // the SFU down one range would not help -- it has to come below 128.
   case Instruction::FDiv:
     return Mask::NoPredForm;
   case Instruction::Br: case Instruction::Switch: case Instruction::IndirectBr:
@@ -334,7 +339,7 @@ public:
         {Mask::ControlFlow, "control flow",
          "block not reached by every lane, or a branch"},
         {Mask::NoPredForm, "no A\u2032 form",
-         "\u00a74 128+/256+, F-56 -- spec change"},
+         "SFU at \u00a74 256+, F-56 -- spec change"},
         {Mask::NoMIForm, "no MI form",
          "ISA predicates it, CCVInstrInfo.td does not"},
         {Mask::NoLongForm, "16-bit only",
