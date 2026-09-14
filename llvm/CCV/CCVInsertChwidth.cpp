@@ -75,7 +75,7 @@ public:
 
 private:
   unsigned Inserted = 0, Narrowing = 0, Widening = 0, Multi = 0, Runs = 0,
-           Blocks = 0;
+           Hoisted = 0, Blocks = 0;
 };
 
 /// The element width an instruction expects a given OPERAND to be at.
@@ -236,7 +236,48 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
     }
   }
 
-  // --- 3. Merge runs into chwidth.multi (O-6) ------------------------------
+  // --- 3. Hoist each width change as early as it is legal ------------------
+  //
+  // §3, on why Format I carries a register mask at all: "a kernel entering a
+  // packed section typically reconfigures several at once. Setting them in one
+  // instruction collapses N drain events into one." O-6 then asks the compiler
+  // to "hoist the mask instruction to a point where the affected registers are
+  // cold".
+  //
+  // A `chwidth R, W` may move up past any instruction that does not touch R.
+  // It may not pass an access to R, because everything between the width change
+  // and the next one reads R at the new width -- that is the whole mechanism.
+  // Block entry is the ceiling; hoisting across a block boundary would need the
+  // dataflow in step 1 to agree on every predecessor, which is a separate
+  // problem.
+  //
+  // Hoisting is what makes merging possible. Without it the transitions sit
+  // wherever they were needed and no two are adjacent.
+  for (MachineBasicBlock &MBB : MF) {
+    for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
+      if (MI.getOpcode() != CCV::C_CHWIDTH)
+        continue;
+      Register R = MI.getOperand(0).getReg();
+      MachineBasicBlock::iterator Dest = MI.getIterator();
+      while (Dest != MBB.begin()) {
+        MachineBasicBlock::iterator Prev = std::prev(Dest);
+        bool Touches = Prev->getOpcode() == CCV::CHWIDTH_MULTI;
+        for (const MachineOperand &MO : Prev->operands())
+          if (MO.isReg() && MO.getReg() == R)
+            Touches = true;
+        if (Touches)
+          break;
+        Dest = Prev;
+      }
+      if (Dest != MI.getIterator()) {
+        MBB.splice(Dest, &MBB, MI.getIterator());
+        ++Hoisted;
+        Changed = true;
+      }
+    }
+  }
+
+  // --- 4. Merge runs into chwidth.multi (O-6) ------------------------------
   //
   // §3: "`chwidth` requires draining in-flight dependents on the affected
   // register, and a kernel entering a packed section typically reconfigures
@@ -300,6 +341,8 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
            << "   (a truncation; the element bits are preserved)\n"
            << "      widening a live reg : " << Widening
            << "   (a zero-extension -- O-38 clears the exposed bits)\n"
+           << "    hoisted               : " << Hoisted
+           << "   (O-6: as early as legal, to make merging possible)\n"
            << "    merged by chwidth.multi: " << Multi << " into " << Runs
            << "   (O-6: N drain events become one)\n"
            << "    instructions emitted  : " << (Inserted - Multi + Runs)

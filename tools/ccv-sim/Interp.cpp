@@ -126,6 +126,7 @@ static bool isWidthAware(unsigned Op) {
   case CCV::ADDI: case CCV::LD_GLOBAL: case CCV::ST_GLOBAL:
   case CCV::LD_GLOBAL_IDX: case CCV::ST_GLOBAL_IDX:
   case CCV::LD_SHARED: case CCV::ST_SHARED:
+  case CCV::MOVI: case CCV::MOVI48:
   case CCV::C_MOV: case CCV::C_EXIT:
     return true;
   default:
@@ -321,7 +322,13 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::MOVI48: {
     unsigned D = regOf(MI, 0);
     uint32_t Imm = uint32_t(MI.getOperand(1).getImm());
-    forEachLane([&](unsigned L) { W.GPR[D][L] = Imm; });
+    // An immediate write lands in the element, like any other write. §1's
+    // invariant 1 has no width field on this instruction either -- the
+    // destination's `chwidth` decides how much of the immediate survives.
+    uint8_t WD = W.ChWidth[D];
+    forEachLane([&](unsigned L) {
+      W.GPR[D][L] = writeElem(W.GPR[D][L], Imm, WD);
+    });
     break;
   }
 
@@ -587,10 +594,18 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     bool IsLoad = Op == CCV::LD_SHARED;
     unsigned Data = regOf(MI, 0), Base = regOf(MI, 1);
     int64_t Off = MI.getOperand(2).getImm();
+    // §3 takes transfer size from rdata's chwidth here exactly as it does for
+    // .global. These two were on the width-aware list while still calling
+    // read32/write32 -- the list is a CLAIM about the code below it, and
+    // nothing checked the claim. Same defect as F-67, one address space over.
+    unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
     forEachLane([&](unsigned L) {
-      uint64_t A = uint64_t(W.GPR[Base][L]) + Off;
-      if (IsLoad) W.GPR[Data][L] = Shared.read32(A);
-      else        Shared.write32(A, W.GPR[Data][L]);
+      uint64_t A = uint64_t(W.GPR[Base][L]) + Off;   // O-39: base at 32 bits
+      if (IsLoad)
+        W.GPR[Data][L] =
+            writeElem(W.GPR[Data][L], Shared.readN(A, Bytes), W.ChWidth[Data]);
+      else
+        Shared.writeN(A, narrow(W.GPR[Data][L], W.ChWidth[Data]), Bytes);
     });
     break;
   }

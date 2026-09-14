@@ -26,4 +26,17 @@
         C_CHWIDTH  R2, 0             # widen: the exposed bits must be CLEARED,
                                      # not whatever was in that slice before
         ST_GLOBAL  R2, R0, 32        # four bytes -- must be 0x0000BEF2
+
+# --- narrow .shared, same contract (§3): transfer size from rdata's chwidth.
+# Shared memory starts zeroed, so a 16-bit store at offset 0 must leave the
+# halfword at offset 2 alone. Reading the whole word back at 32 bits shows
+# both halves at once.
+        MOVI48     R5, 0             # shared base
+        C_CHWIDTH  R6, 1             # R6 is 16-bit
+        MOVI       R6, 43981         # 0xABCD -- narrow write, low half only
+        ST_SHARED  R6, R5, 0         # two bytes
+        C_CHWIDTH  R7, 0             # R7 stays 32-bit
+        LD_SHARED  R7, R5, 0         # four bytes: 0x0000ABCD if the store was
+                                     # two bytes, 0xABCDABCD-ish if it was four
+        ST_GLOBAL  R7, R0, 48
         C_EXIT     0

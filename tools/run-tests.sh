@@ -84,10 +84,11 @@ run_chwidth() {
     >/dev/null 2>&1 || { echo "  FAIL  chwidth.s did not assemble"; return 1; }
   local out
   out=$(build/ccv-sim "$tmp/c.bin" -poke 0x30000=0x0003BEEF \
-        -peek 0x30010 -peek 0x30020 2>&1)
-  local narrow wide
+        -peek 0x30010 -peek 0x30020 -peek 0x30030 2>&1)
+  local narrow wide shared
   narrow=$(echo "$out" | sed -n 's/.*\[0x30010\] = \([0-9]*\).*/\1/p')
   wide=$(echo   "$out" | sed -n 's/.*\[0x30020\] = \([0-9]*\).*/\1/p')
+  shared=$(echo "$out" | sed -n 's/.*\[0x30030\] = \([0-9]*\).*/\1/p')
   # 0xBEEF + 3 = 0xBEF2, wrapped at 16 bits and stored as two bytes.
   if [ "$narrow" != "48882" ]; then
     echo "  FAIL  16-bit add/store gave $narrow, want 48882 (0xBEF2)"; return 1
@@ -106,6 +107,16 @@ run_chwidth() {
     return 1
   fi
   echo "  PASS  widening clears the exposed bits -- no stale data (O-38)"
+  # A 16-bit .shared store into zeroed memory must leave the next halfword
+  # alone. §3 takes transfer size from rdata's chwidth in .shared exactly as in
+  # .global; these two were on the simulator's width-aware list while still
+  # calling read32/write32, which the list vouched for and nothing checked.
+  if [ "$shared" != "43981" ]; then
+    echo "  FAIL  16-bit .shared store read back as $shared, want 43981 (0x0000ABCD)"
+    echo "        A larger value means the store wrote more than two bytes."
+    return 1
+  fi
+  echo "  PASS  16-bit .shared store writes two bytes, not four"
 }
 echo
 echo "  --- per-register element width ---"
@@ -117,7 +128,7 @@ chw=$(build/ccv-llc test/accept/chwidth-i16.ll -o - 2>/dev/null)
 if ! echo "$chw" | grep -q "chwidth r"; then
   echo "  FAIL  no chwidth emitted for a 16-bit kernel"
   fail=1
-elif echo "$chw" | grep -qE "chwidth r1,"; then
+elif echo "$chw" | grep -qE "^	chwidth r1,"; then
   # r1 is the store's base address. §3 takes transfer size from rdata's
   # chwidth alone, and invariant 11 says an address is never narrow. A
   # per-instruction width tag sets the mode here; a per-operand one does not.
@@ -125,7 +136,7 @@ elif echo "$chw" | grep -qE "chwidth r1,"; then
   echo "$chw" | sed 's/^/        /'
   fail=1
 else
-  echo "  PASS  chwidth placed on data registers only ($(echo "$chw" | grep -c "chwidth r") inserted)"
+  echo "  PASS  chwidth placed on data registers only ($(echo "$chw" | grep -c "chwidth") emitted, incl. chwidth.multi)"
 fi
 # zext is free under O-38 -- widening clears the exposed bits, which IS the
 # zero-extension. If a masking instruction ever appears in that path, either

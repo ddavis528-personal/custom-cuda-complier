@@ -1263,6 +1263,18 @@ Setting them in one instruction collapses N drain events into one and saves N−
 instructions of prologue. The drain scope becomes the union of the masked registers, which
 is still bounded and still scoped — no global pipeline drain.
 
+**Measured, and the qualifier matters more than the acceptance.** The compiler hoists each
+width change as early as it is legal — past any instruction that does not touch the register,
+stopping at block entry — and then merges adjacent same-width runs. On the shape this
+paragraph describes, four narrow loads from one base, that merges 2 of 3 and turns three
+instructions into two. On a kernel whose narrow loads are interleaved with **address
+arithmetic on the very registers being narrowed**, it merges 0 of 3 after hoisting 2, and no
+legal placement can do better: the transitions are separated by a real dependency.
+
+So the multi-register form earns its format on one shape and cannot on the other. That is
+sharper than "typically reconfigures several at once", and it is a property of the kernel
+rather than of the compiler. See F-69.
+
 Cost: the drain is now wider, so a carelessly-placed multi-form stalls more than a
 carefully-placed single-form. That is a compiler scheduling concern, not a correctness one:
 the compiler should hoist the mask instruction to a point where the affected registers are
