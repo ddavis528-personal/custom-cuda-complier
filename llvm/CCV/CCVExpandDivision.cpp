@@ -24,8 +24,8 @@
 // large pseudo-random sample, on the simulator, including d = 1 (where the
 // reciprocal scaling saturates) and d = 0 (poison, but it must not hang).
 //
-// Constant divisors never reach here -- instcombine turns those into a
-// multiply and a shift long before codegen.
+// Constant divisors are skipped entirely and left to DAGCombiner's
+// BuildSDIV/BuildUDIV, which strength-reduce them properly. See runOnFn.
 //
 //===----------------------------------------------------------------------===//
 
@@ -218,6 +218,27 @@ bool runOnFn(Function &F) {
     switch (BO->getOpcode()) {
     case Instruction::SDiv: case Instruction::UDiv:
     case Instruction::SRem: case Instruction::URem:
+      // A CONSTANT divisor is not this pass's job, and taking it was costing
+      // an order of magnitude.
+      //
+      // The header above used to claim "constant divisors never reach here --
+      // instcombine turns those into a shift". That is true for UNSIGNED and
+      // false for signed: instcombine reduces `udiv x, 16` to `lshr` and
+      // leaves `sdiv x, 16` alone, because rounding toward zero needs three
+      // extra instructions and that is a CodeGen trade, not a canonicalisation.
+      // So every signed constant divisor was being expanded into the full
+      // runtime sequence -- and invisibly, because `rcp.u32` of a constant
+      // folds, leaving the Newton and correction steps with no reciprocal in
+      // the listing to give it away.
+      //
+      // DAGCombiner's BuildSDIV/BuildUDIV handle constants properly: a shift
+      // for a power of two, a magic-number multiply otherwise. Leaving them
+      // alone costs nothing and takes `transpose` from 79 instructions to 60.
+      // tools/check-divconst.sh holds both the answers and the size.
+      if (isa<ConstantInt>(BO->getOperand(1)))
+        break;
+      Work.push_back(BO);
+      break;
     case Instruction::FDiv:
       Work.push_back(BO);
       break;

@@ -76,7 +76,7 @@ questions and only one of them can be measured on both machines.
   vadd16_loop |     28    100   28.6 |     20     72 |     35    184   42.1 |     23
   dot        |     55    178   25.9 |     47    152 |     60    300   40.0 |     46
   reduce     |     50    162   25.9 |     44    142 |     54    268   39.7 |     41
-  transpose  |     87    320   29.4 |     79    290 |     64    308   38.5 |     43
+  transpose  |     66    236   28.6 |     58    208 |     64    308   38.5 |     43
 ```
 
 **Dynamic — instructions actually issued, per thread of work.**
@@ -91,7 +91,7 @@ questions and only one of them can be measured on both machines.
   vadd16_loop     69.0   100%         -- |      2208       100%   has 1 loops; not modelled
   dot            79.9    66%         -- |      2556       100%   has 3 loops; not modelled
   reduce         76.9    65%         -- |      2460       100%   has 3 loops; not modelled
-  transpose      79.0   100%         64 |      1429        57%   exact: no backward branch
+  transpose      58.0   100%         64 |      1165        63%   exact: no backward branch
 ```
 
 **CCV's dynamic column is measured** on the simulator — lane-instructions
@@ -133,9 +133,9 @@ spanning both encoding families and the datacentre line.
   vadd16_loop            28.6           42.1           43.6           42.4           46.8           45.2
   dot                   25.9           40.0           41.5           40.9           42.3           42.1
   reduce                25.9           39.7           42.9           39.2           41.4           40.2
-  transpose             29.4           38.5           41.1           39.6           39.2           38.7
+  transpose             28.6           38.5           41.1           39.6           39.2           38.7
   -----------------------------------------------------------------------------------------------------
-  pooled                27.6           40.7           43.7           41.8           43.8           43.1
+  pooled                27.3           40.7           43.7           41.8           43.8           43.1
 ```
 
 **Instruction counts, same sweep — the control:**
@@ -150,7 +150,7 @@ spanning both encoding families and the datacentre line.
   vadd16_loop              28             35             44             49             39             29
   dot                     55             60             64             68             62             54
   reduce                  50             54             50             71             58             51
-  transpose               87             64             60             76             76             62
+  transpose               66             64             60             76             76             62
 ```
 
 **The objection does not land.** AMD's density is flat across eight years and two
@@ -185,7 +185,7 @@ counts are within 30% everywhere and CCV is *lower* on seven of eight:
 
 | | vadd | saxpy | vadd16 | vadd_loop | vadd16_loop | dot | reduce | transpose |
 |---|---|---|---|---|---|---|---|---|
-| CCV | 23 | 22 | 24 | 27 | 28 | 55 | 50 | 87 |
+| CCV | 23 | 22 | 24 | 27 | 28 | 55 | 50 | 66 |
 | GCN | 29 | 25 | 29 | 35 | 35 | 60 | 54 | 64 |
 
 So the density is not bought with instruction count. **Code size lands below
@@ -221,14 +221,14 @@ emits `.amdhsa_wavefront_size32` and its absence means wave64.
     vadd16                544            464            864           1024           1024            368
     vadd_loop             272             --             --             --             --             --
     vadd16_loop            276             --             --             --             --             --
-    transpose            2528           1024           1920           2432           2432            992
+    transpose            1856           1024           1920           2432           2432            992
   instr bytes / 1K elem
     vadd                 1792           2432           5248           5888           6144           2240
     saxpy                1856           2176           4352           4992           5248           1984
     vadd16               1984           2432           5376           6016           6272           2240
     vadd_loop             264             --             --             --             --             --
     vadd16_loop            288             --             --             --             --             --
-    transpose            9280           4928           9856          12032          11904           4800
+    transpose            6656           4928           9856          12032          11904           4800
 ```
 
 **Two results, and they point opposite ways.**
@@ -259,13 +259,13 @@ six" overstated it by ignoring warp width.
 1024 — for the reasons §2 already gives: AMD does the division on the scalar
 unit, one instruction for the whole wavefront.
 
-**`transpose` is the exception, and it became one deliberately.** After O-31 it
-was 294 bytes against GCN's 308 — below, and an earlier version of this document
-said "below GCN on every kernel" on the strength of it. O-33 then added lane-0
-masking, which costs a broadcast instruction wherever it fires, and `transpose`
-grew to **87 instructions and 320 bytes**. That is a **regression in the column this
-section is about** and a 26% cut in the one the next section is about, taken
-knowingly: see below.
+**`transpose` is the one kernel above GCN on instruction count**, and it now
+grew to **66 instructions and 236 bytes** against GCN's 64 and 308 — above on
+the count, below on the bytes, and below on issued work too at 58 per thread
+against 64. For most of this project's life it was far worse
+than that and the explanation on file was wrong, which is worth recording
+because the wrong explanation was plausible for two revisions. See
+"`transpose` was not what it looked like" below.
 
 Two structural reasons, both from the design record rather than discovered here:
 GCN carries 64-bit pointers in register pairs where invariant 11 keeps addresses
@@ -463,7 +463,7 @@ had measured that. The simulator now counts it:
   vadd16_loop       69         58      32   0.552        53.0   1.283x
   dot              122        101       0   0.000       122.0       --
   reduce           119         98       0   0.000       119.0       --
-  transpose         79         72       0   0.000        79.0       --
+  transpose         58         54       0   0.000        58.0       --
 ```
 
 **`vadd16` is exactly break-even.** 18 issued instructions, 4 of them narrow
@@ -557,10 +557,10 @@ The `lane-act` column is the measurement, from `ccv-sim -counters`:
 
 | | issued/thread | issued lane slots | activations | share |
 |---|---|---|---|---|
-| `transpose`, masking off | 68.0 | 2176 | 2016 | 93% |
-| `transpose`, masking on | 79.0 | 2528 | **1429** | **57%** |
+| `transpose`, masking off | 52.0 | 1664 | 1568 | 94% |
+| `transpose`, masking on | 58.0 | 1856 | **1165** | **63%** |
 
-**587 fewer lanes switched — a 29% cut — for 11 added instructions per thread.**
+**403 fewer lanes switched — a 26% cut — for 6 added instructions per thread.**
 The pass's own stats account for them: 22 operations masked to lane 0, 7 already
 predicated and composed with `pand` (F-58), 3 broadcasts inserted, plus the one
 `pmov` that materializes the lane-0 mask.
@@ -625,19 +625,57 @@ uniform value is consumed immediately by divergent work, so each masked
 instruction would need its own broadcast and the trade is a wash. That is the
 cost model working, not the pass failing.
 
-### Where CCV still loses: `transpose`, and it is instructive
+### `transpose` was not what it looked like
 
-79 instructions issued against GCN5's 64 — the only kernel where CCV issues more,
-and it issues more than every AMD generation measured (60 to 76). Two
-causes, both structural rather than accidental:
+`transpose` was the outlier on every column for two revisions, and the
+explanation on file — O-33's broadcasts plus AMD's scalar unit — accounted for a
+fraction of it. Taking the kernel apart instruction by instruction found two
+compiler defects worth **21 of its 79 issued instructions**, and neither had
+anything to do with masking:
 
-**AMD does the division on the scalar unit.** The divisor is warp-uniform (it
-depends on `blockIdx` and `n`), so their sequence is `s_mul_i32`, `s_sub_i32`,
-`s_cselect_b32` — one instruction per operation *for the whole wavefront*. CCV
-issues it to all 32 lanes and, since O-33, activates only one of them for the
-part of the sequence that can be masked. That closes the energy gap partway and
-none of the issue-bandwidth gap: a scalar unit does not issue to the vector
-pipe at all.
+| | issued | vs GCN5's 64 |
+|---|---|---|
+| as measured for two revisions | 79 | +23% |
+| after F-93 — stop expanding constant divisors | 60 | −6% |
+| after F-94 — collect the dead reciprocal seed | **58** | **−9%** |
+
+58 instructions issued against GCN5's 64 is where it lands.
+
+**F-93 is the large one, and it hid behind a comment.** `CCVExpandDivision`
+opened with "constant divisors never reach here — instcombine turns those into a
+shift". That is true for *unsigned* and false for *signed*: instcombine reduces
+`udiv x, 16` to `lshr` and leaves `sdiv x, 16` alone, because rounding toward
+zero costs three extra instructions and that is a CodeGen trade rather than a
+canonicalisation. `transpose` computes `n / T` with `T` a compile-time 16 and
+`n` an `int` — so its constant divisor went through the **full runtime-divisor
+expansion**, Newton iteration and all. Skipping constant divisors and letting
+DAGCombiner's `BuildSDIV` strength-reduce them takes the kernel from 79 to 60.
+
+It was invisible for a specific reason: `rcp.u32` of a constant **folds**, so
+the generic expansion of a *constant* divisor emits no reciprocal at all. Every
+Newton and correction step was there, with nothing in the listing to say which
+division they belonged to.
+
+**F-94 is smaller and simpler.** `CCVFuseRcpSeed` replaces the fp32 reciprocal
+chain with `rcp.u32` and left the chain behind for "the generic
+dead-machine-instr elimination that follows". No such elimination removed it, so
+every division carried a dead `cvt.f32.u32` and `rcp.f32`. Neither is marked
+with side effects; nothing was protecting them, they simply outlived the pass
+meant to collect them.
+
+**What remains is the structural part, and it is now small.** AMD does the
+division on the scalar unit: the divisor is warp-uniform, so their sequence is
+`s_mul_i32`, `s_sub_i32`, `s_cselect_b32` — one instruction per operation *for
+the whole wavefront*. CCV issues it to all 32 lanes and, since O-33, activates
+only one of them for the part that can be masked. That closes the energy gap
+partway and none of the issue-bandwidth gap: a scalar unit does not issue to the
+vector pipe at all.
+
+**Masking was never the main cost, and the A/B always said so.** It is 6
+instructions of the 58 — `transpose` runs 52 issued with masking off and 58 with
+it on. The explanation on file attributed the outlier to it anyway, which is the
+lesson worth keeping: a plausible cause that is present in the code will absorb
+an unexplained cost indefinitely if nobody measures the parts.
 
 O-33 also measured how much of that sequence is out of reach, and the answer
 reframed F-52. Of `transpose`'s warp-uniform instructions, 10 cannot be masked
@@ -708,11 +746,11 @@ tile:
 ```
   tile  accs    instrs     bits b/instr  spills    fma sp/fma    K-hit
   -------------------------------------------------------------------------
-  1x1   1          182     4992    27.4      37     16   2.31      23%
-  1x2   2          261     7136    27.3      61     32   1.91      23%
-  2x2   4          382    10304    27.0     102     64   1.59      24%
-  2x4   8          639    17008    26.6     186    128   1.45      12%
-  4x4   16        1118    29296    26.2     407    256   1.59      14%
+  1x1   1          180     4928    27.4      37     16   2.31      23%
+  1x2   2          259     7072    27.3      61     32   1.91      23%
+  2x2   4          380    10240    26.9     102     64   1.59      24%
+  2x4   8          637    16944    26.6     186    128   1.45      12%
+  4x4   16        1116    29232    26.2     407    256   1.59      14%
 ```
 
 `sp/fma` — memory traffic the register file forced, per unit of arithmetic it

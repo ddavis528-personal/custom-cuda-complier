@@ -160,7 +160,32 @@ close that. The §6 figure of 128 bits per SASS instruction remains a citation.
 
 ---
 
-## 5. Corrections to figures this project published
+## 5. `transpose` was two compiler bugs, not an architectural gap
+
+For two revisions `transpose` was the outlier on every column, and the
+explanation on file was O-33's lane masking plus AMD's scalar unit. Taking the
+kernel apart found **21 of its 79 issued instructions** in two compiler defects,
+neither related to masking:
+
+- **A signed constant divisor took the full runtime-divisor expansion.**
+  `CCVExpandDivision` claimed instcombine strength-reduces constant divisors.
+  It does for unsigned and not for signed — rounding toward zero is a CodeGen
+  trade, not a canonicalisation — so `n / 16` with `n` an `int` got Newton
+  iteration and all. 79 → 60 (F-93).
+- **The fused reciprocal seed was dead code nothing collected.** 60 → 58 (F-94).
+
+`transpose` now issues **58 against GCN5's 64**, below it, and 236 bytes against
+308. It remains 2 above on static instruction count, which is the scalar-unit
+gap and is architectural: AMD computes a warp-uniform divisor once for the whole
+wavefront where CCV issues it to all 32 lanes.
+
+**The masking A/B always said masking was 6 instructions of 58.** The relevance
+for the architecture side is that *the case for a warp-uniform register file
+(F-52, O-25) was partly resting on this kernel's cost*, and most of that cost
+was ours. The case still stands on redundant execution, but it is now a smaller
+number than this document previously implied.
+
+## 6. Corrections to figures this project published
 
 Two, both found by measurement rather than review, and both recorded in place
 rather than quietly restated:
@@ -178,7 +203,7 @@ rather than quietly restated:
 
 ---
 
-## 6. What is now mechanically checked
+## 7. What is now mechanically checked
 
 The recurring failure in this project is a green check that was green because it
 was not looking, and the v1.6 cycle converted four more instances into gates:
@@ -202,7 +227,7 @@ was not looking, and the v1.6 cycle converted four more instances into gates:
 
 ---
 
-## 7. Open questions for the architecture side
+## 8. Open questions for the architecture side
 
 - **O-40's ratio is a target, not a measurement.** 2× is what the ISA asks for.
   At 1.5× the short kernel loses. The memory path matters more than the ALU

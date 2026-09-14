@@ -237,6 +237,16 @@ Mask classify(const Instruction &I) {
   // a ~30-instruction sequence (O-36) whose parts are classified individually.
   case Instruction::FDiv:
     return Mask::Yes;
+  // A division that still exists at this point has a CONSTANT divisor:
+  // CCVExpandDivision replaces every runtime-divisor division with its
+  // sequence, and skips constant ones so DAGCombiner can strength-reduce them.
+  // What reaches codegen is therefore a shift, or a magic-number multiply and
+  // a few corrections -- all of them from the maskable block above. Classified
+  // here rather than left to fall through, because `Unmodelled` means "this
+  // report does not know", and it does know.
+  case Instruction::SDiv: case Instruction::UDiv:
+  case Instruction::SRem: case Instruction::URem:
+    return Mask::Yes;
   case Instruction::Br: case Instruction::Switch: case Instruction::IndirectBr:
     return Mask::ControlFlow;
   default:

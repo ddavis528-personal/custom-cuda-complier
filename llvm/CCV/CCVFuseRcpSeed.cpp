@@ -30,7 +30,9 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Debug.h"
+#include <array>
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -52,6 +54,10 @@ public:
 
   bool runOnMachineFunction(MachineFunction &MF) override {
     MachineRegisterInfo &MRI = MF.getRegInfo();
+    // The matched fp32 chain per fusion site, so it can be collected after the
+    // replacement rather than left for a DCE that does not run.
+    SmallVector<std::array<MachineInstr *, 4>, 4> Chain;
+    unsigned Erased = 0;
     const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
 
     /// The unique defining instruction of a virtual register, if it has one.
@@ -80,6 +86,7 @@ public:
         // register uses, without assuming operand positions -- the two tiers
         // number them differently and C_FMUL ties its first source to `rd`.
         MachineInstr *Scale = nullptr, *Rcp = nullptr;
+        (void)Chain;
         for (const MachineOperand &MO : Mul->uses()) {
           MachineInstr *D = def(MO);
           if (isOpc(D, CCV::MOVI48) && D->getOperand(1).isImm() &&
@@ -96,6 +103,7 @@ public:
           continue;
 
         Found.emplace_back(&MI, Cvt->getOperand(1).getReg());
+        Chain.push_back({Mul, Rcp, Cvt, Scale});
       }
     }
 
@@ -107,10 +115,41 @@ public:
           .addReg(Divisor);         // rs2, unread
       MI->eraseFromParent();
     }
-    // The fp32 chain is now dead. Leave it to the generic dead-machine-instr
-    // elimination that follows rather than unlinking it here: the scale
-    // constant in particular may be shared with another division, and deciding
-    // that by hand is how CCVWindowRemat produced a use-after-free (F-47).
+
+    // Erase the fp32 chain this replaced.
+    //
+    // It used to be left for "the generic dead-machine-instr elimination that
+    // follows", on the reasoning that the scale constant may be shared between
+    // two divisions and deciding that by hand is how CCVWindowRemat produced a
+    // use-after-free (F-47). The caution was right and the conclusion was
+    // wrong: no DCE removed them, and `transpose` carried a dead
+    // `cvt.f32.u32` + `rcp.f32` pair for every division it contains. Neither
+    // is marked with side effects, so nothing was protecting them -- they
+    // simply outlived the pass that was supposed to collect them.
+    //
+    // Sharing is decided by MachineRegisterInfo rather than by hand, which is
+    // what makes this safe where the hand version was not: this runs pre-RA on
+    // SSA virtual registers, so `use_empty` after the replacement is exactly
+    // the question "is anything still reading this". A shared scale constant
+    // has a remaining use and stays. Repeat to a fixpoint so erasing the
+    // multiply exposes its operands.
+    bool Again = true;
+    while (Again) {
+      Again = false;
+      for (auto &C : Chain)
+        for (MachineInstr *&I : C) {
+          if (!I || I->getNumOperands() == 0 || !I->getOperand(0).isReg() ||
+              !I->getOperand(0).isDef())
+            continue;
+          Register R = I->getOperand(0).getReg();
+          if (!R.isVirtual() || !MRI.use_nodbg_empty(R))
+            continue;
+          I->eraseFromParent();
+          I = nullptr;
+          ++Erased;
+          Again = true;
+        }
+    }
     return !Found.empty();
   }
 };
