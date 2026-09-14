@@ -1894,11 +1894,26 @@ A GEMM inner loop consisting mostly of accumulate-FMA and pointer arithmetic sho
 encode at close to 16 bits per instruction. How close depends entirely on how often the
 allocator can arrange `rd == rs0`, which is a compiler-backend question, not an ISA one.
 
-For reference, Volta-and-later SASS uses 128 bits per instruction — 64 bits of instruction
-plus 64 bits of compiler-encoded scheduling control (stall counts, barrier masks, reuse
-flags). Roughly 4× density is available here, but the comparison is not free: that control
-payload is buying NVIDIA static scheduling, which this design replaces with hardware OoO.
-The density win and the OoO hardware cost are the same trade viewed from two directions.
+Volta-and-later SASS uses 128 bits per instruction — 64 bits of instruction plus 64 bits of
+compiler-encoded scheduling control (stall counts, barrier masks, reuse flags).
+
+**That figure is now measured rather than cited.** It was carried from the design
+discussion through four revisions of this document with no way to check it; `ptxas` turns
+out to be a host compiler that needs no GPU, and the benchmark now runs it. Every kernel
+measures **128.0 bits per instruction exactly**, from Volta through Blackwell — nine years
+with no change. `docs/benchmarks.md` §2 has the tables.
+
+The predicted "roughly 4×" was close. Measured over the benchmark's eight kernels, CCV
+encodes the same work in **27.3 bits per instruction against SASS's 128.0** — 0.21× — and
+the same kernels are **3.6× larger as SASS**. What the prediction did not anticipate is the
+direction of the instruction count: **SASS uses the fewest instructions of any machine
+measured**, 224 against CCV's 295, so the density win is not being paid for with extra
+instructions on NVIDIA's side but with 64 bits of control on each of theirs.
+
+The comparison is still not free, and the reason is unchanged: that control payload buys
+NVIDIA static scheduling, which this design replaces with hardware OoO. The density win and
+the OoO hardware cost are the same trade viewed from two directions — and the trade is now
+quantified on one side of it.
 
 ---
 

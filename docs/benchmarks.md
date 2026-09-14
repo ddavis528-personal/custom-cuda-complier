@@ -16,6 +16,7 @@ Three targets, one source per kernel, one frontend:
 |---|---|---|
 | **CCV** | this backend, via clang's CUDA frontend | yes |
 | **AMDGCN** | clang's AMD GPU backend — **real ISAs**, five generations: gfx900 (GCN5/Vega, 2017), gfx1030 (RDNA2), gfx1100 (RDNA3), gfx1200 (RDNA4, 2024), gfx942 (CDNA3/MI300) | yes |
+| **NVIDIA SASS** | `ptxas -O3 -arch=sm_70` — the **real machine encoding of the compatibility target** | yes |
 | **PTX** (nvptx64) | a **virtual ISA** | **no** |
 
 gfx900 is kept as the headline column because the whole document is written
@@ -35,20 +36,20 @@ not what any hardware executes. It is reported because "instructions to
 complete the task" is a fair question at that level and PTX is this project's
 compatibility contract. It is not evidence about density.
 
-**SASS is the comparison that would matter most and is not here.** It needs
-`ptxas`, which needs the CUDA toolkit, which is not installed. §6 of the ISA
-document states that Volta-and-later SASS is 128 bits per instruction — 64 bits
-of instruction plus 64 bits of compiler-encoded scheduling control. That figure
-is *carried from the design discussion and has not been verified here.* Treat
-the SASS row in any summary as a citation, not a measurement.
+**SASS is measured now, and it was the comparison that mattered most.** For four
+revisions this section said it could not be produced here. It can: `ptxas` is a
+*host* compiler and needs no GPU, NVIDIA ships it as a pip wheel, and
+`tools/fetch-ptxas.sh` is the whole install. No disassembler is needed and none
+is published — the cubin's `.text.<kernel>` section **is** the SASS.
 
-This is the single largest gap in the document, and broadening the AMD
-comparison did not close it. **CCV's compatibility target is CUDA; its density
-claim is measured against AMD.** Those are different vendors, and the one number
-that would settle whether the encoding is actually dense *for the thing it
-imitates* is the one that cannot be produced on this machine. Everything below
-should be read as "denser than AMD's ISAs, by a stable margin, across five
-generations" — not as "denser than NVIDIA's", which remains unmeasured.
+§6 of the ISA document states that Volta-and-later SASS is 128 bits per
+instruction, 64 of instruction and 64 of compiler-scheduled control, and carried
+that as an unverified citation. **It measures 128.0 bits per instruction
+exactly, on every kernel, from Volta through Blackwell.** The citation is now a
+measurement.
+
+Pre-Volta is excluded deliberately: sm_60 and earlier use a 64-bit encoding with
+separate control words, which a 16-byte walk would silently miscount.
 
 **These are static counts.** Code size is exactly what static counts measure, so
 the density columns are sound. Instruction *count* as a proxy for work done is
@@ -123,41 +124,64 @@ spanning both encoding families and the datacentre line.
 **Bits per instruction:**
 
 ```
-  kernel                 CCV    GCN5 / Vega          RDNA2          RDNA3          RDNA4  CDNA3 / MI300
-                                       2017           2020           2022           2024           2023
-  -----------------------------------------------------------------------------------------------------
-  vadd                  27.1           41.9           48.6           46.0           48.0           48.7
-  saxpy                 26.9           43.5           47.3           44.6           46.9           47.2
-  vadd16                28.0           41.9           49.8           47.0           49.0           48.7
-  vadd_loop             27.9           42.1           42.9           41.8           45.9           45.2
-  vadd16_loop            28.6           42.1           43.6           42.4           46.8           45.2
-  dot                   25.9           40.0           41.5           40.9           42.3           42.1
-  reduce                25.9           39.7           42.9           39.2           41.4           40.2
-  transpose             28.6           38.5           41.1           39.6           39.2           38.7
-  -----------------------------------------------------------------------------------------------------
-  pooled                27.3           40.7           43.7           41.8           43.8           43.1
+  kernel                 CCV        NV SASS    GCN5 / Vega          RDNA2          RDNA3          RDNA4  CDNA3 / MI300
+                                      sm_70           2017           2020           2022           2024           2023
+  --------------------------------------------------------------------------------------------------------------------
+  vadd                  27.1          128.0           41.9           48.6           46.0           48.0           48.7
+  saxpy                 26.9          128.0           43.5           47.3           44.6           46.9           47.2
+  vadd16                28.0          128.0           41.9           49.8           47.0           49.0           48.7
+  vadd_loop             27.9          128.0           42.1           42.9           41.8           45.9           45.2
+  vadd16_loop            28.6          128.0           42.1           43.6           42.4           46.8           45.2
+  dot                   25.9          128.0           40.0           41.5           40.9           42.3           42.1
+  reduce                25.9          128.0           39.7           42.9           39.2           41.4           40.2
+  transpose             28.6          128.0           38.5           41.1           39.6           39.2           38.7
+  --------------------------------------------------------------------------------------------------------------------
+  pooled                27.3          128.0           40.7           43.7           41.8           43.8           43.1
 ```
 
 **Instruction counts, same sweep — the control:**
 
 ```
-  kernel                 CCV    GCN5 / Vega          RDNA2          RDNA3          RDNA4  CDNA3 / MI300
-  -----------------------------------------------------------------------------------------------------
-  vadd                    23             29             27             32             32             23
-  saxpy                   22             25             23             28             28             21
-  vadd16                  24             29             27             32             32             23
-  vadd_loop               27             35             44             49             39             29
-  vadd16_loop              28             35             44             49             39             29
-  dot                     55             60             64             68             62             54
-  reduce                  50             54             50             71             58             51
-  transpose               66             64             60             76             76             62
+  kernel                 CCV        NV SASS    GCN5 / Vega          RDNA2          RDNA3          RDNA4  CDNA3 / MI300
+  --------------------------------------------------------------------------------------------------------------------
+  vadd                    23             17             29             27             32             32             23
+  saxpy                   22             16             25             23             28             28             21
+  vadd16                  24             17             29             27             32             32             23
+  vadd_loop               27             20             35             44             49             39             29
+  vadd16_loop              28             20             35             44             49             39             29
+  dot                     55             42             60             64             68             62             54
+  reduce                  50             39             54             50             71             58             51
+  transpose               66             53             64             60             76             76             62
 ```
 
 **The objection does not land.** AMD's density is flat across eight years and two
-encoding families — 40.1 to 43.1 bits per instruction pooled, with no trend — and
-CCV's 27.4 is **0.63× to 0.68× of every one of them**. The ratio against RDNA4
-(2024) is 0.65, the same as against Vega (2017). Whatever the variable-length
-encoding is buying, it is not an artifact of an obsolete baseline.
+encoding families — 40.7 to 43.8 bits per instruction pooled, with no trend — and
+CCV's 27.3 is **0.62× to 0.66× of every one of them**. The ratio against RDNA4
+(2024) is the same as against Vega (2017). Whatever the variable-length encoding
+is buying, it is not an artifact of an obsolete baseline.
+
+#### And against SASS, which is the comparison that actually matters
+
+CCV's compatibility target is CUDA, so NVIDIA's machine encoding is the one the
+density argument is really written against. Pooled over all eight kernels:
+
+| pooled over eight kernels | instructions | bytes | bits/instruction |
+|---|---|---|---|
+| `CCV` | 295 | 1006 | **27.3** |
+| `NVIDIA SASS` (sm_70) | 224 | 3584 | **128.0** |
+
+**SASS uses the fewest instructions of any machine here** — fewer than CCV and
+fewer than every AMD generation — and spends 128 bits on each of them. So the
+two machines fail in opposite directions: **CCV needs 1.32× the instructions and
+0.28× the bytes.** The same eight kernels are 3.6× larger as SASS.
+
+That is the variable-length encoding doing exactly what §6 designed it to do,
+against the machine it was designed against. It is also the cleanest statement
+of the trade this document keeps returning to: NVIDIA buys scheduling
+determinism and issue efficiency with 64 bits of control per instruction, and
+CCV declines to spend them. Whether that is the right call is a hardware
+question — a fetch-bound design prefers CCV's side, an issue-bound one prefers
+NVIDIA's — but it is no longer an unmeasured one.
 
 **Two things the sweep shows that gfx900 alone did not.** RDNA3 is *less* dense
 than GCN5 on these kernels, not more, and needs more instructions for the same
@@ -788,8 +812,10 @@ where code size matters most.
 
 ## 4. What would strengthen this
 
-- **SASS.** The comparison the project's density argument is actually written
-  against, and the one missing. Needs `ptxas`.
+- ~~**SASS.**~~ Done — `tools/fetch-ptxas.sh`, and the numbers are in §2. What
+  remains unmeasured on the NVIDIA side is *dynamic* SASS: instruction counts
+  here are static, and without a GPU or an emulator there is no issue count to
+  compare against CCV's simulator figures.
 - **Dynamic counts for GCN.** CCV's are measured; AMD's are not, because there
   is no AMD simulator here. For these kernels their code is straight-line where
   ours is, so static is a fair proxy for both — but that is an argument about

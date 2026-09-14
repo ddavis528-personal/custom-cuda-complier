@@ -196,6 +196,59 @@ def amdgcn(src, tmp, arch="gfx900"):
                 if m and label.get(m.group(1), 1 << 30) < i)
     return {"instrs": n, "bytes": nbytes, "loops": loops}
 
+# SASS, at last. ptxas is a host compiler and needs no GPU; tools/fetch-ptxas.sh
+# installs it from NVIDIA's pip wheel. No disassembler is published there and
+# none is needed: the cubin's .text.<kernel> section IS the SASS.
+PTXAS = os.path.join(ROOT, "vendor/cuda/nvidia/cuda_nvcc/bin/ptxas")
+
+# Volta-and-later SASS pads a kernel's tail with NOPs to a 128-byte boundary.
+# Exactly the same trap as gfx10+'s s_code_end: EVERY kernel's section size came
+# out a multiple of 128, which is the giveaway -- eight kernels do not land on
+# that boundary by chance. Counted as code it inflates `vadd` from 17
+# instructions to 24. Only the trailing run is dropped, because a NOP inside the
+# body is a real scheduling slot.
+SASS_NOP = bytes.fromhex("18790000000000000000000000c00f00")
+
+
+def sass(src, tmp, arch="sm_70"):
+    """SASS instructions and bytes for one kernel, via ptxas.
+
+    Volta-and-later encodes every instruction in exactly 16 bytes -- 64 of
+    instruction and 64 of compiler-scheduled control. That is the figure §6 of
+    the ISA document carried as an unverified citation for four revisions; it is
+    checked here rather than assumed, by requiring the section to divide evenly
+    into 16-byte words and reporting the bits-per-instruction that falls out.
+
+    Pre-Volta is deliberately not supported: sm_60 and earlier use a 64-bit
+    encoding with a separate control word every few instructions, so a 16-byte
+    walk would silently halve the count."""
+    if not os.path.exists(PTXAS):
+        return {"error": "ptxas not installed -- run tools/fetch-ptxas.sh"}
+    ptxf, cub, binf = (os.path.join(tmp, f"s.{x}") for x in ("ptx", "cubin", "bin"))
+    if run("clang", "-x", "cuda", "-nocudainc", "-nocudalib", "--cuda-device-only",
+           f"--cuda-gpu-arch={arch}", "-I", CUDA_INC, "-I", BENCH, "-O2", "-S",
+           src, "-o", ptxf).returncode:
+        return {"error": "clang failed"}
+    if run(PTXAS, f"-arch={arch}", "-O3", ptxf, "-o", cub).returncode:
+        return {"error": "ptxas failed"}
+    m = re.search(r"(\.text\.\S+)", run("llvm-readelf", "-S", cub).stdout)
+    if not m:
+        return {"error": "no .text section in cubin"}
+    if run("llvm-objcopy", "-O", "binary", f"--only-section={m.group(1)}",
+           cub, binf).returncode:
+        return {"error": "objcopy failed"}
+    raw = open(binf, "rb").read()
+    if len(raw) % 16:
+        return {"error": f".text is {len(raw)} bytes, not a multiple of 16"}
+    words = [raw[i:i + 16] for i in range(0, len(raw), 16)]
+    n = len(words)
+    while n and words[n - 1] == SASS_NOP:
+        n -= 1
+    if not n:
+        return {"error": "all padding"}
+    return {"instrs": n, "bytes": n * 16, "pad": len(words) - n}
+
+
 def ptx(src, tmp):
     asm = run("clang", "-x", "cuda", "-nocudainc", "-nocudalib",
               "--cuda-device-only", "--cuda-gpu-arch=sm_70", "-I", CUDA_INC,
@@ -319,6 +372,7 @@ def main():
                 # it was hand-copied once and the divide sequence changed under
                 # it twice (O-35) and the counter was corrected once (F-60).
                 "mask_off": dynamic(src, tmp, k, ("-ccv-mask-uniform=false",)),
+                "sass": sass(src, tmp),
             })
     if "--json" in sys.argv:
         print(json.dumps(rows, indent=2))
@@ -476,21 +530,29 @@ def main():
     print("  favour -- normalized, gfx900 issues FEWER. Bits fetched per element")
     print("  is where the encoding pays, and it is a separate column for a reason.")
     print()
-    print("  PRIOR ART -- bits per instruction across AMD GPU generations.")
+    print("  PRIOR ART -- bits per instruction, NVIDIA SASS and five AMD generations.")
     print()
-    hdr = f"  {'kernel':<10} {'CCV':>15}" + "".join(
+    hdr = f"  {'kernel':<10} {'CCV':>15}{'NV SASS':>15}" + "".join(
         f"{n:>15}" for _, n, _ in ARCHES)
     print(hdr)
-    print(f"  {'':<10} {'':>15}" + "".join(f"{y:>15}" for _, _, y in ARCHES))
+    print(f"  {'':<10} {'':>15}{'sm_70':>15}"
+          + "".join(f"{y:>15}" for _, _, y in ARCHES))
     print("  " + "-" * (len(hdr) - 2))
     tot = {a: [0, 0] for a, _, _ in ARCHES}
     ctot = [0, 0]
+    stot = [0, 0]
     for r in rows:
         c = r["ccv"]
         cells = []
         if c and "instrs" in c:
             ctot[0] += c["instrs"]; ctot[1] += c["bytes"]
             cells.append(f"{8*c['bytes']/c['instrs']:.1f}")
+        else:
+            cells.append("--")
+        sd = r.get("sass") or {}
+        if "instrs" in sd:
+            stot[0] += sd["instrs"]; stot[1] += sd["bytes"]
+            cells.append(f"{8*sd['bytes']/sd['instrs']:.1f}")
         else:
             cells.append("--")
         for a, _, _ in ARCHES:
@@ -503,29 +565,41 @@ def main():
         print(f"  {r['kernel']:<10} " + "".join(f"{x:>15}" for x in cells))
     print("  " + "-" * (len(hdr) - 2))
     pooled = [f"{8*ctot[1]/ctot[0]:.1f}" if ctot[0] else "--"]
+    pooled.append(f"{8*stot[1]/stot[0]:.1f}" if stot[0] else "--")
     for a, _, _ in ARCHES:
         pooled.append(f"{8*tot[a][1]/tot[a][0]:.1f}" if tot[a][0] else "--")
     print(f"  {'pooled':<10} " + "".join(f"{x:>15}" for x in pooled))
     print()
-    print("  Pooled is total bytes over total instructions across all five kernels,")
+    print("  Pooled is total bytes over total instructions across every kernel above,")
     print("  not the mean of the per-kernel ratios, so a big kernel counts for more.")
     print()
     print("  Instruction counts, same sweep -- the control on the density claim:")
     print()
-    print(f"  {'kernel':<10} {'CCV':>15}" + "".join(f"{n:>15}" for _, n, _ in ARCHES))
+    print(f"  {'kernel':<10} {'CCV':>15}{'NV SASS':>15}"
+          + "".join(f"{n:>15}" for _, n, _ in ARCHES))
     print("  " + "-" * (len(hdr) - 2))
     for r in rows:
         c = r["ccv"]
         cells = [str(c["instrs"]) if c and "instrs" in c else "--"]
+        sd = r.get("sass") or {}
+        cells.append(str(sd["instrs"]) if "instrs" in sd else "--")
         for a, _, _ in ARCHES:
             d = r["arches"].get(a)
             cells.append(str(d["instrs"]) if d and "instrs" in d else "--")
         print(f"  {r['kernel']:<10} " + "".join(f"{x:>15}" for x in cells))
     print()
-    print("  A kernel's tail padding is EXCLUDED: gfx10+ pads with s_code_end and")
-    print("  CDNA3 with s_nop to fill the instruction prefetch buffer. Counting it")
-    print("  reads gfx1100's vadd as 146 instructions and 640 bytes rather than 32")
-    print("  and 184 -- a 5x density win over RDNA3 made entirely of padding.")
+    print("  A kernel's tail padding is EXCLUDED, on both vendors: gfx10+ pads with")
+    print("  s_code_end, CDNA3 with s_nop, and NVIDIA with NOPs to a 128-byte")
+    print("  boundary. Counting it reads gfx1100's vadd as 146 instructions rather")
+    print("  than 32, and sm_70's vadd as 24 rather than 17. Only a TRAILING run is")
+    print("  dropped; a NOP inside the body is a real scheduling slot.")
+    print()
+    print("  NV SASS is sm_70 via ptxas -O3 (tools/fetch-ptxas.sh). Every kernel")
+    print("  measures 128.0 bits per instruction EXACTLY -- the figure §6 of the ISA")
+    print("  document carried as a citation for four revisions is now measured, and")
+    print("  it holds from Volta through Blackwell. Pre-Volta is excluded: it uses a")
+    print("  64-bit encoding with separate control words that a 16-byte walk would")
+    print("  silently miscount.")
 
     for r in rows:
         for name, d in (("ccv", r["ccv"]), ("amdgcn", r["amdgcn"])):

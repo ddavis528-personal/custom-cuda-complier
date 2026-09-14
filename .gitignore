@@ -11,3 +11,4 @@ compile_commands.json
 # hand-written regression case, and they were all silently untracked: a fresh
 # clone had three .cu files and no accept/reject suite at all.
 !test/**
+vendor/

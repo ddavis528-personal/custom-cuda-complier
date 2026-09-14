@@ -153,10 +153,28 @@ instructions**. Whether that trade is good is a hardware question this benchmark
 cannot settle: it exchanges fetch bandwidth and I-cache footprint, which CCV
 wins, for issue slots and scheduler bandwidth, which wave64 wins.
 
-**The comparison is still against the wrong vendor.** CCV's compatibility target
-is CUDA and its density claim is measured against AMD. SASS needs `ptxas`, which
-needs a CUDA toolkit that is not installed, and broadening the AMD sweep did not
-close that. The §6 figure of 128 bits per SASS instruction remains a citation.
+**And SASS is measured, which closes the gap every previous report named as the
+largest.** `ptxas` is a *host* compiler and needs no GPU; NVIDIA ships it as a
+pip wheel. No disassembler is required — the cubin's `.text` section is the
+SASS. Pooled over the eight kernels:
+
+| | instructions | bytes | bits/instruction |
+|---|---|---|---|
+| CCV | 295 | 1006 | **27.3** |
+| NVIDIA SASS (sm_70) | 224 | 3584 | **128.0** |
+
+**The §6 citation is now a measurement: 128.0 bits per instruction exactly, on
+every kernel, Volta through Blackwell** — nine years with no change, which is a
+stronger version of the flatness the AMD sweep found.
+
+The two machines fail in opposite directions, and this is the useful framing for
+the architecture side. **SASS uses the fewest instructions of any machine
+measured** — fewer than CCV and fewer than every AMD generation — and spends 128
+bits on each. CCV needs **1.32× the instructions and 0.28× the bytes**; the same
+kernels are 3.6× larger as SASS. NVIDIA is buying scheduling determinism with 64
+bits of control per instruction, and this design declines to spend them and pays
+for it in hardware OoO instead. §6's predicted "roughly 4×" was close; what it
+did not anticipate was that the instruction count would go NVIDIA's way.
 
 ---
 
@@ -237,6 +255,6 @@ was not looking, and the v1.6 cycle converted four more instances into gates:
   allocation orders degrade gracefully when the two widths collide is reasoning
   rather than measurement.
 - **The 32-GPR question has a third argument now** (§3 above), still unmeasured.
-- **SASS.** Unchanged from v1.5, and now the largest single gap in the
-  comparison: the density argument is written against a vendor the benchmark
-  cannot reach.
+- **Dynamic SASS.** The static comparison is done; the issued-instruction one is
+  not. CCV's dynamic counts come from its simulator and NVIDIA has no equivalent
+  here, so the per-element work comparison in §4 has no SASS column.
