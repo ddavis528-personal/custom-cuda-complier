@@ -677,6 +677,22 @@ it on. The explanation on file attributed the outlier to it anyway, which is the
 lesson worth keeping: a plausible cause that is present in the code will absorb
 an unexplained cost indefinitely if nobody measures the parts.
 
+**Masking did contribute, but not the way the old explanation said.** The dead
+seed of F-94 was removed by the generic dead-code elimination in every
+*unmasked* kernel and survived in every *masked* one — under the old passes
+`transpose` carried 2 dead instructions with masking on and 0 with it off.
+`CCVMaskUniform` runs after `CCVFuseRcpSeed`, and **a predicated definition is
+not something the generic DCE will remove**, so an optimisation silently
+disabled a later cleanup and the cost landed on the optimisation's own account.
+The general shape is worth keeping: any pass that predicates instructions moves
+them out of DCE's reach, so leaving dead code for "the DCE that follows" is
+relying on something masking can take away (F-97).
+
+**Scope, because "we fixed a compiler bug" invites the wrong assumption.** These
+two fixes changed `transpose` and `sgemm` (639 → 637 instructions at the 2×4
+tile) and **nothing else** — every other benchmark kernel is identical to the
+instruction, because none of them contains a division at all (F-98).
+
 O-33 also measured how much of that sequence is out of reach, and the answer
 reframed F-52. Of `transpose`'s warp-uniform instructions, 10 cannot be masked
 because `sel` spends the predicate field on data (F-58), 3 because §4 puts
