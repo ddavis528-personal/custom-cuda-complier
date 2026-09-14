@@ -74,7 +74,7 @@ public:
   bool runOnMachineFunction(MachineFunction &MF) override;
 
 private:
-  unsigned Inserted = 0, Narrowing = 0, Multi = 0, Blocks = 0;
+  unsigned Inserted = 0, Narrowing = 0, Widening = 0, Multi = 0, Blocks = 0;
 };
 
 /// The element width an instruction expects a given OPERAND to be at.
@@ -179,11 +179,15 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
       // truncation to i16 disappears in coalescing, leaving a 32-bit register
       // read by a 16-bit instruction.
       //
-      // WIDENING a live register is NOT safe, because the bits above the
-      // element were not written while it was narrow and the specification
-      // does not say what they hold (F-65). A `zext`/`sext` has to be real
-      // instructions, and a use that asks for one here means selection emitted
-      // something that cannot be honoured.
+      // WIDENING a live register is safe too, now that O-38 requires the
+      // exposed bits to be cleared. That resolution came from the security
+      // side rather than the compiler side -- stale bits in a register file
+      // shared between warps and reused across launches are a cross-context
+      // read -- and it happens to make `zext` free: widening a 16-bit value to
+      // 32 bits IS a zero-extension, with no masking instruction at all.
+      //
+      // `sext` is not free and still has no lowering: it needs the sign
+      // replicated, which zeros do not do. See F-66.
       for (unsigned O = 0, N = MI.getNumOperands(); O != N; ++O) {
         const MachineOperand &MO = MI.getOperand(O);
         if (!MO.isReg() || MO.isDef())
@@ -192,23 +196,23 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
         uint8_t Need = operandWidth(MI.getDesc(), O);
         if (I == ~0u || S[I] == kUnknown || S[I] == Need)
           continue;
-        if (Need > S[I]) {          // larger code = narrower element
-          BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(CCV::C_CHWIDTH))
-              .addReg(MO.getReg())
-              .addImm(Need);
-          S[I] = Need;
-          ++Inserted;
+        // Either direction is safe on a live register now: narrowing is a
+        // truncation and widening is a zero-extension, because O-38 requires
+        // the exposed bits to be cleared.
+        //
+        // Classify BEFORE updating the state -- a larger width code is a
+        // narrower element, and reading S[I] after assigning it made every
+        // insertion report as a widening.
+        if (Need > S[I])
           ++Narrowing;
-          Changed = true;
-          continue;
-        }
-        report_fatal_error(
-            Twine("CCV: ") + TII->getName(MI.getOpcode()) + " reads R" +
-            Twine(I) + " as width code " + Twine(unsigned(Need)) +
-            " but it holds a narrower width code " + Twine(unsigned(S[I])) +
-            " -- widening a narrow register yields unspecified high bits "
-            "(F-65), so this needs a real extension instruction, not a mode "
-            "switch.");
+        else
+          ++Widening;
+        BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(CCV::C_CHWIDTH))
+            .addReg(MO.getReg())
+            .addImm(Need);
+        S[I] = Need;
+        ++Inserted;
+        Changed = true;
       }
 
       for (unsigned O = 0, N = MI.getNumOperands(); O != N; ++O) {
@@ -235,10 +239,12 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
     errs() << "  chwidth insertion (F-3), " << MF.getName() << "\n"
            << "    blocks                : " << Blocks << "\n"
            << "    chwidth inserted      : " << Inserted << "\n"
-           << "      at a definition     : " << (Inserted - Narrowing)
-           << "   (old value dead -- safe under F-65 either way)\n"
+           << "      at a definition     : " << (Inserted - Narrowing - Widening)
+           << "   (old value dead -- nothing reinterpreted)\n"
            << "      narrowing a live reg: " << Narrowing
            << "   (a truncation; the element bits are preserved)\n"
+           << "      widening a live reg : " << Widening
+           << "   (a zero-extension -- O-38 clears the exposed bits)\n"
            << "    chwidth.multi merged  : " << Multi
            << "   (O-6 -- not yet attempted)\n";
   return Changed;

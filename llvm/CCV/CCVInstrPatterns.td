@@ -240,6 +240,12 @@ def : Pat<(fsqrt GPR:$a), (SQRT_F32 GPR:$a, GPR:$a, GPR:$a)>;
 // (F-65), so zext and sext need real instructions. Nothing emits them yet.
 def : Pat<(i16 (trunc GPR:$a)), (COPY GPR:$a)>;
 
+// And `zext i16 -> i32` is free in the other direction, because O-38 requires
+// a widening `chwidth` to clear the bits it exposes. The COPY is the width
+// change; CCVInsertChwidth places the instruction that performs it. `sext` is
+// NOT free -- zeros do not replicate a sign -- and still has no lowering (F-66).
+def : Pat<(i32 (zext GPR16:$a)), (COPY GPR16:$a)>;
+
 def : Pat<(add GPR16:$a, GPR16:$b), (ADD_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
 def : Pat<(sub GPR16:$a, GPR16:$b), (SUB_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
 def : Pat<(and GPR16:$a, GPR16:$b), (AND_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;

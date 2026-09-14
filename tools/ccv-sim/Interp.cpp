@@ -81,6 +81,31 @@ static uint32_t narrow(uint32_t V, uint8_t Code) {
 /// that widens a narrow register and expects zeros sees the old contents
 /// instead, deterministically, and fails in the simulator rather than in
 /// silicon. Same reasoning as `rcp.u32`'s worst-case seed (O-35).
+/// Change a register's element width, clearing the bits a widening exposes.
+///
+/// **Widening must yield zeros, and this is a hardware requirement rather than
+/// a convenience** (O-38, resolving F-65). §1 makes a narrow register "a
+/// narrower physical slice of a row", so the bits above the element hold
+/// whatever last occupied that slice -- and on a GPU the register file is
+/// partitioned between resident warps and reused across kernel launches
+/// without clearing. Handing those bits back on a width change is a
+/// cross-context read: another warp's data, or the previous kernel's.
+///
+/// So the newly exposed bits are cleared. The simulator did the opposite at
+/// first, on the reasoning that stale bits stop software depending on zeros it
+/// was never promised. That reasoning is right in general and wrong here: it
+/// optimises against a correctness mistake at the cost of an information leak,
+/// and those are not the same size of problem.
+static void setWidth(Warp &W, unsigned R, uint8_t NewCode) {
+  uint8_t Old = W.ChWidth[R];
+  if (NewCode < Old) {                       // smaller code = wider element
+    uint32_t Keep = (1u << widthBits(Old)) - 1;
+    for (unsigned L = 0; L != kLanes; ++L)
+      W.GPR[R][L] &= Keep;
+  }
+  W.ChWidth[R] = NewCode;
+}
+
 static uint32_t writeElem(uint32_t Old, uint32_t V, uint8_t Code) {
   unsigned N = widthBits(Code);
   if (N >= 32)
@@ -756,7 +781,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   // many of them are the element.
   case CCV::C_CHWIDTH: {
     unsigned D = regOf(MI, 0);
-    W.ChWidth[D] = uint8_t(MI.getOperand(1).getImm() & 3);
+    setWidth(W, D, uint8_t(MI.getOperand(1).getImm() & 3));
     break;
   }
   case CCV::CHWIDTH_MULTI: {
@@ -764,7 +789,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     uint8_t Code = uint8_t(MI.getOperand(1).getImm() & 3);
     for (unsigned R = 0; R != kGPRs; ++R)
       if ((Mask32 >> R) & 1)
-        W.ChWidth[R] = Code;
+        setWidth(W, R, Code);
     break;
   }
 

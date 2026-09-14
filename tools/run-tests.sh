@@ -93,14 +93,19 @@ run_chwidth() {
     echo "  FAIL  16-bit add/store gave $narrow, want 48882 (0xBEF2)"; return 1
   fi
   echo "  PASS  16-bit load, add and store (transfer size follows chwidth)"
-  # Widening finds the stale top half, 0xEFBE, not zeros. If this ever reads
-  # 48882 the simulator has started handing out zeros the ISA never promised.
-  if [ "$wide" != "4023238386" ]; then
-    echo "  FAIL  widened register read $wide, want 4023238386 (0xEFBEBEF2) --"
-    echo "        the bits above a narrow element must not be invented (F-65)"
+  # R2 held 0xEFBEADC9 before being narrowed. Widening must clear the exposed
+  # bits: anything but 0x0000BEF2 here means the machine hands back whatever
+  # last occupied that slice of the register file -- another warp's data, or
+  # the previous kernel's. This is the security property, not a nicety (O-38).
+  if [ "$wide" != "48882" ]; then
+    echo "  FAIL  widened register read $wide, want 48882 (0x0000BEF2)."
+    if [ "$wide" = "4023238386" ]; then
+      echo "        Got 0xEFBEBEF2 -- the stale top half survived the width"
+      echo "        change. That is a cross-context register-file leak (O-38)."
+    fi
     return 1
   fi
-  echo "  PASS  widening a narrow register exposes the stale high bits (F-65)"
+  echo "  PASS  widening clears the exposed bits -- no stale data (O-38)"
 }
 echo
 echo "  --- per-register element width ---"
@@ -121,6 +126,17 @@ elif echo "$chw" | grep -qE "chwidth r1,"; then
   fail=1
 else
   echo "  PASS  chwidth placed on data registers only ($(echo "$chw" | grep -c "chwidth r") inserted)"
+fi
+# zext is free under O-38 -- widening clears the exposed bits, which IS the
+# zero-extension. If a masking instruction ever appears in that path, either
+# O-38 was reverted or the pattern stopped firing.
+zx=$(echo "$chw" | sed -n '/zext_is_free:/,/exit/p')
+if echo "$zx" | grep -qE "^	(and|f48) "; then
+  echo "  FAIL  zext emitted a masking instruction; O-38 makes it free"
+  echo "$zx" | sed 's/^/        /'
+  fail=1
+else
+  echo "  PASS  zext costs no instruction beyond the width change (O-38)"
 fi
 
 # --- select lowers to a predicated move, not `sel` (F-58) ------------------

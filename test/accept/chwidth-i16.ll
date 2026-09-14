@@ -16,3 +16,14 @@ entry:
   store i16 %s, ptr addrspace(3) %out, align 2
   ret void
 }
+
+; zext is free under O-38: widening clears the exposed bits, which is what a
+; zero-extension is. The only instruction it costs is the `chwidth` that the
+; width change needs anyway.
+define void @zext_is_free(ptr addrspace(3) %out, i16 %a, i16 %b) {
+entry:
+  %s = add i16 %a, %b
+  %w = zext i16 %s to i32
+  store i32 %w, ptr addrspace(3) %out, align 4
+  ret void
+}

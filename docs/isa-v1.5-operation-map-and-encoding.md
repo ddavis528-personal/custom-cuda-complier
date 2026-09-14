@@ -129,6 +129,11 @@ consequences follow throughout this document:
 
 - **A predicate register is 32 bits — one bit per lane — at every width.** Predicates do not
   narrow with `chwidth` and have no internal structure to address.
+- **Widening a register clears the bits the widening exposes.** A `chwidth` to a wider
+  element zero-fills the part of the row slice that was outside the old element. This is a
+  **security requirement**, not a convenience: the register file is partitioned between
+  resident warps and reused across kernel launches, so bits left over from whatever last
+  occupied that slice are another warp's data or the previous kernel's. See O-38.
 - **No register has sub-lane structure.** A register's elements are one per lane, always.
   Three instructions do address positions inside a lane — `packi`, `unpacki` and `dp4`/`dp8`
   — but they do so from an opcode or an immediate, on ordinary full-width registers. The
@@ -3029,6 +3034,43 @@ it. Lane-activations move 1428 → 1429 — the broadcast accounting shifts by o
 which is the honest number and not the point. The point is that §4's extension space is no
 longer a one-way door: allocating an operation above 127 no longer forfeits its predicated
 form, which had already forced one relocation and had no room to force another.
+
+---
+
+**O-38 — Widening a narrow register clears the bits it exposes.**
+
+§1 says a narrow register "occupies a narrower physical slice of a row" and §3 says
+`chwidth` "reinterprets the existing contents". Between them the document never said what
+the bits *above* the element hold after a narrow→wide change — they are not written while
+the register is narrow, so the answer was an implementation choice nobody had made. Raised
+as F-65 by the first `chwidth` work, because a compiler that widens a live value is
+otherwise relying on a guarantee the ISA does not give.
+
+**Decided: they are cleared, and the reason is security rather than convenience.** A GPU
+register file is partitioned between resident warps and reused across kernel launches
+without being scrubbed. Bits left in the part of a row slice that a narrow register stopped
+addressing belong to whatever last occupied it — another warp of the same kernel, or a
+different kernel entirely. Handing them back on a width change is a cross-context read, and
+the width change is an ordinary unprivileged instruction.
+
+**This is an obligation on the implementation.** Like O-33's lane gating it cannot be
+checked from the compiler side, and unlike O-33's it is not a performance assumption: a
+machine that skips the clear is not slower, it leaks. §1 states it as a bullet rather than
+leaving it to this log.
+
+**The compiler side got it backwards first, for a defensible reason.** `ccv-sim` originally
+preserved the stale bits, on the O-35 principle that a simulator should model the worst the
+contract permits so nothing can depend on a guarantee it was never given. That principle is
+right in general and wrong here — it optimises against a correctness mistake at the cost of
+an information leak, and those are not the same size of problem. `test/chwidth.s` now
+asserts the clear, and names what a failure would mean.
+
+**It also makes zero-extension free.** `zext i16 → i32` is exactly "widen the register and
+clear the exposed bits", which is what the width change now does, so it costs no masking
+instruction — only the `chwidth` that would be needed anyway. `sext` is not free: zeros do
+not replicate a sign, and it still has no lowering (F-66). And `CCVInsertChwidth` may now
+insert a width change on a **live** register in either direction — narrowing is a
+truncation, widening is a zero-extension — where before only definitions were safe.
 
 ---
 
