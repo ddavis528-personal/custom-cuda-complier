@@ -176,6 +176,14 @@ echo "  --- integer-reciprocal division ---"
 # so nobody can quietly shorten the sequence past what the hardware promises.
 python3 tools/model-rcp.py --samples 20000 || fail=1
 
+# --- software fp32 division (F-49, O-36) -----------------------------------
+# Two checks that have caught different things: the model checks the ALGORITHM
+# against exact rational arithmetic, the simulator run checks the MACHINE.
+echo
+echo "  --- software fp32 division ---"
+python3 tools/model-fdiv.py --samples 20000 || fail=1
+./tools/check-fdiv.sh 20 || fail=1
+
 # --- lane-0 masking (O-33) -------------------------------------------------
 echo
 echo "  --- warp-uniform lane-0 masking ---"

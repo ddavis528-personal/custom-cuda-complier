@@ -59,7 +59,23 @@ def : Pat<(xor GPR:$a, (i32 -1)), (C_NOT GPR:$a)>;
 
 def : Pat<(mul GPR:$a, GPR:$b), (MADLO GPR:$a, GPR:$b, (MOVI 0))>;
 def : Pat<(add (mul GPR:$a, GPR:$b), GPR:$c), (MADLO GPR:$a, GPR:$b, GPR:$c)>;
-def : Pat<(add GPR:$a, (i32 imm:$i)), (ADDI GPR:$a, imm:$i)>;
+// §3 gives Format B's immediate THIRTEEN bits, signed, and B48's TWENTY-NINE,
+// unsigned. This pattern carried no predicate at all, so any larger constant
+// was selected into ADDI and the encoder rejected it -- a hard error where a
+// register-form add was available. It is the same defect as F-43 below, one
+// line above the comment that describes F-43, and it went unnoticed because
+// nothing in the test suite added a constant above 4095 until the software
+// fp32 divide added 0x3F800000.
+//
+// Out of range for both, the constant goes to a register through MOVI48 and
+// the reg-reg add selects; no fallback pattern is needed for that.
+def simm13_imm : ImmLeaf<i32, [{ return isInt<13>(Imm); }]>;
+def uimm29_imm : ImmLeaf<i32, [{ return Imm >= 0 && isUInt<29>(Imm); }]>;
+let AddedComplexity = 10 in
+def : Pat<(add GPR:$a, (i32 simm13_imm:$i)), (ADDI GPR:$a, imm:$i)>;
+let AddedComplexity = 5 in
+def : Pat<(add GPR:$a, (i32 uimm29_imm:$i)), (ADDI48 GPR:$a, imm:$i)>;
+
 // §3: Format K's register-immediate forms carry FOUR bits, unsigned. Without
 // this predicate the encoder silently truncates -- a shift by 31 became a shift
 // by 15, which is how integer division miscompiled while every primitive it
@@ -94,7 +110,20 @@ def : Pat<(fma GPR:$a, GPR:$b, GPR:$c), (FFMA_F0 GPR:$a, GPR:$b, GPR:$c)>;
 def uimm17_imm : ImmLeaf<i32, [{ return Imm >= 0 && Imm < (1 << 17); }]>;
 let AddedComplexity = 10 in
 def : Pat<(i32 uimm17_imm:$i), (MOVI imm:$i)>;
-def : Pat<(i32 imm:$i), (MOVI48 imm:$i)>;
+// The immediate has to be ZERO-extended into the 33-bit field. A negative i32
+// constant reaches here sign-extended to 64 bits, and the encoder's range check
+// rejects it -- so `and x, 0x807FFFFF` (or any mask with the top bit set) was a
+// hard compiler error rather than an instruction. The bit pattern is what the
+// machine wants; a GPR is 32 bits and the width comes from `chwidth`, not from
+// a sign. Found when the software fp32 divide needed exactly that mask.
+def imm_bits32 : SDNodeXForm<imm, [{
+  // i64, not i32: a 32-bit target constant is carried to the MachineOperand
+  // sign-extended, which is the whole problem. The field is 33 bits and the
+  // value is a 32-bit pattern, so it must arrive zero-extended.
+  return CurDAG->getTargetConstant(N->getZExtValue() & 0xFFFFFFFFull, SDLoc(N),
+                                   MVT::i64);
+}]>;
+def : Pat<(i32 imm:$i), (MOVI48 (imm_bits32 $i))>;
 
 // A float constant is an integer constant in a GPR. GPR holds i32 and f32
 // alike (§1: a lane is 32 bits and the width comes from `chwidth`, not from the

@@ -321,8 +321,16 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::FFMA_F0: {
     unsigned D = regOf(MI, 0), A = regOf(MI, 1), B = regOf(MI, 2), C = regOf(MI, 3);
     forEachLane([&](unsigned L) {
-      W.GPR[D][L] = floatToBits(bitsToFloat(W.GPR[A][L]) * bitsToFloat(W.GPR[B][L]) +
-                                bitsToFloat(W.GPR[C][L]));
+      // std::fmaf, not `a * b + c`. The F in `ffma` is FUSED: one rounding of
+      // the exact product-plus-addend, not a rounded product plus a rounded
+      // sum. It was written unfused when the instruction was added and nothing
+      // noticed, because nothing depended on the fusion until the software
+      // fp32 divide -- whose correct rounding rests entirely on the residual
+      // `fma(-b, q, a)` being exact. 164 of 2048 divisions came out 1 ulp
+      // wrong against a model that was right. See F-63.
+      W.GPR[D][L] = floatToBits(std::fmaf(bitsToFloat(W.GPR[A][L]),
+                                          bitsToFloat(W.GPR[B][L]),
+                                          bitsToFloat(W.GPR[C][L])));
     });
     break;
   }
@@ -511,8 +519,9 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::FFMA_ACC_F0: {
     unsigned D = regOf(MI, 0), A = regOf(MI, 2), B = regOf(MI, 3);
     forEachLane([&](unsigned L) {
-      W.GPR[D][L] = floatToBits(bitsToFloat(W.GPR[A][L]) * bitsToFloat(W.GPR[B][L]) +
-                                bitsToFloat(W.GPR[D][L]));
+      W.GPR[D][L] = floatToBits(std::fmaf(bitsToFloat(W.GPR[A][L]),
+                                          bitsToFloat(W.GPR[B][L]),
+                                          bitsToFloat(W.GPR[D][L])));   // fused, F-63
     });
     break;
   }

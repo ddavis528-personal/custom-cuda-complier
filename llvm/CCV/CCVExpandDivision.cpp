@@ -107,7 +107,88 @@ Value *sdiv32(IRBuilder<> &B, Value *N, Value *D, bool WantRem) {
   return B.CreateSelect(Neg, B.CreateNeg(Q), Q);
 }
 
+/// Correctly-rounded fp32 division, in software (F-49, O-36).
+///
+/// CUDA's default `/` on floats is IEEE-correct, so this is a compatibility
+/// requirement rather than an optimisation. The design decision was to build no
+/// hardware divider in the first implementation -- its latency would complicate
+/// scheduling -- so the quotient is a sequence over `rcp.f32` and `ffma`.
+///
+///     ea, eb = exponent(a), exponent(b)   am, bm = a, b with exponent forced to 0
+///     y  = rcp(bm)                        q  = am * y
+///     y  = fma(y, fma(-bm, y, 1), y) x2   r  = fma(-bm, q, am)   exact residual
+///                                         qm = fma(r, y, q)      one rounding
+///     result = qm * 2^(k>>1) * 2^(k - (k>>1))       k = ea - eb
+///
+/// Two things do the work. **The FMA residual** is what makes the result
+/// correctly rounded rather than merely close: `fma(-b, q, a)` is the exact
+/// remainder because FMA rounds once. **Forcing both exponents to zero** keeps
+/// every intermediate near 1, so nothing overflows or underflows on the way,
+/// whatever the operands' magnitudes -- scaling only the divisor was tried and
+/// left the residual computed on a near-subnormal product.
+///
+/// The final scalbn is split in two because a single power-of-two factor can
+/// itself be unrepresentable; both halves are exact while the intermediate is
+/// normal, so only the last multiply rounds.
+///
+/// **Correctly rounded whenever the result is normal**, measured by
+/// tools/model-fdiv.py against exact rational arithmetic. Subnormal results are
+/// up to 1 ulp out -- the final scale rounds a value that was already rounded,
+/// and multiplies cannot fix that. Recorded as F-62.
+Value *fdiv32(IRBuilder<> &B, Value *A, Value *D) {
+  Type *F32 = B.getFloatTy();
+  Type *I32 = B.getInt32Ty();
+  auto ibits = [&](Value *V) { return B.CreateBitCast(V, I32); };
+  auto fbits = [&](Value *V) { return B.CreateBitCast(V, F32); };
+  auto konst = [&](uint32_t C) { return ConstantInt::get(I32, C); };
+
+  // Biased exponents, and the operands with their exponents forced to 0.
+  Value *Ea = B.CreateAnd(B.CreateLShr(ibits(A), 23), konst(0xFF));
+  Value *Eb = B.CreateAnd(B.CreateLShr(ibits(D), 23), konst(0xFF));
+  Value *Am = fbits(B.CreateOr(B.CreateAnd(ibits(A), konst(0x807FFFFF)),
+                               konst(0x3F800000)));
+  Value *Bm = fbits(B.CreateOr(B.CreateAnd(ibits(D), konst(0x807FFFFF)),
+                               konst(0x3F800000)));
+
+  Value *One = ConstantFP::get(F32, 1.0);
+  Value *NegBm = B.CreateFNeg(Bm);
+  // `fdiv 1.0, x` is the one fdiv that selects directly, to rcp.f32 -- so this
+  // must stay exactly that shape or the expansion would recurse into itself.
+  Value *Y = B.CreateFDiv(One, Bm);
+  for (int I = 0; I != 2; ++I) {
+    Value *E = B.CreateIntrinsic(Intrinsic::fma, {F32}, {NegBm, Y, One});
+    Y = B.CreateIntrinsic(Intrinsic::fma, {F32}, {Y, E, Y});
+  }
+  Value *Q = B.CreateFMul(Am, Y);
+  Value *R = B.CreateIntrinsic(Intrinsic::fma, {F32}, {NegBm, Q, Am});
+  Value *Qm = B.CreateIntrinsic(Intrinsic::fma, {F32}, {R, Y, Q});
+
+  // Unscale by 2^k in two exact halves. An arithmetic shift, not a divide --
+  // a divide here would be expanded by this very pass.
+  Value *K = B.CreateSub(Ea, Eb);
+  Value *K1 = B.CreateAShr(K, konst(1));
+  auto pow2 = [&](Value *E) {
+    return fbits(B.CreateShl(B.CreateAdd(E, konst(127)), konst(23)));
+  };
+  return B.CreateFMul(B.CreateFMul(Qm, pow2(K1)),
+                      pow2(B.CreateSub(K, K1)));
+}
+
 bool expand(BinaryOperator *BO) {
+  if (BO->getOpcode() == Instruction::FDiv) {
+    if (!BO->getType()->isFloatTy())
+      return false;
+    // 1.0f/x already selects to rcp.f32 in one instruction. Leave it, both
+    // because it is better and because fdiv32 emits that shape itself.
+    if (auto *C = dyn_cast<ConstantFP>(BO->getOperand(0)))
+      if (C->isExactlyValue(1.0))
+        return false;
+    IRBuilder<> B(BO);
+    Value *Res = fdiv32(B, BO->getOperand(0), BO->getOperand(1));
+    BO->replaceAllUsesWith(Res);
+    BO->eraseFromParent();
+    return true;
+  }
   if (!BO->getType()->isIntegerTy(32))
     return false;
   IRBuilder<> B(BO);
@@ -137,6 +218,7 @@ bool runOnFn(Function &F) {
     switch (BO->getOpcode()) {
     case Instruction::SDiv: case Instruction::UDiv:
     case Instruction::SRem: case Instruction::URem:
+    case Instruction::FDiv:
       Work.push_back(BO);
       break;
     default:

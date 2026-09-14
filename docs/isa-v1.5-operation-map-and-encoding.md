@@ -2866,6 +2866,62 @@ written against the obvious opcode matched nothing.
 
 ---
 
+**O-36 — fp32 division is software, over `rcp.f32` and `ffma`, and no divider is built.**
+
+CUDA's default `/` on floats is IEEE-correct, so a general `a/b` is a compatibility
+requirement rather than an optimisation. Until now only `1.0f/x` selected, to `rcp.f32`;
+everything else was a hard "cannot select" (F-49).
+
+**No hardware divider in the first implementation.** Its latency is much longer than the
+SFU's and would complicate hardware scheduling — a design-track decision, and the right one:
+the quotient costs instructions instead, and instructions are the resource this machine has
+most of.
+
+The sequence, over instructions that already exist:
+
+```
+ea, eb = exponent(a), exponent(b)      am, bm = a, b with exponent forced to 0
+y  = rcp(bm)                           q  = am * y
+y  = fma(-bm·y + 1) refinement  ×2     r  = fma(-bm, q, am)     exact residual
+                                       qm = fma(r, y, q)        one rounding
+result = qm · 2^(k>>1) · 2^(k − (k>>1))            k = ea − eb
+```
+
+Two parts carry it. **The FMA residual** is what makes the result correctly rounded rather
+than merely close: `fma(-b, q, a)` is the exact remainder, because an FMA rounds once.
+**Forcing both exponents to zero** keeps every intermediate near 1, so nothing overflows or
+goes subnormal on the way, whatever the operands' magnitudes. Scaling only the divisor was
+tried and left the residual computed on a near-subnormal product; it failed 64 of 40000.
+
+**Correctly rounded whenever the result is normal.** Measured two ways, because they catch
+different things: `tools/model-fdiv.py` checks the algorithm against exact rational
+arithmetic (40184/40184), and `tools/check-fdiv.sh` executes the emitted kernel on the
+simulator against the same reference (10240/10240).
+
+**Subnormal results are up to 1 ulp out.** The final scale is two multiplies and the last
+one rounds a value that was already rounded; multiplies cannot fix double rounding. This is
+a stated gap, not an unknown — F-62 — and the gate measures it rather than assuming it stays
+at 1 ulp.
+
+**Cost: about 30 instructions.** That is what IEEE division costs in software, and it is the
+price of not building a divider. `1.0f/x` still selects to a single `rcp.f32` and is
+unaffected.
+
+**Three defects fell out of writing it, none of them about division.** They are recorded as
+F-62, F-63 and F-64, and two were in code that had been exercised for weeks:
+
+- `ffma` was **not fused** in the simulator — written `a * b + c`, two roundings, for an
+  instruction whose name is the fusion. 164 of 2048 divisions came out 1 ulp wrong against a
+  model that was right.
+- Any i32 constant with the top bit set could not be materialised: it reached `MOVI48`
+  sign-extended and the encoder's range check rejected it. `and x, 0x807FFFFF` was a hard
+  compiler error.
+- `add reg, imm` had no range predicate, so a constant above 4095 selected into `ADDI` and
+  was rejected by the encoder — the same defect as F-43, on the line above the comment that
+  describes F-43.
+
+---
+
 ---
 
 ## 10. Explicitly out of scope for V1
