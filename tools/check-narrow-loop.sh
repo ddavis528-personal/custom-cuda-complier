@@ -43,8 +43,16 @@ if [ "$body" -ne 0 ]; then
   exit 1
 fi
 echo "  PASS  no width transition inside the aligned loop body (F-87)"
+# The unaligned body is held to the same standard since F-80: the allocator's
+# width affinity is what keeps the address arithmetic and the narrow data in
+# different registers, and without it this body regains three transitions.
 ub=$(sed -n '/^LBB0_1:/,/bra LBB0_1/p' "$TMP/u.s" | grep -cE '^\s*chwidth')
-echo "  note  unaligned body still has $ub, from address/data register reuse (F-80)"
+if [ "$ub" -ne 0 ]; then
+  echo "  FAIL  $ub chwidth in the unaligned loop body -- F-80 regressed"
+  sed -n '/^LBB0_1:/,/bra LBB0_1/p' "$TMP/u.s" | sed 's/^/        /'
+  exit 1
+fi
+echo "  PASS  no width transition inside the unaligned loop body either (F-80)"
 
 for BIN in "$TMP/v.bin" "$TMP/u.bin"; do
 python3 - "$BIN" <<'PY'

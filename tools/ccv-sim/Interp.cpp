@@ -378,12 +378,26 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   // step regardless, and the model lives in the benchmark where it can be
   // labelled as a model.
   uint8_t WCode = 0;
-  for (unsigned I = 0, N = MI.getNumOperands(); I != N; ++I)
-    if (MI.getOperand(I).isReg()) {
-      unsigned R = regOf(MI, I);
-      if (R < kGPRs && W.ChWidth[R] > WCode)
-        WCode = W.ChWidth[R];
+  {
+    // Operand 1 of either compare form is Format C's materialization
+    // destination `rd`, which these semantics never write. It is not data, so
+    // its width says nothing about the width this instruction operates at --
+    // and the allocator hands the back-edge compare of a narrow loop whichever
+    // register is free, which is often a narrow one. Counting it made a 32-bit
+    // comparison read as narrow element work once per iteration, and inflated
+    // the measured narrow fraction of every loop that has one.
+    const bool IsCmp = baseCompare(Op) != Op || isFloatCompare(Op) ||
+                       isSignedCompare(Op);
+    for (unsigned I = 0, N = MI.getNumOperands(); I != N; ++I) {
+      if (IsCmp && I == 1)
+        continue;
+      if (MI.getOperand(I).isReg()) {
+        unsigned R = regOf(MI, I);
+        if (R < kGPRs && W.ChWidth[R] > WCode)
+          WCode = W.ChWidth[R];
+      }
     }
+  }
 
   switch (Op) {
   // ---- Format F: wide immediate, warp-uniform broadcast (§3) -------------

@@ -55,7 +55,30 @@ def GPR : RegisterClass<"CCV", [i32, f32], 32, (sequence "R%u", 0, 15)>;
 // bit CCVInsertChwidth reads.
 //
 // i8 would be a third class; i4 has no MVT at all.
-def GPR16 : RegisterClass<"CCV", [i16], 32, (sequence "R%u", 0, 15)>;
+//
+// WIDTH AFFINITY, AND WHY IT LIVES IN THE ALLOCATION ORDER (F-80).
+//
+// Same sixteen registers, DESCENDING. The set is identical to GPR's -- it has
+// to be, or a cross-class COPY would not be the no-op §1 says it is -- and only
+// the preference differs.
+//
+// Element width is per-register state, so two values of different widths in one
+// physical register cost a `chwidth` at each handover. In straight-line code
+// that is one instruction; in a loop body it is one PER ITERATION, which is
+// what F-87 could not lift out by placement because the width genuinely changes
+// inside the body. The allocator is the only pass that can prevent it, and the
+// register class is the only width information it has -- `chwidth` names
+// physical registers, so width is otherwise a post-RA concept entirely.
+//
+// Opposite orders make 32-bit values cluster from R0 up and 16-bit values from
+// R14 down, so under low pressure they never meet and no handover exists to pay
+// for. Under high pressure they meet in the middle and share exactly as before:
+// the degradation is graceful, and sharing a register is still far cheaper than
+// spilling to keep them apart. R15 is last rather than absent so the set stays
+// equal to GPR's; it is reserved (O-30) and the allocator skips it regardless.
+def GPR16 : RegisterClass<"CCV", [i16], 32,
+    (add R14, R13, R12, R11, R10, R9, R8, R7, R6, R5, R4, R3, R2, R1, R0,
+         R15)>;
 
 // One bit per lane in hardware; i1 per thread in the type system.
 def PR : RegisterClass<"CCV", [i1], 32, (sequence "P%u", 0, 3)>;
