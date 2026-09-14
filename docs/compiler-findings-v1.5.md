@@ -9,22 +9,33 @@ is [`compiler-findings-v1.4.md`](compiler-findings-v1.4.md).
 
 ---
 
-## 1. One thing to carry into RTL, and it is not optional
+## 1. Two things to carry into RTL, and neither is optional
 
-O-33 makes the compiler emit code whose entire value rests on a hardware
-property that does not exist yet:
+The compiler now emits code by default whose value rests on two hardware
+properties that do not exist yet. It cannot detect whether either holds.
 
-> **A predicated-off lane must not toggle its ALU operands, its register-file
-> write port, or its result bus.**
+> **1. A predicated-off lane must not toggle its ALU operands, its
+> register-file write port, or its result bus.** (O-33 — everything)
+>
+> **2. A predicate-file operation must cost much less than a warp-wide one.**
+> (F-58 — the `pand` composition only)
+
+The second is the cheaper one to be wrong about. A predicate is 32 bits, one per
+lane, so `pand` is 32 AND gates against 32 lanes of 32-bit datapath and the ratio
+should be about the width of a lane; if predicate logic runs through the vector
+path instead, `-ccv-mask-compose=false` withdraws that part and nothing else
+changes. The first, if it fails, makes the whole scheme a code-size regression.
+
+The rest of this section is about the first.
 
 The pass finds warp-uniform work — values every lane computes identically — masks
 it to lane 0 with a reserved predicate, and broadcasts the result with a
-`shfl.idx` under the negated mask. On `transpose` that turns 2304 lane
-activations into 1809 — a 21.5% cut — at a cost of 128 extra issued lane slots,
-four broadcast instructions across 32 lanes.
+`shfl.idx` under the negated mask. On `transpose`, with O-34 and F-58 on top,
+that turns 2304 lane activations into **1493 — a 35% cut** — at a cost of 288
+extra issued lane slots: four broadcasts and five `pand`.
 
 If the RTL gates only the *write* and still drives operands into the ALU, the
-saving is zero and the 128 extra slots are pure loss. Nothing in the
+saving is zero and the 288 extra slots are pure loss. Nothing in the
 compiler can detect that; the number in `docs/benchmarks.md` would simply be
 wrong. This is the one finding in this report that constrains the design rather
 than describing it.
@@ -34,21 +45,32 @@ than describing it.
 O-33 needs the predicate qualifier field at `[29:27]` to carry its lane mask.
 Measuring what it could not reach, on `transpose`:
 
-| blocked because | count | fixable? |
+| blocked because | count, as first reported | outcome |
 |---|---|---|
-| `sel` reads `[29:27]` as its selector (§4 point 19) | **10** | not cheaply — a second predicate field is 2 bits the format does not have |
-| conversions at 128+ and SFU at 256+ are Format A only | 3 | yes — relocate into the 64–127 hole |
-| `srd` is Format K only (invariant 7) | 1 | no, and correctly so |
-| a barrier must not be masked | 1 | no — semantics |
+| `sel` reads `[29:27]` as its selector (§4 point 19) | **10** | **not a bound** — see below |
+| conversions at 128+ and SFU at 256+ are Format A only | 3 | **fixed** — O-34 relocated conversions into 64–127; one `rcp.f32` remains |
+| `srd` is Format K only (invariant 7) | 1 | no fix, and correctly so |
+| a barrier must not be masked | 1 | no fix — semantics |
 
-The general statement behind the first row: **a value already predicated for
-control flow cannot also be masked to lane 0.** Ordinary predication and O-33
-want the same three bits. Those ten instructions are the division sequence's own
-correction steps (`q += ge`, `rem -= ge*d`), so the two blockers are the same
-code.
+Of fourteen instructions this table called unreachable, one is genuinely so.
 
-Recorded as F-58. It has no obvious encoding fix and it is larger than F-56,
-which is the one we went looking for.
+**The first row was wrong, and the correction is the more useful finding.** The
+claim was that a value already predicated for control flow cannot also be masked
+to lane 0, because ordinary predication and O-33 want the same three bits. Two
+reasons it does not hold:
+
+- **Those selects never needed `sel`.** Every one is the shape `sel rd, a, rd` —
+  a conditional overwrite — which is `@q mov rd, a` under invariant 10, at the
+  same instruction count, writing only the guarded lanes instead of all 32. §4
+  point 19 now earns its opcode only on a general three-register select, which
+  nothing has yet generated.
+- **Predicates compose.** The qualifier names a predicate *register*, and the
+  conjunction of two conditions is a predicate register. `pand` is a 16-bit
+  Format K instruction that computes it. Where the field genuinely is spent, the
+  cost of also masking is one compressed instruction — not a format change.
+
+So no second predicate field is wanted, and the question §8 used to ask about one
+is withdrawn.
 
 ## 3. The warp-uniform register file now has a measured case, not an argued one
 
@@ -169,16 +191,22 @@ invariant-8 deviations, all listings match codegen, all simulator tests pass.
 
 ## 8. Open questions for the architecture side
 
-1. **Lane gating** (§1 above). The one that blocks nothing today and invalidates
-   a measured result if it goes the wrong way.
-2. **F-58** — is a second predicate field worth a format change, or does the
-   warp-uniform file make the question moot? These are alternatives, not
-   complements.
-3. **F-59** — how are integer-source conversions encoded? Blocks F-56.
-4. **Predicate count (4)** — still provisional per §11. Measured pressure is 1–2
-   of 4 across every kernel written, which is what made O-33's unconditional
-   reservation of P3 affordable. If a fifth predicate were ever wanted, O-33 is
-   the first thing that would want it.
+1. **Lane gating, and cheap predicate logic** (§1 above). Neither blocks
+   anything today; each invalidates a measured result if it goes the wrong way,
+   and the compiler cannot detect either.
+2. **F-56, one instruction wide.** `rcp.f32` is the last thing in the division
+   sequence that cannot be masked. The SFU is at §4 256+ and Format A′ reaches
+   127, so it has to come *below* 128 — and after O-34 the only space left down
+   there is six free integer points at 26–31 and eight spare in `dp`'s new
+   48–63 home. Neither is an obvious home for an SFU point, and the saving is
+   31 lane-activations per uniform division. Worth deciding, not urgent.
+3. **F-59 is closed** (O-34). ~~How are integer-source conversions encoded?~~
+   Source format codes `10`/`11`, read at the register's `chwidth`.
+4. **Predicate count (4)** — still provisional per §11, and now with a second
+   consumer. Measured pressure was 1–2 of 4, which is what made O-33's
+   unconditional reservation of P3 affordable; F-58's composition allocates one
+   more short-lived predicate per guarded value. Nothing has run out, but the
+   margin is thinner than when the number was last called comfortable.
 5. **O-12's barrier phase parity** — unchanged since 1.2 and still the one open
    item that depends on a document the compiler side does not have. O-27 added
    `bar.wait.phase` on the assumption; F-35 notes that CUDA C produces nothing

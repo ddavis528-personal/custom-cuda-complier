@@ -61,7 +61,7 @@ questions and only one of them can be measured on both machines.
   saxpy      |     22     74   26.9 |     17     58 |     25    136   43.5 |     19
   dot        |     56    182   26.0 |     48    156 |     60    300   40.0 |     46
   reduce     |     51    166   26.0 |     45    146 |     54    268   39.7 |     41
-  transpose  |     84    316   30.1 |     76    286 |     64    308   38.5 |     43
+  transpose  |     89    326   29.3 |     81    296 |     64    308   38.5 |     43
 ```
 
 **Dynamic — instructions actually issued, per thread of work.**
@@ -73,7 +73,7 @@ questions and only one of them can be measured on both machines.
   saxpy          17.0   100%         25 |       544       100%   exact: no backward branch
   dot            78.9    64%         -- |      2526       100%   has 3 loops; not modelled
   reduce         75.9    63%         -- |      2430       100%   has 3 loops; not modelled
-  transpose      76.0   100%         64 |      1555        64%   exact: no backward branch
+  transpose      81.0   100%         64 |      1493        58%   exact: no backward branch
 ```
 
 **CCV's dynamic column is measured** on the simulator — lane-instructions
@@ -147,32 +147,55 @@ The `lane-act` column is the measurement, from `ccv-sim -counters`:
 | | issued lane slots | activations | share |
 |---|---|---|---|
 | `transpose`, masking off | 2304 | 2304 | 100% |
-| `transpose`, masking on | 2432 | **1555** | **64%** |
+| `transpose`, masking on | 2592 | **1493** | **58%** |
 
-128 more lane slots issued — four broadcast instructions across 32 lanes — and
-749 fewer lanes actually switched, a **33% cut**, at no change in instruction
-count beyond those four.
+**811 fewer lanes switched — a 35% cut — for nine added instructions**, four
+broadcasts and five `pand`.
 
-Three changes got it there, and the middle one is the largest:
+Four changes got there:
 
-| | activations | what changed |
-|---|---|---|
-| O-33 as first built | 1809 | mask uniform work to lane 0, broadcast the result |
-| after O-34 | 1747 | conversions moved into Format A′'s reach, so the division's two `cvt`s mask |
-| after F-58 | 1587 | `select` lowers to a predicated move, not `sel` |
-| counter corrected | **1555** | a predicate-file op is not 32 lane activations |
+| | instrs | activations | what changed |
+|---|---|---|---|
+| O-33 as first built | 76 | 1809 | mask uniform work to lane 0, broadcast the result |
+| after O-34 | 76 | 1747 | conversions moved into Format A′'s reach, so the division's two `cvt`s mask |
+| after F-58 part 1 | 76 | 1587 | `select` lowers to a predicated move, not `sel` |
+| counter corrected | 76 | 1555 | a predicate-file op is not 32 lane activations |
+| after F-58 part 2 | **81** | **1493** | already-predicated instructions compose their guard with the lane mask via `pand` |
 
-**The last row is a measurement fix, not a saving**, and it is listed because it
-changes a published number. `pand`/`por`/`pxor`/`pmov` read and write the
-predicate file — 32 bits, one per lane — and never touch a GPR lane. Charging
-them the same 32 activations as a warp-wide ALU operation overstated them by
-roughly the width of a lane. They are now counted separately, and the effect was
-large enough to invert a design conclusion: F-58's `pand` composition measured as
-a loss against the broken counter and as a modest win against the fixed one. Whether that
-is a win is a hardware question, not a compiler one, and O-33 records the answer
-it assumes: **a predicated-off lane must not toggle its ALU operands, its
-register-file write port, or its result bus.** If the RTL does not deliver that,
+**Row four is a measurement fix, not a saving**, and it is listed because it
+changes a published number and because it changed a decision.
+`pand`/`por`/`pxor`/`pmov` read and write the predicate file — 32 bits, one per
+lane — and never touch a GPR lane, an ALU operand or a result bus, which is
+exactly what this column is defined to measure. Charging them a full 32
+overstated them by roughly the width of a lane. Against the broken counter, row
+five measured 1587 → 1685 and read as a clear loss; against the fixed one it is
+1555 → 1493.
+
+**Row five is the weakest of the four and is on by design-track decision.** It
+adds five instructions to save 62 activations — about 12 per instruction, against
+the 31 a plainly-masked instruction saves.
+
+### Two hardware properties this column is spending
+
+Whether any of this is a win is a hardware question, not a compiler one. The
+compiler is now generating code whose value rests on two properties of RTL that
+does not exist yet, and it cannot detect whether either holds — if they do not,
 this column is fiction and the instruction-count regression is all that is real.
+
+**1. Lane gating (O-33, every row).** A predicated-off lane must not toggle its
+ALU operands, its register-file write port, or its result bus. Gating only the
+*write* is not enough: the 288 extra issued lane slots buy nothing and the whole
+column collapses.
+
+**2. Cheap predicate logic (F-58, row five only).** A predicate-file operation
+must cost much less than a warp-wide one. A predicate is 32 bits, one per lane
+(invariant 5), so `pand` is 32 AND gates against 32 lanes of 32-bit datapath and
+the ratio should be about the width of a lane. If predicate logic instead runs
+through the vector path, row five is a loss of five instructions per kernel.
+
+Property 2 is cheaper to get wrong than property 1 — it costs one row, not the
+whole column — and `-ccv-mask-compose=false` turns that row off without touching
+anything else.
 
 The other four kernels read 100% because the pass declined to mask them — every
 uniform value is consumed immediately by divergent work, so each masked
@@ -250,11 +273,11 @@ tile:
 ```
   tile  accs    instrs     bits b/instr  spills    fma sp/fma    K-hit
   -------------------------------------------------------------------------
-  1x1   1          174     4848    27.9      31     17   1.82      22%
-  1x2   2          256     7056    27.6      55     33   1.67      19%
-  2x2   4          381    10304    27.0      97     65   1.49      19%
-  2x4   8          639    17104    26.8     186    129   1.44      13%
-  4x4   16        1132    29888    26.4     407    257   1.58      13%
+  1x1   1          176     4880    27.7      31     17   1.82      22%
+  1x2   2          258     7088    27.5      55     33   1.67      19%
+  2x2   4          383    10336    27.0      97     65   1.49      19%
+  2x4   8          641    17136    26.7     186    129   1.44      13%
+  4x4   16        1134    29920    26.4     407    257   1.58      13%
 ```
 
 `sp/fma` — memory traffic the register file forced, per unit of arithmetic it

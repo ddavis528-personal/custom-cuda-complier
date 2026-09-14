@@ -2602,15 +2602,32 @@ gates mask-off lanes — clock-gated, operand-isolated, or both. If predicated-o
 burn dynamic power, this transformation costs one broadcast per region and returns
 **nothing**.
 
-That is an obligation on the implementation, recorded here because it is invisible at this
-level and easy to lose between here and RTL:
+Those are obligations on the implementation, recorded here because they are invisible at
+this level and easy to lose between here and RTL. **There are two of them**, and the
+compiler now generates code by default that depends on both:
 
-> **Lane gating is required, not optional.** A predicated-off lane must not toggle its ALU
-> operands, its register-file write port, or its result bus. The compiler is now generating
-> code whose entire value rests on it.
+> **1. Lane gating is required, not optional.** A predicated-off lane must not toggle its
+> ALU operands, its register-file write port, or its result bus. Gating only the *write* is
+> not enough. Everything O-33 does rests on this.
+>
+> **2. Predicate-file logic must be much cheaper than warp-wide logic.** A predicate is 32
+> bits, one per lane (invariant 5), so `pand`/`por`/`pxor` are 32 gates against 32 lanes of
+> 32-bit datapath, and the ratio should be about the width of a lane. F-58's composition —
+> masking an instruction that already carries a control-flow predicate, by computing the
+> conjunction with `pand` — spends one compressed instruction per guarded value on that
+> assumption. If predicate logic runs through the vector path instead, that part is a loss.
+
+The second is the cheaper one to be wrong about: it costs the `pand` composition alone, and
+`-ccv-mask-compose=false` withdraws it without touching the rest. The first, if it fails,
+makes the whole scheme a code-size regression and nothing else.
 
 The measurement below is in **lane-activations** — lanes that actually did work — precisely
-so that the thing the hardware must deliver is what the tooling counts.
+so that the thing the hardware must deliver is what the tooling counts. **And a counter that
+measures the wrong thing hides exactly this**: predicate-file operations were being charged
+32 lane-activations each, which is the cost of a vector operation, and that made the `pand`
+composition read as a loss (1587 → 1685) when it is a win (1555 → 1493). See F-60. A number
+defined as an energy proxy has to be audited against its own definition, not just kept
+consistent.
 
 ---
 
@@ -2656,11 +2673,11 @@ point only on a general three-register select, which nothing has yet generated.
 And predication composes. The qualifier names a predicate **register**, and the conjunction
 of two conditions is a predicate register: §3's `pand` is a 16-bit Format K instruction that
 computes exactly it. So even where the field is genuinely spent, the cost of also masking is
-one compressed instruction — not a format change. What that buys is small enough to be a
-judgement call (about 12 lane-activations per `pand`, against the 31 a plain masked
-instruction saves) and it depends on a predicate-file operation being much cheaper than a
-warp-wide one, so the compiler has it off by default. But "impossible" was never the right
-word, and this document said it.
+one compressed instruction — not a format change. It buys about 12 lane-activations per
+`pand` against the 31 a plainly masked instruction saves, which made it a judgement call
+rather than an obvious one; it is **on**, and the obligation it spends — a predicate-file
+operation costing much less than a warp-wide one — is recorded as the second RTL property
+above. But "impossible" was never the right word, and this document said it.
 
 Plus control flow, which in the reduction kernels dominates everything above: a block not
 reached by every lane cannot have work masked *to* lane 0, because lane 0 might not be one

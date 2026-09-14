@@ -53,20 +53,25 @@ using namespace llvm;
 static cl::opt<bool> EnableMasking("ccv-mask-uniform", cl::init(true),
                                    cl::desc("run warp-uniform work on lane 0 "
                                             "and broadcast (O-33)"));
-/// F-58's composition, off by default. It works and it is measured; what is
-/// not measured is the hardware ratio it depends on.
+/// F-58's composition. ON by default, by design-track decision.
 ///
-/// O-33's broadcast costs one instruction to save 31 lane-activations. This
-/// costs one `pand` to save about 12 -- measured on `transpose`, 5 instructions
-/// for 62 activations. Still positive, but it rests on a SECOND unverified RTL
-/// property on top of O-33's: that a predicate-file operation is much cheaper
-/// than a warp-wide ALU operation. A predicate is 32 bits (invariant 5), so
-/// `pand` is 32 AND gates against 32 lanes of 32-bit datapath, and the ratio
-/// should be large -- but "should be" is exactly what O-33 already spends once.
+/// An instruction that already carries a control-flow predicate can ALSO be
+/// masked to lane 0: the qualifier names a predicate register, and the
+/// conjunction of two conditions is a predicate register. §3's `pand` is a
+/// 16-bit Format K instruction that computes it.
 ///
-/// Default off, so the design track decides with the number in hand rather than
-/// discovering it in RTL.
-static cl::opt<bool> ComposePredicates("ccv-mask-compose", cl::init(false),
+/// Measured on `transpose`: 5 `pand` for 62 lane-activations, about 12 per
+/// instruction added, against the 31 a plainly-masked instruction saves.
+///
+/// **This spends a second RTL property**, on top of O-33's. O-33 requires that
+/// a predicated-off lane not toggle its ALU operands, write port or result bus.
+/// This additionally requires that a PREDICATE-FILE operation cost much less
+/// than a warp-wide one -- a predicate is 32 bits, one per lane (invariant 5),
+/// so `pand` is 32 AND gates against 32 lanes of 32-bit datapath. The ratio
+/// should be about the width of a lane. If the RTL instead runs predicate logic
+/// through the vector path, this is a net loss of 5 instructions per kernel and
+/// the compiler cannot tell. Both properties are recorded in §9, O-33.
+static cl::opt<bool> ComposePredicates("ccv-mask-compose", cl::init(true),
     cl::desc("also mask instructions that already carry a predicate, by "
              "computing the conjunction with `pand` (F-58)"));
 
