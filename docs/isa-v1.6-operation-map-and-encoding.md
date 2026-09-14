@@ -265,9 +265,20 @@ Two consequences a reader building the machine should take from that:
   **one is an ALU operation and three are loads and stores**. If the split allocation dual-
   issues in the ALU but not the memory pipe, the kernel comes out at 17.5 cycles — *slower*
   than the 32-bit version. The obligation is on the memory path first.
-- **The break-even is a codegen property, not a fixed one.** The fraction rises when the
-  compiler stops spending instructions on width transitions it did not need (F-80) and when
-  a kernel packs two elements per lane (F-79). Both move this from break-even to a win.
+- **The break-even is a codegen property, and the only lever is the non-element work.**
+  A lane holds one element at every width (invariant 1), so a narrow kernel issues exactly
+  as many element-work instructions as its 32-bit twin — the fraction rises only by removing
+  what is *not* element work. Width transitions the compiler did not need (F-80, F-87) and
+  per-thread prologue are the whole of it. `vadd16` at one element per thread reaches 0.286
+  and is 1.067×; `vadd16_loop`, where the prologue amortizes over eight elements, reaches
+  0.552 and 1.283×. Same instructions, same retire rate, different ratio of element work to
+  overhead.
+
+  It does **not** rise by packing two elements into a lane. That is the register-level
+  packing model O-13 rejected and this invariant forbids, and it is worth naming here
+  because the arithmetic above makes it tempting: halving the lane count would halve the
+  issue count directly. It would also put two elements in a register, which is the warning
+  sign §9 names rather than the optimisation it looks like.
 
 **Cost if wrong:** the element-width model is a net loss on every kernel, and the `chwidth`
 machinery is overhead with no return. This is the one obligation on the list that the whole
@@ -2059,9 +2070,14 @@ register state, the retire rate follows from the width, and the compiler's only 
 much of the instruction stream it can make narrow.
 
 The benchmark now measures that fraction, and it is the number this decision lives or dies
-on: `vadd16` reaches **28.6% narrow element work** and is **exactly break-even** against the
-32-bit kernel at 2×. See §1a.4 for why the memory pipe matters more than the ALU here, and
-F-79/F-80 for the two compiler changes that move it off break-even.
+on: `vadd16` reaches **28.6% narrow element work** at one element per thread and
+**`vadd16_loop` reaches 55.2%**, where the per-thread prologue amortizes over eight
+elements. At 2× that is 1.067× and 1.283× against the same kernels at 32 bits.
+
+The fraction is raised only by removing what is **not** element work — invariant 1 puts one
+element in a lane at every width, so a narrow kernel issues exactly as many element-work
+instructions as its 32-bit twin and the difference is all overhead. F-80 and F-87 are that
+work on the compiler side. See §1a.4 for why the memory pipe matters more than the ALU.
 
 ---
 

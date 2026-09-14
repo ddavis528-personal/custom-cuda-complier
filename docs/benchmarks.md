@@ -335,10 +335,14 @@ encodes 16-bit operations in the same instruction formats as 32-bit ones, so the
 width is free and also worthless at the instruction level. CCV is the machine
 that *pays* for narrow types here.
 
-So the feature is not yet earning its instructions on this shape. The kernel
-that would show a win is one where a thread handles two adjacent 16-bit
-elements in a single 32-bit lane; that is what the packed form exists for, and
-no benchmark kernel does it. Recorded as F-79.
+So the feature does not earn its instructions on this shape, and **no kernel
+shape makes it earn them in issue count.** A lane holds one element at every
+width (invariant 1), so N elements need N lanes whatever the width: a narrow
+kernel issues exactly as many element-work instructions as its 32-bit twin, by
+construction. What narrow width buys is **half the memory traffic** and O-40's
+higher retire rate on the instructions that are narrow — and what raises the
+share of the stream that qualifies is removing the work that is *not* element
+work. The next section is that, measured.
 
 #### What amortizes, and what does not
 
@@ -493,9 +497,12 @@ a tidiness item; it is what converts this kernel from break-even to a gain.
 
 **3. The ratio the ISA asks for has no margin at today's narrow fraction.** At
 1.5× rather than 2×, `vadd16` is 16.7 cycles and loses. 28.6% narrow is not
-enough for the retire rate to carry the feature on its own; the fraction has to
-rise, which is F-79 (pack two elements per lane) and F-80 (stop spending
-instructions on avoidable transitions).
+enough for the retire rate to carry the feature on its own, and **the only way
+to raise the fraction is to remove work that is not element work.** A lane holds
+one element at every width (invariant 1), so a narrow kernel issues exactly as
+many element-work instructions as its 32-bit twin; what varies is how much
+prologue, addressing and width-transition overhead sits beside them. That is
+F-80 and F-87, and the loop kernels below show what it is worth.
 
 #### Steady state, where the feature was supposed to pay
 
@@ -747,13 +754,10 @@ where code size matters most.
   instruction where CCV does thirty-two. Promoting this to a table needs its own
   argument about what is being compared.
 
-- **A kernel that packs two narrow elements into one lane.** `vadd16` is now in
-  the tables, and it shows the narrow-width model costing two instructions and
-  returning nothing in issue count — because at one element per thread there is
-  no packing to exploit. The kernel that would show a win puts two adjacent
-  16-bit elements in a single 32-bit lane, halving the issue count for the same
-  element count. No benchmark kernel does that, so the tables currently show the
-  cost of O-6's element model and none of its benefit. F-79.
+- **A narrow kernel under register pressure.** The width-affinity allocation
+  order (F-80) is argued to degrade gracefully when the two widths collide, and
+  nothing here tests it: `sgemm` is fp32 throughout so GPR16 never appears, and
+  the narrow kernels use three narrow registers out of sixteen. F-92.
 
 - **Dynamic counts for the reduction kernels, work-normalized.** The work table
   covers four of six kernels. `dot` and `reduce` are excluded because a thread

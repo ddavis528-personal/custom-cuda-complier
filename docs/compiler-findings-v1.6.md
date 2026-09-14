@@ -207,10 +207,10 @@ was not looking, and the v1.6 cycle converted four more instances into gates:
 - **O-40's ratio is a target, not a measurement.** 2× is what the ISA asks for.
   At 1.5× the short kernel loses. The memory path matters more than the ALU
   path, which is worth settling early.
-- **No kernel packs two narrow elements per lane** (F-79). That is the shape
-  where narrow width halves the issue count rather than just the memory traffic,
-  and it is also the kernel that would exercise the register-pressure case F-92
-  leaves untested. One kernel would answer both.
+- **The register-pressure case for width affinity is untested** (F-92). Nothing
+  fills the register file with narrow values, so the claim that opposite
+  allocation orders degrade gracefully when the two widths collide is reasoning
+  rather than measurement.
 - **The 32-GPR question has a third argument now** (§3 above), still unmeasured.
 - **SASS.** Unchanged from v1.5, and now the largest single gap in the
   comparison: the density argument is written against a vendor the benchmark

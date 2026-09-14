@@ -42,7 +42,10 @@ layout = subprocess.run(["build/ccv-llc", sys.argv[1].replace(".bin", "-lowered.
 # c, a, b are 2^16-aligned so each is one rbase slot; n is a scalar.
 for slot, val in ((0x20, C >> 16), (0x28, A >> 16), (0x30, B >> 16), (0x38, N)):
     pokes += ["-poke", f"{hex(LAUNCH + slot)}={val}"]
-# Two 16-bit elements per 32-bit word.
+# Two 16-bit elements per 32-bit word -- that is the MEMORY layout, which is
+# just how C packs a short array. Each lane still loads one element (§1: a
+# register's elements are one per lane, always). Packing in memory is what a
+# wide load delivers; packing in a register is what O-13 rejected.
 for i in range(0, N, 2):
     pokes += ["-poke", f"{hex(A + i * 2)}={a[i] | (a[i+1] << 16)}"]
     pokes += ["-poke", f"{hex(B + i * 2)}={b[i] | (b[i+1] << 16)}"]
