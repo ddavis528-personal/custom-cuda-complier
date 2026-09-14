@@ -245,6 +245,17 @@ def : Pat<(i16 (trunc GPR:$a)), (COPY GPR:$a)>;
 // change; CCVInsertChwidth places the instruction that performs it. `sext` is
 // NOT free -- zeros do not replicate a sign -- and still has no lowering (F-66).
 def : Pat<(i32 (zext GPR16:$a)), (COPY GPR16:$a)>;
+def : Pat<(i32 (sext GPR16:$a)), (CVT_SEXT GPR16:$a, GPR16:$a, GPR16:$a)>;
+
+// `sext i16 to i32` on a value that is already in a 32-bit register arrives as
+// sign_extend_inreg, not sext -- a kernel argument is the common case, since
+// the ABI passes it 32-bit wide. Same instruction; the source is reinterpreted
+// at 16 bits first, which is a COPY between classes and costs nothing but the
+// `chwidth` CCVInsertChwidth places.
+def : Pat<(i32 (sext_inreg GPR:$a, i16)),
+          (CVT_SEXT (i16 (COPY_TO_REGCLASS GPR:$a, GPR16)),
+                    (i16 (COPY_TO_REGCLASS GPR:$a, GPR16)),
+                    (i16 (COPY_TO_REGCLASS GPR:$a, GPR16)))>;
 
 def : Pat<(add GPR16:$a, GPR16:$b), (ADD_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
 def : Pat<(sub GPR16:$a, GPR16:$b), (SUB_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;

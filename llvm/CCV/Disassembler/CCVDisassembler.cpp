@@ -50,6 +50,16 @@ static DecodeStatus DecodeGPRRegisterClass(MCInst &MI, uint64_t RegNo,
   return MCDisassembler::Success;
 }
 
+/// GPR16 is the SAME sixteen registers viewed at 16-bit element width (§1), so
+/// it decodes through the same table. There is no physical distinction to
+/// recover -- the encoding carries no width, which is invariant 1, and the
+/// width lives in `chwidth` state the disassembler cannot see.
+static DecodeStatus DecodeGPR16RegisterClass(MCInst &MI, uint64_t RegNo,
+                                             uint64_t A,
+                                             const MCDisassembler *D) {
+  return DecodeGPRRegisterClass(MI, RegNo, A, D);
+}
+
 static DecodeStatus DecodePRRegisterClass(MCInst &MI, uint64_t RegNo, uint64_t,
                                           const MCDisassembler *) {
   if (RegNo >= std::size(PRDecoderTable))

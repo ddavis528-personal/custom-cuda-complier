@@ -122,7 +122,9 @@ static bool isWidthAware(unsigned Op) {
   case CCV::C_CHWIDTH: case CCV::CHWIDTH_MULTI:
   case CCV::ADD: case CCV::SUB: case CCV::AND: case CCV::OR: case CCV::XOR:
   case CCV::MIN_S: case CCV::MIN_U: case CCV::MAX_S: case CCV::MAX_U:
+  case CCV::CVT_SEXT:
   case CCV::ADDI: case CCV::LD_GLOBAL: case CCV::ST_GLOBAL:
+  case CCV::LD_GLOBAL_IDX: case CCV::ST_GLOBAL_IDX:
   case CCV::LD_SHARED: case CCV::ST_SHARED:
   case CCV::C_MOV: case CCV::C_EXIT:
     return true;
@@ -560,11 +562,15 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     unsigned ScaleEn = unsigned(MI.getOperand(3).getImm());
     int64_t Disp = MI.getOperand(4).getImm();
     unsigned Sh = ScaleEn ? (2 - W.ChWidth[Data]) : 0;
+    unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
     forEachLane([&](unsigned L) {
       uint64_t A = (uint64_t(W.GPR[Base][L]) << kBaseShift) +
                    (uint64_t(W.GPR[Idx][L]) << Sh) + Disp;
-      if (IsLoad) W.GPR[Data][L] = Mem.read32(A);
-      else        Mem.write32(A, W.GPR[Data][L]);
+      if (IsLoad)
+        W.GPR[Data][L] =
+            writeElem(W.GPR[Data][L], Mem.readN(A, Bytes), W.ChWidth[Data]);
+      else
+        Mem.writeN(A, narrow(W.GPR[Data][L], W.ChWidth[Data]), Bytes);
     });
     break;
   }
@@ -768,6 +774,19 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     forEachLane([&](unsigned L) {
       if ((G >> L) & 1)
         W.GPR[D][L] = W.GPR[A][L] * W.GPR[Bx][L] + W.GPR[C][L];
+    });
+    break;
+  }
+
+  // §4 point 104: both format codes are "signed integer" and the widths come
+  // from the registers' `chwidth`, so this one opcode is s8→s32, s16→s32 and
+  // s4→s32 alike. It is `sext`, and the reason `sext` is one instruction where
+  // the obvious lowering is three (O-34, O-38, F-66).
+  case CCV::CVT_SEXT: {
+    unsigned D = regOf(MI, 0), A = regOf(MI, 1);
+    uint8_t WA = W.ChWidth[A], WD = W.ChWidth[D];
+    forEachLane([&](unsigned L) {
+      W.GPR[D][L] = writeElem(W.GPR[D][L], sextTo32(W.GPR[A][L], WA), WD);
     });
     break;
   }

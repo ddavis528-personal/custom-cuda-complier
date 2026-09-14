@@ -127,10 +127,22 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     Ops.push_back(CurDAG->getTargetConstant(0, DL, MVT::i32));      // disp
     Ops.push_back(N->getOperand(0));                                // chain
 
+    // §3 takes transfer size from `rdata`'s chwidth, so a 16-bit access has to
+    // select the 16-bit form -- the instructions are otherwise identical and
+    // encode identically (F-3).
+    //
+    // Getting this wrong is not a missed optimisation. A `short` array stored
+    // through the 32-bit form writes FOUR bytes and clobbers the neighbouring
+    // element, and the value written is still correct, so nothing downstream
+    // notices. That is exactly what happened before this check existed.
+    bool Narrow = cast<MemSDNode>(N)->getMemoryVT() == MVT::i16;
     MachineSDNode *MN =
-        IsLoad ? CurDAG->getMachineNode(CCV::LD_GLOBAL_IDX, DL,
-                                        N->getValueType(0), MVT::Other, Ops)
-               : CurDAG->getMachineNode(CCV::ST_GLOBAL_IDX, DL, MVT::Other, Ops);
+        IsLoad ? CurDAG->getMachineNode(Narrow ? CCV::LD_GLOBAL_IDX_W16
+                                               : CCV::LD_GLOBAL_IDX,
+                                        DL, N->getValueType(0), MVT::Other, Ops)
+               : CurDAG->getMachineNode(Narrow ? CCV::ST_GLOBAL_IDX_W16
+                                               : CCV::ST_GLOBAL_IDX,
+                                        DL, MVT::Other, Ops);
     CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
     ReplaceNode(N, MN);
     return;

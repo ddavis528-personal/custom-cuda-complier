@@ -139,6 +139,9 @@ else
   echo "  PASS  zext costs no instruction beyond the width change (O-38)"
 fi
 
+# A 16-bit kernel end to end, including the bytes it must NOT touch.
+./tools/check-narrow.sh || fail=1
+
 # --- select lowers to a predicated move, not `sel` (F-58) ------------------
 # `sel` (§4 point 19) writes all 32 lanes and spends the qualifier on the
 # selector; a predicated `mov` writes only the guarded lanes (invariant 10) and

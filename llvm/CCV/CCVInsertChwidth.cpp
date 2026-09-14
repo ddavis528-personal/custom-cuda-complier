@@ -74,7 +74,8 @@ public:
   bool runOnMachineFunction(MachineFunction &MF) override;
 
 private:
-  unsigned Inserted = 0, Narrowing = 0, Widening = 0, Multi = 0, Blocks = 0;
+  unsigned Inserted = 0, Narrowing = 0, Widening = 0, Multi = 0, Runs = 0,
+           Blocks = 0;
 };
 
 /// The element width an instruction expects a given OPERAND to be at.
@@ -235,18 +236,74 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
     }
   }
 
+  // --- 3. Merge runs into chwidth.multi (O-6) ------------------------------
+  //
+  // §3: "`chwidth` requires draining in-flight dependents on the affected
+  // register, and a kernel entering a packed section typically reconfigures
+  // several at once. Setting them in one instruction collapses N drain events
+  // into one." That is the whole argument for Format I carrying a register
+  // mask, and this is the pass that has to make it pay.
+  //
+  // A run is consecutive `chwidth` instructions setting the SAME width. They
+  // arrive adjacent because insertion puts them all immediately before the
+  // instruction that needed them.
+  //
+  // Merge at two, not three. `chwidth` is 16 bits and `chwidth.multi` is 32, so
+  // two registers is break-even on size and still turns two drains into one;
+  // three or more wins on both. Below two there is nothing to merge.
+  for (MachineBasicBlock &MBB : MF) {
+    for (auto It = MBB.begin(); It != MBB.end();) {
+      if (It->getOpcode() != CCV::C_CHWIDTH) {
+        ++It;
+        continue;
+      }
+      int64_t Width = It->getOperand(1).getImm();
+      auto Run = It;
+      uint32_t Mask = 0;
+      unsigned N = 0;
+      while (Run != MBB.end() && Run->getOpcode() == CCV::C_CHWIDTH &&
+             Run->getOperand(1).getImm() == Width) {
+        unsigned I = gprIndex(Run->getOperand(0).getReg());
+        if (I == ~0u)
+          break;
+        Mask |= 1u << I;
+        ++N;
+        ++Run;
+      }
+      if (N < 2) {
+        It = Run == It ? std::next(It) : Run;
+        continue;
+      }
+      BuildMI(MBB, It, It->getDebugLoc(), TII->get(CCV::CHWIDTH_MULTI))
+          .addImm(Mask)
+          .addImm(Width);
+      for (auto Dead = It; Dead != Run;)
+        (Dead++)->eraseFromParent();
+      Multi += N;
+      ++Runs;
+      Changed = true;
+      It = Run;
+    }
+  }
+
   if (ReportChwidth)
+    // Two different numbers, kept apart because conflating them made the
+    // "at a definition" line underflow: `Inserted` counts width TRANSITIONS
+    // the dataflow found, and the emitted instruction count is what survives
+    // merging.
     errs() << "  chwidth insertion (F-3), " << MF.getName() << "\n"
            << "    blocks                : " << Blocks << "\n"
-           << "    chwidth inserted      : " << Inserted << "\n"
+           << "    width transitions     : " << Inserted << "\n"
            << "      at a definition     : " << (Inserted - Narrowing - Widening)
            << "   (old value dead -- nothing reinterpreted)\n"
            << "      narrowing a live reg: " << Narrowing
            << "   (a truncation; the element bits are preserved)\n"
            << "      widening a live reg : " << Widening
            << "   (a zero-extension -- O-38 clears the exposed bits)\n"
-           << "    chwidth.multi merged  : " << Multi
-           << "   (O-6 -- not yet attempted)\n";
+           << "    merged by chwidth.multi: " << Multi << " into " << Runs
+           << "   (O-6: N drain events become one)\n"
+           << "    instructions emitted  : " << (Inserted - Multi + Runs)
+           << "\n";
   return Changed;
 }
 

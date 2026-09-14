@@ -225,6 +225,27 @@ defm CVT_F32_U32 : Cvt<CvtOpc<fmtCode.FP0,  fmtCode.UINT, round.RN>.V, "cvt.f32.
 defm CVT_S32_F32 : Cvt<CvtOpc<fmtCode.SINT, fmtCode.FP0,  round.RZ>.V, "cvt.s32.f32">;
 defm CVT_U32_F32 : Cvt<CvtOpc<fmtCode.UINT, fmtCode.FP0,  round.RZ>.V, "cvt.u32.f32">;
 
+// Sign-extension, and O-34 already specified it without meaning to.
+//
+// Both format codes are "signed integer"; the WIDTHS come from the registers'
+// `chwidth`, not from the opcode. So one point -- 64 + 16*2 + 4*2 + 0 = 104 --
+// is s8→s32, s16→s32 and s4→s32 alike, and the mnemonic cannot name the widths
+// because the encoding does not carry them. That is the disassembly cost O-34
+// accepted, showing up in practice.
+//
+// It is why `sext` is one instruction where the obvious lowering is three:
+// widening clears the exposed bits (O-38), which is a ZERO-extension, and
+// getting a sign back would otherwise need `shl`+`sra` through a register --
+// §3's shift-immediate forms carry four bits and cannot express a shift by 16.
+//
+// `rd` is earlyclobber because it is at a different `chwidth` from `rs0`, and
+// one physical register cannot be at two widths at once. Without it the
+// coalescer is free to assign them the same register.
+let Constraints = "@earlyclobber $rd" in
+def CVT_SEXT : FormatA<CvtOpc<fmtCode.SINT, fmtCode.SINT, round.RN>.V,
+                       (outs GPR:$rd), (ins GPR16:$rs0, GPR16:$rs1, GPR16:$rs2),
+                       "cvt.sint.sint $rd, $rs0">;
+
 // SFU, §4 point 256+. `rcp` is the one the division algorithm needs; the rest
 // of the classic set is here because they share the unit and CUDA requires
 // them, and because assigning them together fixes the numbering once (O-28).
@@ -454,15 +475,40 @@ let mayLoad = 1 in
 // simulator's counters classify every global access as ALU.
 let mayLoad = 1 in
 let isCodeGenOnly = 1 in {
+  let mayLoad = 1 in
   def LD_SHARED_W16 : FormatD<0b00010, (outs GPR16:$rdata),
                              (ins GPR:$rbase, simm13:$off),
                              "ld.shared $rdata, [$rbase + $off]">;
+  let mayStore = 1 in
   def ST_SHARED_W16 : FormatD<0b00011, (outs),
                              (ins GPR16:$rdata, GPR:$rbase, simm13:$off),
                              "st.shared $rdata, [$rbase + $off]">;
+  // `@earlyclobber $rdata`: the destination is at 16-bit width and the base and
+  // index are addresses at 32 (invariant 11). One physical register cannot be
+  // at two widths in one instruction, and without this the allocator assigns
+  // the index register as the destination -- which it did, producing
+  //
+  //     chwidth   r2, 1
+  //     ld.global r2, [r3, r2, 0, 0]      ; r2 is both 16-bit data and index
+  //
+  // and leaving the width the ADDRESS is read at unspecified. §3 says the
+  // scale comes from `rdata`'s chwidth and says nothing about the index, so
+  // this is not something to resolve by reading it more carefully (F-68).
+  let mayLoad = 1, Constraints = "@earlyclobber $rdata" in
+  def LD_GLOBAL_IDX_W16 : FormatDidx<0b00100, (outs GPR16:$rdata),
+                             (ins GPR:$rbase, GPR:$rindex, uimm2:$scale,
+                              simm8:$disp),
+                             "ld.global $rdata, [$rbase, $rindex, $scale, $disp]">;
+  let mayStore = 1 in
+  def ST_GLOBAL_IDX_W16 : FormatDidx<0b00101, (outs),
+                             (ins GPR16:$rdata, GPR:$rbase, GPR:$rindex,
+                              uimm2:$scale, simm8:$disp),
+                             "st.global $rdata, [$rbase, $rindex, $scale, $disp]">;
+  let mayLoad = 1 in
   def LD_GLOBAL_W16 : FormatD<0b00000, (outs GPR16:$rdata),
                              (ins GPR:$rbase, simm13:$off),
                              "ld.global $rdata, [$rbase + $off]">;
+  let mayStore = 1 in
   def ST_GLOBAL_W16 : FormatD<0b00001, (outs),
                              (ins GPR16:$rdata, GPR:$rbase, simm13:$off),
                              "st.global $rdata, [$rbase + $off]">;
