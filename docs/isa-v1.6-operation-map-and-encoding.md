@@ -193,9 +193,9 @@ formats rather than one format with an optional field.
 
 ## 1a. Obligations on the implementation
 
-Three properties the compiler depends on, emits code against, and **cannot verify**. They
-were scattered across three decision-log entries; they are collected here because a reader
-building the machine needs all three and will not find them by reading §3.
+Four properties the compiler depends on, emits code against, and **cannot verify**. They
+were scattered across the decision log; they are collected here because a reader
+building the machine needs all four and will not find them by reading §3.
 
 They are not the same kind of obligation, and the difference matters more than the list.
 
@@ -241,6 +241,37 @@ A machine that skips the clear is not slower. It leaks.
 
 **Cost if wrong:** an information-disclosure channel between mutually distrusting contexts
 on the same device, and a compiler that has been emitting zero-extensions which are not.
+
+### 4. Narrow element work must retire at a multiple of the 32-bit rate (O-40)
+
+> The datapath allocation splits, so that an instruction operating on 16-bit elements
+> retires at **twice** the rate of a 32-bit one — and 8- and 4-bit work faster still.
+
+This is the whole reason the element-width model exists. Invariant 1 makes width per-register
+state rather than an opcode field precisely so that a narrow instruction is the *same*
+instruction against a *narrower slice*, which is what lets two of them share a 32-bit
+allocation. Without the higher retire rate the narrow forms are pure cost: they add `chwidth`
+transitions and save nothing an instruction count can see.
+
+**This obligation is measured against, and the margin is thin.** `vadd16` — the benchmark's
+16-bit kernel — issues 18 instructions against `vadd`'s 16, of which **4 are narrow element
+work**. At a 2× retire rate that is 14 + 4/2 = **16 cycles, exactly break-even**. At 1.5× it
+is a loss. The ISA is asking for 2× and getting no margin at the fraction today's codegen
+produces.
+
+Two consequences a reader building the machine should take from that:
+
+- **The narrow work is mostly memory, not ALU.** Of `vadd16`'s four narrow instructions,
+  **one is an ALU operation and three are loads and stores**. If the split allocation dual-
+  issues in the ALU but not the memory pipe, the kernel comes out at 17.5 cycles — *slower*
+  than the 32-bit version. The obligation is on the memory path first.
+- **The break-even is a codegen property, not a fixed one.** The fraction rises when the
+  compiler stops spending instructions on width transitions it did not need (F-80) and when
+  a kernel packs two elements per lane (F-79). Both move this from break-even to a win.
+
+**Cost if wrong:** the element-width model is a net loss on every kernel, and the `chwidth`
+machinery is overhead with no return. This is the one obligation on the list that the whole
+feature rests on rather than one optimisation.
 
 ---
 
@@ -2013,6 +2044,24 @@ which assumes the address is fully precomputed in `rbase`. If real code frequent
 small non-zero offset, four opcode points with a 2-bit displacement (scaled by `chwidth`)
 would be a better use of the range than four separate address-space opcodes. Needs data.
 
+
+---
+
+**O-40 — Narrow element work retires faster — decided; the ratio is a hardware target, not
+a measurement.** The datapath allocation splits so that 16-bit element work retires at twice
+the 32-bit rate. This is the return on the element-width model: invariant 1 keeps width out
+of the opcode so that a narrow instruction is the same instruction on a narrower slice, and
+two such slices share one 32-bit allocation.
+
+Recorded as an obligation in §1a.4 rather than as an encoding change, because **nothing in
+the encoding expresses it** — no bit anywhere says "this retires at 2×". The width is
+register state, the retire rate follows from the width, and the compiler's only lever is how
+much of the instruction stream it can make narrow.
+
+The benchmark now measures that fraction, and it is the number this decision lives or dies
+on: `vadd16` reaches **28.6% narrow element work** and is **exactly break-even** against the
+32-bit kernel at 2×. See §1a.4 for why the memory pipe matters more than the ALU here, and
+F-79/F-80 for the two compiler changes that move it off break-even.
 
 ---
 

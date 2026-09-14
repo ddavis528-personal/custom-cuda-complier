@@ -220,6 +220,18 @@ int main(int argc, char **argv) {
             break;
           }
       } else                   ++C.ALU;
+
+      // By element width, for O-40's retire-rate model. Only the two pipes
+      // that do element work are split: a branch, a barrier or a predicate op
+      // has no element width to exploit, and `chwidth` itself is pipeline
+      // control that drains dependents rather than arithmetic -- counting it
+      // as narrow work would credit the model with the very instruction the
+      // model exists to pay for.
+      if (Op != CCV::C_CHWIDTH && Op != CCV::CHWIDTH_MULTI) {
+        if (D.mayLoad() || D.mayStore()) ++C.WidthMem[R.WidthCode & 3];
+        else if (!IsBar && !IsPred && !D.isBranch() && !D.isReturn() &&
+                 Op != CCV::C_EXIT)      ++C.WidthALU[R.WidthCode & 3];
+      }
     }
     if (R.Kind == Interp::Result::Stall)
       C.Stalls += llvm::popcount(R.TakenMask);
@@ -315,6 +327,29 @@ int main(int argc, char **argv) {
            << format("  barrier                 %10llu   %5.1f%%   (%llu lane-stalls)\n",
                      (unsigned long long)C.Barrier, pct(C.Barrier, C.IssueGroups),
                      (unsigned long long)C.Stalls);
+
+    // O-40's fraction. The split allocation gives narrow operations a higher
+    // retire rate; what that is worth is bounded by how much of the stream is
+    // narrow, and nothing measured it before this counter existed.
+    uint64_t EW = 0;
+    for (int I = 0; I != 4; ++I) EW += C.WidthALU[I] + C.WidthMem[I];
+    if (EW) {
+      static const char *WN[4] = {"32-bit", "16-bit", "8-bit", "4-bit"};
+      outs() << "\n  element-work instructions by width (O-40)\n";
+      for (int I = 0; I != 4; ++I) {
+        uint64_t N = C.WidthALU[I] + C.WidthMem[I];
+        if (!N) continue;
+        outs() << format("  %-8s                %10llu   %5.1f%%   "
+                         "(alu %llu, mem %llu)\n",
+                         WN[I], (unsigned long long)N, pct(N, EW),
+                         (unsigned long long)C.WidthALU[I],
+                         (unsigned long long)C.WidthMem[I]);
+      }
+      outs() << format("  narrow fraction         %14.3f   "
+                       "(of %llu element-work instructions)\n",
+                       double(EW - C.WidthALU[0] - C.WidthMem[0]) / double(EW),
+                       (unsigned long long)EW);
+    }
   }
   for (const auto &P : Peeks) {
     uint64_t Addr;

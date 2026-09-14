@@ -97,6 +97,16 @@ struct Counters {
   // pointer, which nothing else uses because R15 is reserved (O-30).
   uint64_t LdSt[4] = {};      ///< ld.global, st.global, ld.shared, st.shared
   uint64_t Spill = 0;
+
+  // Issued instructions by element width (0 = 32, 1 = 16, 2 = 8, 3 = 4), split
+  // by pipe. O-40 gives narrow operations a higher retire rate by splitting the
+  // datapath allocation, and whether that recovers the instructions the narrow
+  // form costs depends entirely on how much of the stream is narrow -- Amdahl,
+  // on a fraction nothing had measured. Split by pipe because the ALU and the
+  // memory path do not have to dual-issue on the same terms, and the person
+  // designing them should be able to price each separately.
+  uint64_t WidthALU[4] = {};
+  uint64_t WidthMem[4] = {};
 };
 
 struct Warp {

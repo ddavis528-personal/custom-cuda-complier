@@ -178,6 +178,10 @@ def main():
         print("  FAIL  the two prior-art tables were not both found")
         fail = 1
 
+    fail |= compare("O-40 retire-rate table",
+                    section(bench.stdout, "O-40 --"),
+                    (fenced(doc, "kernel        issues") or [""])[0])
+
     fail |= compare("work-per-element table",
                     section(bench.stdout, "WORK --"),
                     (fenced(doc, "CCV    GCN5") or [""])[0])

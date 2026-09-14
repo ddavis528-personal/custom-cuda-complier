@@ -49,6 +49,12 @@ WIDTH = {"ccv": 32, "gfx900": 64, "gfx1030": 32, "gfx1100": 32,
 # count is unknown anyway because both loop.
 ELEMENTWISE = ("vadd", "saxpy", "vadd16", "transpose")
 
+# O-40's claimed retire rate for narrow element work, relative to 32-bit. The
+# ISA asks for 2x from the split datapath allocation. It is a hardware target
+# and nothing here measures it -- the cycle column that uses it is labelled a
+# model wherever it appears.
+RETIRE = 2.0
+
 # Prior art, across generations rather than one. The original comparison used
 # only gfx900 -- a 2017 ISA -- which left the density claim open to the reading
 # that it beats an old encoding and not a current one. These are every AMD GPU
@@ -266,12 +272,21 @@ def dynamic(src, tmp, kernel, extra=()):
     # 84 instructions here with nothing to explain it.
     la = re.search(r"lane-activations\s+(\d+)", r.stdout)
     li = re.search(r"lane-instructions\s+(\d+)", r.stdout)
+    ig = re.search(r"issue groups\s+(\d+)", r.stdout)
+    # O-40: element-work instructions by width, for the retire-rate model.
+    narrow = 0
+    for m in re.finditer(r"^\s+(16|8|4)-bit\s+(\d+)\s", r.stdout, re.M):
+        narrow += int(m.group(2))
+    ew = re.search(r"of (\d+) element-work instructions", r.stdout)
     if not pt:
         return None
     return {"per_thread": float(pt.group(1)),
             "simt": float(ef.group(1)) if ef else 0.0,
             "lane_act": int(la.group(1)) if la else 0,
-            "lane_instr": int(li.group(1)) if li else 0}
+            "lane_instr": int(li.group(1)) if li else 0,
+            "issues": int(ig.group(1)) if ig else 0,
+            "narrow": narrow,
+            "element_work": int(ew.group(1)) if ew else 0}
 
 def main():
     rows = []
@@ -365,6 +380,38 @@ def main():
     print("  to mask them, because every uniform value is consumed immediately by")
     print("  divergent work and each masked op would need its own broadcast. That is")
     print("  the cost model working, not the pass failing.")
+    print()
+    print("  O-40 -- narrow element work, and what a 2x retire rate is worth.")
+    print()
+    print(f"  {'kernel':<12}{'issues':>8}{'elem work':>11}{'narrow':>8}"
+          f"{'frac':>8}{'cycles @2x':>12}{'vs f32':>9}")
+    print("  " + "-" * 68)
+    base = None
+    for r in rows:
+        d = r["dyn"]
+        if not d or not d.get("element_work"):
+            continue
+        n, i = d["narrow"], d["issues"]
+        # 32-bit element work and everything that is not element work at all
+        # (chwidth, branches, predicate ops) retire at one per cycle; narrow
+        # element work at RETIRE per cycle. A MODEL of hardware that does not
+        # exist -- see the caveat below and ISA section 1a.4.
+        cyc = (i - n) + n / RETIRE
+        if r["kernel"] == "vadd":
+            base = cyc
+        # Only vadd/vadd16 are the same kernel at two widths, so only that pair
+        # has a meaningful ratio. dot against vadd would be comparing kernels.
+        rel = (f"{base / cyc:.3f}x"
+               if base and r["kernel"] in ("vadd", "vadd16") else "--")
+        print(f"  {r['kernel']:<12}{i:>8}{d['element_work']:>11}{n:>8}"
+              f"{n / d['element_work']:>8.3f}{cyc:>12.1f}{rel:>9}")
+    print()
+    print("  CYCLES IS A MODEL, NOT A MEASUREMENT. The simulator retires one")
+    print("  instruction per step; this column applies O-40's claimed 2x rate to")
+    print("  the narrow instructions the simulator counted. `vs f32` is filled in")
+    print("  only for vadd16, the one kernel that is another kernel at a second")
+    print("  width; comparing dot to vadd would be comparing kernels. Every other")
+    print("  column here is measured.")
     print()
     print("  WORK -- what it costs to finish the kernel, per 1024 elements.")
     print()

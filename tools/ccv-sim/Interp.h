@@ -27,6 +27,13 @@ public:
     uint32_t Active = 0;
     bool ActiveSet = false;
 
+    /// Element width this instruction operated at, as a `chwidth` code
+    /// (0 = 32, 1 = 16, 2 = 8, 3 = 4). O-40 splits the datapath allocation so
+    /// that narrow operations retire at a multiple of the 32-bit rate, and the
+    /// multiple is only worth anything on the FRACTION of the stream that is
+    /// narrow -- so the fraction has to be measured, not assumed.
+    uint8_t WidthCode = 0;
+
     /// For BranchPred: the subset of the issue mask that takes the branch.
     /// Lanes outside it fall through -- which is how divergence arises, with
     /// no bracket instruction and nothing forcing reconvergence (§1).

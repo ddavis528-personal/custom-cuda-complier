@@ -328,6 +328,71 @@ that would show a win is one where a thread handles two adjacent 16-bit
 elements in a single 32-bit lane; that is what the packed form exists for, and
 no benchmark kernel does it. Recorded as F-79.
 
+#### The instruction count is not the whole cost: O-40's retire rate
+
+The instruction-count deficit above is answered by IPC, not by instruction
+count. **O-40 splits the datapath allocation so that 16-bit element work retires
+at twice the 32-bit rate** — which is the entire return on making element width
+per-register state (invariant 1) rather than an opcode field: a narrow
+instruction is the *same* instruction against a *narrower slice*, so two of them
+share one 32-bit allocation.
+
+What that is worth is bounded by how much of the stream is narrow, and nothing
+had measured that. The simulator now counts it:
+
+```
+  kernel        issues  elem work  narrow    frac  cycles @2x   vs f32
+  --------------------------------------------------------------------
+  vadd              16         14       0   0.000        16.0   1.000x
+  saxpy             17         15       0   0.000        17.0       --
+  vadd16            18         14       4   0.286        16.0   1.000x
+  dot              123        102       0   0.000       123.0       --
+  reduce           120         99       0   0.000       120.0       --
+  transpose         79         72       0   0.000        79.0       --
+```
+
+**`vadd16` is exactly break-even.** 18 issued instructions, 4 of them narrow
+element work, gives `14 + 4/2 = 16.0` cycles against `vadd`'s 16.0. The 2× rate
+recovers the two instructions the narrow form costs and returns nothing beyond
+them — while still delivering half the memory traffic, which no cycle column
+shows.
+
+Three things follow, and the first is the one that should shape the hardware:
+
+**1. The narrow work here is memory, not ALU.** Of `vadd16`'s four narrow
+instructions, **one is an ALU operation and three are loads and stores**. So the
+split allocation has to reach the memory pipe to pay:
+
+| what dual-issues | cycles | vs `vadd` |
+|---|---|---|
+| ALU and memory both | 16.0 | 1.000× |
+| memory only | 16.5 | 0.970× |
+| ALU only | 17.5 | **0.914×** |
+| neither (retire 1×) | 18.0 | 0.889× |
+
+A split allocation that widens the ALU and leaves the memory path alone makes
+this kernel **slower than its 32-bit equivalent**. That is not an obvious
+outcome, and it is the opposite of where a designer's attention naturally goes.
+
+**2. The break-even sits exactly at the margin.** One more narrow instruction
+tips it — `N=5` gives 15.5 cycles. And **F-80's wasted `chwidth` restore is
+exactly one instruction**: removing it gives 17 issued and 4 narrow, or 15.0
+cycles, a **1.067×** win. The width-affinity allocator objective is therefore not
+a tidiness item; it is what converts this kernel from break-even to a gain.
+
+**3. The ratio the ISA asks for has no margin at today's narrow fraction.** At
+1.5× rather than 2×, `vadd16` is 16.7 cycles and loses. 28.6% narrow is not
+enough for the retire rate to carry the feature on its own; the fraction has to
+rise, which is F-79 (pack two elements per lane) and F-80 (stop spending
+instructions on avoidable transitions).
+
+**The cycles column is a model and is labelled as one everywhere it appears.**
+The simulator retires one instruction per step; the column applies O-40's
+claimed rate to the narrow instructions the simulator counted. The narrow counts
+themselves are measured. This is the same discipline as the lane-activation
+column, and O-40 is now the fourth entry in the ISA document's §1a list of
+properties the compiler depends on and cannot verify.
+
 ### Lane-activations: the column O-33 exists to move
 
 An instruction count cannot see lane-0 masking at all. Masking a warp-uniform

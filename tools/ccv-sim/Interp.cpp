@@ -316,6 +316,24 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
           return {Result::Unimplemented, 0};
       }
 
+  // The element width this instruction operates at, for O-40's retire-rate
+  // model. Taken from the GPR operands themselves rather than from an opcode
+  // table here: element width is per-register state (invariant 1), so the
+  // registers ARE the authority and a table would be a second opinion about
+  // something the machine already knows. Where operands disagree -- a widening
+  // conversion, an address register beside narrow data -- the NARROWEST wins,
+  // because the narrow slice is the part of the datapath the operation can
+  // share. Reported, never acted on: the simulator retires one instruction per
+  // step regardless, and the model lives in the benchmark where it can be
+  // labelled as a model.
+  uint8_t WCode = 0;
+  for (unsigned I = 0, N = MI.getNumOperands(); I != N; ++I)
+    if (MI.getOperand(I).isReg()) {
+      unsigned R = regOf(MI, I);
+      if (R < kGPRs && W.ChWidth[R] > WCode)
+        WCode = W.ChWidth[R];
+    }
+
   switch (Op) {
   // ---- Format F: wide immediate, warp-uniform broadcast (§3) -------------
   case CCV::MOVI:
@@ -949,5 +967,6 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   default:
     return {Result::Unimplemented, 0};
   }
+  R.WidthCode = WCode;
   return R;
 }
