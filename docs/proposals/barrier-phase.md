@@ -39,7 +39,8 @@ for (unsigned s = blockDim.x / 2; s > 0; s >>= 1) {
 ```
 
 The compiler currently diagnoses this rather than emitting a wrong phase
-(`test/reject/barrier-in-loop.ll`). Every other piece of that kernel now
+(then a reject-list case, now `test/accept/barrier-in-loop.ll` — see below).
+Every other piece of that kernel now
 compiles: unsigned compares, FP compares, FP constants, cross-block window
 arithmetic, and the `bar.arrive`/`bar.wait` pair itself.
 
@@ -123,7 +124,7 @@ different questions and neither subsumes the other.
 **A is adopted for `__syncthreads()`.** The per-warp arrival epoch is tracked in
 hardware, the compressed `bar.wait #id` carries no phase operand at all, and
 `[14]` becomes reserved. The reduction kernel's in-loop barrier compiles;
-`test/reject/barrier-in-loop.ll` became `test/accept/barrier-in-loop.ll`.
+The reject-list case `barrier-in-loop.ll` moved to `test/accept/barrier-in-loop.ll`.
 
 **B is adopted as a separate instruction**, `bar.wait.phase #id, ps`, at Format E
 opcode `00100` — not as a reinterpretation of the Format K payload. Putting it in

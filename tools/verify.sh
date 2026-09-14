@@ -52,6 +52,40 @@ else
   echo "  (build/ccg-llc or the kernel-arg plugin not built -- skipping listing provenance)"
 fi
 
+# Documentation structure: paths that resolve, findings and decisions that are
+# defined where they are cited, no finding tracked twice. Prose staleness is not
+# computable; this is the half that is.
+echo "  documentation structure"
+python3 tools/check-docs.py || fail=1
+
+# docs/walkthrough.md is assembled from generated artifacts and claims "nothing
+# here is transcribed". Regenerate it and require the tree copy to match, so the
+# claim is checked rather than trusted.
+if [ -x build/ccg-llc ] && [ -x build/ccg-sim ]; then
+  echo "  walkthrough document vs toolchain"
+  cp docs/walkthrough.md "$OUT/walkthrough.before"
+  if ./tools/make-walkthrough.sh >/dev/null 2>&1 \
+     && python3 tools/gen-walkthrough-doc.py >/dev/null 2>&1; then
+    if diff -q "$OUT/walkthrough.before" docs/walkthrough.md >/dev/null; then
+      echo "  PASS  docs/walkthrough.md matches the toolchain"
+    else
+      echo "  FAIL  docs/walkthrough.md is stale -- regenerated copy differs"
+      diff "$OUT/walkthrough.before" docs/walkthrough.md | head -20
+      fail=1
+    fi
+  else
+    echo "  FAIL  could not regenerate the walkthrough"; fail=1
+  fi
+fi
+
+# docs/benchmarks.md carries measured tables. Regenerate and compare, for the
+# same reason the spec listings are regenerated: a hand-copied number is only
+# as current as whoever last remembered to copy it, and four of them were not.
+if [ -x build/ccg-llc ] && [ -x build/ccg-sim ]; then
+  echo "  benchmark document vs tools"
+  python3 tools/check-bench-doc.py || fail=1
+fi
+
 # Round trip, if the MC layer has been built. The encoder and the disassembler
 # come from different TableGen backends, so a disagreement means the encoding is
 # ambiguous or the tables are inconsistent -- not visible from reading §3.

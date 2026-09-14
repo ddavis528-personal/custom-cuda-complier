@@ -9,12 +9,38 @@ a namespace and a def prefix:
 
 ## What is here
 
+**Machine description (TableGen):**
+
 | File | Contents |
 |---|---|
 | `CCG.td` | top-level target |
 | `CCGRegisterInfo.td` | GPRs, predicates, register classes |
 | `CCGInstrFormats.td` | one class per §3 bit map — the transcription of the spec |
 | `CCGInstrInfo.td` | instruction definitions |
+| `CCGInstrPatterns.td` | ISel patterns |
+| `CCGCallingConv.td` | calling convention |
+
+**Codegen:** `CCGTargetMachine`, `CCGSubtarget`, `CCGISelLowering`,
+`CCGISelDAGToDAG`, `CCGInstrInfo`, `CCGRegisterInfo`, `CCGFrameLowering`,
+`CCGAsmPrinter`, `CCGTargetTransformInfo` (warp-scoped divergence — LLVM's stock
+NVPTX answer calls `ctaid` divergent, which is right across a grid and wrong
+across a warp).
+
+**Target-specific passes**, each with a finding behind it:
+
+| Pass | Why |
+|---|---|
+| `CCGLowerShared` | §5.1 makes `.shared` flat 32-bit, so layout is the whole lowering (F-31) |
+| `CCGExpandDivision` | no divide in §4 and no runtime library; float-reciprocal sequence (O-31) |
+| `CCGUniformity` | reports what O-25 asked for; buckets what cannot be masked, and why (F-57) |
+| `CCGWindowRemat` | clones §5.1 window chains per block so the addressing DAGCombine sees them locally (F-32) |
+| `CCGMaskUniform` | runs warp-uniform work on lane 0 and broadcasts (O-33) |
+| `CCGExpandPseudos` | predicate registers become qualifier immediates, post-RA |
+| `CCGCompress` | Format K compression of what already satisfies `rd == rs0` (O-29) |
+| `CCGCheckIR` | diagnoses what invariant 11 forbids rather than miscompiling it (F-22) |
+
+**MC layer:** `MCTargetDesc/` — code emitter, instruction printer, asm backend
+with branch relaxation (F-28) and an ELF object writer; `Disassembler/`.
 
 `CCGInstrFormats.td` is the load-bearing file. Every `let Inst{hi-lo} =` is a row
 of a §3 table, and field positions are architectural (invariant 8) rather than
@@ -34,7 +60,9 @@ files land in `build/generated/`. Needs `llvm-18-dev` (for
 (LLVMSupport's link interface requires it).
 
 Builds `libCCGMC.a` — target registration, code emitter, instruction printer,
-disassembler — and `ccg-roundtrip`.
+disassembler — plus `ccg-llc` (the compiler), `ccg-sim` (the simulator),
+`ccg-roundtrip`, and `CCGLowerKernelArgs.so`, an opt plugin that rewrites kernel
+arguments into launch-block loads (§5.2).
 
 ## Verifying
 
@@ -60,32 +88,33 @@ The checks are complementary:
   encoding is ambiguous or the tables are inconsistent. 64 operand sets per
   instruction by default; `-trials`, `-seed` and `-v` are available.
 
-Current state: **0 errors, 0 invariant-8 deviations, 4160/4160 round trips
-clean** across 25 compressed, 36 32-bit and 4 48-bit instructions. The three Format B′/B″
-deviations this description originally surfaced were genuine and are fixed in ISA
-v1.4 (O-22); the spec and this description now agree, and `verify.sh` is what
-proves it.
+Current state: **0 errors, 0 invariant-8 deviations, 13376/13376 round trips
+clean** across 209 instructions. The three Format B′/B″ deviations this
+description originally surfaced were genuine and are fixed in ISA v1.4 (O-22);
+the spec and this description now agree, and `verify.sh` is what proves it.
 
 ## Coverage
 
-65 instructions, at least one per format, plus everything the §5.5 worked
-prologue needs. This is deliberately not full opcode-map coverage: the goal is
-to exercise every *encoding shape*, since that is what the checks test. Opcode
-points not fixed by the spec are marked `ASSIGNED` in `CCGInstrInfo.td`.
+209 instructions, at least one per format and per predicated tier. This is still
+not full opcode-map coverage — §4's conversion matrix and most of the SFU range
+exist in the spec and not here — but every *encoding shape* is exercised, which
+is what the checks test. Opcode points not fixed by the spec are marked
+`ASSIGNED` in `CCGInstrInfo.td`.
 
 ## Not here yet
 
-- **No asm parser.** `ccg-roundtrip` drives `MCInst`s programmatically rather
-  than parsing text, so `-gen-asm-matcher` is not yet wired up. Programmatic
-  round-tripping is the stronger ISA check — 64 randomized operand sets per
-  instruction cover far more of the encoding space than hand-written assembly
-  would — but text assembly is still wanted, and is the next MC increment.
-- **No object emission.** No `MCAsmBackend`, no ELF writer, no streamer. Nothing
-  needs them until there is codegen to emit.
-- **No instruction selection.** Step 3.
+- **No MC asm parser.** `ccg-roundtrip` drives `MCInst`s programmatically rather
+  than parsing text, so `-gen-asm-matcher` is not wired up. `tools/ccg-as.py` is
+  a minimal assembler driven from the same TableGen JSON, and `verify.sh` checks
+  it against the generated encoder — two independent encoders agreeing. A real
+  parser is still wanted; nothing is blocked on it.
 - **`chwidth`=4 has no value type.** LLVM has no `v32i4` MVT, so `GPR` carries
   `v32i32`/`v32i16`/`v32i8` only. Deferred; it affects nothing until 4-bit
   kernels exist.
-- **R16–R31 are defined but unallocatable.** Not an oversight — see roadmap
-  F-12. A 32-GPR machine is a different encoding, not a subtarget flag, so
-  `GPR` cannot simply be widened here.
+- **No `chwidth` insertion pass.** The F-3 pass, and the one piece of Step 6 not
+  started. `chwidth`/`chwidth.multi` are encodable and nothing emits them.
+- **No scheduler.** `mayLoad`/`mayStore` are set correctly (F-50) so one could be
+  enabled, but none is, and the dynamic counts assume in-order issue.
+- **32 GPRs are gone, not disabled.** `GPRC` and R16–R31 were removed outright
+  when O-25 settled the count at 16 — a 32-GPR machine is a different encoding,
+  not a subtarget flag. See roadmap F-12.

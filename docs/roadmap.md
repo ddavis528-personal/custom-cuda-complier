@@ -256,12 +256,13 @@ Format G point, 1 Format B point. No new formats, no moved fields, nothing above
 | F-10 `packi` partial writes | preserve + `packi.z` | `predicate-transfer.md` |
 | F-11 address width | `(rbase << 16) + roffset`, 64 bits only in the AGU | `address-model.md` |
 
-**Exit criterion: met.** All of it is folded into
-`isa-v1.3-operation-map-and-encoding.md`, which is now the encoding ground truth;
-v1.2 is kept for the decision trail. The launch-block byte layout remains an ABI
+**Exit criterion: met.** All of it was folded into ISA v1.3, which superseded
+v1.2 as the encoding ground truth at the time. The current spec is
+`isa-v1.5-operation-map-and-encoding.md`; every revision before it is kept for
+the decision trail. The launch-block byte layout remains an ABI
 document to be written, and blocks nothing.
 
-### Step 1 — Machine description and MC layer *(in progress)*
+### Step 1 — Machine description and MC layer *(complete)*
 
 **Done:** TableGen target description (`llvm/CCG/`), generating cleanly through
 `-gen-register-info`, `-gen-instr-info`, `-gen-emitter`, `-gen-disassembler` and
@@ -370,21 +371,29 @@ body is skipped, so the group count drops. Inactive lanes are checked to be
 **Deliberately not done:** unsigned and FP compares (F-24), calls (F-21, F-22),
 `i32`/`f32` bitcasts, inline asm. Each is diagnosed rather than miscompiled.
 
-### Step 4 — Reduction kernel
+### Step 4 — Reduction kernel *(complete)*
 
-Adds control flow, Format G shuffles, barriers, predication, and `reconv.hint`
-emission. First real exercise of the predicate file — where F-2 gets tested
+Added control flow, Format G shuffles, barriers, predication, and `reconv.hint`
+emission. First real exercise of the predicate file — where F-2 got tested
 against practice rather than argument.
 
-**Produces:** first data on predicate pressure; real `reconv.hint` placement,
-which opens the O-4 join-PC question.
+**Produced:** predicate pressure of 1–2 of 4 across every kernel written since,
+which is what made O-33's unconditional reservation of P3 affordable. F-2's
+spill path exists and is exercised by O-30 rather than by this step, because the
+reduction never needed it. `tools/check-relaxation.py` and the barrier tests in
+`tools/run-tests.sh` are this step's regression surface.
 
-### Step 5 — GEMM tile
+### Step 5 — GEMM tile *(complete)*
 
-Adds shared memory, Format J accumulate, and serious register pressure.
+Added shared memory, Format J accumulate, and serious register pressure.
 
-**Produces:** the spill data that decides 16 vs. 32 GPRs, and the destructive-form
-hit rate for O-8.
+**Produced:** `tools/sweep-tiles.sh` and the table in `docs/benchmarks.md` §3.
+`sp/fma` bottoms out at the 2×4 tile and rises again at 4×4, so 16 GPRs put the
+practical ceiling at 2×4 — which is what §1 guessed before there was anything to
+measure. Format K hit rate is 13–22% and falls as pressure rises, so O-29's
+proposed allocation bias would pay least where code size matters most. Getting
+here also produced F-46 (no spill path at all — the backend could not compile a
+GEMM at any tile size) and F-47.
 
 **The GPR count is no longer the question.** Settled at 16 (v1.5 O-25), so this
 step is not a 16-vs-32 experiment. What it measures instead:
@@ -410,14 +419,21 @@ independent argument in the same direction. The experiment should report spill
 counts *and* width-transition counts, so both arguments are measured rather than
 only the first.
 
-### Step 6 — `chwidth` mode insertion, elementwise at varying width
+### Step 6 — `chwidth` mode insertion, elementwise at varying width *(in progress)*
 
 The F-3 pass. Last because it is the largest single piece of non-standard
-backend work and because it benefits from having three working kernels to
-regress against.
+backend work and because it benefits from having working kernels to regress
+against.
 
 **Produces:** width-transition frequency and `chwidth.multi` hoisting
 effectiveness — data on whether the O-6 multi-register form earns its format.
+
+**Not started yet.** The step has so far been spent on work the benchmarks
+surfaced rather than on `chwidth`: O-31 (division), O-32 (Format C″), O-33
+(lane-0 masking) and the F-57 metric fix. That is a deliberate reordering — each
+came from a measurement rather than from the plan — but the `chwidth` pass this
+step is named for has not been written, and F-3 remains argued rather than
+tested.
 
 ---
 
@@ -432,9 +448,9 @@ answered. Update as items resolve.
 | F-1b kernel parameter passing | Step 0 | **resolved — launch block; pointer arg = two 32-bit slots** |
 | F-1c entry register state / ABI | — | **resolved — fixed address + Format F materialization; entry state stays undefined** |
 | F-11 address width | Step 0 | **resolved — `(rbase << 16) + roffset`, 64 bits only in the AGU** |
-| F-2 predicate spill path / `unballot` (O-14) | Step 0 | **open — proposal in `proposals/predicate-transfer.md`; blocks Step 4** |
-| F-8 predicated write to a predicate destination — preserve or clear? | Step 0 | **open — preserve recommended, see proposal §7–8; blocks if-conversion** |
-| F-10 `packi` partial-write semantics — preserve + `packi.z` variant | Step 0 | **open — see proposal §6** |
+| F-2 predicate spill path / `unballot` (O-14) | Step 0 | **resolved — `ld.pred`/`st.pred` at Format D opcodes `01000`–`01011` (global and shared, 4-bit mask) and `unballot` at Format G point 9; both in `CCGInstrInfo.td`, and O-30 spills predicates through them. Row said "open, blocks Step 4" until the 2026-09-14 audit, two steps after Step 4 shipped** |
+| F-8 predicated write to a predicate destination — preserve or clear? | Step 0 | **resolved — preserve, and generalized: invariant 10 says a partial write preserves what it does not write, at all three sites that ask (predicated GPR write, predicated predicate write, `packi`). Clearing is a separate opcode where it is wanted, never a change of rule** |
+| F-10 `packi` partial-write semantics — preserve + `packi.z` variant | Step 0 | **resolved — preserve (invariant 10), with `packi.z` at its own Format B opcode point for the clearing semantic. §3 carries both** |
 | F-9 Format D carries two contradictory opcode maps (editorial) | — | resolved in v1.3 |
 | F-12 32 GPRs is an encoding fork, not a subtarget flag | — | **closed — 16 settled in v1.5 O-25.** `GPRC` and R16–R31 removed from the machine description; one encoding path, two allocator objectives not three |
 | F-17 §5.5 figures were wrong (23 not 22 instructions, 27.1 not 28.4 b/instr, 8 not ~10 live) | — | fixed in v1.4; `tools/check-listings.py` now re-derives them |
@@ -478,7 +494,6 @@ answered. Update as items resolve.
 | F-34 TableGen re-ran only for four of the seven `.td` files | Step 3 | **resolved — `CCGInstrPatterns.td` and `CCGCallingConv.td` were missing from CMake's `DEPENDS`, so pattern edits silently reused stale tables and TableGen's errors never reached the build log. Now globbed; `verify.sh` also runs `gen-dag-isel` and `gen-callingconv`, which it never did** |
 | F-26 No branch-analysis hooks, so fall-through edges became real branches | Step 3 | resolved — `analyzeBranch`/`removeBranch`/`insertBranch`/`reverseBranchCondition`; the kernel went from 18 instructions to 17, matching §5.6 exactly |
 | F-27 Unaligned pointer addressing is not implemented | Step 3 | **resolved — `matchBaseIdx` folds `roffset + (i << scale)` into one index register with scale-enable clear, trading O-7's scaling for the fourth addend. §5.5 is now generated from codegen, so O-23's "both shapes supported" is fact** |
-| F-29 No compressed-form (Format K) selection path | Step 4 | **open — nothing in the backend tries to land `rd == rs0`. Two of three three-operand ALU ops in §5.5 satisfy it by accident and one does not, costing 16 bits on a 656-bit kernel. Matters in proportion to ALU density, so a GEMM inner loop is the measurement. Blocks O-8 instrumentation, which also does not exist** |
 | F-28 `bra.short` (Format K, ±256 B) has no selection pattern | Step 4 | **resolved — not a pattern question: whether a branch fits is a property of the final layout, so the selector always emits the 16-bit form and `CCGAsmBackend` relaxes it to Format E's `bra` when it cannot reach. Neither direction shows in the `.s`, which prints `bra.short` either way, so `check-relaxation.py` asserts both against the objects. Teaching only the selector would have silently reintroduced F-26: `analyzeBranch` recognised one opcode as an unconditional branch, and the dead fall-through came straight back** |
 | F-29 No compressed-form (Format K) selection path | Step 4 | **resolved — `CCGCompress` compresses what already satisfies `rd == rs0` and never inserts a copy to create it; O-29 records why the other half is deliberately left open. O-8 instrumentation now exists (`-ccg-compress-stats`): 2 of 3 on §5.5, 0 of 1 on the reduction, and 0 candidates on §5.6 because alignment already removed them. Too few to be a rate — Step 5's GEMM is where it means something** |
 | F-25 Branch relocations | Step 3 | resolved — three fixup kinds; `bra.pred`'s split field scattered in `applyFixup` |

@@ -1,6 +1,6 @@
 # Compiler Backend — Design Context
 
-**Companion to:** `isa-v1.2-operation-map-and-encoding.md`
+**Companion to:** `isa-v1.5-operation-map-and-encoding.md`
 **Purpose:** Carries project context that the ISA spec doesn't capture — target
 strategy, priorities, and the open items that specifically depend on compiler output.
 Read this alongside the ISA spec, not instead of it; the spec is ground truth for
@@ -62,48 +62,67 @@ them through the pipeline end-to-end over broadening kernel coverage.
 
 ## 4. Open items where compiler output is the blocker
 
-These are pulled from the ISA spec's §7/§10 open items, filtered to the ones
+These are pulled from the ISA spec's §10/§11 open items, filtered to the ones
 where compiler/backend behavior — not RTL or hardware design — is the missing
 input. Backend work should be structured to produce this data as a side effect
 of getting kernels through the pipeline, not as a separate measurement exercise.
 
-- **O-8 — Compressed-form density.** Format J requires `rs2 == rd`; Format K's
-  reg-reg range requires `rd == rs0`. Both are natural in accumulation/in-place
-  code, unnatural elsewhere. Fallback (compressed `mov` + compressed op) is
-  break-even, so there's no downside risk — but actual density win is unknown
-  until the register allocator exists. **Action:** make destructive-form
-  preference an explicit register allocator objective, not an accidental
-  outcome, and instrument the backend to report how often it fires.
-- **O-9 — Compressed load/store zero-offset assumption.** Format K points 24–27
-  assume a fully-precomputed base address. If real kernels want a small nonzero
-  offset often, a 2-bit scaled displacement would be a better use of the opcode
-  range than four separate address-space points. **Action:** track offset
-  distribution on compressed-eligible loads/stores once codegen exists.
-- **GPR count (16 vs. 32)** and **predicate count (4)** — both provisional,
-  pending spill data. **Action:** spill/reload frequency from the register
-  allocator on representative kernels. Per the ISA doc's carried-forward note:
-  if spill data comes back ambiguous, the prospect of later wanting span/MMA
-  register-group operands tips the decision toward 32 GPRs — factor this into
-  how the allocator experiment is framed, not just raw spill counts.
-- **Reconvergence hint placement (O-4 residual risk)** — `reconv.hint` is
-  already specified and emitted-but-inert in Phase 1. The residual question
-  (whether the hint eventually needs to be paired with its branch via a join-PC
-  reference on `bra.pred`) is a compiler-experimentation question that can be
-  answered before Phase 2 hardware exists. **Action:** once `reconv.hint` is
-  being emitted at real reconvergence points, check whether join-PC pairing
-  would meaningfully help a plausible Phase 2 scheduler design, before treating
-  the current operand shape as final.
-- **O-14 — `unballot` (GPR mask → predicate).** Not added to the ISA yet;
-  explicitly deferred pending workload evidence. **Action:** if backend/kernel
-  work produces a case where a computed (non-constant) lane mask needs to
-  become a predicate, that's the trigger to revisit — flag it rather than
-  working around it silently.
+**Status as of the v1.5 review.** Every item in this section that compiler output
+could answer has been answered; what remains is listed at the end. The answers
+live in the spec's §9 and in `docs/roadmap.md` Part 3 — this section records what
+the question was and what the data said.
+
+- **O-8 — Compressed-form density.** *Answered, and the answer was "not yet
+  worth buying."* `-ccg-compress-stats` reports the hit rate: 2 of 3 candidates
+  on §5.5, 0 of 1 on the reduction, and 13–22% across the GEMM tile sweep,
+  **falling as register pressure rises** — the allocator lands `rd == rs0` less
+  often when it has less freedom. So making destructive-form preference an
+  explicit allocator objective would pay least exactly where code size matters
+  most. O-29 records the decision: take what is free, do not buy the rest yet.
+- **O-9 — Compressed load/store zero-offset assumption.** *Still open, and still
+  for want of data.* Nothing in the benchmark set makes compressed-eligible
+  loads with small nonzero offsets common enough to judge. Carried in §11 of the
+  spec.
+- **GPR count (16 vs. 32)** — *settled at 16 (O-25), and not by the spill data.*
+  The widening does not survive the encoding: at 5-bit register fields Format J
+  overruns 16 bits by three and Format A″ falls to a 1-bit opcode, so the
+  compressed forms cannot address 32 registers and §6's density argument goes
+  with them. The span/MMA tipping argument below is therefore moot — it was an
+  argument about which way to resolve ambiguity, and there was no ambiguity to
+  resolve. The GEMM sweep independently put the practical tile ceiling at 2×4,
+  which is what §1 had guessed.
+- **Predicate count (4)** — *still provisional, now with data.* Measured pressure
+  is 1–2 of 4 across every kernel written, which is what made O-33's
+  unconditional reservation of P3 affordable. A performance parameter, not a
+  structural ceiling, since O-19 made the file spillable.
+- **Reconvergence hint placement (O-4 residual risk)** — *still open.*
+  `reconv.hint` is emitted and inert. The simulator confirms the property it
+  exists to help: under divergence the issue mask narrows and returns to
+  `ffffffff` at `exit` with no bracket instruction and no mask stack. Whether
+  join-PC pairing would help a real scheduler is still a Phase 2 question.
+- **O-14 — `unballot` (GPR mask → predicate).** *Resolved — added in v1.3*, at
+  Format G point 9, and defined in `CCGInstrInfo.td`. The trigger this item
+  described (a computed lane mask needing to become a predicate) arrived with
+  predicate spilling, which O-19/O-30 route through `ld.pred`/`st.pred`.
+
+**What compiler output has not yet answered**, and is the live list:
+
+- **F-59** — §4's conversion scheme has no encoding for an integer source, so
+  `cvt.f32.u32` has no slot in the spec's own scheme. Blocks F-56.
+- **F-58** — `sel` spends the predicate qualifier field on data, so no `select`
+  can be masked to lane 0. Larger than F-56 and with no cheap encoding fix.
+- **F-52** — whether a warp-uniform register file or the cheaper uniform-operand
+  encoding bit is worth it. O-33 bought the energy half of this; the issue-slot
+  half needs one of the two.
+- **F-3 / `chwidth`** — the mode-insertion pass is the one piece of Step 6 not
+  started, so width-transition frequency and `chwidth.multi` hoisting
+  effectiveness are still argued rather than measured.
 
 ---
 
 ## 5. Architecture context carried from earlier planning conversations
 
-The ISA spec (`isa-v1.2-...md`) records *what* was settled. This section records
+The ISA spec (`isa-v1.5-...md`) records *what* was settled. This section records
 *why*, pulled from the planning conversations that preceded the encoding work.
 Useful for the backend because several of these reasons directly bound on
 codegen and register-allocation decisions, not just RTL.
@@ -252,6 +271,6 @@ spec discussion, not something to route around in codegen.
   on disk for Claude Code to reference directly.
 - Update §4 as open items get resolved or new ones surface from backend work —
   this file should track compiler-relevant decisions the way the ISA spec's
-  §8 decision log tracks encoding decisions.
+  §9 decision log tracks encoding decisions.
 - This file assumes familiarity with the ISA spec; it doesn't restate encoding
   details, only the context around why the backend is being built this way.

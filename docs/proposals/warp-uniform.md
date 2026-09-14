@@ -1,6 +1,6 @@
 # Warp-uniform execution: three designs, and what the measurement says
 
-**Status:** open, for decision. Measured with `ccg-llc -ccg-uniformity-stats`
+**Status:** PARTLY RESOLVED — option B (mask to lane 0 and broadcast) was adopted as O-33 and is on by default; it takes the energy of redundant execution and not the issue slots. **Option C, the uniform-operand encoding bit, is still open** and is the cheaper of the two remaining shapes — F-52. O-33 also measured what masking cannot reach, which produced F-58: `sel` spends the predicate qualifier field on data, so no `select` can be masked, and that is a larger block than the opcode-range one. Measured with `ccg-llc -ccg-uniformity-stats`. Measured with `ccg-llc -ccg-uniformity-stats`
 (O-25's warp-invariance reporting, finally implemented) and
 `ccg-sim -counters`.
 **Touches:** O-25, §1's "one live risk", F-52.

@@ -1,6 +1,6 @@
 # Proposal — Predicate Transfer and Predicate Logic
 
-**Status:** proposal, not settled. Addresses F-2 in `../roadmap.md`.
+**Status:** RESOLVED — adopted as O-19 and O-20. `ld.pred`/`st.pred` are Format D opcodes `01000`–`01011` (global and shared, 4-bit mask), `pand`/`por`/`pxor`/`pmov` are Format K points, and `unballot` is Format G point 9; all are in `CCGInstrInfo.td`, and O-30 spills predicates through them. F-2 in `../roadmap.md` is closed. This document records the argument, not the current state.
 **Scope:** closes the predicate spill/reload hole, and the two adjacent gaps that
 turned up while designing it.
 

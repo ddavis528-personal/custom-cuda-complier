@@ -28,14 +28,23 @@ per lane (§1). A predicate is 32 bits, one per lane, at every `chwidth`
 microarchitectural. This answers "does it compute the right answer," which is
 what Step 1 could not.
 
+**Lane gating is counted, not simulated.** `-counters` reports lane-activations
+separately from lane-instructions, which is the number O-33 exists to move. It
+is an accounting of what the predicate masks say, not a claim about what the RTL
+will do — see O-33 for the hardware property it assumes.
+
 ## Coverage
 
-Enough for `test/elementwise.s`, plus a margin: Formats A, B, C, D, F, J and K
-as listed in `Interp.cpp`. An instruction without semantics stops the run and
-names itself rather than silently doing nothing.
+Formats A/A′, B/B′, C/C′/C″, D/D′, E, F, G, I, J and K, as listed in
+`Interp.cpp`: integer and FP ALU with their predicated twins, the full compare
+family across all four encodings, global and shared memory in both addressing
+modes, barriers, `shfl.idx`, `srd`, conversions and the SFU points O-31 added.
+An instruction without semantics stops the run and names itself rather than
+silently doing nothing.
 
-Not yet implemented: shared memory, barriers, atomics, warp shuffles, and the
-narrow-`chwidth` paths. These arrive with the reduction and GEMM kernels.
+**Not implemented:** atomics (Format M), `chwidth` and the narrow-width paths,
+`packi`/`unpacki`, `dp4`/`dp8`, and `call`/`ret`. None is reachable from any
+kernel that compiles today.
 
 ## Running
 
@@ -46,5 +55,12 @@ build/ccg-sim kernel.bin -poke 0x20000=32 -peek 0x50000 -trace
 
 `-poke addr=value` seeds memory before the run and `-peek addr` reads it after;
 both take hex or decimal. `-trace` prints the issue mask and disassembly of each
-group, which is the quickest way to see divergence. `tools/run-tests.sh` drives
-the whole thing and checks results.
+group, which is the quickest way to see divergence.
+
+`-counters` reports issue groups, lane-instructions, lane-activations, per-thread
+work, SIMT efficiency, dynamic bits per instruction, and a breakdown by class
+with spill traffic separated. It is named `-counters` rather than `-stats`
+because LLVM's own `-stats` option is already in the namespace.
+
+`tools/run-tests.sh` drives the whole thing and checks results; `tools/bench.py`
+and `tools/sweep-tiles.sh` use the counters.

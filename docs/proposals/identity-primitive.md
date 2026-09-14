@@ -1,6 +1,6 @@
 # Proposal — `srd`, the Identity Primitive (F-1a)
 
-**Status:** proposal. Last open ISA question before Step 1.
+**Status:** RESOLVED — `srd rd, #sel` is Format K point 28 with a 4-bit selector, specified in §3 and §5.3 and defined in `CCGInstrInfo.td`. Selectors 0 (`%ctatid`) and 1 (`%ctaid`) are allocated; everything else a kernel needs comes from the launch block. This document records the argument, not the current state.
 **Depends on:** `launch-abi.md` (which values the block can carry),
 `address-model.md` (S = 16, settled).
 

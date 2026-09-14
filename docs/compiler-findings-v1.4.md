@@ -1,10 +1,16 @@
-# Compiler-side findings — summary for the ISA design track
+# Compiler-side findings — the v1.4 review
 
-**Covers:** everything since the v1.4 review. Written for the architecture side,
-so it is organised by what the compiler work found about the ISA, not by what was
-built.
+> **Historical.** This is the report written at the v1.4 review and it is kept
+> as written, at that point in time. Several things in it have since changed —
+> §3's manufactured compare predicate was removed by O-32, and the "open items
+> are down to four" count is a v1.4 count. The current report is
+> [`compiler-findings-v1.5.md`](compiler-findings-v1.5.md).
 
-**Current spec:** `isa-v1.4-operation-map-and-encoding.md`.
+**Covers:** everything since the v1.3 review, up to v1.4. Written for the
+architecture side, so it is organised by what the compiler work found about the
+ISA, not by what was built.
+
+**Spec at the time:** `isa-v1.4-operation-map-and-encoding.md`.
 
 ---
 

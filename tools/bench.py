@@ -192,10 +192,18 @@ def dynamic(src, tmp, kernel):
         return {"error": (r.stderr.strip().splitlines() or ["ran off"])[0][:50]}
     pt = re.search(r"per thread\s+([0-9.]+)", r.stdout)
     ef = re.search(r"SIMT efficiency\s+([0-9.]+)", r.stdout)
+    # O-33 trades instructions for energy: masking ADDS a broadcast and removes
+    # 31 lane-activations. A table with only an instruction column therefore
+    # shows the cost and hides the win, which is how transpose grew from 78 to
+    # 84 instructions here with nothing to explain it.
+    la = re.search(r"lane-activations\s+(\d+)", r.stdout)
+    li = re.search(r"lane-instructions\s+(\d+)", r.stdout)
     if not pt:
         return None
     return {"per_thread": float(pt.group(1)),
-            "simt": float(ef.group(1)) if ef else 0.0}
+            "simt": float(ef.group(1)) if ef else 0.0,
+            "lane_act": int(la.group(1)) if la else 0,
+            "lane_instr": int(li.group(1)) if li else 0}
 
 def main():
     rows = []
@@ -245,19 +253,24 @@ def main():
     print()
     print("  DYNAMIC -- instructions actually issued, per thread of work.")
     print()
-    print(f"  {'kernel':<10} {'CCG':>8} {'SIMT':>6}   {'AMDGCN':>8}   how AMDGCN was obtained")
-    print("  " + "-" * 76)
+    print(f"  {'kernel':<10} {'CCG':>8} {'SIMT':>6}   {'AMDGCN':>8} | "
+          f"{'lane-act':>9} {'of issued':>10}   how AMDGCN was obtained")
+    print("  " + "-" * 94)
     for r in rows:
         d, g = r["dyn"], r["amdgcn"]
         mine = dcell(d, "per_thread")
         simt = dcell(d, "simt")
         if g and "loops" in g and g["loops"] == 0:
-            gd, how = str(g["instrs"]), "exact: no backward branch, so static = dynamic"
+            gd, how = str(g["instrs"]), "exact: no backward branch"
         elif g and "loops" in g:
-            gd, how = "--", f"has {g['loops']} loops -- static says nothing; not modelled"
+            gd, how = "--", f"has {g['loops']} loops; not modelled"
         else:
             gd, how = "--", "did not build"
-        print(f"  {r['kernel']:<10} {mine:>8} {simt:>6}   {gd:>8}   {how}")
+        act = f"{d['lane_act']}" if d and d.get("lane_instr") else "--"
+        frac = (f"{100.0 * d['lane_act'] / d['lane_instr']:.0f}%"
+                if d and d.get("lane_instr") else "--")
+        print(f"  {r['kernel']:<10} {mine:>8} {simt:>6}   {gd:>8} | "
+              f"{act:>9} {frac:>10}   {how}")
 
     for r in rows:
         for name, d in (("ccg", r["ccg"]), ("amdgcn", r["amdgcn"])):
@@ -276,6 +289,15 @@ def main():
     print("  a CCG warp half-fills theirs. Comparing occupancy needs the same block")
     print("  size expressed in each machine's own warp width, which these kernels do")
     print("  not hold fixed.")
+    print()
+    print("  LANE-ACT is the energy number (O-33), and it is the ONLY column that")
+    print("  moves in the right direction when lane-0 masking fires: masking adds a")
+    print("  broadcast instruction and removes 31 lane-activations, so an instruction")
+    print("  count alone reports the cost and hides the win. `of issued` is")
+    print("  lane-activations over lane-instructions -- the share of issued lane slots")
+    print("  that actually did work. It has no AMDGCN counterpart here: gfx900 gates")
+    print("  on an exec mask this project does not model, so there is nothing honest")
+    print("  to put in a comparison column.")
     print()
     print("  PTX is a VIRTUAL ISA. Task complexity, NOT density -- ptxas expands,")
     print("  schedules and re-allocates it before anything executes.")

@@ -54,26 +54,26 @@ questions and only one of them can be measured on both machines.
 **Static — code size. Every column is a measurement.**
 
 ```
-  kernel     |     CCG unaligned     |  CCG aligned   |     AMDGCN gfx900     |  PTX
+  kernel     |     CCG unaligned     |  CCG aligned   |     AMDGCN gfx900     |  PTX  
              |  instr  bytes    b/i |  instr  bytes |  instr  bytes    b/i |  instr
   --------------------------------------------------------------------------------
   vadd       |     23     78   27.1 |     16     56 |     29    152   41.9 |     21
   saxpy      |     22     74   26.9 |     17     58 |     25    136   43.5 |     19
   dot        |     56    182   26.0 |     48    156 |     60    300   40.0 |     46
   reduce     |     51    166   26.0 |     45    146 |     54    268   39.7 |     41
-  transpose  |     78    284   29.1 |     72    264 |     64    308   38.5 |     43
+  transpose  |     84    316   30.1 |     76    286 |     64    308   38.5 |     43
 ```
 
 **Dynamic — instructions actually issued, per thread of work.**
 
 ```
-  kernel          CCG   SIMT     AMDGCN   how AMDGCN was obtained
-  ----------------------------------------------------------------------------
-  vadd           16.0   100%         29   exact: no backward branch
-  saxpy          17.0   100%         25   exact: no backward branch
-  dot            78.9    64%         --   has 3 loops; not modelled
-  reduce         75.9    63%         --   has 3 loops; not modelled
-  transpose      72.0   100%         64   exact: no backward branch
+  kernel          CCG   SIMT     AMDGCN |  lane-act  of issued   how AMDGCN was obtained
+  ----------------------------------------------------------------------------------------------
+  vadd           16.0   100%         29 |       512       100%   exact: no backward branch
+  saxpy          17.0   100%         25 |       544       100%   exact: no backward branch
+  dot            78.9    64%         -- |      2526       100%   has 3 loops; not modelled
+  reduce         75.9    63%         -- |      2430       100%   has 3 loops; not modelled
+  transpose      76.0   100%         64 |      1809        74%   exact: no backward branch
 ```
 
 **CCG's dynamic column is measured** on the simulator — lane-instructions
@@ -98,17 +98,24 @@ This is the headline and it holds across every kernel: **CCG encodes at roughly
 ### The control that matters: instruction counts are comparable
 
 A denser encoding that needs twice the instructions has gained nothing. The
-counts are within 30% everywhere and CCG is *lower* on two kernels:
+counts are within 30% everywhere and CCG is *lower* on four of five:
 
 | | vadd | saxpy | dot | reduce | transpose |
 |---|---|---|---|---|---|
-| CCG | 23 | 22 | 56 | 51 | 78 |
+| CCG | 23 | 22 | 56 | 51 | 84 |
 | GCN | 29 | 25 | 60 | 54 | 64 |
 
-So the density is not bought with instruction count, and **code size lands
-below GCN on every kernel** — 174 against 268 bytes on the reduction, 294
-against 308 on the transpose. With the alignment attribute `vadd` is 58 bytes
-against 152, which is 2.6×.
+So the density is not bought with instruction count. **Code size lands below
+GCN on four of five kernels** — 166 against 268 bytes on the reduction, and
+with the alignment attribute `vadd` is 56 bytes against 152, which is 2.7×.
+
+**`transpose` is the exception, and it became one deliberately.** After O-31 it
+was 294 bytes against GCN's 308 — below, and an earlier version of this document
+said "below GCN on every kernel" on the strength of it. O-33 then added lane-0
+masking, which costs a broadcast instruction wherever it fires, and `transpose`
+grew to 84 instructions and 316 bytes. That is a **regression in the column this
+section is about** and a 26% cut in the one the next section is about, taken
+knowingly: see below.
 
 Two structural reasons, both from the design record rather than discovered here:
 GCN carries 64-bit pointers in register pairs where invariant 11 keeps addresses
@@ -128,22 +135,59 @@ the tree structure idling half the lanes each round.
 32-iteration loop; the static number understated the real cost by roughly three
 times, and a benchmark reporting only static size called a 9× problem a 2× one.
 
+### Lane-activations: the column O-33 exists to move
+
+An instruction count cannot see lane-0 masking at all. Masking a warp-uniform
+instruction to one lane costs an extra broadcast *instruction* and saves 31 lane
+*activations*, so a table with only an instruction column reports the price and
+hides the goods. That is exactly what happened to `transpose` above.
+
+The `lane-act` column is the measurement, from `ccg-sim -counters`:
+
+| | issued lane slots | activations | share |
+|---|---|---|---|
+| `transpose`, masking off | 2304 | 2304 | 100% |
+| `transpose`, masking on | 2432 | **1809** | **74%** |
+
+128 more lane slots issued — four broadcast instructions across 32 lanes — and
+495 fewer lanes actually switched, a 21.5% cut. Whether that
+is a win is a hardware question, not a compiler one, and O-33 records the answer
+it assumes: **a predicated-off lane must not toggle its ALU operands, its
+register-file write port, or its result bus.** If the RTL does not deliver that,
+this column is fiction and the instruction-count regression is all that is real.
+
+The other four kernels read 100% because the pass declined to mask them — every
+uniform value is consumed immediately by divergent work, so each masked
+instruction would need its own broadcast and the trade is a wash. That is the
+cost model working, not the pass failing.
+
 ### Where CCG still loses: `transpose`, and it is instructive
 
-77 instructions issued against 64 — the only kernel where CCG issues more. Two
+76 instructions issued against 64 — the only kernel where CCG issues more. Two
 causes, both structural rather than accidental:
 
 **AMD does the division on the scalar unit.** The divisor is warp-uniform (it
 depends on `blockIdx` and `n`), so their sequence is `s_mul_i32`, `s_sub_i32`,
 `s_cselect_b32` — one instruction per operation *for the whole wavefront*. CCG
-computes the same division redundantly in all 32 lanes. The instruction counts
-above understate this: their scalar instruction is a fraction of the energy and
-issue bandwidth of a 64-lane vector one.
+issues it to all 32 lanes and, since O-33, activates only one of them for the
+part of the sequence that can be masked. That closes the energy gap partway and
+none of the issue-bandwidth gap: a scalar unit does not issue to the vector
+pipe at all.
 
-This is the first hard evidence for the **warp-uniform register file** that §1
-names as the response if GEMM register pressure comes back bad (O-25). It was
-argued there from register-file size; here it shows up as redundant *execution*.
-See F-52.
+O-33 also measured how much of that sequence is out of reach, and the answer
+reframed F-52. Of `transpose`'s warp-uniform instructions, 10 cannot be masked
+because `sel` spends the predicate field on data (F-58), 3 because §4 puts
+conversions and the SFU above Format A′'s 7-bit opcode (F-56), and 2 for reasons
+with no fix (a 16-bit `srd`, a barrier). **The largest block is the contended
+qualifier field, not the opcode range** — and those ten are the division's own
+correction steps. A warp-uniform register file would sidestep all of it, which
+is the case O-25 made from register-file size and F-52 now makes from redundant
+execution.
+
+An earlier version of this section said "77 instructions issued against 64"
+while the table two screens up said 72. Both were stale, and nothing noticed
+until this audit; `tools/check-bench-doc.py` now regenerates the tables and
+fails the gate when the document and the machine disagree.
 
 **Compares used to cost an extra instruction each** — O-24's manufactured guard
 — which was 13% of dynamically issued instructions in the reduction kernels.
@@ -153,7 +197,12 @@ single largest avoidable overhead the benchmark found:
 | | `dot` | `reduce` | `transpose` |
 |---|---|---|---|
 | dynamic, before O-32 | 91.9 | 88.9 | 77.0 |
-| after | **78.9** | **75.9** | **72.0** |
+| after O-32 | **78.9** | **75.9** | **72.0** |
+| after O-33 | 78.9 | 75.9 | 76.0 |
+
+`transpose` moves back up in the O-33 row because masking bought its saving in
+lane-activations, not instructions — see the section above. The other two are
+unchanged because the pass declined to mask them.
 
 What remains on `transpose` is the scalar-unit gap above, which is
 architectural rather than a missing encoding.
@@ -167,10 +216,11 @@ Measured on the simulator, one `udiv`:
 | shift-subtract (before) | 63 | **97.2** | loop, up to 32 iterations |
 | float reciprocal (O-31) | 35 | **32.0** | straight-line |
 
-`transpose` fell from 143 instructions and 482 bytes to 83 and 294. §4 had
-reserved the conversion and SFU opcode ranges and left them empty; filling in
-six points closed the entire gap. See O-31 for the algorithm and the one
-constant that makes it exact.
+`transpose` fell from 143 instructions and 482 bytes to 83 and 294 (84 and 316
+today, after O-33 added its broadcasts). §4 had reserved the conversion and SFU
+opcode ranges and left them empty; filling in six points closed the entire gap.
+See O-31 for the algorithm and the one constant that makes it exact — and F-56
+for the cost of having put those six points where predication cannot reach them.
 
 ---
 
@@ -181,11 +231,12 @@ tile:
 
 ```
   tile  accs    instrs     bits b/instr  spills    fma sp/fma    K-hit
-  1x1   1          173     4832    27.9      31     17   1.82      16%
-  1x2   2          256     7056    27.6      57     33   1.73      19%
-  2x2   4          370    10000    27.0      89     65   1.37      17%
-  2x4   8          629    16736    26.6     177    129   1.37      13%
-  4x4   16        1142    30096    26.4     420    257   1.63      14%
+  -------------------------------------------------------------------------
+  1x1   1          174     4896    28.1      31     17   1.82      22%
+  1x2   2          256     7104    27.8      55     33   1.67      19%
+  2x2   4          381    10368    27.2      97     65   1.49      17%
+  2x4   8          637    17088    26.8     183    129   1.42      13%
+  4x4   16        1132    29936    26.4     407    257   1.58      13%
 ```
 
 `sp/fma` — memory traffic the register file forced, per unit of arithmetic it
@@ -194,11 +245,11 @@ accumulators are the whole file and everything else spills. At 16 GPRs the
 practical ceiling is 2×4, which is what §1 guessed before there was anything to
 measure.
 
-Density holds up under pressure: 26.4–27.9 bits per instruction across a 6.6×
+Density holds up under pressure: 26.4–28.1 bits per instruction across a 6.5×
 range of kernel size.
 
 **The compressed-form hit rate stays low and drifts down under pressure** —
-19% at 1×2 down to 13–14% at the largest tiles. Register pressure and Format K compression work against each other, because
+22% at 1×1 down to 13% at the largest tiles. Register pressure and Format K compression work against each other, because
 the allocator lands `rd == rs0` less often when it has less freedom. O-29's
 proposed "bias allocation toward the tie" would therefore be worth least exactly
 where code size matters most.
