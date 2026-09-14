@@ -54,6 +54,20 @@ public:
   }
   uint8_t read8(uint64_t Addr) { return *byteAt(Addr); }
   void write8(uint64_t Addr, uint8_t V) { *byteAt(Addr) = V; }
+
+  /// §3: "Transfer size is inherited from `rdata`'s `chwidth` -- no size
+  /// field." So a load is 4, 2 or 1 bytes depending on the destination
+  /// register's current width, and the 4-bit width has no byte transfer at all.
+  uint32_t readN(uint64_t Addr, unsigned Bytes) {
+    uint32_t V = 0;
+    for (unsigned I = 0; I != Bytes; ++I)
+      V |= uint32_t(*byteAt(Addr + I)) << (8 * I);
+    return V;
+  }
+  void writeN(uint64_t Addr, uint32_t V, unsigned Bytes) {
+    for (unsigned I = 0; I != Bytes; ++I)
+      *byteAt(Addr + I) = uint8_t(V >> (8 * I));
+  }
 };
 
 /// Execution counters. Static code size is what an encoding is usually judged

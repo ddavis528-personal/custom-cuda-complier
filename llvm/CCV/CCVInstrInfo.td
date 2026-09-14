@@ -528,6 +528,7 @@ def UNBALLOT : FormatGunballot<9, (outs PR:$pd), (ins pqual:$pq, GPR:$rs0),
 // ---------------------------------------------------------------------------
 // Format I -- metadata. Subops live at different lengths (invariant 7).
 // ---------------------------------------------------------------------------
+let hasSideEffects = 1 in
 def CHWIDTH_MULTI : FormatIchw<(outs), (ins uimm16:$regmask, uimm2:$width),
                                "chwidth.multi $regmask, $width">;
 def PMOV_IMM : FormatIpmov<(outs PR:$pd), (ins uimm32:$lanemask),
@@ -606,7 +607,14 @@ let isReMaterializable = 1 in
 def SRD : FormatKsrd<28, (outs GPR:$rd), (ins srdsel:$sel), "srd $rd, $sel">;
 
 // Small-operand control ops (points 48-56).
-def C_CHWIDTH : FormatKraw<48, (outs), (ins uimm8:$payload), "chwidth $payload">;
+// §1: element width is per-logical-register STATE, not an instruction field
+// (invariant 1). These are the two instructions that set it. `chwidth`
+// reinterprets the register's existing contents and drains in-flight dependents
+// on it, so the compiler may only place one where the register is dead -- see
+// CCVInsertChwidth and F-3.
+let hasSideEffects = 1 in
+def C_CHWIDTH : FormatKchw<48, (outs), (ins GPR:$rd, uimm2:$width),
+                           "chwidth $rd, $width">;
 // §3 point 49. The payload is the 8-bit signed halfword offset, so this is a
 // branch operand rather than a raw immediate. Whether it fits is a layout
 // question, so the assembler relaxes it to Format E's `bra` when it does not.

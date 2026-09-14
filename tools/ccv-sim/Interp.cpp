@@ -42,6 +42,70 @@ static uint32_t guardMask(const Warp &W, uint32_t Q) {
   return (Q & 4) ? ~P : P;
 }
 
+/// Bits addressed at a width code: 00 = 32, 01 = 16, 10 = 8, 11 = 4 (§1).
+static unsigned widthBits(uint8_t Code) { return 32u >> Code; }
+
+/// A lane's element at the register's current width.
+///
+/// §1: "Narrow registers occupy a narrower physical slice of a row." The bits
+/// above the element are not part of the register at that width, so reading
+/// them is meaningless and writing them is not a thing the machine does. The
+/// simulator keeps a full uint32_t per lane and masks, which is the same
+/// architecture with more storage.
+/// A lane's element sign-extended to 32 bits, for the signed operations. A
+/// 16-bit -1 is 0x0000FFFF in the register and must reach a 32-bit comparator
+/// as 0xFFFFFFFF.
+static uint32_t sextTo32(uint32_t V, uint8_t Code) {
+  unsigned N = 32u >> Code;
+  if (N >= 32)
+    return V;
+  uint32_t M = 1u << (N - 1);
+  return ((V & ((1u << N) - 1)) ^ M) - M;
+}
+
+static uint32_t narrow(uint32_t V, uint8_t Code) {
+  unsigned N = widthBits(Code);
+  return N >= 32 ? V : (V & ((1u << N) - 1));
+}
+
+/// Write an element without disturbing the bits above it.
+///
+/// §1 says a narrow register "occupies a narrower physical slice of a row", so
+/// the bits above the element are not part of the register at that width --
+/// the machine does not write them, and what a later widening finds there is
+/// NOT SPECIFIED anywhere in the document. See F-65.
+///
+/// Zeroing them would be the convenient choice and would let a kernel depend on
+/// zeros the hardware never promised. Preserving them is both closer to a
+/// narrower slice of a row and adversarial in the right direction: a program
+/// that widens a narrow register and expects zeros sees the old contents
+/// instead, deterministically, and fails in the simulator rather than in
+/// silicon. Same reasoning as `rcp.u32`'s worst-case seed (O-35).
+static uint32_t writeElem(uint32_t Old, uint32_t V, uint8_t Code) {
+  unsigned N = widthBits(Code);
+  if (N >= 32)
+    return V;
+  uint32_t M = (1u << N) - 1;
+  return (Old & ~M) | (V & M);
+}
+
+/// Opcodes whose semantics below read and write their operands at the
+/// register's current width. Everything else is 32-bit-only and the guard in
+/// step() stops it rather than letting it compute the wrong thing.
+static bool isWidthAware(unsigned Op) {
+  switch (Op) {
+  case CCV::C_CHWIDTH: case CCV::CHWIDTH_MULTI:
+  case CCV::ADD: case CCV::SUB: case CCV::AND: case CCV::OR: case CCV::XOR:
+  case CCV::MIN_S: case CCV::MIN_U: case CCV::MAX_S: case CCV::MAX_U:
+  case CCV::ADDI: case CCV::LD_GLOBAL: case CCV::ST_GLOBAL:
+  case CCV::LD_SHARED: case CCV::ST_SHARED:
+  case CCV::C_MOV: case CCV::C_EXIT:
+    return true;
+  default:
+    return false;
+  }
+}
+
 static float bitsToFloat(uint32_t B) { float F; std::memcpy(&F, &B, 4); return F; }
 static uint32_t floatToBits(float F) { uint32_t B; std::memcpy(&B, &F, 4); return B; }
 
@@ -204,6 +268,26 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
         Fn(L);
   };
 
+  // ---- Width-awareness guard (F-3) --------------------------------------
+  //
+  // Element width is per-register state (invariant 1), so EVERY instruction
+  // reading a GPR has to know the width of what it is reading. Most of the
+  // semantics below were written when 32 was the only width and read a lane as
+  // a bare uint32_t.
+  //
+  // Rather than let those run and quietly produce 32-bit answers for 16-bit
+  // data, an instruction that has not been made width-aware refuses to execute
+  // when any GPR it touches is narrow. "Unimplemented" is a stop that names
+  // itself; a silent wrong answer is what this project has been bitten by
+  // repeatedly, and narrow-width arithmetic is exactly where it would not show.
+  if (!isWidthAware(Op))
+    for (unsigned I = 0, N = MI.getNumOperands(); I != N; ++I)
+      if (MI.getOperand(I).isReg()) {
+        unsigned R = regOf(MI, I);
+        if (R < kGPRs && W.ChWidth[R] != 0)
+          return {Result::Unimplemented, 0};
+      }
+
   switch (Op) {
   // ---- Format F: wide immediate, warp-uniform broadcast (§3) -------------
   case CCV::MOVI:
@@ -235,8 +319,20 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::SRA: case CCV::MIN_S: case CCV::MIN_U: case CCV::MAX_S:
   case CCV::MAX_U: case CCV::MUL_HI_S: case CCV::MUL_HI_U: {
     unsigned D = regOf(MI, 0), A = regOf(MI, 1), B = regOf(MI, 2);
+    // Operands are read AT THEIR REGISTER'S WIDTH and the result is written at
+    // the destination's. Narrowing on read rather than on write is what makes
+    // `chwidth` a reinterpretation (§3): a register narrowed after being
+    // written wide sees only its element, with no instruction in between.
+    //
+    // Signed operations still need the element sign-extended to 32 before the
+    // 32-bit helper sees it, or min.s on 16-bit data compares as unsigned.
+    uint8_t WA = W.ChWidth[A], WB = W.ChWidth[B], WD = W.ChWidth[D];
+    bool Signed = Op == CCV::MIN_S || Op == CCV::MAX_S || Op == CCV::SRA ||
+                  Op == CCV::MUL_HI_S;
     forEachLane([&](unsigned L) {
-      W.GPR[D][L] = aluRR(Op, W.GPR[A][L], W.GPR[B][L]);
+      uint32_t X = Signed ? sextTo32(W.GPR[A][L], WA) : narrow(W.GPR[A][L], WA);
+      uint32_t Y = Signed ? sextTo32(W.GPR[B][L], WB) : narrow(W.GPR[B][L], WB);
+      W.GPR[D][L] = writeElem(W.GPR[D][L], aluRR(Op, X, Y), WD);
     });
     break;
   }
@@ -342,7 +438,11 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::ADDI48: {
     unsigned D = regOf(MI, 0), A = regOf(MI, 1);
     int32_t Imm = int32_t(MI.getOperand(2).getImm());
-    forEachLane([&](unsigned L) { W.GPR[D][L] = W.GPR[A][L] + Imm; });
+    uint8_t WA = W.ChWidth[A], WD = W.ChWidth[D];
+    forEachLane([&](unsigned L) {
+      W.GPR[D][L] = writeElem(W.GPR[D][L],
+                              narrow(W.GPR[A][L], WA) + uint32_t(Imm), WD);
+    });
     break;
   }
 
@@ -413,10 +513,15 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     bool IsLoad = Op == CCV::LD_GLOBAL;
     unsigned Data = regOf(MI, 0), Base = regOf(MI, 1);
     int64_t Off = MI.getOperand(2).getImm();
+    // §3: transfer size comes from rdata's chwidth. A narrow load reads only
+    // its element's bytes, which is the whole point -- a 16-bit kernel moves
+    // half the memory traffic of a 32-bit one.
+    unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
     forEachLane([&](unsigned L) {
       uint64_t A = (uint64_t(W.GPR[Base][L]) << kBaseShift) + Off;
-      if (IsLoad) W.GPR[Data][L] = Mem.read32(A);
-      else        Mem.write32(A, W.GPR[Data][L]);
+      if (IsLoad) W.GPR[Data][L] =
+              writeElem(W.GPR[Data][L], Mem.readN(A, Bytes), W.ChWidth[Data]);
+      else        Mem.writeN(A, narrow(W.GPR[Data][L], W.ChWidth[Data]), Bytes);
     });
     break;
   }
@@ -639,6 +744,27 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       if ((G >> L) & 1)
         W.GPR[D][L] = W.GPR[A][L] * W.GPR[Bx][L] + W.GPR[C][L];
     });
+    break;
+  }
+
+  // ---- Width state (§1, invariant 1; F-3) --------------------------------
+  //
+  // These are the only instructions that change how every other instruction
+  // reads its operands. `chwidth` REINTERPRETS the register's existing contents
+  // rather than converting them -- §3 is explicit, and it is why the operation
+  // drains in-flight dependents. So the bits do not move: what changes is how
+  // many of them are the element.
+  case CCV::C_CHWIDTH: {
+    unsigned D = regOf(MI, 0);
+    W.ChWidth[D] = uint8_t(MI.getOperand(1).getImm() & 3);
+    break;
+  }
+  case CCV::CHWIDTH_MULTI: {
+    uint32_t Mask32 = uint32_t(MI.getOperand(0).getImm());
+    uint8_t Code = uint8_t(MI.getOperand(1).getImm() & 3);
+    for (unsigned R = 0; R != kGPRs; ++R)
+      if ((Mask32 >> R) & 1)
+        W.ChWidth[R] = Code;
     break;
   }
 

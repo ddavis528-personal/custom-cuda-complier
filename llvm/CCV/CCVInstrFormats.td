@@ -532,6 +532,18 @@ class FormatKbra<bits<6> opc, dag outs, dag ins, string asm>
   let Inst{15-8} = off;
 }
 
+// `chwidth rd, width` -- Format K opcode 48. §3 puts `rd` at the canonical
+// [11:8] and the 2-bit width code at [13:12]; [15:14] is reserved. It had been
+// modelled as an opaque 8-bit payload, which encodes the same bits but gives
+// the compiler nothing to allocate a register into.
+class FormatKchw<bits<6> opc, dag outs, dag ins, string asm>
+    : CCVInstK<opc, outs, ins, asm> {
+  bits<4> rd; bits<2> width;
+  let Inst{11-8}  = rd;
+  let Inst{13-12} = width;
+  let Inst{15-14} = 0;
+}
+
 class FormatKraw<bits<6> opc, dag outs, dag ins, string asm>
     : CCVInstK<opc, outs, ins, asm> {
   bits<8> payload;

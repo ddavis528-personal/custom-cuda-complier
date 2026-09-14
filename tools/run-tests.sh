@@ -75,6 +75,37 @@ echo
 echo "  --- predicate idiom (O-24) ---"
 run_remat || fail=1
 
+# --- per-register element width (F-3) --------------------------------------
+# Written in assembly because the backend cannot yet produce narrow-width code;
+# this pins the SEMANTICS the chwidth-insertion pass will be built against.
+run_chwidth() {
+  local tmp; tmp=$(mktemp -d); trap 'rm -rf "$tmp"' RETURN
+  python3 tools/ccv-as.py build/generated/CCV.json test/chwidth.s "$tmp/c.bin" \
+    >/dev/null 2>&1 || { echo "  FAIL  chwidth.s did not assemble"; return 1; }
+  local out
+  out=$(build/ccv-sim "$tmp/c.bin" -poke 0x30000=0x0003BEEF \
+        -peek 0x30010 -peek 0x30020 2>&1)
+  local narrow wide
+  narrow=$(echo "$out" | sed -n 's/.*\[0x30010\] = \([0-9]*\).*/\1/p')
+  wide=$(echo   "$out" | sed -n 's/.*\[0x30020\] = \([0-9]*\).*/\1/p')
+  # 0xBEEF + 3 = 0xBEF2, wrapped at 16 bits and stored as two bytes.
+  if [ "$narrow" != "48882" ]; then
+    echo "  FAIL  16-bit add/store gave $narrow, want 48882 (0xBEF2)"; return 1
+  fi
+  echo "  PASS  16-bit load, add and store (transfer size follows chwidth)"
+  # Widening finds the stale top half, 0xEFBE, not zeros. If this ever reads
+  # 48882 the simulator has started handing out zeros the ISA never promised.
+  if [ "$wide" != "4023238386" ]; then
+    echo "  FAIL  widened register read $wide, want 4023238386 (0xEFBEBEF2) --"
+    echo "        the bits above a narrow element must not be invented (F-65)"
+    return 1
+  fi
+  echo "  PASS  widening a narrow register exposes the stale high bits (F-65)"
+}
+echo
+echo "  --- per-register element width ---"
+run_chwidth || fail=1
+
 # --- select lowers to a predicated move, not `sel` (F-58) ------------------
 # `sel` (§4 point 19) writes all 32 lanes and spends the qualifier on the
 # selector; a predicated `mov` writes only the guarded lanes (invariant 10) and

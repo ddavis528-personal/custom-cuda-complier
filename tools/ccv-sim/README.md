@@ -42,9 +42,18 @@ modes, barriers, `shfl.idx`, `srd`, conversions and the SFU points O-31 added.
 An instruction without semantics stops the run and names itself rather than
 silently doing nothing.
 
-**Not implemented:** atomics (Format M), `chwidth` and the narrow-width paths,
-`packi`/`unpacki`, `dp4`/`dp8`, and `call`/`ret`. None is reachable from any
-kernel that compiles today.
+**`chwidth` and narrow width, partially.** `chwidth`/`chwidth.multi` set the
+state, and the integer ALU, `ADDI` and global load/store read and write their
+operands at the register's width — including transfer size, which §3 inherits
+from `rdata`'s `chwidth`. Everything else is 32-bit-only, and an instruction
+that has not been made width-aware **refuses to execute** when any GPR it
+touches is narrow rather than quietly computing a 32-bit answer for 16-bit
+data. Unimplemented is a stop that names itself; a silent wrong answer in
+narrow arithmetic is exactly what would not show up in a result comparison.
+
+**Not implemented:** atomics (Format M), `packi`/`unpacki`, `dp4`/`dp8`,
+`call`/`ret`, and the floating-point, shuffle and compare paths at narrow
+width. None is reachable from any kernel that compiles today.
 
 ## Running
 
