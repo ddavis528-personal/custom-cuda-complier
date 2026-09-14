@@ -166,10 +166,15 @@ if [ -x build/ccv-llc ]; then
   fi
 fi
 
-# --- division exactness (F-48, O-31) ---------------------------------------
+# --- division exactness (F-48, O-31, O-35) ---------------------------------
 echo
-echo "  --- float-reciprocal division ---"
+echo "  --- integer-reciprocal division ---"
 ./tools/check-div.sh 12 || fail=1
+
+# The 16-bit figure in §4's `rcp.u32` contract is a measurement, and this is the
+# measurement. It re-derives the minimum accuracy each candidate sequence needs,
+# so nobody can quietly shorten the sequence past what the hardware promises.
+python3 tools/model-rcp.py --samples 20000 || fail=1
 
 # --- lane-0 masking (O-33) -------------------------------------------------
 echo

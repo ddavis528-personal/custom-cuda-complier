@@ -1154,7 +1154,7 @@ predicate. Drain semantics belong to the operation, never to the format.
 | 48–63 | packed dot-product-accumulate | A, A′ |
 | 64–127 | conversions, `64 + 16×dest + 4×src + round` | A, A′ |
 | 128–255 | unallocated — freed by O-34, previously conversions | A only |
-| 256–1023 | unallocated — SFU and future extension | A only |
+| 256–1023 | SFU (256–263 allocated) and future extension | A only |
 
 **Everything below 128 is now allocated solid.** O-34 packed 32–127 so that
 conversions and packed dot-product could both keep a predicated encoding rather
@@ -1318,6 +1318,47 @@ rather than one of eight bases. The eight-base scheme (`cvt2fp32`, `cvt2fp16`, `
 distinguished its FP destinations **by element width**, which is an element-width field in
 the opcode and therefore a violation of invariant 1 — and it left `cvt2fp16` targeting a
 32-bit register with no defined meaning. The format-code scheme has no such case.
+
+### SFU — points 256+
+
+| pt | | pt | |
+|---|---|---|---|
+| 256 | `rcp.f32` | 260 | `lg2.f32` |
+| 257 | `rsqrt.f32` | 261 | `sin.f32` |
+| 258 | `sqrt.f32` | 262 | `cos.f32` |
+| 259 | `ex2.f32` | 263 | **`rcp.u32`** — integer reciprocal seed (O-35) |
+
+Accuracy of the floating-point set is implementation-defined and approximate, as on every
+machine that has one. `rcp.u32` is the exception: it carries a **contract**, because a
+compiler-generated sequence depends on it and cannot check it.
+
+**`rcp.u32 rd, rs`** returns an under-estimate of ⌊2³²/`rs`⌋ with 16 bits of relative
+accuracy:
+
+> ⌊2³²/`rs`⌋ · (1 − 2⁻¹⁶) ≤ `rd` ≤ ⌊2³²/`rs`⌋
+
+Both halves bind.
+
+**Relative, not absolute.** A reciprocal unit produces N correct leading bits, so the
+absolute error scales with the result and a large divisor — whose reciprocal is small — is
+cheap to get right. An absolute bound would demand that a 16-bit unit return garbage for
+`rs` = 2³¹, where the true answer is 2.
+
+**Never an over-estimate.** The Newton step that follows converges only from below: if the
+seed exceeds 2³²/d then `e·d` wraps past 2³² and the correction term becomes huge instead of
+small, pushing the estimate further out. This is the same requirement that makes O-31's fp32
+path scale by `0x4F7FFFFE` rather than by 2³²; it is now the hardware's to honour rather
+than the compiler's to engineer around.
+
+**Sixteen is measured, not chosen.** `tools/model-rcp.py` runs the full sequence against
+exact integer division over the edge cases and a large random sample, at every accuracy from
+one bit upward. Sixteen is the least that is exact — which is what one Newton step doubling
+to 32 predicts — and `tools/check-div.sh` fails on eight cases at fifteen. The simulator
+returns the **worst value the contract permits**, so the gate tests the bound rather than a
+convenient implementation.
+
+**The result for `rs` = 0 is unspecified.** Division by zero is poison at the language level
+and nothing in the sequence loops, so no behaviour needs pinning.
 
 ## 5. Execution environment and launch ABI
 
@@ -2773,6 +2814,55 @@ wrong, and the decision document was careful to say "closes for the conversion r
 be disassembled to a precise type without knowing `chwidth` at that program point — already
 true of every FP instruction in the ISA, and it inherits the same contract: mismatching
 format against contents is deterministic garbage, not a hazard.
+
+---
+
+**O-35 — `rcp.u32`, an integer reciprocal seed, because the fp32 round trip was never about
+precision.**
+
+O-31 built integer division on a floating-point reciprocal because §4 had no integer one.
+The seed costs five instructions — `cvt.f32.u32`, `rcp.f32`, a 48-bit constant, `fmul`,
+`cvt.u32.f32` — of which four exist only to cross between integer and floating point.
+
+**The fp32 format, not the unit, is what forces the Newton step.** fp32 has a 24-bit
+significand, so even a correctly-rounded `rcp.f32` leaves an error near 2⁸ once scaled to
+2³². Making the floating-point reciprocal more accurate therefore buys **nothing** in this
+sequence — a conclusion worth recording, because "improve the reciprocal" is the obvious
+first answer and it is wrong.
+
+What pays is a reciprocal that is not routed through a floating-point format at all.
+`rcp.u32` at point 263 returns the seed directly, under the contract in §4.
+
+**Measured, `tools/model-rcp.py`**, sweeping the required accuracy against exact integer
+division:
+
+| sequence | instructions | minimum accuracy |
+|---|---|---|
+| fp32 seed + Newton + 2 corrections (O-31) | **21** | — |
+| `rcp.u32` + Newton + 2 corrections | **17** | **16 bits** |
+| `rcp.u32`, no Newton, 2 corrections | 13 | 32 bits |
+| `rcp.u32`, no Newton, 1 correction | 8 | an exact seed |
+| `rcp.u32`, no Newton, no correction | 5 | never |
+
+Sixteen bits with the Newton step retained is the choice. The rows below it are not
+available at acceptable cost: skipping Newton needs a seed accurate to essentially the last
+bit, which is a divider — the latency and scheduling complexity this design is explicitly
+avoiding in its first implementation.
+
+**This is an instruction-count and code-size win, not an energy one.** The four instructions
+it removes are conversions, which O-34 made maskable, so in warp-uniform code they were
+already costing about one lane-activation each. The `rcp` itself remains unmaskable — §4 256+
+is outside Format A′'s reach — and that is unchanged: see F-56 and
+`proposals/predicated-long-form.md`.
+
+**The compiler reaches it by fusion, after instruction selection.** `CCVFuseRcpSeed` matches
+the five-instruction idiom and replaces it. Matching machine instructions rather than IR
+means the middle end has already run and cannot reassociate the idiom out from under the
+matcher — and a failure to match is not a correctness problem, because the fp32 sequence
+stands and computes the same answer four instructions more slowly. An optimisation that
+cannot be wrong is worth an awkward placement. It also found its own bug: the multiply in
+that idiom is selected as the *compressed* Format K `fmul`, not the 32-bit one, so a matcher
+written against the obvious opcode matched nothing.
 
 ---
 

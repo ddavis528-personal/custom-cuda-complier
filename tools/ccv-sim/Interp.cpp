@@ -69,6 +69,21 @@ static uint32_t cvtSfuLane(unsigned Op, uint32_t X) {
   // and the division sequence is written not to depend on more than ~1 ulp --
   // but simulating an approximation would make results unreproducible without
   // pinning a specific hardware's error, which does not exist yet. See O-31.
+  // O-35. The simulator returns the WORST value the contract permits, not the
+  // exact one.
+  //
+  // Modelling an exact reciprocal here would let the division sequence pass
+  // while depending on precision the hardware never promised -- the checker
+  // would be green because it was not looking, which this project has now been
+  // caught by five times. Returning the low end of the legal interval means
+  // tools/check-div.sh tests the BOUND: if anyone shortens the sequence below
+  // what 16 bits supports, it fails immediately rather than in silicon.
+  case CCV::RCP_U32: {
+    if (X == 0)
+      return 0xFFFFFFFFu;                    // udiv by zero is poison anyway
+    uint64_t Exact = std::min<uint64_t>((1ull << 32) / X, 0xFFFFFFFFull);
+    return uint32_t((Exact * ((1u << 16) - 1)) >> 16);   // exact*(1 - 2^-16)
+  }
   case CCV::RCP_F32:   return floatToBits(1.0f / F);
   case CCV::RSQRT_F32: return floatToBits(1.0f / std::sqrt(F));
   case CCV::SQRT_F32:  return floatToBits(std::sqrt(F));
@@ -249,7 +264,8 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::CVT_F32_S32: case CCV::CVT_F32_U32:
   case CCV::CVT_S32_F32: case CCV::CVT_U32_F32:
   case CCV::RCP_F32: case CCV::RSQRT_F32: case CCV::SQRT_F32:
-  case CCV::EX2_F32: case CCV::LG2_F32: case CCV::SIN_F32: case CCV::COS_F32: {
+  case CCV::EX2_F32: case CCV::LG2_F32: case CCV::SIN_F32: case CCV::COS_F32:
+  case CCV::RCP_U32: {
     unsigned D = regOf(MI, 0), A = regOf(MI, 1);
     forEachLane([&](unsigned L) { W.GPR[D][L] = cvtSfuLane(Op, W.GPR[A][L]); });
     break;

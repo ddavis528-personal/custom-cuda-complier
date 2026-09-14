@@ -86,6 +86,7 @@ add_library(CCVMC STATIC
   llvm/CCV/CCVTargetTransformInfo.cpp
   llvm/CCV/CCVUniformity.cpp
   llvm/CCV/CCVMaskUniform.cpp
+  llvm/CCV/CCVFuseRcpSeed.cpp
   llvm/CCV/MCTargetDesc/CCVAsmBackend.cpp)
 add_dependencies(CCVMC CCVTableGen)
 target_include_directories(CCVMC PUBLIC

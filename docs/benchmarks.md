@@ -61,7 +61,7 @@ questions and only one of them can be measured on both machines.
   saxpy      |     22     74   26.9 |     17     58 |     25    136   43.5 |     19
   dot        |     56    182   26.0 |     48    156 |     60    300   40.0 |     46
   reduce     |     51    166   26.0 |     45    146 |     54    268   39.7 |     41
-  transpose  |     89    326   29.3 |     81    296 |     64    308   38.5 |     43
+  transpose  |     86    314   29.2 |     78    284 |     64    308   38.5 |     43
 ```
 
 **Dynamic — instructions actually issued, per thread of work.**
@@ -73,7 +73,7 @@ questions and only one of them can be measured on both machines.
   saxpy          17.0   100%         25 |       544       100%   exact: no backward branch
   dot            78.9    64%         -- |      2526       100%   has 3 loops; not modelled
   reduce         75.9    63%         -- |      2430       100%   has 3 loops; not modelled
-  transpose      81.0   100%         64 |      1493        58%   exact: no backward branch
+  transpose      78.0   100%         64 |      1428        57%   exact: no backward branch
 ```
 
 **CCV's dynamic column is measured** on the simulator — lane-instructions
@@ -256,6 +256,17 @@ Measured on the simulator, one `udiv`:
 |---|---|---|---|
 | shift-subtract (before) | 63 | **97.2** | loop, up to 32 iterations |
 | float reciprocal (O-31) | 35 | **32.0** | straight-line |
+| integer reciprocal (O-35) | 31 | **28.0** | straight-line, no fp round trip |
+
+The division sequence proper is **21 instructions under O-31 and 17 under O-35** — the four
+removed are `cvt.f32.u32`, the 48-bit scale constant, `fmul` and `cvt.u32.f32`, which existed
+only to cross between integer and floating point. On `transpose`, which contains two
+divisions, that is 89 → 86 static instructions and 1493 → 1428 lane-activations.
+
+**The fp32 round trip was never about precision.** `tools/model-rcp.py` measures what the
+sequence actually needs: 16 bits of reciprocal, against the ~23 an fp32 unit supplies. Making
+`rcp.f32` more accurate would have saved nothing, because fp32's 24-bit significand is what
+forces the Newton step, not the unit's error. See O-35.
 
 `transpose` fell from 143 instructions and 482 bytes to 83 and 294 (84 and 316
 today, after O-33 added its broadcasts). §4 had reserved the conversion and SFU
@@ -273,11 +284,11 @@ tile:
 ```
   tile  accs    instrs     bits b/instr  spills    fma sp/fma    K-hit
   -------------------------------------------------------------------------
-  1x1   1          176     4880    27.7      31     17   1.82      22%
-  1x2   2          258     7088    27.5      55     33   1.67      19%
-  2x2   4          383    10336    27.0      97     65   1.49      19%
-  2x4   8          641    17136    26.7     186    129   1.44      13%
-  4x4   16        1134    29920    26.4     407    257   1.58      13%
+  1x1   1          173     4784    27.7      31     16   1.94      22%
+  1x2   2          255     6992    27.4      55     32   1.72      19%
+  2x2   4          380    10256    27.0      97     64   1.52      17%
+  2x4   8          638    17040    26.7     186    128   1.45      13%
+  4x4   16        1131    29824    26.4     407    256   1.59      13%
 ```
 
 `sp/fma` — memory traffic the register file forced, per unit of arithmetic it

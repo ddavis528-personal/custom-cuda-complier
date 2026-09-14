@@ -186,7 +186,8 @@ defm CVT_U32_F32 : Cvt<CvtOpc<fmtCode.UINT, fmtCode.FP0,  round.RZ>.V, "cvt.u32.
 // of the classic set is here because they share the unit and CUDA requires
 // them, and because assigning them together fixes the numbering once (O-28).
 class SfuOpc { int RCP = 256; int RSQRT = 257; int SQRT = 258;
-               int EX2 = 259; int LG2 = 260; int SIN = 261; int COS = 262; }
+               int EX2 = 259; int LG2 = 260; int SIN = 261; int COS = 262;
+               int RCP_U32 = 263; }
 def sfuOpc : SfuOpc;
 multiclass Sfu<int opc, string mnem> {
   def NAME : FormatA<opc, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
@@ -199,6 +200,32 @@ defm EX2_F32   : Sfu<sfuOpc.EX2,   "ex2.f32">;
 defm LG2_F32   : Sfu<sfuOpc.LG2,   "lg2.f32">;
 defm SIN_F32   : Sfu<sfuOpc.SIN,   "sin.f32">;
 defm COS_F32   : Sfu<sfuOpc.COS,   "cos.f32">;
+
+// Integer reciprocal seed, §4 point 263 (O-35).
+//
+// `rcp.u32 rd, rs` returns an UNDER-ESTIMATE of floor(2^32 / rs) with 16 bits
+// of RELATIVE accuracy:
+//
+//     floor(2^32/rs) * (1 - 2^-16)  <=  rd  <=  floor(2^32/rs)
+//
+// Two halves of that contract, both load-bearing:
+//
+//  - RELATIVE, not absolute. A reciprocal unit produces N correct leading bits,
+//    so the absolute error scales with the result and a large divisor -- whose
+//    reciprocal is small -- is cheap to get right.
+//
+//  - NEVER AN OVER-ESTIMATE. The Newton step that follows converges only from
+//    below: if the seed exceeds 2^32/d then e*d wraps past 2^32 and the
+//    correction term becomes huge instead of small, pushing the estimate
+//    further out. This is the same requirement that makes the fp32 path scale
+//    by 0x4F7FFFFE rather than by 2^32 (O-31); it is now the hardware's to
+//    honour rather than the compiler's to engineer around.
+//
+// 16 bits is not a guess. tools/model-rcp.py runs the sequence against exact
+// integer division over the edge cases and a large sample, at every accuracy
+// from 1 bit up, and 16 is the least that is exact -- which is what one Newton
+// step doubling to 32 predicts. See O-35.
+defm RCP_U32   : Sfu<sfuOpc.RCP_U32, "rcp.u32">;
 
 def FFMA_F0 : FormatA<FpOpc<fpOp.FFMA, 0>.V, (outs GPR:$rd),
                       (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),

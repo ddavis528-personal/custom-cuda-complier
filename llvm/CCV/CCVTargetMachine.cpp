@@ -16,6 +16,7 @@ FunctionPass *createCCVExpandPseudos();
 FunctionPass *createCCVWindowRemat();
 FunctionPass *createCCVCompress();
 FunctionPass *createCCVMaskUniform();
+FunctionPass *createCCVFuseRcpSeed();
 FunctionPass *createCCVExpandDivision();
 FunctionPass *createCCVUniformity();
 ModulePass *createCCVLowerShared();
@@ -76,6 +77,9 @@ public:
   /// dataflow property and SSA virtual registers are what makes it cheap to
   /// compute.
   bool addILPOpts() override {
+    // Before masking: fusing five instructions into one changes what there is
+    // to mask, and `rcp.u32` has no predicated form (§4 263, above A′'s reach).
+    addPass(createCCVFuseRcpSeed());
     addPass(createCCVMaskUniform());
     return true;
   }
