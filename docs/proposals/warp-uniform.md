@@ -7,6 +7,34 @@
 
 ---
 
+## 0. The compatibility target ships one (added after the SASS comparison)
+
+Everything below was argued from this project's own measurements. It no longer has to be:
+**NVIDIA's SASS carries a uniform register file, and `nvdisasm` shows it plainly.**
+
+```
+    S2UR  UR4, SR_CTAID.X          ; CTA index into a UNIFORM register -- one value
+                                   ; for the warp, not 32 copies
+    ULDC  UR4, c[0x0][0x228]       ; constants loaded into the uniform file
+    IMAD  R9, R9, UR4, R0          ; an ordinary VECTOR instruction taking a
+                                   ; uniform operand beside vector ones
+    ISETP.GE.U32.AND P0, PT, R9, UR4, PT
+```
+
+That is a separate register namespace, a separate load path into it, and vector instructions
+that name uniform operands directly — which is what O-25 argued from register-file size and
+F-52 from redundant execution, shipping in the machine this ISA is compatible with.
+
+**And the reframing is the uncomfortable part: O-33's lane-0 masking is a software
+approximation of this.** `transpose` spends three `shfl.idx` broadcasts recovering what a
+uniform register supplies for free. Option B was adopted because it was cheap and needed no
+new architectural state; the measurement now says the state it declined to add is the thing
+the compatibility target considered worth building.
+
+This does not by itself decide the question — a uniform file is new architectural state,
+new rename namespace, and interacts with the 32-GPR question (O-25, F-12) rather than
+settling it. What changed is that the case is no longer purely inferential. See F-106.
+
 ## 1. The measurement
 
 O-25 said warp-invariance reporting was "the only evidence that would size a

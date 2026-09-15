@@ -169,14 +169,25 @@ Format A's four register fields occupy `[14:11]`, `[18:15]`, `[22:19]`,
 | Option | Problem |
 |---|---|
 | New format tag | all 16 tags are allocated; this needs one of them |
-| Shrink Format B's immediate and add `rs1` at `[22:19]` | the immediate would start at `[23]` in this opcode and `[19]` in every other Format B opcode — a field whose position depends on the opcode, which is exactly what invariant 8 forbids |
+| ~~Shrink Format B's immediate and add `rs1` at `[22:19]`~~ | **This objection was wrong — see the note below.** It is legal, and it works |
 | Use the 48-bit A′ long form | O-37 spent that halfword on opcode extension; reopening it re-litigates a settled decision |
 | A 48-bit Format B sibling with `rs1` in the high halfword | works, but costs 48 bits to save one 32-bit `movi` — no gain |
 
+> **Correction (ISA review).** The struck row above originally read "a field whose position
+> depends on the opcode, which is exactly what invariant 8 forbids." That is not what
+> invariant 8 says: it governs **register** fields, and explicitly notes immediates are not
+> on the rename path. And **Format D already varies its immediate position by opcode within
+> one tag** — base+offset at `[31:19]`, base+index at `[31:24]`, selected by `opcode[2]`.
+> A 9-bit immediate at `[31:23]` would cover `IMAD R11, R5, 0x44, R9` with room over.
+>
+> The option is therefore open and is deferred **on cost, not legality** (O-42). The
+> correction is kept visible rather than edited away, because a wrong reason in the log
+> forecloses an option later on false grounds.
+
 ### Justification for deferring
 
-It is worth **one instruction** in the current benchmark, against an encoding
-cost that is either a format tag or an invariant-8 exception. The asymmetry
+It is worth **one instruction** in the current benchmark, against a fourth
+Format B sub-layout. The asymmetry
 argument that carries case 1 does not apply here: no format of any length
 provides this today, so nothing is "catching up".
 

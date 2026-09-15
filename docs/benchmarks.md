@@ -77,7 +77,7 @@ questions and only one of them can be measured on both machines.
   vadd16_loop |     28    100   28.6 |     20     72 |     35    184   42.1 |     23
   dot        |     55    178   25.9 |     47    152 |     60    300   40.0 |     46
   reduce     |     50    162   25.9 |     44    142 |     54    268   39.7 |     41
-  transpose  |     66    236   28.6 |     58    208 |     64    308   38.5 |     43
+  transpose  |     62    220   28.4 |     54    192 |     64    308   38.5 |     43
 ```
 
 **Dynamic — instructions actually issued, per thread of work.**
@@ -92,7 +92,7 @@ questions and only one of them can be measured on both machines.
   vadd16_loop     69.0   100%         -- |      2208       100%   has 1 loops; not modelled
   dot            79.9    66%         -- |      2556       100%   has 3 loops; not modelled
   reduce         76.9    65%         -- |      2460       100%   has 3 loops; not modelled
-  transpose      58.0   100%         64 |      1165        63%   exact: no backward branch
+  transpose      54.0   100%         64 |      1192        69%   exact: no backward branch
 ```
 
 **CCV's dynamic column is measured** on the simulator — lane-instructions
@@ -134,9 +134,9 @@ spanning both encoding families and the datacentre line.
   vadd16_loop            28.6          128.0           42.1           43.6           42.4           46.8           45.2
   dot                   25.9          128.0           40.0           41.5           40.9           42.3           42.1
   reduce                25.9          128.0           39.7           42.9           39.2           41.4           40.2
-  transpose             28.6          128.0           38.5           41.1           39.6           39.2           38.7
+  transpose             28.4          128.0           38.5           41.1           39.6           39.2           38.7
   --------------------------------------------------------------------------------------------------------------------
-  pooled                27.3          128.0           40.7           43.7           41.8           43.8           43.1
+  pooled                27.2          128.0           40.7           43.7           41.8           43.8           43.1
 ```
 
 **Instruction counts, same sweep — the control:**
@@ -151,7 +151,7 @@ spanning both encoding families and the datacentre line.
   vadd16_loop              28             20             35             44             49             39             29
   dot                     55             42             60             64             68             62             54
   reduce                  50             39             54             50             71             58             51
-  transpose               66             53             64             60             76             76             62
+  transpose               62             53             64             60             76             76             62
 ```
 
 **The objection does not land.** AMD's density is flat across eight years and two
@@ -219,7 +219,7 @@ density argument is really written against. Pooled over all eight kernels:
 
 | pooled over eight kernels | instructions | bytes | bits/instruction |
 |---|---|---|---|
-| `CCV` | 295 | 1006 | **27.3** |
+| `CCV` | 291 | 990 | **27.2** |
 | `NVIDIA SASS` (sm_70) | 224 | 3584 | **128.0** |
 
 **SASS uses the fewest instructions of any machine here** — fewer than CCV and
@@ -239,12 +239,12 @@ them. Compared build-for-build:
 | `vadd_loop` | 27 | **19** | 20 |
 | `dot` | 55 | 47 | **42** |
 | `reduce` | 50 | 44 | **39** |
-| `transpose` | 66 | 58 | **53** |
-| total | 295 | **238** | 224 |
+| `transpose` | 62 | 54 | **53** |
+| total | 291 | **234** | 224 |
 
-**CCV aligned is 1.06× SASS, not 1.32×** — parity, and ahead on the simple
-kernels. The gap is entirely in the three complex ones, at five instructions
-each.
+**CCV aligned is 1.05× SASS, not 1.32×** — parity, and ahead on the simple
+kernels. It was 1.06× before O-41 and the `mul.lo` definition landed; the
+remaining gap is in the three complex kernels.
 
 That is the variable-length encoding doing exactly what §6 designed it to do,
 against the machine it was designed against. It is also the cleanest statement
@@ -280,7 +280,7 @@ counts are within 30% everywhere and CCV is *lower* on seven of eight:
 
 | | vadd | saxpy | vadd16 | vadd_loop | vadd16_loop | dot | reduce | transpose |
 |---|---|---|---|---|---|---|---|---|
-| CCV | 23 | 22 | 24 | 27 | 28 | 55 | 50 | 66 |
+| CCV | 23 | 22 | 24 | 27 | 28 | 55 | 50 | 62 |
 | GCN | 29 | 25 | 29 | 35 | 35 | 60 | 54 | 64 |
 
 So the density is not bought with instruction count. **Code size lands below
@@ -316,14 +316,14 @@ emits `.amdhsa_wavefront_size32` and its absence means wave64.
     vadd16                544            464            864           1024           1024            368
     vadd_loop             272             --             --             --             --             --
     vadd16_loop            276             --             --             --             --             --
-    transpose            1856           1024           1920           2432           2432            992
+    transpose            1728           1024           1920           2432           2432            992
   instr bytes / 1K elem
     vadd                 1792           2432           5248           5888           6144           2240
     saxpy                1856           2176           4352           4992           5248           1984
     vadd16               1984           2432           5376           6016           6272           2240
     vadd_loop             264             --             --             --             --             --
     vadd16_loop            288             --             --             --             --             --
-    transpose            6656           4928           9856          12032          11904           4800
+    transpose            6144           4928           9856          12032          11904           4800
 ```
 
 **Two results, and they point opposite ways.**
@@ -354,10 +354,10 @@ six" overstated it by ignoring warp width.
 1024 — for the reasons §2 already gives: AMD does the division on the scalar
 unit, one instruction for the whole wavefront.
 
-**`transpose` is the one kernel above GCN on instruction count**, and it now
-grew to **66 instructions and 236 bytes** against GCN's 64 and 308 — above on
-the count, below on the bytes, and below on issued work too at 58 per thread
-against 64. For most of this project's life it was far worse
+**`transpose` was the one kernel above GCN on instruction count, and is no
+longer**, and it now
+grew to **62 instructions and 220 bytes** against GCN's 64 and 308 — below on
+both now, and below on issued work too at 54 per thread against 64. For most of this project's life it was far worse
 than that and the explanation on file was wrong, which is worth recording
 because the wrong explanation was plausible for two revisions. See
 "`transpose` was not what it looked like" below.
@@ -558,7 +558,7 @@ had measured that. The simulator now counts it:
   vadd16_loop       69         58      32   0.552        53.0   1.283x
   dot              122        101       0   0.000       122.0       --
   reduce           119         98       0   0.000       119.0       --
-  transpose         58         54       0   0.000        58.0       --
+  transpose         54         50       0   0.000        54.0       --
 ```
 
 **`vadd16` is exactly break-even.** 18 issued instructions, 4 of them narrow
@@ -652,10 +652,10 @@ The `lane-act` column is the measurement, from `ccv-sim -counters`:
 
 | | issued/thread | issued lane slots | activations | share |
 |---|---|---|---|---|
-| `transpose`, masking off | 52.0 | 1664 | 1568 | 94% |
-| `transpose`, masking on | 58.0 | 1856 | **1165** | **63%** |
+| `transpose`, masking off | 48.0 | 1536 | 1440 | 94% |
+| `transpose`, masking on | 54.0 | 1728 | **1192** | **69%** |
 
-**403 fewer lanes switched — a 26% cut — for 6 added instructions per thread.**
+**248 fewer lanes switched — a 17% cut — for 6 added instructions per thread.**
 The pass's own stats account for them: 22 operations masked to lane 0, 7 already
 predicated and composed with `pand` (F-58), 3 broadcasts inserted, plus the one
 `pmov` that materializes the lane-0 mask.
@@ -732,9 +732,10 @@ anything to do with masking:
 |---|---|---|
 | as measured for two revisions | 79 | +23% |
 | after F-93 — stop expanding constant divisors | 60 | −6% |
-| after F-94 — collect the dead reciprocal seed | **58** | **−9%** |
+| after F-94 — collect the dead reciprocal seed | 58 | −9% |
+| after O-41 and `mul.lo` — immediates have somewhere to go | **54** | **−16%** |
 
-58 instructions issued against GCN5's 64 is where it lands.
+54 instructions issued against GCN5's 64 is where it lands.
 
 **F-93 is the large one, and it hid behind a comment.** `CCVExpandDivision`
 opened with "constant divisors never reach here — instcombine turns those into a
@@ -857,11 +858,11 @@ tile:
 ```
   tile  accs    instrs     bits b/instr  spills    fma sp/fma    K-hit
   -------------------------------------------------------------------------
-  1x1   1          180     4928    27.4      37     16   2.31      23%
-  1x2   2          259     7072    27.3      61     32   1.91      23%
-  2x2   4          380    10240    26.9     102     64   1.59      24%
-  2x4   8          637    16944    26.6     186    128   1.45      12%
-  4x4   16        1116    29232    26.2     407    256   1.59      14%
+  1x1   1          167     4592    27.5      37     16   2.31      31%
+  1x2   2          240     6496    27.1      61     32   1.91      29%
+  2x2   4          358     9552    26.7     101     64   1.58      25%
+  2x4   8          598    15536    26.0     183    128   1.43      29%
+  4x4   16        1076    27872    25.9     410    256   1.60      23%
 ```
 
 `sp/fma` — memory traffic the register file forced, per unit of arithmetic it

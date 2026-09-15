@@ -61,7 +61,10 @@ def : Pat<(abs GPR:$a),    (ABS GPR:$a, GPR:$a, GPR:$a)>;
 // `not` is xor with -1 in LLVM; Format K has a real one-source form.
 def : Pat<(xor GPR:$a, (i32 -1)), (C_NOT GPR:$a)>;
 
-def : Pat<(mul GPR:$a, GPR:$b), (MADLO GPR:$a, GPR:$b, (MOVI 0))>;
+// §4 point 2's three-address multiply. This selected `MADLO $a, $b, (MOVI 0)`
+// until the instruction was defined -- a materialized zero per multiply, for an
+// addend the operation does not have.
+def : Pat<(mul GPR:$a, GPR:$b), (MUL_LO GPR:$a, GPR:$b, GPR:$b)>;
 def : Pat<(add (mul GPR:$a, GPR:$b), GPR:$c), (MADLO GPR:$a, GPR:$b, GPR:$c)>;
 // §3 gives Format B's immediate THIRTEEN bits, signed, and B48's TWENTY-NINE,
 // unsigned. This pattern carried no predicate at all, so any larger constant
@@ -89,6 +92,21 @@ def uimm4_imm : ImmLeaf<i32, [{ return Imm >= 0 && Imm < 16; }]>;
 def : Pat<(shl GPR:$a, (i32 uimm4_imm:$i)), (C_SHLI GPR:$a, imm:$i)>;
 def : Pat<(srl GPR:$a, (i32 uimm4_imm:$i)), (C_SHRI GPR:$a, imm:$i)>;
 def : Pat<(sra GPR:$a, (i32 uimm4_imm:$i)), (C_SRAI GPR:$a, imm:$i)>;
+
+// O-41's Format B projection. Until it existed, a register-immediate operation
+// was encodable only through Format K above -- two-address, `uimm4` -- so
+// `rd = rs op #imm` with rd != rs, or any constant over 15, cost a `movi` and a
+// reg-reg operation. The compressed patterns keep higher complexity so the
+// 16-bit form still wins wherever it fits.
+def uimm5_imm : ImmLeaf<i32, [{ return Imm >= 0 && Imm < 32; }]>;
+def : Pat<(sub GPR:$a, (i32 simm13_imm:$i)), (SUBI  GPR:$a, imm:$i)>;
+def : Pat<(mul GPR:$a, (i32 simm13_imm:$i)), (MULI  GPR:$a, imm:$i)>;
+def : Pat<(and GPR:$a, (i32 simm13_imm:$i)), (ANDI  GPR:$a, imm:$i)>;
+def : Pat<(or  GPR:$a, (i32 simm13_imm:$i)), (ORI   GPR:$a, imm:$i)>;
+def : Pat<(xor GPR:$a, (i32 simm13_imm:$i)), (XORI  GPR:$a, imm:$i)>;
+def : Pat<(shl GPR:$a, (i32 uimm5_imm:$i)),  (SHLI  GPR:$a, imm:$i)>;
+def : Pat<(srl GPR:$a, (i32 uimm5_imm:$i)),  (SHRI  GPR:$a, imm:$i)>;
+def : Pat<(sra GPR:$a, (i32 uimm5_imm:$i)),  (SRAI  GPR:$a, imm:$i)>;
 
 // ---------------------------------------------------------------------------
 // Floating point. The compressed destructive form is the natural match for a

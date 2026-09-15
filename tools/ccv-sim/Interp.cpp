@@ -125,7 +125,11 @@ static bool isWidthAware(unsigned Op) {
   case CCV::ADD: case CCV::SUB: case CCV::AND: case CCV::OR: case CCV::XOR:
   case CCV::MIN_S: case CCV::MIN_U: case CCV::MAX_S: case CCV::MAX_U:
   case CCV::CVT_SEXT:
-  case CCV::ADDI: case CCV::LD_GLOBAL: case CCV::ST_GLOBAL:
+  case CCV::ADDI: case CCV::MUL_LO:
+  case CCV::SUBI: case CCV::MULI: case CCV::ANDI: case CCV::ORI:
+  case CCV::XORI: case CCV::ANDNI: case CCV::SHLI: case CCV::SHRI:
+  case CCV::SRAI:
+  case CCV::LD_GLOBAL: case CCV::ST_GLOBAL:
   case CCV::LD_GLOBAL_IDX: case CCV::ST_GLOBAL_IDX:
   case CCV::LD_SHARED: case CCV::ST_SHARED:
   case CCV::MOVI: case CCV::MOVI48:
@@ -222,7 +226,7 @@ static uint32_t aluRR(unsigned Op, uint32_t X, uint32_t Y) {
   case CCV::MIN_U: case CCV::C_MIN_U:  return std::min(X, Y);
   case CCV::MAX_S: case CCV::C_MAX_S:  return std::max(int32_t(X), int32_t(Y));
   case CCV::MAX_U: case CCV::C_MAX_U:  return std::max(X, Y);
-  case CCV::C_MUL_LO:                  return X * Y;
+  case CCV::MUL_LO: case CCV::C_MUL_LO: return X * Y;
   case CCV::MUL_HI_S:
     return uint32_t((int64_t(int32_t(X)) * int64_t(int32_t(Y))) >> 32);
   case CCV::MUL_HI_U:
@@ -434,7 +438,8 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::ADD: case CCV::SUB: case CCV::AND: case CCV::OR:
   case CCV::XOR: case CCV::ANDN: case CCV::SHL: case CCV::SHR:
   case CCV::SRA: case CCV::MIN_S: case CCV::MIN_U: case CCV::MAX_S:
-  case CCV::MAX_U: case CCV::MUL_HI_S: case CCV::MUL_HI_U: {
+  case CCV::MAX_U: case CCV::MUL_HI_S: case CCV::MUL_HI_U:
+  case CCV::MUL_LO: {
     unsigned D = regOf(MI, 0), A = regOf(MI, 1), B = regOf(MI, 2);
     // Operands are read AT THEIR REGISTER'S WIDTH and the result is written at
     // the destination's. Narrowing on read rather than on write is what makes
@@ -551,6 +556,39 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   }
 
   // ---- Format B: register-immediate --------------------------------------
+  // ---- Format B: O-41's projection (§3) ---------------------------------
+  // Point n is §4 point n with the second source replaced by the immediate, so
+  // the semantics are §4's and the only difference is where the second operand
+  // comes from. Mapped rather than reimplemented: a second copy of `shl` here
+  // would be a place for the two to disagree.
+  case CCV::SUBI: case CCV::MULI: case CCV::ANDI: case CCV::ORI:
+  case CCV::XORI: case CCV::ANDNI: case CCV::SHLI: case CCV::SHRI:
+  case CCV::SRAI: {
+    static const auto base = [](unsigned O) -> unsigned {
+      switch (O) {
+      case CCV::SUBI:  return CCV::SUB;
+      case CCV::MULI:  return CCV::MUL_LO;
+      case CCV::ANDI:  return CCV::AND;
+      case CCV::ORI:   return CCV::OR;
+      case CCV::XORI:  return CCV::XOR;
+      case CCV::ANDNI: return CCV::ANDN;
+      case CCV::SHLI:  return CCV::SHL;
+      case CCV::SHRI:  return CCV::SHR;
+      default:         return CCV::SRA;
+      }
+    };
+    unsigned D = regOf(MI, 0), A = regOf(MI, 1);
+    unsigned B = base(Op);
+    uint32_t Imm = uint32_t(int32_t(MI.getOperand(2).getImm()));
+    uint8_t WA = W.ChWidth[A], WD = W.ChWidth[D];
+    const bool Signed = B == CCV::SRA;
+    forEachLane([&](unsigned L) {
+      uint32_t X = Signed ? sextTo32(W.GPR[A][L], WA) : narrow(W.GPR[A][L], WA);
+      W.GPR[D][L] = writeElem(W.GPR[D][L], aluRR(B, X, Imm), WD);
+    });
+    break;
+  }
+
   case CCV::ADDI:
   case CCV::ADDI48: {
     unsigned D = regOf(MI, 0), A = regOf(MI, 1);

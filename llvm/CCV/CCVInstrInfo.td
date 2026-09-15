@@ -87,6 +87,11 @@ multiclass AluRR<int opc, string mnem> {
 let isReMaterializable = 1 in
 defm ADD : AluRR<aluOpc.ADD, "add">;
 defm SUB     : AluRR<aluOpc.SUB,   "sub">;
+// §4 point 2. The ISA has always allocated a three-address multiply; the backend
+// had only the compressed two-address C_MUL_LO and the three-source MADLO, so
+// every `a * b` with a destination distinct from both sources was selected as
+// `movi rz, 0` + `mad.lo` -- a materialized zero to fill an addend nobody wanted.
+defm MUL_LO  : AluRR<aluOpc.MUL_LO, "mul.lo">;
 defm AND     : AluRR<aluOpc.AND,   "and">;
 defm OR      : AluRR<aluOpc.OR,    "or">;
 defm XOR     : AluRR<aluOpc.XOR,   "xor">;
@@ -389,6 +394,38 @@ def ADDI_P : FormatBp<0, (outs GPR:$rd), (ins pqual:$pq, GPR:$rs0, simm10:$imm),
 def ADDI_PP : FormatBpp<0, (outs GPR:$rd, PR:$pd),
                         (ins pqual:$pq, GPR:$rs0, simm8:$imm),
                         "@$pq add $rd, $rs0, $imm, $pd">;
+
+// O-41's projection: Format B point n is §4 point n with the second source
+// replaced by the immediate. The numbering is not invented here -- it is §4's,
+// which is the whole point of the rule: a decoder shares one map and nothing new
+// has to be remembered. `addi` above at point 0 against `add` at §4 point 0 was
+// already this, applied unaided.
+//
+// Shift amounts are `uimm5`: a 13-bit signed field would encode shifts nobody
+// can name, and §4's shifts take their count modulo 32 anyway.
+// The two tiers take DIFFERENT immediate widths and the multiclass has to say
+// so: B has a contiguous 13 bits at `[31:19]`, but B′ splits its field around
+// the predicate qualifier at `[29:27]` and keeps only 10 (`[26:19]` ++
+// `[31:30]`) -- which is why `ADDI_P` above is `simm10` where `ADDI` is
+// `simm13`. Passing one type to both silently encoded a 13-bit constant into a
+// 10-bit field, and the round-trip check caught it on all six affected forms.
+multiclass BAlu<int opc, string mnem, Operand imm = simm13,
+                Operand immP = simm10> {
+  def NAME    : FormatB<opc, (outs GPR:$rd), (ins GPR:$rs0, imm:$imm),
+                        mnem#" $rd, $rs0, $imm">;
+  def _P      : FormatBp<opc, (outs GPR:$rd),
+                         (ins pqual:$pq, GPR:$rs0, immP:$imm),
+                         "@$pq "#mnem#" $rd, $rs0, $imm">;
+}
+defm SUBI  : BAlu<1,  "sub">;
+defm MULI  : BAlu<2,  "mul.lo">;
+defm ANDI  : BAlu<7,  "and">;
+defm ORI   : BAlu<8,  "or">;
+defm XORI  : BAlu<9,  "xor">;
+defm ANDNI : BAlu<10, "andn">;
+defm SHLI  : BAlu<11, "shl", uimm5, uimm5>;
+defm SHRI  : BAlu<12, "shr", uimm5, uimm5>;
+defm SRAI  : BAlu<13, "sra", uimm5, uimm5>;
 
 // packi reads its destination -- the one rd-as-source deviation in Format B.
 // packi.z clears the slots it does not write (v1.3, O-21). ASSIGNED: 20, 21.

@@ -669,6 +669,53 @@ Immediate signedness remains opcode-defined.
 B″ is a bounded subset of it — only status-producing arithmetic has any use for a predicate
 destination. `packi`/`unpacki` exist in B and B′ and have no B″ form.
 
+### Format B opcode map — the projection rule (O-41)
+
+Until v1.7 this range was described but never enumerated: §3 said "thirty-two points is
+ample for reg-immediate ALU" and named informally which Format A operations lack an
+immediate form. **That is the same exposure O-28 found twice and O-34 found once** — a range
+given as a description rather than a table lets two implementations choose different orders
+and produce silently incompatible binaries. It is closed here as a normativity fix, not as
+an optimisation; the instruction counts that prompted it are a bonus, not the justification.
+
+> **Where §4 point *n* names a BINARY operation, Format B point *n* is that operation with
+> the second source replaced by the immediate. Where §4 point *n* is UNARY or TERNARY,
+> Format B point *n* carries no immediate form and is free for immediate-only operations.**
+
+The rule is derivable rather than memorised, and a decoder can share §4's map. `addi` at
+point 0 against `add` at §4 point 0 was already this rule, applied unaided.
+
+| pt | | pt | | pt | |
+|---|---|---|---|---|---|
+| 0 | `addi` | 8 | `ori` | 12 | `shri` |
+| 1 | `subi` | 9 | `xori` | 13 | `srai` |
+| 2 | `muli` | 10 | `andni` | 20 | `packi` |
+| 7 | `andi` | 11 | `shli` | 21 | `packi.z` |
+| | | | | 22 | `unpacki` |
+
+**Arity, stated because the rule depends on it.** §4's binary points are 0–4 and 7–17.
+Unary: 18, 20–24. Ternary: 5 (`mad.lo`), 6 (`mad.hi`), 25 (`prmt`). **Point 19 `sel` is
+binary in register operands** — `rd = pq ? rs0 : rs1`, with the condition taken from the
+predicate qualifier field rather than a third register — so the rule projects it. But a
+qualifier is exactly what plain Format B lacks, so **`seli` is meaningful only in the B′
+and B″ tiers**, and point 19 is unallocated in B itself. That is the one place where the
+projection is tier-dependent.
+
+**What the projection costs: Format B's points are no longer independently allocatable.**
+Coupling the two maps is the price of decoder sharing, and it has to be visible to whoever
+next wants a Format B point.
+
+| Category | §4 points | Format B status |
+|---|---|---|
+| Binary | 0–4, 7–17 (16) | **claimed by the rule.** 10 defined above; 6 reserved — `mul.hi.s`/`u`, `min.s`/`u`, `max.s`/`u` |
+| Unary | 18, 20–24 (6) | free for immediate-only; 3 used by the `packi` family |
+| Ternary | 5, 6, 25 (3) | free for immediate-only |
+| `sel` | 19 | B′/B″ only |
+| Unallocated in §4 | 26–31 (6) | free, but **claimed if §4 later allocates a binary operation there** |
+
+**Genuinely free for a future immediate-only operation: 13 of 32, not 28** — and shrinking
+as §4 grows.
+
 **`packi` and `unpacki` — moving between narrow and wide registers.**
 
 | Mnemonic | Effect |
@@ -2070,6 +2117,67 @@ which assumes the address is fully precomputed in `rbase`. If real code frequent
 small non-zero offset, four opcode points with a 2-bit displacement (scaled by `chwidth`)
 would be a better use of the range than four separate address-space opcodes. Needs data.
 
+
+---
+
+**O-42 — Three-source with an immediate — deferred, and the recorded reason matters.**
+`mad.lo rd, rs0, #imm, rs2` has no encoding. The compiler-side proposal rejected the obvious
+one — shrink Format B's immediate, put `rs1` at `[22:19]`, immediate at `[31:23]` — on the
+grounds that an opcode-dependent immediate position is what invariant 8 forbids. **That
+reasoning is wrong and must not stand in the log.** Invariant 8 governs *register* fields and
+says so; immediates are not on the rename path. And **Format D already does exactly this**:
+base+offset places its immediate at `[31:19]`, base+index at `[31:24]`, same tag `1000`,
+selected by `opcode[2]`.
+
+So the option is open, and a 9-bit immediate at `[31:23]` would cover the motivating case
+with room over. It is deferred on cost rather than legality: **one instruction in the
+benchmark does not justify a fourth Format B sub-layout**, and the asymmetry argument that
+carries O-41 does not apply here — no format of any length provides this today, so nothing
+is catching up.
+
+Revisit when `sgemm` at larger tiles has been examined for strided addressing. A wrong
+reason in the log forecloses an option later on false grounds, which is worse than
+recording none.
+
+---
+
+**O-43 — A hardwired zero register — rejected.** Proposed on the strength of five
+`movi rX, 0` in the benchmark. Checking what each feeds dissolves it: **two** are `setp.eq`
+against zero and Format C′ already carries the immediate compare, so they are a selection
+gap; **two** are loop accumulators, which need a writable register initialised to zero and
+would still cost `mov rd, rz`; **one** is `mad.lo rd, rs0, rs1, #0`, which is a multiply, and
+§4 point 2 already specifies `mul.lo`. None is an argument for spending a register.
+
+The cost is decisive on its own: the file is 16 (§1), R15 is reserved for the frame pointer
+under O-30, and a hardwired zero would leave **14** general registers while O-25 and the
+32-GPR question are open.
+
+Recorded so the `movi rX, 0` pattern is not re-proposed from the same evidence.
+
+---
+
+**O-41 — Format B's opcode map, by projection from §4 — decided; a normativity fix, not an
+optimisation.** Format B's 32 opcode points were described and never enumerated: §3 said the
+space was "ample" and named informally which operations lack an immediate form. **That is
+the O-28 exposure a third time** — a range given as a description rather than a table lets
+two implementations choose different orders and produce silently incompatible binaries.
+
+The closure is a rule rather than a flat list, so it is derivable and a decoder can share
+§4's map: **where §4 point *n* is binary, Format B point *n* is that operation with the
+second source replaced by the immediate; where §4 point *n* is unary or ternary, Format B
+point *n* carries no immediate form.** `addi` at 0 against `add` at 0 was already this,
+applied unaided by the backend.
+
+Nine points follow from it: `subi` 1, `muli` 2, `andi` 7, `ori` 8, `xori` 9, `andni` 10,
+`shli` 11, `shri` 12, `srai` 13. No field moves, no new decode path, and the 48-bit sibling
+comes free under §2's existing rule.
+
+**It would have been closed even with nothing to gain.** What it happens to gain is three
+instructions on the benchmark: the 16-bit compressed format carries eight register-immediate
+ALU forms and the 32-bit format carried one, so an operation was encodable only when the
+destination *was* the source and the constant fitted `uimm4`. See §3's Format B map for the
+arity table the rule depends on, the `sel` tier exception, and what the projection costs in
+allocatable points.
 
 ---
 
