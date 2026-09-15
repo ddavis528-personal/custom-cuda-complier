@@ -167,14 +167,29 @@ SASS. Pooled over the eight kernels:
 every kernel, Volta through Blackwell** — nine years with no change, which is a
 stronger version of the flatness the AMD sweep found.
 
-The two machines fail in opposite directions, and this is the useful framing for
-the architecture side. **SASS uses the fewest instructions of any machine
-measured** — fewer than CCV and fewer than every AMD generation — and spends 128
-bits on each. CCV needs **1.32× the instructions and 0.28× the bytes**; the same
-kernels are 3.6× larger as SASS. NVIDIA is buying scheduling determinism with 64
-bits of control per instruction, and this design declines to spend them and pays
-for it in hardware OoO instead. §6's predicted "roughly 4×" was close; what it
-did not anticipate was that the instruction count would go NVIDIA's way.
+The two machines fail in opposite directions. SASS spends 128 bits on every
+instruction and uses few of them; CCV spends ~27 and uses slightly more. **The
+instruction-count ratio depends on which CCV build you compare**: 1.32× using the
+unaligned column, but **1.06× — parity — using O-23's aligned ABI**, which is
+CCV's intended form and the fair comparison, since NVIDIA passes 64-bit pointers
+directly because invariant 11 does not apply to them. CCV is ahead on `vadd`
+(16 v 17) and `vadd_loop` (19 v 20); the gap is five instructions each on `dot`,
+`reduce` and `transpose` (F-102).
+
+**Disassembly says where those five go, and it is encoding, not architecture.**
+NVIDIA has **no integer divide** — `transpose`'s division is `MUFU.RCP` plus
+integer Newton plus two conditional corrections, O-31/O-35's algorithm step for
+step. What they have is somewhere to put an immediate: **9 of the 19 `movi` in
+the benchmark exist only because CCV has no zero register (5), no
+reg-immediate at three addresses (3), and no three-source form taking an
+immediate (1)**. Format B has 32 opcode points and uses three, while the 16-bit
+compressed format carries eight immediate forms the 32-bit one lacks (F-103,
+F-104).
+
+And one result in the other direction: **CCV's folded addressing mode costs one
+instruction per memory access where SASS costs two** (`IMAD.WIDE.U32` then
+`LDG.E`), because a 64-bit address must be materialized in a register pair —
+exactly what invariant 11 exists to avoid (F-105).
 
 ---
 
@@ -255,6 +270,13 @@ was not looking, and the v1.6 cycle converted four more instances into gates:
   allocation orders degrade gracefully when the two widths collide is reasoning
   rather than measurement.
 - **The 32-GPR question has a third argument now** (§3 above), still unmeasured.
+- **The warp-uniform register file has a shipping precedent.** SASS carries a
+  uniform register file — `S2UR UR4, SR_CTAID.X`, `ULDC`, and vector
+  instructions taking `UR` operands — which is what O-25 argued from
+  register-file size and F-52 from redundant execution. O-33's lane-0 masking is
+  this project's software approximation of it, and `transpose` spends three
+  `shfl.idx` broadcasts recovering what a uniform register supplies free
+  (F-106).
 - **Dynamic SASS.** The static comparison is done; the issued-instruction one is
   not. CCV's dynamic counts come from its simulator and NVIDIA has no equivalent
   here, so the per-element work comparison in §4 has no SASS column.

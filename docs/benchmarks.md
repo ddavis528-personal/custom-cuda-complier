@@ -160,6 +160,58 @@ CCV's 27.3 is **0.62× to 0.66× of every one of them**. The ratio against RDNA4
 (2024) is the same as against Vega (2017). Whatever the variable-length encoding
 is buying, it is not an artifact of an obsolete baseline.
 
+#### What SASS does that CCV does not
+
+`nvdisasm` reads the cubin, so the five-instruction gap on the complex kernels
+can be looked at rather than guessed. Three hypotheses, settled:
+
+**They do not have an integer divide.** `transpose`'s runtime division in SASS
+is `I2F.U32.RP` → `MUFU.RCP` → `F2I` → `IMAD` → two `IMAD.HI.U32` Newton steps →
+`ISETP`/`IADD3` correction, twice → a `LOP3` for the divide-by-zero case. That is
+**O-31/O-35's algorithm, step for step**: a float reciprocal seed from the SFU,
+integer Newton refinement, `mul.hi` for the quotient, two conditional
+corrections. NVIDIA expands division exactly as this project does, and the
+instruction counts are comparable. Nothing was skipped.
+
+**Predicated control flow is not the gap either.** SASS uses `@P0 EXIT` where CCV
+branches over the body, and predicates its correction steps (`@P0 IADD3`,
+`@!P2 LOP3`) — all of which Format A′ already provides.
+
+**Four things are real, and all four are encoding rather than architecture.**
+
+| | what SASS has | cost to CCV |
+|---|---|---|
+| **Zero register** | `RZ` as any operand — `IMAD R7, R7, R3, RZ` | **5 `movi` across the suite**, purely to materialize 0 |
+| **Reg-immediate at three addresses** | `LOP3.LUT R4, R8, 0xf, R13, …`, `SHF.R.S32.HI R3, RZ, 0x1f, R0` | **3 `movi`** |
+| **Three-source with an immediate** | `IMAD R11, R5, 0x44, R9` | **1 `movi`** |
+| **Uniform registers** | `S2UR UR4, SR_CTAID.X`; vector ops take `UR` operands | not instruction count — see below |
+
+**9 of the 19 `movi` in the whole benchmark exist only because an immediate has
+nowhere to go.** On `transpose` that is 5, which is the entire 58-vs-53 gap.
+
+The second row is the striking one, because **the encoding space is already
+reserved and mostly empty**. Format B is the 32-bit register-immediate format
+with a 5-bit opcode — 32 points — and three are used: `addi`, `packi`,
+`unpacki`. Meanwhile the *16-bit compressed* Format K has eight immediate forms
+(`C_ANDI`, `C_ORI`, `C_XORI`, `C_SHLI`, `C_SHRI`, `C_SRAI`, `C_SUBI`, `C_ADDI`).
+So `rd = rd & 15` is one 16-bit instruction and `rd = rs & 15` is two 32-bit
+ones, for want of an opcode point in a format with 29 free.
+
+**And one thing CCV does that SASS cannot.** `ld.global r2, [r2, r1, 1, 0]`
+computes `base + index × scale` and loads in **one** instruction; SASS needs
+`IMAD.WIDE.U32` and then `LDG.E`. Every memory access in the SASS listings is
+two instructions where CCV's is one — which is why CCV is *ahead* on `vadd` and
+`vadd_loop` despite everything above.
+
+**The uniform register file is the architectural finding, and it is NVIDIA's.**
+`S2UR UR4, SR_CTAID.X` reads the CTA index into a *uniform* register — one value
+for the warp, not 32 copies — and `IMAD R9, R9, UR4, R0` consumes it beside
+vector operands. That is exactly what O-25 and F-52 argue for from register-file
+size and redundant execution, and it is shipping in the compatibility target.
+O-33's lane-0 masking is this project's software approximation of it: `transpose`
+spends 3 `shfl.idx` broadcasts recovering what a uniform register would have
+supplied for free.
+
 #### And against SASS, which is the comparison that actually matters
 
 CCV's compatibility target is CUDA, so NVIDIA's machine encoding is the one the
@@ -174,6 +226,25 @@ density argument is really written against. Pooled over all eight kernels:
 fewer than every AMD generation — and spends 128 bits on each of them. So the
 two machines fail in opposite directions: **CCV needs 1.32× the instructions and
 0.28× the bytes.** The same eight kernels are 3.6× larger as SASS.
+
+**On instruction count the comparison above uses CCV's UNALIGNED build, and that
+is the pessimistic one.** O-23's alignment attribute is CCV's intended ABI, and
+NVIDIA passes 64-bit pointers directly because invariant 11 does not apply to
+them. Compared build-for-build:
+
+| | CCV unaligned | CCV aligned | SASS sm_70 |
+|---|---|---|---|
+| `vadd` | 23 | **16** | 17 |
+| `saxpy` | 22 | 17 | **16** |
+| `vadd_loop` | 27 | **19** | 20 |
+| `dot` | 55 | 47 | **42** |
+| `reduce` | 50 | 44 | **39** |
+| `transpose` | 66 | 58 | **53** |
+| total | 295 | **238** | 224 |
+
+**CCV aligned is 1.06× SASS, not 1.32×** — parity, and ahead on the simple
+kernels. The gap is entirely in the three complex ones, at five instructions
+each.
 
 That is the variable-length encoding doing exactly what §6 designed it to do,
 against the machine it was designed against. It is also the cleanest statement

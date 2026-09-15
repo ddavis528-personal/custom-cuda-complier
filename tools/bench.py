@@ -199,7 +199,18 @@ def amdgcn(src, tmp, arch="gfx900"):
 # SASS, at last. ptxas is a host compiler and needs no GPU; tools/fetch-ptxas.sh
 # installs it from NVIDIA's pip wheel. No disassembler is published there and
 # none is needed: the cubin's .text.<kernel> section IS the SASS.
-PTXAS = os.path.join(ROOT, "vendor/cuda/nvidia/cuda_nvcc/bin/ptxas")
+def _vendored(name):
+    """Find a vendored NVIDIA tool. Globbed rather than hardcoded: the wheels
+    put their binaries under different prefixes (cuda_nvcc/, cu13/) and
+    installing a second one next to the first moved ptxas without warning."""
+    import glob
+    hits = glob.glob(os.path.join(ROOT, "vendor", "**", name), recursive=True)
+    return next((h for h in hits
+                 if os.path.isfile(h) and os.access(h, os.X_OK)), "")
+
+
+PTXAS = _vendored("ptxas")
+NVDISASM = _vendored("nvdisasm")
 
 # Volta-and-later SASS pads a kernel's tail with NOPs to a 128-byte boundary.
 # Exactly the same trap as gfx10+'s s_code_end: EVERY kernel's section size came
@@ -222,7 +233,7 @@ def sass(src, tmp, arch="sm_70"):
     Pre-Volta is deliberately not supported: sm_60 and earlier use a 64-bit
     encoding with a separate control word every few instructions, so a 16-byte
     walk would silently halve the count."""
-    if not os.path.exists(PTXAS):
+    if not PTXAS:
         return {"error": "ptxas not installed -- run tools/fetch-ptxas.sh"}
     ptxf, cub, binf = (os.path.join(tmp, f"s.{x}") for x in ("ptx", "cubin", "bin"))
     if run("clang", "-x", "cuda", "-nocudainc", "-nocudalib", "--cuda-device-only",
