@@ -14,6 +14,7 @@ about a number must name the table it comes from, and the tables are what this
 holds down.
 """
 import json
+import os
 import re
 import subprocess
 import sys
@@ -168,14 +169,29 @@ def main():
         fail |= compare(name, section(bench.stdout, header), blocks[0])
 
     # The prior-art sweep, generated as of this revision.
+    # The prior-art tables carry a SASS column, and SASS needs ptxas -- which is
+    # vendored under vendor/ and gitignored, so a fresh clone or a new container
+    # does not have it. Without it the tool prints "--" where the document has
+    # numbers, and comparing them would fail the gate for a missing optional
+    # tool rather than for drift. Skip with an instruction instead.
+    # Ask for the fact directly rather than pattern-matching the output: the
+    # first attempt looked for "128.0" and matched the tool's own explanatory
+    # prose, which says it whether or not the column exists.
+    import glob as _glob
+    has_sass = any(os.path.isfile(h) and os.access(h, os.X_OK)
+                   for h in _glob.glob(str(ROOT / "vendor" / "**" / "ptxas"),
+                                       recursive=True))
     prior = fenced(doc, "kernel                 CCV")
-    if len(prior) >= 2:
+    if not has_sass:
+        print("  SKIP  prior-art tables: ptxas not installed, so the SASS column")
+        print("        cannot be regenerated. Run tools/fetch-ptxas.sh to check them.")
+    elif len(prior) >= 2:
         fail |= compare("prior-art bits/instr table",
                         section(bench.stdout, "PRIOR ART --"), prior[0])
         fail |= compare("prior-art instruction-count table",
                         section(bench.stdout, "Instruction counts, same sweep"),
                         prior[1])
-    else:
+    elif has_sass:
         print("  FAIL  the two prior-art tables were not both found")
         fail = 1
 

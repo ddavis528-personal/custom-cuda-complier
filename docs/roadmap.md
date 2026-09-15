@@ -1,13 +1,86 @@
 # Bring-up Roadmap and Compiler-Side ISA Findings
 
-**Status:** Phase 0 (contract definition). No code yet.
+**Status:** Steps 0–5 complete, Step 6 substantially done. ISA at v1.6 with
+O-41/O-42/O-43 decided on top. *(This line read "Phase 0, no code yet" for far
+longer than it was true — there is a full backend, a simulator, an eight-kernel
+benchmark and a verification gate.)*
 **Companions:** `isa-v1.6-operation-map-and-encoding.md` (encoding ground truth),
-`backend-context.md` (scope and rationale ground truth).
+`backend-context.md` (scope and rationale ground truth),
+`compiler-findings-v1.6.md` (the architecture-track report).
 
 This file is the working plan. It tracks two things: the order work is being
 done in, and the ISA findings that compiler-side reasoning has surfaced. The
 second list is the actual product of this effort — per `backend-context.md` §1,
 the compiler's near-term job is to generate signal for ISA decisions.
+
+---
+
+## Part 0 — Where this stands, and what to pick up next
+
+**Everything is committed and pushed on `claude/ptx-isa-compiler-setup-eluxxk`,
+and `tools/verify.sh` is green.** It is also green on a fresh container with no
+`vendor/` directory — the NVIDIA tools are optional and the SASS comparison skips
+with an instruction rather than failing.
+
+### Reproducing the environment
+
+`vendor/` is gitignored and does not survive a new container. One command
+restores it:
+
+```
+    ./tools/fetch-ptxas.sh        # ptxas + nvdisasm, from NVIDIA's pip wheels
+```
+
+Neither needs a GPU. Without them everything still builds and passes; only the
+SASS column is absent, and `check-bench-doc.py` says so.
+
+### Next steps, in the order they are worth doing
+
+1. **F-106 — the warp-uniform register file.** Escalated above everything else by
+   ISA review. NVIDIA ships one (`S2UR`, `ULDC`, vector instructions taking
+   uniform operands), which turns O-25's and F-52's argument into a comparison
+   against a real machine, and reframes O-33's lane-0 masking as a software
+   approximation of it. Bears directly on O-25 and F-12, both open. Written up
+   in `proposals/warp-uniform.md` §0.
+2. **F-111 — audit for defined-but-unselected encodings.** Three independent
+   instances now (`bra.short`, the Format C′ immediate compare, the compressed
+   `C_ANDI`/`C_SHRI` forms), which is a pattern rather than three incidents. A
+   mechanical check looks feasible: every instruction in the generated TableGen
+   JSON that no pattern or custom-selection path can produce. That would turn a
+   recurring discovery into a gate, which is what this project does with every
+   other recurring discovery.
+3. **F-108 remainder — the two selection gaps F-111 would have caught.** The
+   immediate compare and the compressed forms are worth ~2 instructions and need
+   no ISA decision.
+4. **F-92 — width affinity under register pressure.** The claim that opposite
+   allocation orders degrade gracefully when the two widths collide is reasoning,
+   not measurement: no kernel fills the file with narrow values. Needs a kernel,
+   not a code change.
+5. **F-84 / O-40 — the retire-rate margin.** At 1.5× rather than 2×, the
+   straight-line 16-bit kernel loses to its own 32-bit equivalent. There is no
+   further *compiler* lever on the narrow fraction (a lane holds one element at
+   every width, so the element-work count is fixed by the element count); what is
+   left is the addressing overhead beside it.
+6. **O-42 — revisit the three-source immediate** when `sgemm` at larger tiles has
+   been examined for strided addressing. Deferred on cost, not legality.
+
+### Not worth picking up
+
+- **F-79 is withdrawn** — packing two elements per lane contradicts invariant 1
+  and O-13. The row explains why it was tempting, so it is not re-proposed.
+- **O-43 is rejected** — the zero register. Same reason: the row preserves the
+  evidence that dissolved it.
+
+### Standing hazards, learned the hard way
+
+- **Three vendors pad their kernel tails** — `s_code_end` (gfx10+), `s_nop`
+  (CDNA3), NOPs to 128 bytes (NVIDIA) — and in every case counting the padding
+  flatters CCV. Drop only a *trailing* run; a NOP inside the body is real.
+- **A green check that was green because it was not looking** has now happened
+  about a dozen times. Each instance became a gate check; the gate is the
+  project's real asset.
+- **Dated reports are not re-measured.** `compiler-findings-v1.4/v1.5.md` say
+  what was believed when written. `benchmarks.md` is the live measurement.
 
 ---
 

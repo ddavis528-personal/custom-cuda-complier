@@ -38,6 +38,19 @@ Read the ISA spec for encoding questions and the backend context for scope
 questions. `roadmap.md` tracks what is actually being built next and what the
 build is expected to prove.
 
+## Picking this up again
+
+`docs/roadmap.md` **Part 0** is the handoff: current state, how to restore the
+environment, and the next steps in priority order. The short version —
+
+```
+    ./tools/fetch-ptxas.sh     # optional: NVIDIA's ptxas + nvdisasm, no GPU needed
+    ./tools/verify.sh          # the gate; green without the above too
+```
+
+`vendor/` is gitignored and does not survive a new container; nothing depends on
+it except the SASS column, which skips with an instruction rather than failing.
+
 ## Checking it
 
 `tools/verify.sh` is the gate and runs everything: encoding invariants against
