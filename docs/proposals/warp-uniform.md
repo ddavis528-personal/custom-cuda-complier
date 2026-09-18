@@ -5,6 +5,13 @@
 `ccv-sim -counters`.
 **Touches:** O-25, §1's "one live risk", F-52.
 
+> **Read `ai-ml-relevance.md` §5 alongside this.** The figures below were regenerated after
+> F-134 found two bugs in `sgemm` — a compiler miscompile that hung it and a staging defect
+> that meant it did not compute a matrix product — and after F-129 added the divergence split
+> that retracted F-128. This document still makes the case for a uniform file; the newer
+> proposal weighs that case against two cheaper alternatives and recommends **deferring**. The
+> disagreement is deliberate and both sides of it should be read.
+
 ---
 
 ## 0. The compatibility target ships one (added after the SASS comparison)
@@ -43,14 +50,21 @@ every lane of a warp is in one CTA, so `ctaid` and `ntid` are uniform and only
 `tid` is not. LLVM's stock NVPTX answer calls `ctaid` divergent, which is right
 across a grid and wrong here; `CCVTTIImpl` supplies the warp-scoped notion.
 
-| kernel | instructions | warp-uniform | lane-activations wasted | peak uniform live |
-|---|---|---|---|---|
-| `vadd` | 25 | 14 (56%) | 54% | 4 |
-| `saxpy` | 23 | 12 (52%) | 50% | 4 |
-| `dot` | 47 | 26 (55%) | 53% | 6 |
-| `reduce` | 41 | 23 (56%) | 54% | 5 |
-| `transpose` | 76 | 57 (**75%**) | 72% | 10 |
-| `sgemm` 2×4 | 345 | 48 (**14%**) | 13% | 11 |
+| kernel | instructions | warp-uniform | lane-activations wasted | peak uniform live | peak **divergent** live |
+|---|---|---|---|---|---|
+| `vadd` | 25 | 17 (68%) | 66% | 4 | 3 |
+| `saxpy` | 23 | 14 (61%) | 59% | 4 | 3 |
+| `dot` | 45 | 28 (62%) | 60% | 6 | 3 |
+| `reduce` | 39 | 24 (62%) | 60% | 5 | 3 |
+| `transpose` | 54 | 39 (**72%**) | 70% | 9 | 6 |
+| `sgemm` 2×2 | 213 | 46 (22%) | 21% | 10 | **60** |
+| `sgemm` 2×4 | 336 | 48 (**14%**) | 14% | 10 | **95** |
+
+**The last column is new and it changes the reading of this document.** A uniform register
+file holds uniform values and cannot hold divergent ones, whatever role they play — so what
+decides the question is whether the DIVERGENT peak alone already exceeds the 16-entry file.
+In `sgemm` it exceeds it several times over, because the kernel indexes by `threadIdx` and its
+row and column offsets differ per lane. Its addressing is divergent. See F-129.
 
 "Lane-activations wasted" is the uniform fraction × 31/32: the energy spent
 computing the same value in 32 lanes when one would do.
