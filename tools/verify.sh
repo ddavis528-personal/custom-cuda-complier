@@ -52,6 +52,16 @@ else
   echo "  (build/ccv-llc or the kernel-arg plugin not built -- skipping listing provenance)"
 fi
 
+# F-134: sgemm had never been executed. Every check it passed -- instruction
+# counts, spill counts, the tile sweep, the register-pressure argument the GPR
+# decision rests on -- was a check on its text, and the first time it ran it
+# hung. It is the most complex kernel here and the one most of the architecture
+# conclusions lean on, so it executes in the gate now.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  sgemm executes and computes a matrix product"
+  ./tools/check-sgemm.sh || fail=1
+fi
+
 # F-131 gave local arrays a lowering path through Format D base+index off the
 # frame pointer. The two addressing forms it selects -- constant index and
 # dynamic index -- are each plausible whatever the frame offset and the

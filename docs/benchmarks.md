@@ -77,7 +77,7 @@ questions and only one of them can be measured on both machines.
   vadd16_loop |     28     96   27.4 |     20     68 |     35    184   42.1 |     23
   dot        |     54    170   25.2 |     46    146 |     60    300   40.0 |     46
   reduce     |     49    154   25.1 |     43    136 |     54    268   39.7 |     41
-  transpose  |     61    214   28.1 |     53    186 |     64    308   38.5 |     43
+  transpose  |     64    228   28.5 |     56    200 |     64    308   38.5 |     43
 
 ```
 
@@ -93,7 +93,7 @@ questions and only one of them can be measured on both machines.
   vadd16_loop     69.0   100%         -- |      2208       100%   has 1 loops; not modelled
   dot            77.9    67%         -- |      2493       100%   has 3 loops; not modelled
   reduce         74.9    66%         -- |      2397       100%   has 3 loops; not modelled
-  transpose      53.0   100%         64 |      1067        63%   exact: no backward branch
+  transpose      56.0   100%         64 |      1191        66%   exact: no backward branch
 
 ```
 
@@ -136,9 +136,9 @@ spanning both encoding families and the datacentre line.
   vadd16_loop            27.4          128.0           42.1           43.6           42.4           46.8           45.2
   dot                   25.2          128.0           40.0           41.5           40.9           42.3           42.1
   reduce                25.1          128.0           39.7           42.9           39.2           41.4           40.2
-  transpose             28.1          128.0           38.5           41.1           39.6           39.2           38.7
+  transpose             28.5          128.0           38.5           41.1           39.6           39.2           38.7
   --------------------------------------------------------------------------------------------------------------------
-  pooled                26.6          128.0           40.7           43.7           41.8           43.8           43.1
+  pooled                26.7          128.0           40.7           43.7           41.8           43.8           43.1
 
 ```
 
@@ -154,7 +154,7 @@ spanning both encoding families and the datacentre line.
   vadd16_loop              28             20             35             44             49             39             29
   dot                     54             42             60             64             68             62             54
   reduce                  49             39             54             50             71             58             51
-  transpose               61             53             64             60             76             76             62
+  transpose               64             53             64             60             76             76             62
 
 ```
 
@@ -284,7 +284,7 @@ counts are within 30% everywhere and CCV is *lower* on seven of eight:
 
 | | vadd | saxpy | vadd16 | vadd_loop | vadd16_loop | dot | reduce | transpose |
 |---|---|---|---|---|---|---|---|---|
-| CCV | 23 | 21 | 24 | 27 | 28 | 54 | 49 | 61 |
+| CCV | 23 | 21 | 24 | 27 | 28 | 54 | 49 | 64 |
 | GCN | 29 | 25 | 29 | 35 | 35 | 60 | 54 | 64 |
 
 So the density is not bought with instruction count. **Code size lands below
@@ -320,14 +320,14 @@ emits `.amdhsa_wavefront_size32` and its absence means wave64.
     vadd16                544            464            864           1024           1024            368
     vadd_loop             272             --             --             --             --             --
     vadd16_loop            276             --             --             --             --             --
-    transpose            1696           1024           1920           2432           2432            992
+    transpose            1792           1024           1920           2432           2432            992
   instr bytes / 1K elem
     vadd                 1728           2432           5248           5888           6144           2240
     saxpy                1792           2176           4352           4992           5248           1984
     vadd16               1920           2432           5376           6016           6272           2240
     vadd_loop             248             --             --             --             --             --
     vadd16_loop            272             --             --             --             --             --
-    transpose            5952           4928           9856          12032          11904           4800
+    transpose            6400           4928           9856          12032          11904           4800
 
 ```
 
@@ -361,8 +361,9 @@ unit, one instruction for the whole wavefront.
 
 **`transpose` was the one kernel above GCN on instruction count, and is no
 longer**, and it now
-grew to **61 instructions and 214 bytes** against GCN's 64 and 308 — below on
-both now, and below on issued work too at 53 per thread against 64. For most of this project's life it was far worse
+grew to **64 instructions and 228 bytes** against GCN's 64 and 308 — level on
+instructions now, below on bytes, and below on issued work at 56 per thread
+against 64. For most of this project's life it was far worse
 than that and the explanation on file was wrong, which is worth recording
 because the wrong explanation was plausible for two revisions. See
 "`transpose` was not what it looked like" below.
@@ -563,7 +564,7 @@ had measured that. The simulator now counts it:
   vadd16_loop       69         58      32   0.552        53.0   1.283x
   dot              116         95       0   0.000       116.0       --
   reduce           113         92       0   0.000       113.0       --
-  transpose         53         49       0   0.000        53.0       --
+  transpose         56         53       0   0.000        56.0       --
 
 ```
 
@@ -659,12 +660,15 @@ The `lane-act` column is the measurement, from `ccv-sim -counters`:
 | | issued/thread | issued lane slots | activations | share |
 |---|---|---|---|---|
 | `transpose`, masking off | 47.0 | 1504 | 1408 | 94% |
-| `transpose`, masking on | 53.0 | 1696 | **1067** | **63%** |
+| `transpose`, masking on | 56.0 | 1792 | **1191** | **66%** |
 
-**341 fewer lanes switched — a 24% cut — for 6 added instructions per thread.**
-The pass's own stats account for them: 16 operations masked to lane 0, 3 already
-predicated and composed with `pand` (F-58), 5 broadcasts inserted, plus the one
-`pmov` that materializes the lane-0 mask. F-111 widened this: O-41's Format B
+**217 fewer lanes switched — a 15% cut — for 9 added instructions per thread.**
+The pass's own stats account for them: 16 operations masked to lane 0, 1 already
+predicated and composed with `pand` (F-58), 9 broadcasts inserted, plus the one
+`pmov` that materializes the lane-0 mask. The broadcast count rose and the
+saving fell when F-134 fixed the pass: a value consumed by an instruction that
+is NOT masked needs broadcasting however uniform it is, and compares -- which
+are never maskable -- were being treated as if they were in the region. F-111 widened this: O-41's Format B
 immediate forms were added without extending the masking pass's table, so every
 `add rd, rs, #k` in uniform code — most of the addressing arithmetic O-33 exists
 to gate — was unmaskable. The masked count went *down* and the saving went *up*,
@@ -745,7 +749,7 @@ anything to do with masking:
 | after F-94 — collect the dead reciprocal seed | 58 | −9% |
 | after O-41 and `mul.lo` — immediates have somewhere to go | **54** | **−16%** |
 
-53 instructions issued against GCN5's 64 is where it lands.
+56 instructions issued against GCN5's 64 is where it lands.
 
 **F-93 is the large one, and it hid behind a comment.** `CCVExpandDivision`
 opened with "constant divisors never reach here — instcombine turns those into a
@@ -872,22 +876,22 @@ only testable against an FP32 kernel of the same shape (F-113, F-121):
   FP32 -- test/cuda/sgemm.cu
   tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  div/unif
   ---------------------------------------------------------------------------------
-  1x1   1          157     4512    28.7      34      9   3.78       0      22     23/10
-  1x2   2          211     6224    29.5      54     17   3.18       0      42     34/10
-  2x2   4          294     8880    30.2      85     35   2.43       4      66     47/10
-  2x4   8          440    13440    30.5     139     67   2.07       8     110     69/10
-  4x4   16         756    23472    31.0     323    133   2.43     148     146     99/10
-  8x8   64        2582    81808    31.7    1491    521   2.86    1164     294    227/10
+  1x1   1          199     5664    28.5      47     10   4.70       2      29     28/10
+  1x2   2          291     8560    29.4      85     22   3.86       2      61     46/10
+  2x2   4          382    11296    29.6     118     40   2.95       4      88     60/10
+  2x4   8          601    18208    30.3     207     75   2.76      23     132     95/10
+  4x4   16         934    28752    30.8     412    142   2.90     182     168    131/10
+  8x8   64        2552    80368    31.5    1459    521   2.80    1136     283    282/10
 
   INT8 -- test/cuda/igemm.cu, four MACs per dp4
   tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  div/unif
   ---------------------------------------------------------------------------------
-  1x1   1          158     4544    28.8      34     33   1.03       0      22     23/10
-  1x2   2          213     6240    29.3      54     65   0.83       0      42     34/10
-  2x2   4          295     8864    30.0      85    131   0.65       4      66     51/10
-  2x4   8          431    13136    30.5     131    259   0.51       4     110     77/10
-  4x4   16         764    23680    31.0     330    517   0.64     153     146    107/10
-  8x8   64        2589    82000    31.7    1499   2057   0.73    1161     294    239/10
+  1x1   1          195     5632    28.9      44     34   1.29       2      27     28/10
+  1x2   2          288     8368    29.1      79     70   1.13       2      61     46/10
+  2x2   4          376    11168    29.7     115    136   0.85       4      86     60/10
+  2x4   8          607    18304    30.2     209    267   0.78      24     130     95/10
+  4x4   16         930    28512    30.7     402    526   0.76     170     168    131/10
+  8x8   64        2547    80240    31.5    1452   2057   0.71    1129     283    282/10
 
   sp/mac is the decision number: memory traffic the register file forced, per
   multiply-accumulate it bought. A bigger tile raises arithmetic intensity as
@@ -1030,8 +1034,8 @@ block:
   decode and fused shapes -- what binds when there is no tile to fill
   kernel         instrs     bits  spills  div/unif   uni-ld
   ------------------------------------------------------------
-  gemv              226     6992      11       6/7       0%
-  gemv8             226     6992      11       6/7       0%
+  gemv              217     6720      11       6/7       4%
+  gemv8             217     6704      11       6/7       4%
   fused NT=1         27      752       0       3/5      33%
   fused NT=4         42     1184       0       3/8      36%
   fused NT=8         62     1760       0      3/12      37%
@@ -1048,9 +1052,9 @@ block:
 
   For contrast, the same two columns on the GEMM this was compared against:
   ------------------------------------------------------------
-  sgemm 2x2         294     8880      85     47/10       0%
-  sgemm 2x4         440    13440     139     69/10       0%
-  sgemm 4x4         756    23472     323     99/10       0%
+  sgemm 2x2         382    11296     118     60/10       0%
+  sgemm 2x4         601    18208     207     95/10       0%
+  sgemm 4x4         934    28752     412    131/10       0%
 
   Read the div/unif column first. In `sgemm` the divergent peak alone is several
   times the 16-entry register file -- its addressing is indexed by `threadIdx`,
@@ -1071,6 +1075,7 @@ block:
   set of four divergent values spilling because twenty uniform ones are in the
   way, and it is the one shape measured here where a warp-uniform register file
   would remove essentially all of the traffic rather than some of it.
+
 ```
 
 **Three shapes, three different answers, and only one of them supports a uniform

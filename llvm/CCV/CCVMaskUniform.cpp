@@ -309,19 +309,27 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
   // harmless: lane 0's input was correct, so lane 0's result is correct, and
   // lane 0 is the only lane the eventual broadcast reads. Such an instruction
   // costs a missed saving, not a broadcast.
+  // The question is not "is this use uniform" but "will this use RUN UNDER THE
+  // LANE-0 MASK". Only the instructions in InSet are rewritten to `@p3`;
+  // everything else executes in all 32 lanes and therefore needs real values in
+  // all 32 lanes, however uniform its own result is.
+  //
+  // This tested uniformity instead, and a COMPARE passed it: `setp` defines a
+  // predicate register, that predicate is uniform, and the block is not reached
+  // by divergence -- so the test said "in region" and no broadcast was
+  // inserted. But no compare is maskable (there is no predicated form in
+  // `predicatedForm`, and F-119 explains why masking one would need a predicate
+  // broadcast that does not exist), so it ran in every lane reading operands
+  // only lane 0 had computed.
+  //
+  // In `sgemm` those operands are the `bpr` division, whose result feeds the
+  // loop bound. Lanes 1-31 compared garbage, lane 0 left the loop while they
+  // stayed in it, and the 31 that remained waited at a `bar.wait` for a lane
+  // that was never going to arrive. The kernel hung. It was invisible because
+  // `sgemm` had never been executed -- it is not in the benchmark's ARGS table,
+  // so every check it passed was a check on its text.
   auto inUniformRegion = [&](const MachineInstr *MI) {
-    if (!MI || DivReached.count(MI->getParent()))
-      return false;
-    bool AnyDef = false;
-    for (const MachineOperand &MO : MI->defs())
-      if (MO.isReg() && MO.getReg().isVirtual()) {
-        AnyDef = true;
-        if (Divergent.count(MO.getReg()))
-          return false;
-      }
-    // No virtual def at all -- a store or a branch. It consumes values in
-    // every lane, so anything feeding it has to be broadcast first.
-    return AnyDef;
+    return MI && InSet.count(const_cast<MachineInstr *>(MI));
   };
 
   // TRIED AND WRONG: skipping the mask on any value that needs its own

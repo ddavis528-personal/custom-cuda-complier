@@ -58,12 +58,18 @@ __global__ void igemm(int *__attribute__((align_value(65536))) C,
             acc[i][j] = 0;
 
     for (int k0 = 0; k0 < N; k0 += KT) {
+        // Flat index over the tile, for the reason sgemm.cu gives: (t % KT,
+        // tx) collide when BX == KT and stage only the diagonal (F-134).
 #pragma unroll
-        for (int i = 0; i < TM; ++i)
-            As[t % KT][ty * TM + i] = A[(row0 + i) * N + (k0 + t % KT)];
+        for (unsigned idx = t; idx < KT * (BY * TM); idx += BX * BY) {
+            unsigned kk = idx / (BY * TM), rr = idx % (BY * TM);
+            As[kk][rr] = A[(brow * (BY * TM) + rr) * N + (k0 + kk)];
+        }
 #pragma unroll
-        for (int j = 0; j < TN; ++j)
-            Bs[t % KT][tx * TN + j] = B[(k0 + t % KT) * N + (col0 + j)];
+        for (unsigned idx = t; idx < KT * (BX * TN); idx += BX * BY) {
+            unsigned kk = idx / (BX * TN), cc = idx % (BX * TN);
+            Bs[kk][cc] = B[(k0 + kk) * N + (bcol * (BX * TN) + cc)];
+        }
         __syncthreads();
 
 #pragma unroll
