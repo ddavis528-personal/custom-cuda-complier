@@ -70,14 +70,15 @@ questions and only one of them can be measured on both machines.
   kernel     |     CCV unaligned     |  CCV aligned   |     AMDGCN gfx900     |  PTX  
              |  instr  bytes    b/i |  instr  bytes |  instr  bytes    b/i |  instr
   --------------------------------------------------------------------------------
-  vadd       |     23     78   27.1 |     16     56 |     29    152   41.9 |     21
-  saxpy      |     22     74   26.9 |     17     58 |     25    136   43.5 |     19
-  vadd16     |     24     84   28.0 |     17     62 |     29    152   41.9 |     21
-  vadd_loop  |     27     94   27.9 |     19     66 |     35    184   42.1 |     23
-  vadd16_loop |     28    100   28.6 |     20     72 |     35    184   42.1 |     23
-  dot        |     55    178   25.9 |     47    152 |     60    300   40.0 |     46
-  reduce     |     50    162   25.9 |     44    142 |     54    268   39.7 |     41
-  transpose  |     62    220   28.4 |     54    192 |     64    308   38.5 |     43
+  vadd       |     23     76   26.4 |     16     54 |     29    152   41.9 |     21
+  saxpy      |     22     72   26.2 |     17     56 |     25    136   43.5 |     19
+  vadd16     |     24     82   27.3 |     17     60 |     29    152   41.9 |     21
+  vadd_loop  |     27     92   27.3 |     19     64 |     35    184   42.1 |     23
+  vadd16_loop |     28     98   28.0 |     20     70 |     35    184   42.1 |     23
+  dot        |     54    170   25.2 |     46    146 |     60    300   40.0 |     46
+  reduce     |     49    154   25.1 |     43    136 |     54    268   39.7 |     41
+  transpose  |     61    214   28.1 |     53    186 |     64    308   38.5 |     43
+
 ```
 
 **Dynamic — instructions actually issued, per thread of work.**
@@ -90,9 +91,10 @@ questions and only one of them can be measured on both machines.
   vadd16         17.0   100%         29 |       544       100%   exact: no backward branch
   vadd_loop      68.0   100%         -- |      2176       100%   has 1 loops; not modelled
   vadd16_loop     69.0   100%         -- |      2208       100%   has 1 loops; not modelled
-  dot            79.9    66%         -- |      2556       100%   has 3 loops; not modelled
-  reduce         76.9    65%         -- |      2460       100%   has 3 loops; not modelled
-  transpose      54.0   100%         64 |      1192        69%   exact: no backward branch
+  dot            77.9    67%         -- |      2493       100%   has 3 loops; not modelled
+  reduce         74.9    66%         -- |      2397       100%   has 3 loops; not modelled
+  transpose      53.0   100%         64 |      1067        63%   exact: no backward branch
+
 ```
 
 **CCV's dynamic column is measured** on the simulator — lane-instructions
@@ -127,16 +129,17 @@ spanning both encoding families and the datacentre line.
   kernel                 CCV        NV SASS    GCN5 / Vega          RDNA2          RDNA3          RDNA4  CDNA3 / MI300
                                       sm_70           2017           2020           2022           2024           2023
   --------------------------------------------------------------------------------------------------------------------
-  vadd                  27.1          128.0           41.9           48.6           46.0           48.0           48.7
-  saxpy                 26.9          128.0           43.5           47.3           44.6           46.9           47.2
-  vadd16                28.0          128.0           41.9           49.8           47.0           49.0           48.7
-  vadd_loop             27.9          128.0           42.1           42.9           41.8           45.9           45.2
-  vadd16_loop            28.6          128.0           42.1           43.6           42.4           46.8           45.2
-  dot                   25.9          128.0           40.0           41.5           40.9           42.3           42.1
-  reduce                25.9          128.0           39.7           42.9           39.2           41.4           40.2
-  transpose             28.4          128.0           38.5           41.1           39.6           39.2           38.7
+  vadd                  26.4          128.0           41.9           48.6           46.0           48.0           48.7
+  saxpy                 26.2          128.0           43.5           47.3           44.6           46.9           47.2
+  vadd16                27.3          128.0           41.9           49.8           47.0           49.0           48.7
+  vadd_loop             27.3          128.0           42.1           42.9           41.8           45.9           45.2
+  vadd16_loop            28.0          128.0           42.1           43.6           42.4           46.8           45.2
+  dot                   25.2          128.0           40.0           41.5           40.9           42.3           42.1
+  reduce                25.1          128.0           39.7           42.9           39.2           41.4           40.2
+  transpose             28.1          128.0           38.5           41.1           39.6           39.2           38.7
   --------------------------------------------------------------------------------------------------------------------
-  pooled                27.2          128.0           40.7           43.7           41.8           43.8           43.1
+  pooled                26.6          128.0           40.7           43.7           41.8           43.8           43.1
+
 ```
 
 **Instruction counts, same sweep — the control:**
@@ -149,9 +152,10 @@ spanning both encoding families and the datacentre line.
   vadd16                  24             17             29             27             32             32             23
   vadd_loop               27             20             35             44             49             39             29
   vadd16_loop              28             20             35             44             49             39             29
-  dot                     55             42             60             64             68             62             54
-  reduce                  50             39             54             50             71             58             51
-  transpose               62             53             64             60             76             76             62
+  dot                     54             42             60             64             68             62             54
+  reduce                  49             39             54             50             71             58             51
+  transpose               61             53             64             60             76             76             62
+
 ```
 
 **The objection does not land.** AMD's density is flat across eight years and two
@@ -280,7 +284,7 @@ counts are within 30% everywhere and CCV is *lower* on seven of eight:
 
 | | vadd | saxpy | vadd16 | vadd_loop | vadd16_loop | dot | reduce | transpose |
 |---|---|---|---|---|---|---|---|---|
-| CCV | 23 | 22 | 24 | 27 | 28 | 55 | 50 | 62 |
+| CCV | 23 | 22 | 24 | 27 | 28 | 54 | 49 | 61 |
 | GCN | 29 | 25 | 29 | 35 | 35 | 60 | 54 | 64 |
 
 So the density is not bought with instruction count. **Code size lands below
@@ -316,14 +320,15 @@ emits `.amdhsa_wavefront_size32` and its absence means wave64.
     vadd16                544            464            864           1024           1024            368
     vadd_loop             272             --             --             --             --             --
     vadd16_loop            276             --             --             --             --             --
-    transpose            1728           1024           1920           2432           2432            992
+    transpose            1696           1024           1920           2432           2432            992
   instr bytes / 1K elem
-    vadd                 1792           2432           5248           5888           6144           2240
-    saxpy                1856           2176           4352           4992           5248           1984
-    vadd16               1984           2432           5376           6016           6272           2240
-    vadd_loop             264             --             --             --             --             --
-    vadd16_loop            288             --             --             --             --             --
-    transpose            6144           4928           9856          12032          11904           4800
+    vadd                 1728           2432           5248           5888           6144           2240
+    saxpy                1792           2176           4352           4992           5248           1984
+    vadd16               1920           2432           5376           6016           6272           2240
+    vadd_loop             256             --             --             --             --             --
+    vadd16_loop            280             --             --             --             --             --
+    transpose            5952           4928           9856          12032          11904           4800
+
 ```
 
 **Two results, and they point opposite ways.**
@@ -356,8 +361,8 @@ unit, one instruction for the whole wavefront.
 
 **`transpose` was the one kernel above GCN on instruction count, and is no
 longer**, and it now
-grew to **62 instructions and 220 bytes** against GCN's 64 and 308 — below on
-both now, and below on issued work too at 54 per thread against 64. For most of this project's life it was far worse
+grew to **61 instructions and 214 bytes** against GCN's 64 and 308 — below on
+both now, and below on issued work too at 53 per thread against 64. For most of this project's life it was far worse
 than that and the explanation on file was wrong, which is worth recording
 because the wrong explanation was plausible for two revisions. See
 "`transpose` was not what it looked like" below.
@@ -556,9 +561,10 @@ had measured that. The simulator now counts it:
   vadd16            17         14       4   0.286        15.0   1.067x
   vadd_loop         68         58       0   0.000        68.0   1.000x
   vadd16_loop       69         58      32   0.552        53.0   1.283x
-  dot              122        101       0   0.000       122.0       --
-  reduce           119         98       0   0.000       119.0       --
-  transpose         54         50       0   0.000        54.0       --
+  dot              116         95       0   0.000       116.0       --
+  reduce           113         92       0   0.000       113.0       --
+  transpose         53         49       0   0.000        53.0       --
+
 ```
 
 **`vadd16` is exactly break-even.** 18 issued instructions, 4 of them narrow
@@ -652,13 +658,17 @@ The `lane-act` column is the measurement, from `ccv-sim -counters`:
 
 | | issued/thread | issued lane slots | activations | share |
 |---|---|---|---|---|
-| `transpose`, masking off | 48.0 | 1536 | 1440 | 94% |
-| `transpose`, masking on | 54.0 | 1728 | **1192** | **69%** |
+| `transpose`, masking off | 47.0 | 1504 | 1408 | 94% |
+| `transpose`, masking on | 53.0 | 1696 | **1067** | **63%** |
 
-**248 fewer lanes switched — a 17% cut — for 6 added instructions per thread.**
-The pass's own stats account for them: 22 operations masked to lane 0, 7 already
-predicated and composed with `pand` (F-58), 3 broadcasts inserted, plus the one
-`pmov` that materializes the lane-0 mask.
+**341 fewer lanes switched — a 24% cut — for 6 added instructions per thread.**
+The pass's own stats account for them: 16 operations masked to lane 0, 3 already
+predicated and composed with `pand` (F-58), 5 broadcasts inserted, plus the one
+`pmov` that materializes the lane-0 mask. F-111 widened this: O-41's Format B
+immediate forms were added without extending the masking pass's table, so every
+`add rd, rs, #k` in uniform code — most of the addressing arithmetic O-33 exists
+to gate — was unmaskable. The masked count went *down* and the saving went *up*,
+because the immediate forms replace several instructions each.
 
 The masking-off row is **not** 100%, and that is worth reading rather than
 skipping: 7% of `transpose`'s lane slots are predicated off before any masking
@@ -735,7 +745,7 @@ anything to do with masking:
 | after F-94 — collect the dead reciprocal seed | 58 | −9% |
 | after O-41 and `mul.lo` — immediates have somewhere to go | **54** | **−16%** |
 
-54 instructions issued against GCN5's 64 is where it lands.
+53 instructions issued against GCN5's 64 is where it lands.
 
 **F-93 is the large one, and it hid behind a comment.** `CCVExpandDivision`
 opened with "constant divisors never reach here — instcombine turns those into a
@@ -768,7 +778,7 @@ partway and none of the issue-bandwidth gap: a scalar unit does not issue to the
 vector pipe at all.
 
 **Masking was never the main cost, and the A/B always said so.** It is 6
-instructions of the 58 — `transpose` runs 52 issued with masking off and 58 with
+instructions of the 53 — `transpose` runs 47 issued with masking off and 53 with
 it on. The explanation on file attributed the outlier to it anyway, which is the
 lesson worth keeping: a plausible cause that is present in the code will absorb
 an unexplained cost indefinitely if nobody measures the parts.
@@ -858,11 +868,12 @@ tile:
 ```
   tile  accs    instrs     bits b/instr  spills    fma sp/fma    K-hit
   -------------------------------------------------------------------------
-  1x1   1          167     4592    27.5      37     16   2.31      31%
-  1x2   2          240     6496    27.1      61     32   1.91      29%
-  2x2   4          358     9552    26.7     101     64   1.58      25%
-  2x4   8          598    15536    26.0     183    128   1.43      29%
-  4x4   16        1076    27872    25.9     410    256   1.60      23%
+  1x1   1          167     4576    27.4      36     16   2.25      25%
+  1x2   2          241     6512    27.0      60     32   1.88      17%
+  2x2   4          361     9632    26.7     101     64   1.58      17%
+  2x4   8          596    15568    26.1     181    128   1.41      15%
+  4x4   16        1078    27920    25.9     410    256   1.60      16%
+
 ```
 
 `sp/fma` — memory traffic the register file forced, per unit of arithmetic it

@@ -128,7 +128,7 @@ one-register form arrives from `instcombine`, not from a backend special case.
 ```
 _Z4vaddPfPKfS1_i:
 	movi r0, 2
-	ld.global r1, [r0 + 0]
+	ld.global r1, [r0]
 	srd r2, 0
 	srd r3, 1
 	mad.lo r1, r3, r1, r2
@@ -150,7 +150,7 @@ Lfunc_end0:
 | | |
 |---|---|
 | `movi r0, 2` | Format F's 48-bit form materialises the launch window in one instruction |
-| `ld.global r1, [r0 + 0]` | `blockDim.x` — launch-*time* data, so the block supplies it (§5.3) |
+| `ld.global r1, [r0]` | `blockDim.x` — launch-*time* data, so the block supplies it (§5.3). A zero displacement means this is Format **K**'s memory form, 16 bits rather than 32: `rd` and `rbase` sit in separate 4-bit fields, so unlike the rest of Format K there is no tie to satisfy and the rewrite is unconditional. F-111's audit found the encoding defined and unreachable |
 | `srd r2, 0` / `srd r3, 1` | thread and CTA identity — the only values no memory location can supply |
 | `mad.lo r1, r3, r1, r2` | the three-source form takes `ctaid*ntid + tid` in one instruction |
 | `setp.le p0, r2, r1` | Format C″ (O-32), the **unpredicated** compare. Earlier revisions had no such form: Formats C/C′ carry a mandatory qualifier, so every compare had to be preceded by a `por` manufacturing a true predicate (O-24). That cost one instruction per compare — 13% of dynamically issued instructions in the reduction kernels — and is now zero |
@@ -190,7 +190,7 @@ scale-enable stays clear and the index carries bytes rather than elements:
 ```
 _Z4vaddPfPKfS1_i:
 	movi r0, 2
-	ld.global r1, [r0 + 0]
+	ld.global r1, [r0]
 	srd r2, 0
 	srd r3, 1
 	mad.lo r1, r3, r1, r2
@@ -233,7 +233,7 @@ landed on `rd != rs0` and nothing tries to prevent that (F-29).
 
 ## 5. The binary
 
-16 instructions in 56 bytes. Each length comes from bits `[1:0]` of
+16 instructions in 54 bytes. Each length comes from bits `[1:0]` of
 its first halfword alone — this walker never looks at the format tag, which is
 exactly what §2 claims.
 
@@ -241,42 +241,41 @@ exactly what §2 claims.
   addr  bytes              len                fmt
 ----------------------------------------------------------
 0x0000  2c 00 01 00        32-bit             F
-0x0004  20 08 00 00        32-bit             D
-0x0008  72 02              16-bit, Format K   K
-0x000a  72 13              16-bit, Format K   K
-0x000c  40 89 09 01        32-bit             A
-0x0010  20 10 c0 01        32-bit             D
-0x0014  7c 10 09 00        32-bit             H
-0x0018  68 68 00 00        32-bit             E
-0x001c  20 10 80 01        32-bit             D
-0x0020  20 11 89 00        32-bit             D
-0x0024  20 18 40 01        32-bit             D
-0x0028  20 99 89 00        32-bit             D
-0x002c  4a 23              16-bit, Format K   K
-0x002e  20 00 00 01        32-bit             D
-0x0032  60 19 88 00        32-bit             D
-0x0036  da 00              16-bit, Format K   K
+0x0004  62 01              16-bit, Format K   K
+0x0006  72 02              16-bit, Format K   K
+0x0008  72 13              16-bit, Format K   K
+0x000a  40 89 09 01        32-bit             A
+0x000e  20 10 c0 01        32-bit             D
+0x0012  7c 10 09 00        32-bit             H
+0x0016  68 68 00 00        32-bit             E
+0x001a  20 10 80 01        32-bit             D
+0x001e  20 11 89 00        32-bit             D
+0x0022  20 18 40 01        32-bit             D
+0x0026  20 99 89 00        32-bit             D
+0x002a  4a 23              16-bit, Format K   K
+0x002c  20 00 00 01        32-bit             D
+0x0030  60 19 88 00        32-bit             D
+0x0034  da 00              16-bit, Format K   K
 
-56 bytes total
+54 bytes total
 ```
 
-56 bytes against 64 for a fixed-32 encoding.
+54 bytes against 64 for a fixed-32 encoding.
 
 ### Two instructions, field by field
 
 The O-24 bootstrap, decoded from the real bytes using the §3 bit map:
 
 ```
-  16-bit instruction at 0x0016: 09 00  ->  DP4_ACC
-  raw = 0x0009 = 0000000000001001
+  32-bit instruction at 0x0016: 68 68 00 00  ->  BRA_PRED
+  raw = 0x00006868 = 00000000000000000110100001101000
 
   bits         field      value
   --------------------------------------------
-  [1:0]        class      0b01  (§2: length from bits [1:0] alone)
-  [7:2]        opcode     2
-  [7:4]        rd         0
-  [11:8]       rs0        0
-  [15:12]      rs1        0
+  [1:0]        class      0b00  (§2: length from bits [1:0] alone)
+  [5:2]        fmt tag    0b1010
+  [31,30,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11] off        13
+  [29:27]      pq         0
 ```
 
 `ps0 = 4` is `!P0` — bit 2 of a qualifier is the negate bit — and `ps1 = 0` is
@@ -305,21 +304,21 @@ set of lanes issuing together.
 
 ```
   0000  mask=ffffffff  	movi r0, 2
-  0004  mask=ffffffff  	ld.global r1, [r0 + 0]
-  0008  mask=ffffffff  	srd r2, 0
-  000a  mask=ffffffff  	srd r3, 1
-  000c  mask=ffffffff  	mad.lo r1, r3, r1, r2
-  0010  mask=ffffffff  	ld.global r2, [r0 + 56]
-  0014  mask=ffffffff  	setp.le p0, r2, r1
-  0018  mask=ffffffff  	@p0 bra 13
-  001c  mask=000fffff  	ld.global r2, [r0 + 48]
-  0020  mask=000fffff  	ld.global r2, [r2, r1, 1, 0]
-  0024  mask=000fffff  	ld.global r3, [r0 + 40]
-  0028  mask=000fffff  	ld.global r3, [r3, r1, 1, 0]
-  002c  mask=000fffff  	fadd r3, r2
-  002e  mask=000fffff  	ld.global r0, [r0 + 32]
-  0032  mask=000fffff  	st.global r3, [r0, r1, 1, 0]
-  0036  mask=ffffffff  	exit
+  0004  mask=ffffffff  	ld.global r1, [r0]
+  0006  mask=ffffffff  	srd r2, 0
+  0008  mask=ffffffff  	srd r3, 1
+  000a  mask=ffffffff  	mad.lo r1, r3, r1, r2
+  000e  mask=ffffffff  	ld.global r2, [r0 + 56]
+  0012  mask=ffffffff  	setp.le p0, r2, r1
+  0016  mask=ffffffff  	@p0 bra 13
+  001a  mask=000fffff  	ld.global r2, [r0 + 48]
+  001e  mask=000fffff  	ld.global r2, [r2, r1, 1, 0]
+  0022  mask=000fffff  	ld.global r3, [r0 + 40]
+  0026  mask=000fffff  	ld.global r3, [r3, r1, 1, 0]
+  002a  mask=000fffff  	fadd r3, r2
+  002c  mask=000fffff  	ld.global r0, [r0 + 32]
+  0030  mask=000fffff  	st.global r3, [r0, r1, 1, 0]
+  0034  mask=ffffffff  	exit
 ```
 
 The mask is `ffffffff` through the prologue, narrows to `000fffff` for the body,
@@ -488,7 +487,7 @@ That is why the narrow data above is in `r14`/`r13` while the addresses stay low
 _Z11vadd16_loopPsPKsS1_i:
 	chwidth.multi 24576, 1
 	movi r5, 2
-	ld.global r0, [r5 + 0]
+	ld.global r0, [r5]
 	srd r1, 0
 	srd r2, 1
 	mad.lo r1, r2, r0, r1

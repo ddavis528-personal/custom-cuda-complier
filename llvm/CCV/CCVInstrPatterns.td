@@ -58,6 +58,26 @@ def : Pat<(ctpop GPR:$a),  (POPC GPR:$a, GPR:$a, GPR:$a)>;
 def : Pat<(ctlz GPR:$a),   (CLZ GPR:$a, GPR:$a, GPR:$a)>;
 def : Pat<(bitreverse GPR:$a), (BREV GPR:$a, GPR:$a, GPR:$a)>;
 def : Pat<(abs GPR:$a),    (ABS GPR:$a, GPR:$a, GPR:$a)>;
+// F-111 found `neg` and `andn` defined, encodable, simulated, and unselected.
+// Negation reaches ISel as `sub 0, x`, which matched the generic subtract and
+// paid a `movi 0` to materialise the zero; `and a, ~b` was two instructions
+// because nothing matched the fused form. Both are one instruction here, and
+// both then compress, since CCVCompress.cpp already mapped NEG and ANDN to
+// their Format K forms -- entries that could never fire.
+def : Pat<(sub (i32 0), GPR:$a), (NEG GPR:$a, GPR:$a, GPR:$a)>;
+def : Pat<(and GPR:$a, (not GPR:$b)), (ANDN GPR:$a, GPR:$b, GPR:$a)>;
+// `and a, ~k`: ANDI already covers it whenever ~k fits the 13-bit field, so
+// ANDNI earns its point only for the constants where k fits and ~k does not --
+// which is every k with the high bits set, i.e. exactly the mask constants a
+// bitfield extract produces.
+// ANDNI holds the complement of the mask the DAG carries.
+def imm_not : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(~N->getSExtValue(), SDLoc(N), MVT::i32);
+}]>;
+def simm13_not_imm : ImmLeaf<i32, [{
+  return !isInt<13>(Imm) && isInt<13>(~Imm);
+}]>;
+def : Pat<(and GPR:$a, (i32 simm13_not_imm:$i)), (ANDNI GPR:$a, (imm_not $i))>;
 // `not` is xor with -1 in LLVM; Format K has a real one-source form.
 def : Pat<(xor GPR:$a, (i32 -1)), (C_NOT GPR:$a)>;
 
@@ -111,6 +131,18 @@ def : Pat<(sra GPR:$a, (i32 uimm5_imm:$i)),  (SRAI  GPR:$a, imm:$i)>;
 // ---------------------------------------------------------------------------
 // Floating point. The compressed destructive form is the natural match for a
 // two-operand add -- it is what Format K exists for (§3).
+//
+// This makes the three-address Format A forms unreachable, which is the one
+// place the integer and float halves of the ALU disagree: integer arithmetic
+// selects three-address and lets CCVCompress narrow it after register
+// allocation, where the tie is free. F-111's audit asked whether the asymmetry
+// costs anything and the answer was measured, not argued: selecting FADD/FMUL/
+// FMIN/FMAX three-address instead gives byte-for-byte identical instruction
+// counts, identical issue counts and identical lane activations on all eight
+// benchmark kernels, and two bytes MORE in three of them, because the
+// post-allocation narrowing misses ties that matching the destructive form
+// directly gets for free. So O-8's preference stands and the Format A float
+// forms stay unreachable; see F-117.
 // ---------------------------------------------------------------------------
 def : Pat<(fadd GPR:$a, GPR:$b), (C_FADD GPR:$a, GPR:$b)>;
 def : Pat<(fmul GPR:$a, GPR:$b), (C_FMUL GPR:$a, GPR:$b)>;
@@ -280,6 +312,23 @@ def : Pat<(sub GPR16:$a, GPR16:$b), (SUB_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
 def : Pat<(and GPR16:$a, GPR16:$b), (AND_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
 def : Pat<(or GPR16:$a, GPR16:$b), (OR_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
 def : Pat<(xor GPR16:$a, GPR16:$b), (XOR_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
+def : Pat<(smin GPR16:$a, GPR16:$b), (MIN_S_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
+def : Pat<(smax GPR16:$a, GPR16:$b), (MAX_S_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
+// F-111: the width-affinity twins were defined for the whole reg-reg block but
+// only five of them had patterns, so a 16-bit min, max or add-immediate fell
+// back to the 32-bit instruction and its 32-bit register class -- which is the
+// one thing F-80's opposite allocation orders cannot help with, since the value
+// is not in GPR16 to begin with. `add rd, rs, #k` is the common one: it is the
+// induction-variable update of every narrow loop.
+def simm13_imm16 : ImmLeaf<i16, [{ return isInt<13>(Imm); }]>;
+// Format B's immediate field is the same field at either element width -- the
+// width is register state, not an operand (invariant: no element-width field),
+// so the operand class is the 32-bit one and the constant is re-typed here.
+def as_i32imm : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(N->getSExtValue(), SDLoc(N), MVT::i32);
+}]>;
+def : Pat<(add GPR16:$a, (i16 simm13_imm16:$i)),
+          (ADDI_W16 GPR16:$a, (as_i32imm $i))>;
 
 def : Pat<(i16 (ld_shared GPR:$rbase)), (LD_SHARED_W16 GPR:$rbase, 0)>;
 def : Pat<(st_shared GPR16:$v, GPR:$rbase), (ST_SHARED_W16 GPR16:$v, GPR:$rbase, 0)>;

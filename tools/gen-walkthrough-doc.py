@@ -122,7 +122,7 @@ one-register form arrives from `instcombine`, not from a backend special case.
 | | |
 |---|---|
 | `movi r0, 2` | Format F's 48-bit form materialises the launch window in one instruction |
-| `ld.global r1, [r0 + 0]` | `blockDim.x` — launch-*time* data, so the block supplies it (§5.3) |
+| `ld.global r1, [r0]` | `blockDim.x` — launch-*time* data, so the block supplies it (§5.3). A zero displacement means this is Format **K**'s memory form, 16 bits rather than 32: `rd` and `rbase` sit in separate 4-bit fields, so unlike the rest of Format K there is no tie to satisfy and the rewrite is unconditional. F-111's audit found the encoding defined and unreachable |
 | `srd r2, 0` / `srd r3, 1` | thread and CTA identity — the only values no memory location can supply |
 | `mad.lo r1, r3, r1, r2` | the three-source form takes `ctaid*ntid + tid` in one instruction |
 | `setp.le p0, r2, r1` | Format C″ (O-32), the **unpredicated** compare. Earlier revisions had no such form: Formats C/C′ carry a mandatory qualifier, so every compare had to be preceded by a `por` manufacturing a true predicate (O-24). That cost one instruction per compare — 13% of dynamically issued instructions in the reduction kernels — and is now zero |

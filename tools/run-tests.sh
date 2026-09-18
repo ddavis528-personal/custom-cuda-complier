@@ -138,6 +138,31 @@ elif echo "$chw" | grep -qE "^	chwidth r1,"; then
 else
   echo "  PASS  chwidth placed on data registers only ($(echo "$chw" | grep -c "chwidth") emitted, incl. chwidth.multi)"
 fi
+
+# F-111: the base+DISPLACEMENT form of a 16-bit global access. The base+index
+# form has checked the memory type since a `short` kernel first clobbered its
+# neighbour; this form did not, and selected the 32-bit instruction -- so the
+# data register was 32 bits wide at the access and narrowed afterwards, which
+# makes the transfer four bytes for a two-byte element. Both the load (reading
+# past the end) and the store (writing over the next element) are wrong, and
+# neither shows up in any value the kernel is asked about.
+#
+# The tell is a WIDENING chwidth: the whole kernel works at 16 bits, so every
+# width change in it should be to width code 1. Selecting the wide form forces
+# a `chwidth.multi <mask>, 0` back to 32 before the store.
+bo=$(build/ccv-llc test/accept/base-offset-i16.ll -o - 2>/dev/null)
+if [ -z "$bo" ]; then
+  echo "  FAIL  base-offset-i16.ll did not compile"
+  fail=1
+elif echo "$bo" | grep -qE "chwidth(\.multi)? [^,]+, 0$"; then
+  echo "  FAIL  16-bit base+offset access selected the 32-bit form"
+  echo "        (a widening chwidth in an all-16-bit kernel means the"
+  echo "         transfer is four bytes wide for a two-byte element)"
+  echo "$bo" | sed 's/^/        /'
+  fail=1
+else
+  echo "  PASS  16-bit base+offset access stays 16 bits ($(echo "$bo" | grep -c 'global') accesses, no widening)"
+fi
 # zext is free under O-38 -- widening clears the exposed bits, which IS the
 # zero-extension. If a masking instruction ever appears in that path, either
 # O-38 was reverted or the pattern stopped firing.

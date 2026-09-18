@@ -85,7 +85,12 @@ bool CCVExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
         case CCV::PSEUDO_SETP_LE_F: Opc = CCV::SETP_LE_F; break;
         case CCV::PSEUDO_SETP_EQ_F: Opc = CCV::SETP_EQ_F; break;
         case CCV::PSEUDO_SETP_NE_F: Opc = CCV::SETP_NE_F; break;
-        default:                    Opc = CCV::SETP_NE;   break;
+        case CCV::PSEUDO_SETP_NE:   Opc = CCV::SETP_NE;   break;
+        // Every pseudo in the outer case list above must appear here. This was
+        // a `default:` mapping to SETP_NE, which covered PSEUDO_SETP_NE by
+        // accident and would have turned any pseudo added to the outer list
+        // into a not-equal compare without a word of complaint.
+        default: llvm_unreachable("pseudo compare with no concrete opcode");
         }
         BuildMI(MBB, MI, DL, TII->get(Opc))
             .addReg(Pd, RegState::Define)

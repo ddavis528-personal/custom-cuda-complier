@@ -62,14 +62,15 @@ unsigned compressedALU(unsigned Op) {
   case CCV::SHL:   return CCV::C_SHL;
   case CCV::SHR:   return CCV::C_SHR;
   case CCV::SRA:   return CCV::C_SRA;
+  case CCV::MUL_LO: return CCV::C_MUL_LO;
   case CCV::MIN_S: return CCV::C_MIN_S;
   case CCV::MIN_U: return CCV::C_MIN_U;
   case CCV::MAX_S: return CCV::C_MAX_S;
   case CCV::MAX_U: return CCV::C_MAX_U;
-  case CCV::FADD:  return CCV::C_FADD;
-  case CCV::FMUL:  return CCV::C_FMUL;
-  case CCV::FMIN:  return CCV::C_FMIN;
-  case CCV::FMAX:  return CCV::C_FMAX;
+  // FADD, FMUL, FMIN and FMAX are deliberately absent. ISel matches them to
+  // the compressed form directly (O-8), so entries here could never fire --
+  // dead code in a lowering table, which is how a pass quietly stops doing
+  // its job. F-111 measured the alternative and it was not better; F-117.
   default:         return 0;
   }
 }
@@ -82,6 +83,18 @@ unsigned compressedUnary(unsigned Op) {
   case CCV::NEG: return CCV::C_NEG;
   case CCV::ABS: return CCV::C_ABS;
   default:       return 0;
+  }
+}
+
+/// Format B register-immediate -> Format K's two-address `uimm4` form.
+unsigned compressedALUImm(unsigned Op) {
+  switch (Op) {
+  case CCV::ADDI: return CCV::C_ADDI;
+  case CCV::SUBI: return CCV::C_SUBI;
+  case CCV::ANDI: return CCV::C_ANDI;
+  case CCV::ORI:  return CCV::C_ORI;
+  case CCV::XORI: return CCV::C_XORI;
+  default:        return 0;
   }
 }
 
@@ -139,9 +152,46 @@ bool CCVCompress::runOnMachineFunction(MachineFunction &MF) {
         continue;
       }
 
+      // Format D with a zero displacement -> Format K's memory form, which
+      // carries rd and rbase in separate 4-bit fields and so has neither a tie
+      // to satisfy nor an immediate to fit. Sixteen bits saved unconditionally
+      // wherever the displacement is zero, and F-111's audit found the two
+      // encodings defined and unreachable.
+      //
+      // Only the 32-bit forms. Format K has no width twin, so compressing a
+      // LD_GLOBAL_W16 would move its destination out of GPR16 and take the
+      // width dataflow in CCVInsertChwidth with it -- and since §3 takes
+      // transfer size from that width, the result would be a four-byte
+      // transfer for a two-byte element. Exactly the bug F-111 found in the
+      // base+offset selection, reintroduced one pass later.
+      if (MI.getOpcode() == CCV::LD_GLOBAL || MI.getOpcode() == CCV::ST_GLOBAL) {
+        unsigned OffOp = MI.getOpcode() == CCV::LD_GLOBAL ? 2 : 2;
+        if (MI.getOperand(OffOp).isImm() && MI.getOperand(OffOp).getImm() == 0) {
+          if (MI.getOpcode() == CCV::LD_GLOBAL)
+            BuildMI(MBB, MI, DL, TII->get(CCV::C_LD_GLOBAL),
+                    MI.getOperand(0).getReg())
+                .addReg(MI.getOperand(1).getReg());
+          else
+            BuildMI(MBB, MI, DL, TII->get(CCV::C_ST_GLOBAL))
+                .addReg(MI.getOperand(0).getReg())
+                .addReg(MI.getOperand(1).getReg());
+          MI.eraseFromParent();
+          ++NumCompressed;
+          ++Compressed;
+          NumBitsSaved += 16;
+          Changed = true;
+          continue;
+        }
+      }
+
       // Format B register-immediate -> Format K's 4-bit unsigned immediate
-      // form, which additionally needs the immediate to fit.
-      if (MI.getOpcode() == CCV::ADDI) {
+      // form, which additionally needs the immediate to fit. This handled only
+      // `addi` until F-111's audit: C_SUBI, C_ANDI, C_ORI and C_XORI were
+      // defined, encodable and unreachable. The shift forms are absent on
+      // purpose -- CCVInstrPatterns.td selects C_SHLI/C_SHRI/C_SRAI directly,
+      // so anything still wearing the Format B opcode here has an immediate
+      // over 15 and would not fit anyway.
+      if (unsigned C = compressedALUImm(MI.getOpcode())) {
         Register Rd = MI.getOperand(0).getReg();
         Register Rs0 = MI.getOperand(1).getReg();
         int64_t Imm = MI.getOperand(2).getImm();
@@ -152,7 +202,7 @@ bool CCVCompress::runOnMachineFunction(MachineFunction &MF) {
         }
         if (Imm < 0 || Imm > 15)
           continue;                // §3: the compressed immediate is 4 bits
-        BuildMI(MBB, MI, DL, TII->get(CCV::C_ADDI), Rd).addReg(Rd).addImm(Imm);
+        BuildMI(MBB, MI, DL, TII->get(C), Rd).addReg(Rd).addImm(Imm);
         MI.eraseFromParent();
         ++NumCompressed;
         ++Compressed;

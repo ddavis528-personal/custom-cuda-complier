@@ -1,20 +1,20 @@
   addr  bytes              len                fmt
 ----------------------------------------------------------
 0x0000  2c 00 01 00        32-bit             F
-0x0004  20 08 00 00        32-bit             D
-0x0008  72 02              16-bit, Format K   K
-0x000a  72 13              16-bit, Format K   K
-0x000c  40 89 09 01        32-bit             A
-0x0010  20 10 c0 01        32-bit             D
-0x0014  7c 10 09 00        32-bit             H
-0x0018  68 68 00 00        32-bit             E
-0x001c  20 10 80 01        32-bit             D
-0x0020  20 11 89 00        32-bit             D
-0x0024  20 18 40 01        32-bit             D
-0x0028  20 99 89 00        32-bit             D
-0x002c  4a 23              16-bit, Format K   K
-0x002e  20 00 00 01        32-bit             D
-0x0032  60 19 88 00        32-bit             D
-0x0036  da 00              16-bit, Format K   K
+0x0004  62 01              16-bit, Format K   K
+0x0006  72 02              16-bit, Format K   K
+0x0008  72 13              16-bit, Format K   K
+0x000a  40 89 09 01        32-bit             A
+0x000e  20 10 c0 01        32-bit             D
+0x0012  7c 10 09 00        32-bit             H
+0x0016  68 68 00 00        32-bit             E
+0x001a  20 10 80 01        32-bit             D
+0x001e  20 11 89 00        32-bit             D
+0x0022  20 18 40 01        32-bit             D
+0x0026  20 99 89 00        32-bit             D
+0x002a  4a 23              16-bit, Format K   K
+0x002c  20 00 00 01        32-bit             D
+0x0030  60 19 88 00        32-bit             D
+0x0034  da 00              16-bit, Format K   K
 
-56 bytes total
+54 bytes total

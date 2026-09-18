@@ -98,9 +98,29 @@ unsigned predicatedForm(unsigned Op) {
   case CCV::MUL_HI_S: return CCV::MUL_HI_S_P;
   case CCV::MUL_HI_U: return CCV::MUL_HI_U_P;
   case CCV::MADLO: return CCV::MADLO_P;
-  case CCV::FADD:  return CCV::FADD_P;
+  // O-41's Format B projection. These were added with the immediate forms and
+  // this table was not extended, so every `add rd, rs, #k` in uniform code was
+  // unmaskable -- which is most of the addressing arithmetic O-33 exists to
+  // gate. Format B' splits its immediate field around the qualifier and keeps
+  // only 10 of the 13 bits, so narrowsImmediate() below refuses the ones that
+  // would not survive the rewrite. The shift forms carry uimm5 in both tiers
+  // and lose nothing.
+  case CCV::ADDI:  return CCV::ADDI_P;
+  case CCV::SUBI:  return CCV::SUBI_P;
+  case CCV::MULI:  return CCV::MULI_P;
+  case CCV::ANDI:  return CCV::ANDI_P;
+  case CCV::ORI:   return CCV::ORI_P;
+  case CCV::XORI:  return CCV::XORI_P;
+  case CCV::ANDNI: return CCV::ANDNI_P;
+  case CCV::SHLI:  return CCV::SHLI_P;
+  case CCV::SHRI:  return CCV::SHRI_P;
+  case CCV::SRAI:  return CCV::SRAI_P;
+  // Only FSUB: `fadd` and `fmul` select the compressed two-address form, so
+  // entries for them could never fire. The consequence is that O-33 cannot
+  // gate a uniform float add or multiply -- which costs nothing on the current
+  // kernels, where the float arithmetic is per-lane data and divergent anyway,
+  // and is recorded as F-117 rather than assumed harmless.
   case CCV::FSUB:  return CCV::FSUB_P;
-  case CCV::FMUL:  return CCV::FMUL_P;
   // ld.global is conditional: Format D′'s offset is 10 bits where D's is 13
   // (§3), so the displacement has to fit. Launch-block offsets are tens of
   // bytes, so it essentially always does -- and leaving loads out entirely
@@ -120,6 +140,33 @@ unsigned predicatedForm(unsigned Op) {
   // 32 lanes.
   case CCV::RCP_F32:     return CCV::RCP_F32_P;
   default:         return 0;
+  }
+}
+
+/// True when the predicated sibling's immediate field is too narrow to hold
+/// what this instruction holds. Predication costs three bits of qualifier and
+/// they come out of the immediate: Format D' keeps 10 of the 13-bit
+/// displacement and Format B' keeps 10 of the 13-bit immediate. Rewriting past
+/// that limit produces an instruction that encodes a different number, which
+/// the round-trip check catches -- but only for the forms it happens to
+/// exercise, so the pass refuses rather than relying on being caught.
+bool narrowsImmediate(const MachineInstr &MI) {
+  switch (MI.getOpcode()) {
+  default:
+    return false;
+  case CCV::LD_GLOBAL: // Format D' displacement, operand 2
+  case CCV::ADDI:
+  case CCV::SUBI:
+  case CCV::MULI:
+  case CCV::ANDI:
+  case CCV::ORI:
+  case CCV::XORI:
+  case CCV::ANDNI: // Format B' immediate, operand 2
+    return !isInt<10>(MI.getOperand(2).getImm());
+  case CCV::SHLI:
+  case CCV::SHRI:
+  case CCV::SRAI:
+    return false; // uimm5 in both tiers, nothing is lost
   }
 }
 
@@ -211,9 +258,7 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
     for (MachineInstr &MI : MBB) {
       if (!predicatedForm(MI.getOpcode()) || MI.getNumDefs() != 1)
         continue;
-      // Format D′ narrows the displacement from 13 bits to 10.
-      if (MI.getOpcode() == CCV::LD_GLOBAL &&
-          !isInt<10>(MI.getOperand(2).getImm()))
+      if (narrowsImmediate(MI))
         continue;
       Register Def = MI.getOperand(0).getReg();
       if (!Def.isVirtual() || Divergent.count(Def))

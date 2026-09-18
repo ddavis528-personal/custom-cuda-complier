@@ -79,6 +79,25 @@ bool CCVDAGToDAGISel::selectAddrBaseIdx(SDValue Addr, SDValue &Base,
   return true;
 }
 
+/// The Format C" immediate twin of an unpredicated compare, or 0 when the point
+/// has none this compiler can reach. gt/ge are absent deliberately: they are
+/// selected by swapping the operands, which puts the constant on the left.
+static unsigned immediateCompare(unsigned Opc) {
+  switch (Opc) {
+  case CCV::SETP_LT_NP:   return CCV::SETP_LT_NPI;
+  case CCV::SETP_LE_NP:   return CCV::SETP_LE_NPI;
+  case CCV::SETP_EQ_NP:   return CCV::SETP_EQ_NPI;
+  case CCV::SETP_NE_NP:   return CCV::SETP_NE_NPI;
+  case CCV::SETP_LT_U_NP: return CCV::SETP_LT_U_NPI;
+  case CCV::SETP_LE_U_NP: return CCV::SETP_LE_U_NPI;
+  case CCV::SETP_LT_F_NP: return CCV::SETP_LT_F_NPI;
+  case CCV::SETP_LE_F_NP: return CCV::SETP_LE_F_NPI;
+  case CCV::SETP_EQ_F_NP: return CCV::SETP_EQ_F_NPI;
+  case CCV::SETP_NE_F_NP: return CCV::SETP_NE_F_NPI;
+  default:                return 0;
+  }
+}
+
 void CCVDAGToDAGISel::Select(SDNode *N) {
   if (N->isMachineOpcode()) {
     N->setNodeId(-1);
@@ -160,10 +179,22 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
       Ops.push_back(N->getOperand(3));   // offset
     }
     Ops.push_back(N->getOperand(0));     // chain
+    // Transfer size comes from `rdata`'s chwidth, exactly as in the base+index
+    // case above -- and this path did not check. A `short` store through it
+    // selected the 32-bit form, wrote FOUR bytes and clobbered the neighbouring
+    // element with a correct value in the wrong place, which is the silent
+    // failure the comment above describes having already been fixed once. The
+    // base+index path got the check; this one was missed, and F-111's audit
+    // found it by noticing that nothing could produce LD_GLOBAL_W16 or
+    // ST_GLOBAL_W16.
+    bool Narrow = cast<MemSDNode>(N)->getMemoryVT() == MVT::i16;
     MachineSDNode *MN =
-        IsLoad ? CurDAG->getMachineNode(CCV::LD_GLOBAL, DL, N->getValueType(0),
-                                        MVT::Other, Ops)
-               : CurDAG->getMachineNode(CCV::ST_GLOBAL, DL, MVT::Other, Ops);
+        IsLoad ? CurDAG->getMachineNode(Narrow ? CCV::LD_GLOBAL_W16
+                                               : CCV::LD_GLOBAL,
+                                        DL, N->getValueType(0), MVT::Other, Ops)
+               : CurDAG->getMachineNode(Narrow ? CCV::ST_GLOBAL_W16
+                                               : CCV::ST_GLOBAL, DL,
+                                        MVT::Other, Ops);
     CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
     ReplaceNode(N, MN);
     return;
@@ -211,6 +242,36 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
       report_fatal_error("CCV: condition code " + Twine(unsigned(CC)) +
                          " not implemented -- ordered/unordered FP variants "
                          "beyond olt/ole/ogt/oge/oeq/une are roadmap F-24");
+    }
+    // Format C" also has an immediate form, and until F-111's audit nothing
+    // selected it: the encoding existed, §3 documented it, the simulator
+    // executed it, and every `i < n` against a constant still paid a `movi`
+    // first. The field is 8 bits signed, and it is only reachable when the
+    // constant did not end up on the LEFT -- the gt/ge cases above put it
+    // there, and `k < x` has no immediate form. Those points are unreachable
+    // by construction; see F-115.
+    if (unsigned ImmOpc = immediateCompare(Opc)) {
+      std::optional<int64_t> K;
+      if (auto *C = dyn_cast<ConstantSDNode>(RHS)) {
+        if (isInt<8>(C->getSExtValue()))
+          K = C->getSExtValue();
+      } else if (auto *C = dyn_cast<ConstantFPSDNode>(RHS)) {
+        // A float immediate is a BIT PATTERN in the same 8-bit field, so the
+        // only comparands it reaches are the ones whose encoding is small.
+        // 0.0f is the one that occurs, and it is the one that matters; -0.0f
+        // has the sign bit set and does not fit, which is correct rather than
+        // unfortunate -- `x < -0.0f` is not `x < 0.0f`.
+        APInt Bits = C->getValueAPF().bitcastToAPInt();
+        if (Bits.getBitWidth() == 32 && isInt<8>(Bits.getSExtValue()))
+          K = Bits.getSExtValue();
+      }
+      if (K) {
+        SDNode *New = CurDAG->getMachineNode(
+            ImmOpc, DL, MVT::i1, MVT::i32,
+            {LHS, CurDAG->getTargetConstant(*K, DL, MVT::i32)});
+        ReplaceNode(N, SDValue(New, 0).getNode());
+        return;
+      }
     }
     // Two results: the predicate, and the materialization destination §3 says
     // is always allocated but which these opcodes do not write.

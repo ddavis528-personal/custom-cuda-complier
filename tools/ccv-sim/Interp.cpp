@@ -130,6 +130,7 @@ static bool isWidthAware(unsigned Op) {
   case CCV::XORI: case CCV::ANDNI: case CCV::SHLI: case CCV::SHRI:
   case CCV::SRAI:
   case CCV::LD_GLOBAL: case CCV::ST_GLOBAL:
+  case CCV::C_LD_GLOBAL: case CCV::C_ST_GLOBAL:
   case CCV::LD_GLOBAL_IDX: case CCV::ST_GLOBAL_IDX:
   case CCV::LD_SHARED: case CCV::ST_SHARED:
   case CCV::MOVI: case CCV::MOVI48:
@@ -589,6 +590,40 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     break;
   }
 
+  // ---- Format B′: O-41's projection under a qualifier (O-33) -------------
+  // Operands are (rd, pq, rs0, imm): the qualifier displaces nothing, it takes
+  // three of the thirteen immediate bits, which is why the masking pass refuses
+  // to rewrite an immediate that no longer fits. Semantics are the unpredicated
+  // form's, gated by the guard, so this maps onto the SAME base opcode the
+  // Format B case above maps onto -- one place for `shl` to mean what `shl`
+  // means.
+  case CCV::ADDI_P:  case CCV::SUBI_P: case CCV::MULI_P: case CCV::ANDI_P:
+  case CCV::ORI_P:   case CCV::XORI_P: case CCV::ANDNI_P:
+  case CCV::SHLI_P:  case CCV::SHRI_P: case CCV::SRAI_P: {
+    static const std::pair<unsigned, unsigned> Map[] = {
+        {CCV::ADDI_P, CCV::ADD},   {CCV::SUBI_P, CCV::SUB},
+        {CCV::MULI_P, CCV::MUL_LO}, {CCV::ANDI_P, CCV::AND},
+        {CCV::ORI_P, CCV::OR},     {CCV::XORI_P, CCV::XOR},
+        {CCV::ANDNI_P, CCV::ANDN}, {CCV::SHLI_P, CCV::SHL},
+        {CCV::SHRI_P, CCV::SHR},   {CCV::SRAI_P, CCV::SRA}};
+    unsigned B = 0;
+    for (auto [P, Base] : Map) if (P == Op) B = Base;
+    unsigned D = regOf(MI, 0), A = regOf(MI, 2);
+    uint32_t Imm = uint32_t(int32_t(MI.getOperand(3).getImm()));
+    uint32_t G = guardMask(W, uint32_t(MI.getOperand(1).getImm())) & Mask;
+    uint8_t WA = W.ChWidth[A], WD = W.ChWidth[D];
+    const bool Signed = B == CCV::SRA;
+    R.Active = G; R.ActiveSet = true;
+    forEachLane([&](unsigned L) {
+      // Invariant 10: the lanes the guard excludes keep what they held.
+      if (!((G >> L) & 1))
+        return;
+      uint32_t X = Signed ? sextTo32(W.GPR[A][L], WA) : narrow(W.GPR[A][L], WA);
+      W.GPR[D][L] = writeElem(W.GPR[D][L], aluRR(B, X, Imm), WD);
+    });
+    break;
+  }
+
   case CCV::ADDI:
   case CCV::ADDI48: {
     unsigned D = regOf(MI, 0), A = regOf(MI, 1);
@@ -677,11 +712,17 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
 
 
   // ---- Format D: load / store --------------------------------------------
+  // Format K's memory pair rides the same code: it is Format D with the
+  // displacement fixed at zero and no width twin, so everything below -- the
+  // transfer size taken from rdata's chwidth included -- is unchanged.
+  case CCV::C_LD_GLOBAL:
+  case CCV::C_ST_GLOBAL:
   case CCV::LD_GLOBAL:
   case CCV::ST_GLOBAL: {
-    bool IsLoad = Op == CCV::LD_GLOBAL;
+    bool Compressed = Op == CCV::C_LD_GLOBAL || Op == CCV::C_ST_GLOBAL;
+    bool IsLoad = Op == CCV::LD_GLOBAL || Op == CCV::C_LD_GLOBAL;
     unsigned Data = regOf(MI, 0), Base = regOf(MI, 1);
-    int64_t Off = MI.getOperand(2).getImm();
+    int64_t Off = Compressed ? 0 : MI.getOperand(2).getImm();
     // §3: transfer size comes from rdata's chwidth. A narrow load reads only
     // its element's bytes, which is the whole point -- a 16-bit kernel moves
     // half the memory traffic of a 32-bit one.

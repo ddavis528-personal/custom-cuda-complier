@@ -52,6 +52,19 @@ else
   echo "  (build/ccv-llc or the kernel-arg plugin not built -- skipping listing provenance)"
 fi
 
+# F-111: every instruction the description defines must be producible. The
+# encoding checks above prove the bits are decodable and that the assembler and
+# the disassembler agree -- both properties of the ENCODING. Whether the
+# COMPILER can ever emit it had no check, and three reviews in a row found an
+# encoding that nothing selected.
+echo "  every instruction has a production path"
+python3 tools/check-unselected.py || fail=1
+
+# And the gate has to catch the bugs it was written for, so remove each
+# production path in turn and require the failure.
+echo "  the production-path gate catches its own cases"
+./tools/check-unselected-mutation.sh || fail=1
+
 # Documentation structure: paths that resolve, findings and decisions that are
 # defined where they are cited, no finding tracked twice. Prose staleness is not
 # computable; this is the half that is.
