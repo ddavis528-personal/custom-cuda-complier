@@ -50,19 +50,43 @@ bool CCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
   MachineInstr &I = *MI;
   MachineFunction &MF = *I.getParent()->getParent();
   int FI = I.getOperand(FIOperandNum).getIndex();
+
+  // Where the displacement sits depends on the addressing form. Format D
+  // base+offset puts it straight after the base; base+index has the index and
+  // the scale-enable in between (§3). A local array indexed by a loop variable
+  // selects the second (F-131), and assuming the first would have folded the
+  // frame offset into the SCALE field -- silently, since both are immediates.
+  unsigned DispOp;
+  switch (I.getOpcode()) {
+  case CCV::LD_GLOBAL_IDX: case CCV::LD_GLOBAL_IDX_W16:
+  case CCV::ST_GLOBAL_IDX: case CCV::ST_GLOBAL_IDX_W16:
+    DispOp = FIOperandNum + 3;
+    break;
+  default:
+    DispOp = FIOperandNum + 1;
+    break;
+  }
   int64_t Off = MF.getFrameInfo().getObjectOffset(FI) +
-                I.getOperand(FIOperandNum + 1).getImm();
+                I.getOperand(DispOp).getImm();
 
   // R15 holds the window index, so the whole frame is addressed by the
-  // displacement alone. §3 gives Format D 13 signed bits, which caps a frame
-  // at 4 KiB in each direction -- far inside the 64 KiB window it sits in.
-  if (!isInt<13>(Off))
-    report_fatal_error("CCV: stack frame exceeds the 13-bit displacement of "
-                       "§3's Format D; this kernel spills more than 4 KiB per "
-                       "thread");
+  // displacement alone -- and the two Format D sub-layouts do not give it the
+  // same width. Base+offset has 13 signed bits at [31:19]; base+index spends
+  // those bits on the index register and keeps 8 at [31:24] (§3). Checking 13
+  // for both would let a frame offset past 127 bytes truncate silently into
+  // the narrower field, which is a wrong address rather than a diagnostic.
+  bool Narrow = DispOp != FIOperandNum + 1;
+  if (Narrow ? !isInt<8>(Off) : !isInt<13>(Off))
+    report_fatal_error(
+        Narrow ? "CCV: a dynamically indexed local array sits more than 128 "
+                 "bytes into the frame, past the 8-bit displacement §3 leaves "
+                 "Format D's base+index form (roadmap F-131)"
+               : "CCV: stack frame exceeds the 13-bit displacement of "
+                 "§3's Format D; this kernel spills more than 4 KiB per "
+                 "thread");
 
   I.getOperand(FIOperandNum).ChangeToRegister(CCV::R15, /*isDef=*/false);
-  I.getOperand(FIOperandNum + 1).ChangeToImmediate(Off);
+  I.getOperand(DispOp).ChangeToImmediate(Off);
   return false;
 }
 

@@ -177,6 +177,47 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
                                            N->getOperand(2)}));
     return;
   }
+  case CCVISD::LD_FRAME:
+  case CCVISD::ST_FRAME: {
+    // A .local access. R15 is the window base (O-30) and eliminateFrameIndex
+    // supplies it, so what is selected here is an ordinary Format D access
+    // whose base operand happens to still be a frame index.
+    //
+    // A constant index is a displacement -- it folds into the frame offset
+    // eliminateFrameIndex already adds -- so it takes the base+offset form and
+    // only a dynamic index needs base+index. That is what keeps an ordinary
+    // scalar local variable costing exactly what a spill slot costs.
+    bool IsLoad = N->getOpcode() == CCVISD::LD_FRAME;
+    unsigned FIOp = IsLoad ? 1 : 2;
+    SDValue Base = N->getOperand(FIOp), Idx = N->getOperand(FIOp + 1);
+
+    SDValue Disp = N->getOperand(FIOp + 3);
+    SmallVector<SDValue, 6> Ops;
+    if (!IsLoad)
+      Ops.push_back(N->getOperand(1));                    // value
+    Ops.push_back(Base);
+    unsigned Opc;
+    if (Idx.isUndef()) {
+      // No dynamic term: the whole address is a displacement, and
+      // eliminateFrameIndex folds the frame offset into it.
+      Opc = IsLoad ? CCV::LD_GLOBAL : CCV::ST_GLOBAL;
+      Ops.push_back(Disp);
+    } else {
+      Opc = IsLoad ? CCV::LD_GLOBAL_IDX : CCV::ST_GLOBAL_IDX;
+      Ops.push_back(Idx);
+      Ops.push_back(N->getOperand(FIOp + 2));             // scale enable
+      Ops.push_back(Disp);
+    }
+    Ops.push_back(N->getOperand(0));                      // chain
+
+    MachineSDNode *MN =
+        IsLoad ? CurDAG->getMachineNode(Opc, DL, N->getValueType(0), MVT::Other,
+                                        Ops)
+               : CurDAG->getMachineNode(Opc, DL, MVT::Other, Ops);
+    CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
+    ReplaceNode(N, MN);
+    return;
+  }
   case CCVISD::LD_BASEOFF:
   case CCVISD::ST_BASEOFF: {
     bool IsLoad = N->getOpcode() == CCVISD::LD_BASEOFF;

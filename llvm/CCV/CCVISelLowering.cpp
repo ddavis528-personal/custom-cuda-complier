@@ -45,7 +45,8 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   //
   // So the address is consumed BEFORE type legalization ever sees it, in a
   // DAGCombine at BeforeLegalizeTypes. See PerformDAGCombine and F-20.
-  setTargetDAGCombine({ISD::LOAD, ISD::STORE, ISD::ADD});
+  setTargetDAGCombine({ISD::LOAD, ISD::STORE, ISD::ADD,
+                       ISD::LIFETIME_START, ISD::LIFETIME_END});
   setOperationAction(ISD::GlobalAddress, MVT::i64, Custom);
 
   // No hardware divide (§4's integer map ends at prmt with no divide).
@@ -200,6 +201,116 @@ static bool matchBaseIdx(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
 /// A constant address -- the launch block, whose base the prologue materialises
 /// with a 48-bit Format F constant (§5.2). Splits it into the window index and
 /// the in-window displacement, which is the Format D base+offset form.
+/// An address rooted at a frame object: a local array the middle end could not
+/// promote to registers (F-131).
+///
+/// §5.1 windows `.local` exactly as it windows `.global`, and O-30 reserves R15
+/// as the window base, which is why a spill is already `[r15 + disp]`. What was
+/// missing is the case where the displacement is not a constant -- an array
+/// indexed by a loop variable -- and that is Format D base+index with R15 as
+/// the base. The addressing model needed nothing new; only this matcher and a
+/// selection did.
+///
+/// Matched here, before legalization, for the same reason the window combine is
+/// (F-20): an alloca's pointer is addrspace(0), which this data layout makes 64
+/// bits, and the type legalizer has nowhere to put an i64. Folding the shape
+/// away early means it never sees one -- which is why the failure this replaces
+/// was "Do not know how to expand the result of this operator!" rather than
+/// anything naming a frame.
+/// Is this address rooted at a frame object at all? Used only to tell a shape
+/// matchFrame does not handle from one that was never a frame access, so the
+/// first can be diagnosed instead of reaching a legalizer that will abort
+/// naming an operator rather than a cause.
+static bool touchesFrame(SDValue V, unsigned Depth = 0) {
+  if (Depth > 8)
+    return false;
+  if (isa<FrameIndexSDNode>(V))
+    return true;
+  if (V.getOpcode() != ISD::ADD)
+    return false;
+  return touchesFrame(V.getOperand(0), Depth + 1) ||
+         touchesFrame(V.getOperand(1), Depth + 1);
+}
+
+static bool matchFrame(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
+                       EVT MemVT, SDValue &FI, SDValue &Idx, SDValue &Disp,
+                       bool &ScaleEnable) {
+  // Walk the address expression, adding up constants and keeping at most one
+  // dynamic term, until the frame object turns up. A multi-dimensional array
+  // produces a nest of adds with the frame index buried inside it and a
+  // constant for the innermost subscript -- `acc[i][1]` is
+  // `add(add(FI, i*8), 4)` -- so matching only a top-level `add(FI, x)` finds
+  // the one-dimensional case and nothing else.
+  SDValue Frame, Dyn;
+  int64_t Const = 0;
+  SmallVector<SDValue, 8> Work{Addr};
+  while (!Work.empty()) {
+    SDValue V = Work.pop_back_val();
+    if (isa<FrameIndexSDNode>(V)) {
+      if (Frame)
+        return false;                  // two frame objects is not an address
+      Frame = V;
+    } else if (V.getOpcode() == ISD::ADD && Work.size() < 8) {
+      Work.push_back(V.getOperand(0));
+      Work.push_back(V.getOperand(1));
+    } else if (auto *C = dyn_cast<ConstantSDNode>(V)) {
+      Const += C->getSExtValue();
+    } else if (!Dyn) {
+      Dyn = V;
+    } else {
+      return false;                    // two dynamic terms, one index field
+    }
+  }
+  if (!Frame)
+    return false;
+
+  // Re-create the frame index as a TARGET frame index of type i32 rather than
+  // passing the original through. The original is an addrspace(0) pointer and
+  // so i64 here, and handing it on as an operand leaves the type legalizer an
+  // i64 to expand -- the exact error this combine exists to prevent, arriving
+  // one node later and looking identical.
+  FI = DAG.getTargetFrameIndex(cast<FrameIndexSDNode>(Frame)->getIndex(),
+                               MVT::i32);
+  ScaleEnable = false;
+
+  // The constant is a displacement, and it has somewhere to go whether or not
+  // there is also a dynamic term: eliminateFrameIndex adds the frame offset to
+  // whatever this field holds. `acc[1][j]` is the case -- a constant middle
+  // subscript and a dynamic last one -- and refusing it here was refusing the
+  // shape a two-dimensional accumulator tile actually produces.
+  Disp = DAG.getTargetConstant(Const, DL, MVT::i32);
+  if (!Dyn) {
+    Idx = DAG.getUNDEF(MVT::i32);
+    return true;
+  }
+
+  // Peel the element scaling so the AGU can do it, exactly as matchBaseIdx
+  // does for a windowed address.
+  unsigned ElemLog2 = Log2_32(MemVT.getStoreSize());
+  if (Dyn.getOpcode() == ISD::SHL)
+    if (auto *C = dyn_cast<ConstantSDNode>(Dyn.getOperand(1)))
+      if (C->getZExtValue() == ElemLog2) {
+        Dyn = Dyn.getOperand(0);
+        ScaleEnable = true;
+      }
+
+  if (SDValue Narrow = narrowTo32(Dyn)) {
+    Idx = Narrow;
+    return true;
+  }
+  // An index the middle end widened to i64 -- a loop counter typed by the GEP
+  // rather than by the program. Truncating is sound HERE and only here: the
+  // whole `.local` window is 64 KiB (§5.1) and eliminateFrameIndex caps a
+  // frame far below that, so an index whose top half matters is out of bounds
+  // and the access is undefined already. This is not a general licence to
+  // narrow an i64; it rests on the frame being small, which is checked.
+  if (Dyn.getValueType() == MVT::i64) {
+    Idx = DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Dyn);
+    return true;
+  }
+  return false;
+}
+
 static bool matchBaseOff(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
                          SDValue &Base, SDValue &Off) {
   auto *C = dyn_cast<ConstantSDNode>(Addr);
@@ -373,6 +484,17 @@ static SDValue combineDP4(SDNode *N, SelectionDAG &DAG) {
 
 SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
                                              DAGCombinerInfo &DCI) const {
+  // A lifetime marker on a frame object is dropped, chain and all. It carries
+  // no semantics this target acts on -- there is no stack colouring here -- and
+  // its operand is the alloca's addrspace(0) pointer, which this data layout
+  // makes i64. Left in place it is the last thing holding an i64 frame index
+  // live into the type legalizer, which has no expansion for one, and the
+  // abort names the operator rather than the marker (F-131). The loads and
+  // stores are folded by matchFrame below; this is the user that is neither.
+  if (N->getOpcode() == ISD::LIFETIME_START ||
+      N->getOpcode() == ISD::LIFETIME_END)
+    return N->getOperand(0);
+
   // The dot product is formed before legalization too, and for a second
   // reason: the byte extracts it consumes are `sign_extend_inreg i8` shapes
   // this target cannot select, so matching them early makes them disappear
@@ -416,6 +538,17 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
       SDValue Ops[] = {LD->getChain(), Base, Idx};
       New = DAG.getMemIntrinsicNode(CCVISD::LD_BASEOFF, DL, VTs, Ops,
                                     LD->getMemoryVT(), LD->getMemOperand());
+    } else if (SDValue Disp; matchFrame(DAG, DL, LD->getBasePtr(),
+                                        LD->getMemoryVT(), Base, Idx, Disp,
+                                        Scale)) {
+      SDValue Ops[] = {LD->getChain(), Base, Idx,
+                       DAG.getTargetConstant(Scale, DL, MVT::i32), Disp};
+      New = DAG.getMemIntrinsicNode(CCVISD::LD_FRAME, DL, VTs, Ops,
+                                    LD->getMemoryVT(), LD->getMemOperand());
+    } else if (touchesFrame(LD->getBasePtr())) {
+      report_fatal_error("CCV: this local-array address shape has no Format D "
+                         "form -- it is rooted at a frame object but is not "
+                         "base, one index and a constant (roadmap F-131)");
     } else {
       return SDValue();
     }
@@ -444,6 +577,17 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
       return DAG.getMemIntrinsicNode(CCVISD::ST_BASEOFF, DL, VTs, Ops,
                                      ST->getMemoryVT(), ST->getMemOperand());
     }
+    if (SDValue Disp; matchFrame(DAG, DL, ST->getBasePtr(), ST->getMemoryVT(),
+                                 Base, Idx, Disp, Scale)) {
+      SDValue Ops[] = {ST->getChain(), ST->getValue(), Base, Idx,
+                       DAG.getTargetConstant(Scale, DL, MVT::i32), Disp};
+      return DAG.getMemIntrinsicNode(CCVISD::ST_FRAME, DL, VTs, Ops,
+                                     ST->getMemoryVT(), ST->getMemOperand());
+    }
+    if (touchesFrame(ST->getBasePtr()))
+      report_fatal_error("CCV: this local-array address shape has no Format D "
+                         "form -- it is rooted at a frame object but is not "
+                         "base, one index and a constant (roadmap F-131)");
     return SDValue();
   }
   return SDValue();

@@ -52,6 +52,16 @@ else
   echo "  (build/ccv-llc or the kernel-arg plugin not built -- skipping listing provenance)"
 fi
 
+# F-131 gave local arrays a lowering path through Format D base+index off the
+# frame pointer. The two addressing forms it selects -- constant index and
+# dynamic index -- are each plausible whatever the frame offset and the
+# scale-enable bit happen to be, so the check reads back through one what the
+# same kernel wrote through the other.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  local array addressed two ways"
+  ./tools/check-local-array.sh || fail=1
+fi
+
 # F-121 formed the four-byte dot product in a DAG combine, which is the
 # compiler asserting that a tree of shifts, sign-extends, multiplies and adds
 # means `dp4`. A combine that picks the wrong byte or drops the accumulator

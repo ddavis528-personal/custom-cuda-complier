@@ -260,6 +260,20 @@ def : Pat<(and PR:$a, PR:$b), (PSEUDO_PAND PR:$a, PR:$b)>;
 def : Pat<(or  PR:$a, PR:$b), (PSEUDO_POR  PR:$a, PR:$b)>;
 def : Pat<(xor PR:$a, PR:$b), (PSEUDO_PXOR PR:$a, PR:$b)>;
 
+// A constant predicate. §3 gives Format I's `pmov` the only constant-to-
+// predicate path (O-14): it writes bit n of a 32-bit immediate to lane n, so
+// all-ones is `true` in every lane and zero is `false` in every lane.
+//
+// Reachable from ordinary code, not just from the masking pass that has always
+// emitted it: a boolean loop-carried value -- `bool first = true;` in an inner
+// loop the compiler did not fully unroll -- arrives as an i1 PHI with constant
+// incoming values, and without these the backend stopped at
+// "Cannot select: i1 = Constant<-1>". Found while giving local arrays a
+// lowering path (F-131), which is where partially-unrolled loops start
+// appearing at all.
+def : Pat<(i1 -1), (PMOV_IMM (i32 4294967295))>;
+def : Pat<(i1 0),  (PMOV_IMM (i32 0))>;
+
 // ---------------------------------------------------------------------------
 // Conversions and SFU (§4 points 128+ and 256+, O-31).
 // ---------------------------------------------------------------------------
