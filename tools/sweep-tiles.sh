@@ -26,7 +26,7 @@ sweep() {                      # $1 = label, $2 = source
   printf '  %-5s %-5s %8s %8s %7s %7s %6s %6s %7s %7s %5s\n' \
          tile accs instrs bits b/instr spills macs sp/mac acc-sp ptr-sp unif
   printf '  %s\n' "---------------------------------------------------------------------------------"
-  for t in 1x1 1x2 2x2 2x4 4x4; do
+  for t in 1x1 1x2 2x2 2x4 4x4 8x8; do
     tm=${t%x*}; tn=${t#*x}
     CCV_CFLAGS="-DTM=$tm -DTN=$tn" ./tools/cuda-to-asm.sh "$2" \
         "$TMP/s.s" "$TMP/s" >/dev/null 2>"$TMP/err"

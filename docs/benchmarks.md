@@ -877,6 +877,7 @@ only testable against an FP32 kernel of the same shape (F-113, F-121):
   2x2   4          294     8880    30.2      85     35   2.43       4      66    11
   2x4   8          440    13440    30.5     139     67   2.07       8     110    11
   4x4   16         756    23472    31.0     323    133   2.43     148     146    11
+  8x8   64        2582    81808    31.7    1491    521   2.86    1164     294    11
 
   INT8 -- test/cuda/igemm.cu, four MACs per dp4
   tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  unif
@@ -886,6 +887,7 @@ only testable against an FP32 kernel of the same shape (F-113, F-121):
   2x2   4          295     8864    30.0      85    131   0.65       4      66    11
   2x4   8          431    13136    30.5     131    259   0.51       4     110    11
   4x4   16         764    23680    31.0     330    517   0.64     153     146    11
+  8x8   64        2589    82000    31.7    1499   2057   0.73    1161     294    11
 
   sp/mac is the decision number: memory traffic the register file forced, per
   multiply-accumulate it bought. A bigger tile raises arithmetic intensity as
@@ -946,6 +948,49 @@ lands at **0.51–1.03 against FP32's 2.07–3.78**, a factor of about four. Tha
 is the mitigation working exactly as argued, and it is worth recording that it
 was argued for two revisions before anything could emit the instruction: F-111
 found `dp4.acc` unselected, and F-121 built the path.
+
+### Against a machine that does not spill
+
+`sweep-tiles.sh` says what a tile costs CCV. It cannot say whether that cost is
+normal. `tools/nv-tile-pressure.sh` compiles **the same file, same block shape,
+same tiles** to PTX for sm_70 and asks `ptxas -v`, which reports registers and
+spill directly — the vendor's own allocator reporting on the vendor's own file:
+
+```
+  tile  accs  registers       spill
+  -----------------------------------
+  1x1   1            32     0 bytes
+  1x2   2            32     0 bytes
+  2x2   4            32     0 bytes
+  2x4   8            32     0 bytes
+  4x4   16           48     0 bytes
+  8x8   64          121     0 bytes
+
+  Zero spill at every tile, including 8x8 -- 64 accumulators, which is the tile
+  a throughput SGEMM actually uses and which CCV cannot hold at all. The
+  comparison is not that NVIDIA spills less; it is that NVIDIA does not spill,
+  and reaches an arithmetic intensity CCV has no way to reach.
+```
+
+**Zero spill at every tile.** NVIDIA runs the tile CCV runs best (2×4) in 32
+registers with nothing spilled, where CCV spills 139 times; and it runs 8×8 — 64
+accumulators, the tile a throughput SGEMM actually uses — in 121 registers,
+still with nothing spilled. CCV at 8×8 issues 2582 instructions and spills 1491
+times, which is not a tuning point but a report that the tile does not fit.
+
+The gap that matters is not instruction count, where CCV is competitive
+(§2 puts it at 1.045× of SASS on the aligned build). It is **arithmetic
+intensity**: a TM×TN tile does TM·TN MACs per TM+TN operand elements loaded, so
+2×4 buys 1.33 and 8×8 buys 4.0. Three times the arithmetic per byte of operand
+traffic is a bandwidth argument, and no amount of encoding density answers it.
+
+Two things properly qualify that, and neither removes it. `dp4.acc` closes most
+of it for quantized work — the INT8 kernel gets four MACs per accumulator
+register, so its `sp/mac` at 2×4 is 0.51 against FP32's 2.07, and quantized
+inference is a workload where CCV's 2×4 is not obviously behind. And a
+throughput SGEMM is not what a 16-GPR machine is for. But FP32 GEMM is the case
+`gpr-count-decision.md` itself named as having no mitigation, and this is what
+that looks like measured.
 
 **The column that matters for the next decision is `unif`.** Peak warp-uniform
 values live is **11 at every tile size** — it is a property of the addressing,
