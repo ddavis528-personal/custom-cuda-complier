@@ -109,6 +109,31 @@ bool llvm::checkCCVModule(Module &M, raw_ostream &Err) {
   for (Function &F : M) {
     for (BasicBlock &BB : F) {
       for (Instruction &I : BB) {
+        // --- a local array that mem2reg could not promote (F-131) ---------
+        //
+        // §5.1 windows `.local` and O-30 reserves R15 as the frame pointer, so
+        // the addressing model for one of these exists. What does not exist is
+        // a legalization path: an `alloca` that survives to ISel reaches the
+        // type legalizer as an address shape it cannot expand, and the backend
+        // aborts with "Do not know how to expand the result of this operator!"
+        // -- a crash rather than a diagnosis, which is the failure mode this
+        // whole file exists to convert into a sentence.
+        //
+        // It is not an exotic shape. It is what a tiled GEMM's per-thread
+        // staging arrays become as soon as the inner loops are NOT fully
+        // unrolled, and F-131 measures partial unrolling as the single largest
+        // lever on this machine's spill traffic. So this diagnostic is a
+        // marker on a blocked road, not a statement that the road is closed.
+        if (auto *AI = dyn_cast<AllocaInst>(&I))
+          if (!AI->isStaticAlloca() || AI->getAllocatedType()->isAggregateType())
+            report(I, "local array not promoted to registers",
+                   "an alloca that survives to instruction selection has no "
+                   "legalization path yet, and the backend aborts rather than "
+                   "diagnosing (roadmap F-131). Fully unrolling the loops that "
+                   "index it lets mem2reg promote it, which is what the "
+                   "benchmark kernels do",
+                   Problems);
+
         // --- .const is read-only by contract (§3, §5.2) -------------------
         if (auto *SI = dyn_cast<StoreInst>(&I))
           if (SI->getPointerAddressSpace() == AS_CONST)
