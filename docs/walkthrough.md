@@ -490,7 +490,7 @@ _Z11vadd16_loopPsPKsS1_i:
 	ld.global r0, [r5]
 	srd r1, 0
 	srd r2, 1
-	mad.lo r1, r2, r0, r1
+	mad.acc r1, r2, r0
 	ld.global r2, [r5 + 48]
 	ld.global r3, [r5 + 40]
 	ld.global r4, [r5 + 32]

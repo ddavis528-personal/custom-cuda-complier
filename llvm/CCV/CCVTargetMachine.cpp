@@ -15,6 +15,7 @@ FunctionPass *createCCVISelDag(CCVTargetMachine &TM, CodeGenOptLevel OL);
 FunctionPass *createCCVExpandPseudos();
 FunctionPass *createCCVWindowRemat();
 FunctionPass *createCCVCompress();
+FunctionPass *createCCVSpillStats();
 FunctionPass *createCCVMaskUniform();
 FunctionPass *createCCVFuseRcpSeed();
 FunctionPass *createCCVInsertChwidth();
@@ -94,6 +95,14 @@ public:
   /// immediates, which is only possible once allocation has run.
   /// Pseudo expansion first, so the instructions it produces are compressible
   /// too; then Format K compression, which only shrinks what already fits.
+  /// Straight after allocation, while every spill still names its frame index
+  /// -- once PEI resolves those to `r15 + offset` the slot identity is gone
+  /// and only a total is left, which is the measurement F-113 exists to
+  /// replace.
+  void addPostRegAlloc() override {
+    addPass(createCCVSpillStats());
+  }
+
   void addPreEmitPass() override {
     // Before pseudo expansion and compression, and after register allocation --
     // `chwidth` names a physical register, so it cannot be placed any earlier

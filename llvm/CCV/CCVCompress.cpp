@@ -86,6 +86,19 @@ unsigned compressedUnary(unsigned Op) {
   }
 }
 
+/// Three-source Format A -> Format J's compressed accumulate, which is the same
+/// operation with the addend fixed at the destination. §3 gives Format J twelve
+/// payload bits and three register fields; dropping the separate addend is what
+/// buys the sixteen-bit form.
+unsigned compressedAccumulate(unsigned Op) {
+  switch (Op) {
+  case CCV::FFMA_F0: return CCV::FFMA_ACC_F0;
+  case CCV::MADLO:   return CCV::MAD_ACC;
+  case CCV::DP4_SS:  return CCV::DP4_ACC;
+  default:           return 0;
+  }
+}
+
 /// Format B register-immediate -> Format K's two-address `uimm4` form.
 unsigned compressedALUImm(unsigned Op) {
   switch (Op) {
@@ -144,6 +157,32 @@ bool CCVCompress::runOnMachineFunction(MachineFunction &MF) {
           continue;
         }
         BuildMI(MBB, MI, DL, TII->get(C), Rd).addReg(Rd).addReg(Rs1);
+        MI.eraseFromParent();
+        ++NumCompressed;
+        ++Compressed;
+        NumBitsSaved += 16;
+        Changed = true;
+        continue;
+      }
+
+      // Format J: a three-source operation whose addend the allocator landed
+      // on the destination is an accumulate, and accumulate has a 16-bit form.
+      // This is the shape of every GEMM inner loop -- `acc += a * b` -- so it
+      // is the one compression that pays per unit of arithmetic rather than
+      // per unit of code. Done here rather than at ISel because the tie is
+      // free once the allocator has spoken: an `fma` whose addend is still
+      // live afterwards keeps the three-address form instead of paying a copy.
+      if (unsigned J = compressedAccumulate(MI.getOpcode())) {
+        Register Rd = MI.getOperand(0).getReg();
+        if (Rd != MI.getOperand(3).getReg()) {
+          ++NumMissed;
+          ++Missed;                // the addend is not the destination
+          continue;
+        }
+        BuildMI(MBB, MI, DL, TII->get(J), Rd)
+            .addReg(Rd)
+            .addReg(MI.getOperand(1).getReg())
+            .addReg(MI.getOperand(2).getReg());
         MI.eraseFromParent();
         ++NumCompressed;
         ++Compressed;

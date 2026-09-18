@@ -166,6 +166,17 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     ReplaceNode(N, MN);
     return;
   }
+  case CCVISD::DP4_SS: {
+    // §3: all three operands are ordinary chwidth=32 registers. The packing is
+    // in the opcode and nothing outside it can observe the packed view, so
+    // there is no register class or width to arrange here. CCVCompress folds
+    // this to Format J's `dp4.acc` wherever the allocator lands the
+    // accumulator on the destination.
+    ReplaceNode(N, CurDAG->getMachineNode(CCV::DP4_SS, DL, MVT::i32,
+                                          {N->getOperand(0), N->getOperand(1),
+                                           N->getOperand(2)}));
+    return;
+  }
   case CCVISD::LD_BASEOFF:
   case CCVISD::ST_BASEOFF: {
     bool IsLoad = N->getOpcode() == CCVISD::LD_BASEOFF;

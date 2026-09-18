@@ -133,6 +133,7 @@ static bool isWidthAware(unsigned Op) {
   case CCV::C_LD_GLOBAL: case CCV::C_ST_GLOBAL:
   case CCV::LD_GLOBAL_IDX: case CCV::ST_GLOBAL_IDX:
   case CCV::LD_SHARED: case CCV::ST_SHARED:
+  case CCV::MAD_ACC:
   case CCV::MOVI: case CCV::MOVI48:
   case CCV::C_MOV: case CCV::C_EXIT:
     return true;
@@ -539,6 +540,31 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     });
     break;
   }
+  // §4 points 48-63: the packed dot product. All three operands are ordinary
+  // chwidth=32 registers -- the packing factor is in the OPCODE and nothing
+  // outside it observes the packed view, which is what keeps invariant 1
+  // intact (§3, and contrast the register-level packing O-13 rejected).
+  //
+  // Format J's `dp4.acc` is the same operation with the addend fixed at the
+  // destination, so it maps onto this rather than repeating the byte loop.
+  case CCV::DP4_SS:
+  case CCV::DP4_ACC: {
+    bool Acc = Op == CCV::DP4_ACC;
+    unsigned D = regOf(MI, 0);
+    unsigned A = regOf(MI, Acc ? 2 : 1), B = regOf(MI, Acc ? 3 : 2);
+    unsigned C = regOf(MI, Acc ? 1 : 3);
+    forEachLane([&](unsigned L) {
+      // Signed/signed. The other three signedness combinations have §4 points
+      // and no encoding in Format J -- two bits of subop cannot carry them.
+      int32_t Sum = int32_t(W.GPR[C][L]);
+      uint32_t X = W.GPR[A][L], Y = W.GPR[B][L];
+      for (unsigned K = 0; K < 4; ++K)
+        Sum += int32_t(int8_t(X >> (8 * K))) * int32_t(int8_t(Y >> (8 * K)));
+      W.GPR[D][L] = uint32_t(Sum);
+    });
+    break;
+  }
+
   case CCV::FFMA_F0: {
     unsigned D = regOf(MI, 0), A = regOf(MI, 1), B = regOf(MI, 2), C = regOf(MI, 3);
     forEachLane([&](unsigned L) {
@@ -859,8 +885,17 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     break;
   }
   case CCV::MAD_ACC: {
+    // §3: "any source/accumulator width combination". This read and wrote all
+    // 32 bits regardless, which was invisible while nothing selected it -- the
+    // same shape as `ld.shared` vouching for itself in front of a read32
+    // (F-67, twice). F-121 gave it a producer, so it is now width-aware and in
+    // the width whitelist rather than one of the two.
     unsigned D = regOf(MI, 0), A = regOf(MI, 2), B = regOf(MI, 3);
-    forEachLane([&](unsigned L) { W.GPR[D][L] += W.GPR[A][L] * W.GPR[B][L]; });
+    uint8_t WA = W.ChWidth[A], WB = W.ChWidth[B], WD = W.ChWidth[D];
+    forEachLane([&](unsigned L) {
+      uint32_t P = narrow(W.GPR[A][L], WA) * narrow(W.GPR[B][L], WB);
+      W.GPR[D][L] = writeElem(W.GPR[D][L], P + narrow(W.GPR[D][L], WD), WD);
+    });
     break;
   }
 

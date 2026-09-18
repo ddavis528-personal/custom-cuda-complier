@@ -162,14 +162,11 @@ UNREACHABLE = {
     **{n: ("todo", "clang emits a libm call and there is no calling sequence "
                    "yet; F-120")
        for n in "SIN_F32 COS_F32 EX2_F32 LG2_F32 RSQRT_F32".split()},
-    # Format J, the accumulate forms, and the three-source dot product. These
-    # matter more than their count suggests: `dp4.acc` is the mitigation the
-    # GPR-count decision credits for INT8 GEMM pressure, and it is not
-    # selected, so that credit is unearned until it is. F-121.
-    **{n: ("todo", "accumulate forms need an accumulator-recognising pattern; "
-                   "`dp4.acc` is credited by the GPR decision and unearned "
-                   "until then; F-121")
-       for n in "DP4_SS DP4_ACC MAD_ACC FFMA_ACC_F0 FFMA_ACC_F1".split()},
+    # Format J's second FP format code is BF16/E5M2, and the backend has no
+    # bfloat type, so nothing can produce a contract-flagged bf16 multiply-add
+    # for CCVCompress to fold. F-121.
+    "FFMA_ACC_F1": ("todo", "no bf16 type in the backend, so there is no "
+                            "format-1 multiply-add to compress; F-121"),
     # Sub-word pack/unpack. These address MEMORY packing -- a lane still holds
     # one element at every width (O-13, F-79) -- and nothing in the backend
     # forms a packed load. F-122.

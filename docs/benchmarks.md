@@ -71,10 +71,10 @@ questions and only one of them can be measured on both machines.
              |  instr  bytes    b/i |  instr  bytes |  instr  bytes    b/i |  instr
   --------------------------------------------------------------------------------
   vadd       |     23     76   26.4 |     16     54 |     29    152   41.9 |     21
-  saxpy      |     22     72   26.2 |     17     56 |     25    136   43.5 |     19
+  saxpy      |     21     72   27.4 |     16     56 |     25    136   43.5 |     19
   vadd16     |     24     82   27.3 |     17     60 |     29    152   41.9 |     21
-  vadd_loop  |     27     92   27.3 |     19     64 |     35    184   42.1 |     23
-  vadd16_loop |     28     98   28.0 |     20     70 |     35    184   42.1 |     23
+  vadd_loop  |     27     90   26.7 |     19     62 |     35    184   42.1 |     23
+  vadd16_loop |     28     96   27.4 |     20     68 |     35    184   42.1 |     23
   dot        |     54    170   25.2 |     46    146 |     60    300   40.0 |     46
   reduce     |     49    154   25.1 |     43    136 |     54    268   39.7 |     41
   transpose  |     61    214   28.1 |     53    186 |     64    308   38.5 |     43
@@ -87,7 +87,7 @@ questions and only one of them can be measured on both machines.
   kernel          CCV   SIMT     AMDGCN |  lane-act  of issued   how AMDGCN was obtained
   ----------------------------------------------------------------------------------------------
   vadd           16.0   100%         29 |       512       100%   exact: no backward branch
-  saxpy          17.0   100%         25 |       544       100%   exact: no backward branch
+  saxpy          16.0   100%         25 |       512       100%   exact: no backward branch
   vadd16         17.0   100%         29 |       544       100%   exact: no backward branch
   vadd_loop      68.0   100%         -- |      2176       100%   has 1 loops; not modelled
   vadd16_loop     69.0   100%         -- |      2208       100%   has 1 loops; not modelled
@@ -130,10 +130,10 @@ spanning both encoding families and the datacentre line.
                                       sm_70           2017           2020           2022           2024           2023
   --------------------------------------------------------------------------------------------------------------------
   vadd                  26.4          128.0           41.9           48.6           46.0           48.0           48.7
-  saxpy                 26.2          128.0           43.5           47.3           44.6           46.9           47.2
+  saxpy                 27.4          128.0           43.5           47.3           44.6           46.9           47.2
   vadd16                27.3          128.0           41.9           49.8           47.0           49.0           48.7
-  vadd_loop             27.3          128.0           42.1           42.9           41.8           45.9           45.2
-  vadd16_loop            28.0          128.0           42.1           43.6           42.4           46.8           45.2
+  vadd_loop             26.7          128.0           42.1           42.9           41.8           45.9           45.2
+  vadd16_loop            27.4          128.0           42.1           43.6           42.4           46.8           45.2
   dot                   25.2          128.0           40.0           41.5           40.9           42.3           42.1
   reduce                25.1          128.0           39.7           42.9           39.2           41.4           40.2
   transpose             28.1          128.0           38.5           41.1           39.6           39.2           38.7
@@ -148,7 +148,7 @@ spanning both encoding families and the datacentre line.
   kernel                 CCV        NV SASS    GCN5 / Vega          RDNA2          RDNA3          RDNA4  CDNA3 / MI300
   --------------------------------------------------------------------------------------------------------------------
   vadd                    23             17             29             27             32             32             23
-  saxpy                   22             16             25             23             28             28             21
+  saxpy                   21             16             25             23             28             28             21
   vadd16                  24             17             29             27             32             32             23
   vadd_loop               27             20             35             44             49             39             29
   vadd16_loop              28             20             35             44             49             39             29
@@ -284,7 +284,7 @@ counts are within 30% everywhere and CCV is *lower* on seven of eight:
 
 | | vadd | saxpy | vadd16 | vadd_loop | vadd16_loop | dot | reduce | transpose |
 |---|---|---|---|---|---|---|---|---|
-| CCV | 23 | 22 | 24 | 27 | 28 | 54 | 49 | 61 |
+| CCV | 23 | 21 | 24 | 27 | 28 | 54 | 49 | 61 |
 | GCN | 29 | 25 | 29 | 35 | 35 | 60 | 54 | 64 |
 
 So the density is not bought with instruction count. **Code size lands below
@@ -316,7 +316,7 @@ emits `.amdhsa_wavefront_size32` and its absence means wave64.
   ------------------------------------------------------------------------------------------------------
   issues / 1K elem
     vadd                  512            464            864           1024           1024            368
-    saxpy                 544            400            736            896            896            336
+    saxpy                 512            400            736            896            896            336
     vadd16                544            464            864           1024           1024            368
     vadd_loop             272             --             --             --             --             --
     vadd16_loop            276             --             --             --             --             --
@@ -325,8 +325,8 @@ emits `.amdhsa_wavefront_size32` and its absence means wave64.
     vadd                 1728           2432           5248           5888           6144           2240
     saxpy                1792           2176           4352           4992           5248           1984
     vadd16               1920           2432           5376           6016           6272           2240
-    vadd_loop             256             --             --             --             --             --
-    vadd16_loop            280             --             --             --             --             --
+    vadd_loop             248             --             --             --             --             --
+    vadd16_loop            272             --             --             --             --             --
     transpose            5952           4928           9856          12032          11904           4800
 
 ```
@@ -557,7 +557,7 @@ had measured that. The simulator now counts it:
   kernel        issues  elem work  narrow    frac  cycles @2x   vs f32
   --------------------------------------------------------------------
   vadd              16         14       0   0.000        16.0   1.000x
-  saxpy             17         15       0   0.000        17.0       --
+  saxpy             16         14       0   0.000        16.0       --
   vadd16            17         14       4   0.286        15.0   1.067x
   vadd_loop         68         58       0   0.000        68.0   1.000x
   vadd16_loop       69         58      32   0.552        53.0   1.283x
@@ -862,25 +862,97 @@ for the cost of having put those six points where predication cannot reach them.
 
 ## 3. GEMM: where the register file binds
 
-`tools/sweep-tiles.sh`, on the tiled SGEMM with a TM×TN per-thread accumulator
-tile:
+`tools/sweep-tiles.sh`, on two GEMMs of identical shape — same tiling, same
+staging, same TM×TN per-thread accumulator tile — differing only in arithmetic.
+Both kernels are swept because `gpr-count-decision.md` credits `dp4.acc` with
+making 16 GPRs sufficient under INT8 accumulator pressure, and that claim is
+only testable against an FP32 kernel of the same shape (F-113, F-121):
 
 ```
-  tile  accs    instrs     bits b/instr  spills    fma sp/fma    K-hit
-  -------------------------------------------------------------------------
-  1x1   1          167     4576    27.4      36     16   2.25      25%
-  1x2   2          241     6512    27.0      60     32   1.88      17%
-  2x2   4          361     9632    26.7     101     64   1.58      17%
-  2x4   8          596    15568    26.1     181    128   1.41      15%
-  4x4   16        1078    27920    25.9     410    256   1.60      16%
+  FP32 -- test/cuda/sgemm.cu
+  tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  unif
+  ---------------------------------------------------------------------------------
+  1x1   1          157     4512    28.7      34      9   3.78       0      22    11
+  1x2   2          211     6224    29.5      54     17   3.18       0      42    11
+  2x2   4          294     8880    30.2      85     35   2.43       4      66    11
+  2x4   8          440    13440    30.5     139     67   2.07       8     110    11
+  4x4   16         756    23472    31.0     323    133   2.43     148     146    11
+
+  INT8 -- test/cuda/igemm.cu, four MACs per dp4
+  tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  unif
+  ---------------------------------------------------------------------------------
+  1x1   1          158     4544    28.8      34     33   1.03       0      22    11
+  1x2   2          213     6240    29.3      54     65   0.83       0      42    11
+  2x2   4          295     8864    30.0      85    131   0.65       4      66    11
+  2x4   8          431    13136    30.5     131    259   0.51       4     110    11
+  4x4   16         764    23680    31.0     330    517   0.64     153     146    11
+
+  sp/mac is the decision number: memory traffic the register file forced, per
+  multiply-accumulate it bought. A bigger tile raises arithmetic intensity as
+  TM*TN/(TM+TN), so it is only worth it while sp/mac does not rise faster.
+
+  acc-sp and ptr-sp are that traffic separated by cause (F-113), which is what
+  `gpr-count-decision.md` asked for: accumulator spill is the risk §1 names as
+  unmitigated for FP32, and pointer/index spill is the one O-23 addresses.
+  They do not sum to `spills`: a slot whose role neither a use nor a defining
+  opcode establishes -- a value live across a block boundary in both
+  directions, mostly -- is left unclassified rather than assigned to whichever
+  column looks likelier, and the residual is visible in the pass's own output.
+
+  unif is the peak number of warp-uniform values live at once, from the same
+  analysis that produced F-52 and F-58. It sits beside ptr-sp deliberately: an
+  address in these kernels IS warp-uniform -- the window base and the block
+  offsets are CTA-wide -- so a uniform register file of that size would hold
+  the values the ptr-sp column is spilling. That pairing, not the accumulator
+  column, is what the F-106 decision turns on.
 
 ```
 
-`sp/fma` — memory traffic the register file forced, per unit of arithmetic it
+`sp/mac` — memory traffic the register file forced, per multiply-accumulate it
 bought — has a **minimum at 2×4** and rises again at 4×4, where sixteen
 accumulators are the whole file and everything else spills. At 16 GPRs the
 practical ceiling is 2×4, which is what §1 guessed before there was anything to
 measure.
+
+### The split the decision asked for, and what it says
+
+`gpr-count-decision.md` asked for spill separated into **accumulator** spill,
+which it calls the one live risk with no mitigation for FP32, and
+**pointer/index** spill, which O-23 already addresses. Until F-113 there was
+only a total, and the prose here *inferred* the split from how the total scaled
+with TM×TN. The inference pointed the right way and was wrong about magnitude
+at every tile that fits:
+
+| FP32 tile | accumulator | pointer/index |
+|---|---|---|
+| 1×1 | 0 | 22 |
+| 1×2 | 0 | 42 |
+| 2×2 | 4 | 66 |
+| 2×4 | 8 | 110 |
+| 4×4 | 148 | 146 |
+
+**Through 2×4 — every tile that fits 16 GPRs — spill is overwhelmingly
+addressing, not accumulators.** Accumulator spill is zero until the tile has
+four accumulators and stays under 8% of the total until the tile has sixteen,
+at which point it explodes: the accumulators ARE the register file and there is
+nothing left. So the risk §1 named is real and it is a cliff rather than a
+slope, and it sits one tile beyond the practical ceiling the `sp/mac` minimum
+already identified.
+
+**`dp4.acc` earns the credit the decision gave it.** The INT8 kernel's spill
+profile is nearly identical to FP32's — same addressing, same tiles, same
+accumulator count — but it does four MACs per accumulator register, so `sp/mac`
+lands at **0.51–1.03 against FP32's 2.07–3.78**, a factor of about four. That
+is the mitigation working exactly as argued, and it is worth recording that it
+was argued for two revisions before anything could emit the instruction: F-111
+found `dp4.acc` unselected, and F-121 built the path.
+
+**The column that matters for the next decision is `unif`.** Peak warp-uniform
+values live is **11 at every tile size** — it is a property of the addressing,
+not of the accumulator tile. Those eleven values are the window bases and block
+offsets, they are CTA-wide by construction, and they are what the `ptr-sp`
+column is spilling. A warp-uniform register file would hold them. That pairing,
+not the accumulator cliff, is the argument F-106 turns on.
 
 Density holds up under pressure: 26.4–28.1 bits per instruction across a 6.5×
 range of kernel size.

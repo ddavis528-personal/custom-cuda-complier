@@ -45,7 +45,7 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   //
   // So the address is consumed BEFORE type legalization ever sees it, in a
   // DAGCombine at BeforeLegalizeTypes. See PerformDAGCombine and F-20.
-  setTargetDAGCombine({ISD::LOAD, ISD::STORE});
+  setTargetDAGCombine({ISD::LOAD, ISD::STORE, ISD::ADD});
   setOperationAction(ISD::GlobalAddress, MVT::i64, Custom);
 
   // No hardware divide (§4's integer map ends at prmt with no divide).
@@ -215,8 +215,171 @@ static bool matchBaseOff(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
   return true;
 }
 
+namespace {
+
+/// One byte of `V`, sign-extended to 32 bits, or SDValue() if this is not that.
+/// `Which` comes back as the byte index 0-3.
+///
+/// Three shapes reach here, and all three are the SAME source written
+/// differently, which is the whole reason this is a combine. The generic
+/// combiner canonicalises `sra(shl(V, 24 - 8k), 24)` into
+/// `sign_extend_inreg(srl(V, 8k), i8)`, drops the `srl` when k is 0, and folds
+/// the top byte to a bare `sra(V, 24)` because the left shift there is empty.
+/// Matching only the form the C source suggests finds nothing.
+SDValue sextByte(SDValue Op, unsigned &Which) {
+  // sign_extend_inreg(V, i8)  or  sign_extend_inreg(srl(V, 8k), i8)
+  if (Op.getOpcode() == ISD::SIGN_EXTEND_INREG &&
+      cast<VTSDNode>(Op.getOperand(1))->getVT() == MVT::i8) {
+    SDValue Inner = Op.getOperand(0);
+    if (Inner.getOpcode() != ISD::SRL) {
+      Which = 0;
+      return Inner;
+    }
+    auto *Sh = dyn_cast<ConstantSDNode>(Inner.getOperand(1));
+    if (!Sh)
+      return SDValue();
+    uint64_t S = Sh->getZExtValue();
+    if (S % 8 || S > 24)
+      return SDValue();
+    Which = unsigned(S / 8);
+    return Inner.getOperand(0);
+  }
+  // sra(shl(V, 24 - 8k), 24), and sra(V, 24) for the top byte.
+  if (Op.getOpcode() != ISD::SRA)
+    return SDValue();
+  auto *ShAmt = dyn_cast<ConstantSDNode>(Op.getOperand(1));
+  if (!ShAmt || ShAmt->getZExtValue() != 24)
+    return SDValue();
+  SDValue Inner = Op.getOperand(0);
+  if (Inner.getOpcode() != ISD::SHL) {
+    Which = 3;
+    return Inner;
+  }
+  auto *Lo = dyn_cast<ConstantSDNode>(Inner.getOperand(1));
+  if (!Lo)
+    return SDValue();
+  uint64_t S = Lo->getZExtValue();
+  if (S % 8 || S > 24)
+    return SDValue();
+  Which = unsigned(3 - S / 8);
+  return Inner.getOperand(0);
+}
+
+/// Flatten a tree of ISD::ADD into its leaves, up to a bound.
+void addTerms(SDValue V, SmallVectorImpl<SDValue> &Out, unsigned Depth = 0) {
+  if (V.getOpcode() == ISD::ADD && Depth < 8 && V.hasOneUse()) {
+    addTerms(V.getOperand(0), Out, Depth + 1);
+    addTerms(V.getOperand(1), Out, Depth + 1);
+    return;
+  }
+  Out.push_back(V);
+}
+
+} // namespace
+
+/// Recognise the four-byte dot product and give it the one instruction §4
+/// allocates for it.
+///
+/// `dp4.ss` reads two ordinary 32-bit registers, reads each lane's four bytes
+/// as INT8, multiplies elementwise and sums the four products into the
+/// accumulator -- §3's packing factor lives in the OPCODE, so no register is
+/// narrow and invariant 1 is untouched. Written out in C it is four shift
+/// pairs, four multiplies and four adds; the spec puts the `mad.lo`
+/// alternative at roughly 3x the instructions, and that is what this backend
+/// emitted until F-111's audit asked what could produce `DP4_SS` and the
+/// answer was nothing.
+///
+/// This is a combine rather than a TableGen pattern because the shape is a
+/// COMMUTATIVE SUM of four products: matching it as a tree would need every
+/// association and operand order written out. Forming dot products in a
+/// combine is what the in-tree targets do for the same reason.
+///
+/// LLVM 18 has no `dp4a` intrinsic, so there is no shortcut through one. When
+/// a later LLVM adds it, this stays useful -- it catches the hand-written form
+/// that no intrinsic covers.
+static SDValue combineDP4(SDNode *N, SelectionDAG &DAG) {
+  if (N->getValueType(0) != MVT::i32)
+    return SDValue();
+
+  SmallVector<SDValue, 16> Terms;
+  addTerms(SDValue(N, 0), Terms);
+  if (Terms.size() < 4 || Terms.size() > 31)
+    return SDValue();                      // `Used` below is a 32-bit mask
+
+  // A dot product is a SUBSET of the sum, not the whole of it. Unrolling the
+  // K loop and reassociating leaves one add tree holding the products of
+  // several different (x, y) pairs, and an earlier version of this required
+  // the tree to be exactly one dot product -- so it matched the toy kernel and
+  // not the GEMM it was written for. Group by source pair instead, take the
+  // first group that has all four bytes, and leave everything else as the
+  // accumulator. What remains is another add tree, so a second dot product in
+  // the same sum is found when the combiner revisits it.
+  struct Group {
+    SDValue X, Y;
+    unsigned Bytes = 0;                    // bitmask of byte indices seen
+    SmallVector<unsigned, 4> TermIdx;
+  };
+  SmallVector<Group, 4> Groups;
+
+  for (unsigned I = 0; I != Terms.size(); ++I) {
+    SDValue T = Terms[I];
+    if (T.getOpcode() != ISD::MUL)
+      continue;
+    unsigned BX, BY;
+    SDValue A = sextByte(T.getOperand(0), BX);
+    SDValue B = sextByte(T.getOperand(1), BY);
+    if (!A || !B || BX != BY)
+      continue;
+    Group *G = nullptr;
+    for (Group &Cand : Groups)
+      if ((Cand.X == A && Cand.Y == B) || (Cand.X == B && Cand.Y == A)) {
+        G = &Cand;
+        break;
+      }
+    if (!G) {
+      Groups.push_back(Group{A, B});
+      G = &Groups.back();
+    }
+    if (G->Bytes & (1u << BX))
+      continue;                            // the same byte twice is not a lane
+    G->Bytes |= 1u << BX;
+    G->TermIdx.push_back(I);
+  }
+
+  const Group *Hit = nullptr;
+  for (const Group &G : Groups)
+    if (G.Bytes == 0xf) {
+      Hit = &G;
+      break;
+    }
+  if (!Hit)
+    return SDValue();
+
+  SDLoc DL(N);
+  unsigned Used = 0;                       // Terms is bounded well under 32
+  for (unsigned I : Hit->TermIdx)
+    Used |= 1u << I;
+
+  SDValue Acc;
+  for (unsigned I = 0; I != Terms.size(); ++I) {
+    if (Used & (1u << I))
+      continue;
+    Acc = Acc ? DAG.getNode(ISD::ADD, DL, MVT::i32, Acc, Terms[I]) : Terms[I];
+  }
+  if (!Acc)
+    Acc = DAG.getConstant(0, DL, MVT::i32);
+  return DAG.getNode(CCVISD::DP4_SS, DL, MVT::i32, Hit->X, Hit->Y, Acc);
+}
+
 SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
                                              DAGCombinerInfo &DCI) const {
+  // The dot product is formed before legalization too, and for a second
+  // reason: the byte extracts it consumes are `sign_extend_inreg i8` shapes
+  // this target cannot select, so matching them early makes them disappear
+  // rather than reach a legalizer with nowhere to put them.
+  if (N->getOpcode() == ISD::ADD)
+    return DCI.isBeforeLegalize() ? combineDP4(N, DCI.DAG) : SDValue();
+
   // Must run before type legalization: once the legalizer sees a 64-bit
   // pointer operand it has nowhere to put it (F-20).
   if (!DCI.isBeforeLegalize())

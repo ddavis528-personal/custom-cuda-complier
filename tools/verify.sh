@@ -52,6 +52,16 @@ else
   echo "  (build/ccv-llc or the kernel-arg plugin not built -- skipping listing provenance)"
 fi
 
+# F-121 formed the four-byte dot product in a DAG combine, which is the
+# compiler asserting that a tree of shifts, sign-extends, multiplies and adds
+# means `dp4`. A combine that picks the wrong byte or drops the accumulator
+# emits a perfectly valid instruction computing the wrong number, and no
+# encoding check can see that.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  dp4 against a four-MAC reference"
+  ./tools/check-dp4.sh || fail=1
+fi
+
 # F-111: every instruction the description defines must be producible. The
 # encoding checks above prove the bits are decodable and that the assembler and
 # the disassembler agree -- both properties of the ENCODING. Whether the

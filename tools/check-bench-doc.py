@@ -218,17 +218,17 @@ def main():
 
     sweep = subprocess.run([str(ROOT / "tools/sweep-tiles.sh")],
                            capture_output=True, text=True, cwd=ROOT)
-    blocks = fenced(doc, "tile  accs")
+    # F-113 made this two tables plus prose rather than one table, so the whole
+    # of the tool's output is compared instead of a section of it. Anchoring on
+    # a header line was already fragile: it hardcoded the column names here,
+    # which is a copy of the thing being checked.
+    blocks = fenced(doc, "FP32 --")
     if sweep.returncode or not blocks:
         print("  FAIL  GEMM sweep table missing, or tools/sweep-tiles.sh did not run")
         fail = 1
     else:
-        # sweep-tiles.sh prints a blank line before the table, so anchor on the
-        # line above the header rather than on the header itself.
-        want = section(sweep.stdout, "tile  accs")
-        fail |= compare("GEMM sweep table",
-                        "  tile  accs    instrs     bits b/instr  spills"
-                        "    fma sp/fma    K-hit\n" + want, blocks[0])
+        fail |= compare("GEMM sweep table", sweep.stdout, blocks[0])
+
     return fail
 
 

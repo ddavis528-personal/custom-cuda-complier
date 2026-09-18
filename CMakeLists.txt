@@ -81,6 +81,7 @@ add_library(CCVMC STATIC
   llvm/CCV/CCVWindowRemat.cpp
   llvm/CCV/CCVLowerShared.cpp
   llvm/CCV/CCVCompress.cpp
+  llvm/CCV/CCVSpillStats.cpp
   llvm/CCV/CCVExpandDivision.cpp
   llvm/CCV/CCVFrameLowering.cpp
   llvm/CCV/CCVTargetTransformInfo.cpp

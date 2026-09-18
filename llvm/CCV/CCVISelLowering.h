@@ -17,6 +17,7 @@ enum NodeType : unsigned {
   ST_BASEIDX, ///< store to   (rbase << 16) + idx  -- chain, value, rbase, idx
   LD_BASEOFF, ///< load  from (rbase << 16) + off  -- chain, rbase, off
   ST_BASEOFF, ///< store to   (rbase << 16) + off  -- chain, value, rbase, off
+  DP4_SS,     ///< 4xINT8 dot product plus accumulator -- x, y, acc (F-121)
 };
 } // namespace CCVISD
 
@@ -44,6 +45,16 @@ public:
                       const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
                       SelectionDAG &DAG) const override;
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+
+  /// §4 gives FP32 a fused multiply-add at one instruction and one rounding,
+  /// and Format J gives the accumulating form a 16-bit encoding. Without this
+  /// the DAG combiner leaves `contract`-flagged `fmul`/`fadd` pairs unfused --
+  /// which is what every GEMM inner loop is -- and the machine's whole reason
+  /// for having an FMA goes unused. F-121.
+  bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
+                                  EVT VT) const override {
+    return VT == MVT::f32;
+  }
   SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
   const char *getTargetNodeName(unsigned Opcode) const override;
 
