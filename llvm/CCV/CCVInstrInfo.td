@@ -786,22 +786,21 @@ def PMOV : FormatKplog<63, (outs PR:$pd), (ins psrc:$ps0, psrc:$ps1), "pmov $pd,
 // ---------------------------------------------------------------------------
 let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
 
-  // O-24: Formats C/C' carry a MANDATORY predicate qualifier and there is no
-  // unpredicated compare, so every compare needs a true guard. Expands to
-  // `por pd, !pd, pd`, which is all-ones whatever pd held.
-  def PSEUDO_PTRUE : CCVInst<0, (outs PR:$pd), (ins), "# ptrue $pd">;
-
-  // The guard is TIED to the destination, which forces the self-guarding form
-  // of the O-24 addendum: `por P0,!P0,P0` then `@P0 setp P0, ...`. One
-  // predicate, not two, so the effective file stays at four.
-  let Constraints = "$pd = $guard" in {
-    foreach cc = ["LT", "LE", "EQ", "NE",
-                  "LT_U", "LE_U",
-                  "LT_F", "LE_F", "EQ_F", "NE_F"] in
-      def PSEUDO_SETP_#cc : CCVInst<0, (outs PR:$pd),
-                                    (ins PR:$guard, GPR:$a, GPR:$b),
-                                    "# setp."#cc#" $pd, $a, $b">;
-  }
+  // PSEUDO_PTRUE and the ten PSEUDO_SETP_* forms were here until F-116 removed
+  // them. O-24 required a true guard before every compare, because Formats
+  // C/C' carry a mandatory qualifier -- so a compare manufactured its own with
+  // `por pd, !pd, pd` and the pseudo existed to keep the guard tied to the
+  // destination, holding the effective predicate file at four. O-32 added
+  // Format C", the unpredicated compare, and ISel selects it directly. Nothing
+  // has emitted these since; F-111's audit found the expansion arms still in
+  // place, looking exactly like producers of the ten predicated Format C
+  // compares and keeping them alive in a reachability check that only asked
+  // one question deep.
+  //
+  // The Format C instructions themselves stay. They are §3 encodings, the
+  // assembler and the round-trip check cover them, and they are what lane-0
+  // masking of a compare would select once F-119 gives it a way to broadcast a
+  // predicate. It is the COMPILER's scaffolding that is gone, not the ISA's.
 
   // $neg is the qualifier's negate bit (§1). Carrying it lets the generic
   // branch folder invert a condition rather than adding an instruction.

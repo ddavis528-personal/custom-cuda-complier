@@ -99,25 +99,20 @@ UNREACHABLE = {
                    SETP_GE_NPI SETP_GE_U_NPI SETP_GE_F_NPI
                    SETP_GT_NPI SETP_GT_U_NPI SETP_GT_F_NPI""".split()},
 
-    # -- dead: superseded, still in the description --
-    # O-32 gave compares an unpredicated form (Format C"), and
-    # CCVISelDAGToDAG.cpp now selects it directly. The PSEUDO_SETP_* nodes and
-    # the arms of CCVExpandPseudos that lower them predate that; nothing emits
-    # the pseudos any more, so the predicated Format C forms they expand to are
-    # dead with them. This is the transitive case -- the expansion arms look
-    # exactly like producers, which is why reachability here is a fixpoint and
-    # not a grep. Kept rather than deleted so the removal is its own change
-    # with its own regression run. F-116.
-    **{n: ("dead", "superseded by O-32's unpredicated compare; F-116")
-       for n in """PSEUDO_SETP_LT PSEUDO_SETP_LE PSEUDO_SETP_EQ PSEUDO_SETP_NE
-                   PSEUDO_SETP_LT_U PSEUDO_SETP_LE_U
-                   PSEUDO_SETP_LT_F PSEUDO_SETP_LE_F PSEUDO_SETP_EQ_F
-                   PSEUDO_SETP_NE_F
-                   SETP_LT SETP_LE SETP_EQ SETP_NE SETP_LT_U SETP_LE_U
-                   SETP_LT_F SETP_LE_F SETP_EQ_F SETP_NE_F""".split()},
-    "PSEUDO_PTRUE": ("dead", "an all-true predicate came from `por pd, pd, pd`; "
-                             "O-32 removed the need and nothing emits it; F-116"),
-
+    # -- todo: the predicated compare tiers (Formats C and C') --------------
+    # Both tiers wait on the same missing primitive. Format C is what lane-0
+    # masking of a uniform compare would select, and Format C' is the same with
+    # an immediate -- but CCVMaskUniform cannot mask a compare at all: its
+    # result is a PREDICATE, and the broadcast that makes masking safe
+    # (PSEUDO_BCAST) is a `shfl` on a GPR. A predicate broadcast is a different
+    # primitive, and `ballot`/`unballot` are the pair to build it from. F-119.
+    #
+    # These were "dead" until F-116. Until O-32 added the unpredicated compare
+    # they were selected through PSEUDO_SETP_*, whose expansion arms in
+    # CCVExpandPseudos survived the change and looked exactly like producers --
+    # which is why reachability here is a fixpoint rather than a grep. F-116
+    # removed the scaffolding; the encodings stay, because they are §3 and the
+    # assembler and round-trip check cover them.
     # -- todo: the predicated IMMEDIATE compare (Format C') ------------------
     # Distinct from the dead reg-reg forms above. Format C' is reachable in
     # principle -- it is what lane-0 masking of a uniform compare would select
@@ -129,7 +124,9 @@ UNREACHABLE = {
                    "predicate and the broadcast is a GPR shuffle; F-119")
        for n in """SETP_LT_I SETP_LE_I SETP_EQ_I SETP_NE_I
                    SETP_LT_U_I SETP_LE_U_I
-                   SETP_LT_F_I SETP_LE_F_I SETP_EQ_F_I SETP_NE_F_I""".split()},
+                   SETP_LT_F_I SETP_LE_F_I SETP_EQ_F_I SETP_NE_F_I
+                   SETP_LT SETP_LE SETP_EQ SETP_NE SETP_LT_U SETP_LE_U
+                   SETP_LT_F SETP_LE_F SETP_EQ_F SETP_NE_F""".split()},
 
     # -- design: the float patterns select the compressed destructive form --
     # CCVInstrPatterns.td matches fadd/fmul/fminnum/fmaxnum straight to

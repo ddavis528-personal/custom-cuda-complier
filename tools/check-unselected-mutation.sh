@@ -71,11 +71,41 @@ mutate "the immediate-compare mapping" llvm/CCV/CCVISelDAGToDAG.cpp \
 mutate "C_ANDI from the compression table" llvm/CCV/CCVCompress.cpp \
        's/^  case CCV::ANDI: return CCV::C_ANDI;/  \/\/ mutated/'
 
-# 4. And the transitive case, which the first version of the checker got wrong:
-#    a pass that maps a pseudo to a real opcode looks like a producer even when
-#    nothing produces the pseudo. Make one of the DEAD compares look live and
-#    the stale-declaration arm must complain.
-mutate "the gating case label on a dead expansion" llvm/CCV/CCVExpandPseudos.cpp \
-       's/case CCV::PSEUDO_SETP_LT:   Opc = CCV::SETP_LT;   break;/Opc = CCV::SETP_LT;/'
+# 4. The transitive case, in both directions. F-116 removed the last live
+#    example of it -- the dead PSEUDO_SETP_* expansions -- so it is injected
+#    here rather than relying on one surviving in the tree, which is how a
+#    check quietly stops testing what it was written for.
+#
+#    A gated emit whose trigger is unreachable must NOT count as a production
+#    path: `SETP_LT` is declared unreachable, so a table entry keyed on it
+#    produces nothing, and the checker has to still pass. Without the fixpoint
+#    it would see an emit site and report the declaration as stale.
+f=llvm/CCV/CCVCompress.cpp
+cp "$f" "$f.mutbak"
+sed -i 's|^  case CCV::ADDI: return CCV::C_ADDI;|  case CCV::ADDI: return CCV::C_ADDI;\n  case CCV::SETP_LT: return CCV::SETP_LT_I;|' "$f"
+if cmp -s "$f" "$f.mutbak"; then
+  echo "  FAIL  the trigger-gating mutation changed nothing -- the table has moved"
+  fail=1
+elif python3 tools/check-unselected.py >/dev/null 2>&1; then
+  echo "  PASS  an emit gated on an unreachable trigger is not a production path"
+else
+  echo "  FAIL  an emit gated on an unreachable trigger was counted as a"
+  echo "        production path -- reachability is not a fixpoint"
+  fail=1
+fi
+
+#    And the same entry UNGATED is a real production path, so the declaration
+#    becomes stale and the check has to say so. This is the half that proves
+#    the pass above came from the fixpoint and not from the checker ignoring
+#    the file.
+sed -i 's|^  case CCV::SETP_LT: return CCV::SETP_LT_I;|  return CCV::SETP_LT_I;\n  case CCV::SETP_LT: return CCV::C_ADDI;|' "$f"
+if python3 tools/check-unselected.py >/dev/null 2>&1; then
+  echo "  FAIL  an ungated emit of a declared-unreachable instruction did not"
+  echo "        fail the check"
+  fail=1
+else
+  echo "  PASS  an ungated emit makes the declaration stale, and it is caught"
+fi
+mv "$f.mutbak" "$f"
 
 exit $fail
