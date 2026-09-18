@@ -36,32 +36,47 @@ SASS column is absent, and `check-bench-doc.py` says so.
 
 ### Next steps, in the order they are worth doing
 
-1. **F-106 — the warp-uniform register file.** Escalated above everything else by
-   ISA review. NVIDIA ships one (`S2UR`, `ULDC`, vector instructions taking
-   uniform operands), which turns O-25's and F-52's argument into a comparison
-   against a real machine, and reframes O-33's lane-0 masking as a software
-   approximation of it. Bears directly on O-25 and F-12, both open. Written up
-   in `proposals/warp-uniform.md` §0.
-2. **F-111 — audit for defined-but-unselected encodings.** Three independent
+1. **F-113 — instrument GEMM spill by cause.** The measurement
+   `gpr-count-decision.md` explicitly asked for and which has not been done:
+   accumulator spill separated from pointer/index spill, swept over tile size,
+   **FP32 and INT8 reported separately** — `dp4.acc` does four MACs per
+   accumulator register, so it changes the answer for INT8 and not for FP32.
+   `sweep-tiles.sh` reports only the total and the prose beside it *infers* the
+   split, which is precisely the inference the decision asked to have measured.
+   FP32 is the case that gets neither mitigation the decision credits (OoO
+   tolerance of lower arithmetic intensity, and `dp4.acc`).
+
+2. **F-106 — the warp-uniform register file, once F-113 has reported.** ISA
+   review escalated this above everything, and NVIDIA is now shown to ship one
+   (`S2UR`, `ULDC`, vector instructions taking uniform operands), which turns
+   O-25's and F-52's argument into a comparison against a real machine and
+   reframes O-33's lane-0 masking as a software approximation of it. **But its
+   trigger is F-113's data.** `gpr-count-decision.md` names a uniform file as
+   the escape hatch *if GEMM accumulator pressure binds* — and is explicit that
+   the answer is not more GPRs, since 16 is settled and F-12 is closed. So the
+   order is evidence first, then the response. Written up in
+   `proposals/warp-uniform.md` §0.
+
+3. **F-111 — audit for defined-but-unselected encodings.** Three independent
    instances now (`bra.short`, the Format C′ immediate compare, the compressed
    `C_ANDI`/`C_SHRI` forms), which is a pattern rather than three incidents. A
    mechanical check looks feasible: every instruction in the generated TableGen
    JSON that no pattern or custom-selection path can produce. That would turn a
    recurring discovery into a gate, which is what this project does with every
    other recurring discovery.
-3. **F-108 remainder — the two selection gaps F-111 would have caught.** The
+4. **F-108 remainder — the two selection gaps F-111 would have caught.** The
    immediate compare and the compressed forms are worth ~2 instructions and need
    no ISA decision.
-4. **F-92 — width affinity under register pressure.** The claim that opposite
+5. **F-92 — width affinity under register pressure.** The claim that opposite
    allocation orders degrade gracefully when the two widths collide is reasoning,
    not measurement: no kernel fills the file with narrow values. Needs a kernel,
    not a code change.
-5. **F-84 / O-40 — the retire-rate margin.** At 1.5× rather than 2×, the
+6. **F-84 / O-40 — the retire-rate margin.** At 1.5× rather than 2×, the
    straight-line 16-bit kernel loses to its own 32-bit equivalent. There is no
    further *compiler* lever on the narrow fraction (a lane holds one element at
    every width, so the element-work count is fixed by the element count); what is
    left is the addressing overhead beside it.
-6. **O-42 — revisit the three-source immediate** when `sgemm` at larger tiles has
+7. **O-42 — revisit the three-source immediate** when `sgemm` at larger tiles has
    been examined for strided addressing. Deferred on cost, not legality.
 
 ### Not worth picking up
@@ -676,7 +691,13 @@ answered. Update as items resolve.
 | F-108 Three instructions available with no ISA change at all | Step 6 | **partly resolved.** (1) **`mul.lo` at §4 point 2 is defined** — the ISA had always allocated a three-address multiply while the backend had only the compressed two-address `C_MUL_LO` and the three-source `MADLO`, so `Pat<(mul $a, $b), (MADLO $a, $b, (MOVI 0))>` materialised a zero for an addend the operation does not have. Now `Pat<(mul $a, $b), (MUL_LO $a, $b, $b)>`. (2) and (3), the immediate-compare and compressed-form selection gaps, are **still open** and are the subject of F-111 |
 | F-107 The zero-register ask did not survive checking | Step 6 | **withdrawn, and the withdrawal is the finding.** F-103 reported 5 `movi rX, 0` that a hardwired zero register would remove. Checking what each feeds: **two** are `setp.eq` against zero and **Format C′ already has the immediate compare** (`SETP_EQ_I` is defined and generated — a selection gap); **two** are loop accumulators that need a writable register initialised to zero, which `mov rd, RZ` would cost the same instruction to produce; **one** is `mad.lo rd, rs0, rs1, #0`, which is a multiply, and **§4 point 2 already specifies `mul.lo`** — the backend simply never defined it. None is an argument for spending a GPR, and the cost would be real: R15 is reserved for the frame pointer (O-30), so a hardwired zero leaves 14. Recorded so the next person who notices the pattern finds the analysis instead of repeating it |
 | F-105 CCV's folded addressing mode beats SASS, and it is why the simple kernels win | Step 6 | **noted, no action.** `ld.global r2, [r2, r1, 1, 0]` computes `base + index × scale` **and** loads in one instruction. Every memory access in the SASS listings is two — `IMAD.WIDE.U32` then `LDG.E` — because a 64-bit address has to be materialized in a register pair first, which is exactly what invariant 11 exists to avoid. This is the mechanism behind CCV being ahead of SASS on `vadd` and `vadd_loop`, and it is worth stating in the positive: the windowed address model is not only a density choice, it removes an instruction per memory access |
-| F-106 NVIDIA ships the warp-uniform register file this project keeps arguing about | Step 6 | **OPEN — escalated above F-104 by ISA review, and it is the most consequential finding of the SASS work.** The SASS carries a uniform register file: `S2UR UR4, SR_CTAID.X` puts the CTA index in one register for the whole warp rather than 32 copies, `ULDC` loads constants into it, and ordinary vector instructions take `UR` operands beside vector ones (`IMAD R9, R9, UR4, R0`). Separate namespace, separate load path, direct operand access — which is what O-25 argued from register-file size and F-52 from redundant execution, **shipping in the compatibility target**. The reframing is the uncomfortable part: **O-33's lane-0 masking is a software approximation of it**, and `transpose` spends three `shfl.idx` broadcasts recovering what a uniform register supplies free. ISA review notes this is the escape hatch its GPR-count decision named — a small warp-uniform file reusing the existing 4-bit field under a different namespace, with `rbase`'s existing warp-uniform requirement for `st.pred` as precedent — and that the argument now has evidence. It bears directly on O-25 and F-12, both open. Written up in `proposals/warp-uniform.md` §0 |
+| F-106 NVIDIA ships the warp-uniform register file this project keeps arguing about | Step 6 | **OPEN — escalated above F-104 by ISA review, and it is the most consequential finding of the SASS work.** The SASS carries a uniform register file: `S2UR UR4, SR_CTAID.X` puts the CTA index in one register for the whole warp rather than 32 copies, `ULDC` loads constants into it, and ordinary vector instructions take `UR` operands beside vector ones (`IMAD R9, R9, UR4, R0`). Separate namespace, separate load path, direct operand access — which is what O-25 argued from register-file size and F-52 from redundant execution, **shipping in the compatibility target**. The reframing is the uncomfortable part: **O-33's lane-0 masking is a software approximation of it**, and `transpose` spends three `shfl.idx` broadcasts recovering what a uniform register supplies free. ISA review notes this is the escape hatch its GPR-count decision named — a small warp-uniform file reusing the existing 4-bit field under a different namespace, with `rbase`'s existing warp-uniform requirement for `st.pred` as precedent — and that the argument now has evidence. O-25 and F-12 are **settled** (16 GPRs, final), which is what makes this live
+rather than a reopening: `gpr-count-decision.md` names a warp-uniform file as
+the escape hatch if the GEMM case comes back bad, and is explicit that the
+answer is **not** more GPRs. Written up in `proposals/warp-uniform.md` §0 |
 | F-109 ISA review of `immediate-operands.md` — outcomes | Step 6 | **decided.** **Case 1 adopted and upgraded**: recorded as **O-41**, a normativity fix of the O-28 class rather than an optimisation — Format B's 32 points were *described and never enumerated*, which is the third instance of a range given as prose that two implementations could order differently. The projection rule is adopted with a required amendment the proposal missed: §4 holds **ternary** operations too (`mad.lo` 5, `mad.hi` 6, `prmt` 25), so the rule is binary-projects / unary-or-ternary-does-not. `sel` at 19 was confirmed **binary in register operands** — the condition comes from the predicate qualifier — so it projects, but only into B′/B″, since plain B has no qualifier field. Review also corrected the free-point arithmetic: the projection couples the two maps, so **13 points are genuinely free, not 28**, and §4 growth claims more. **Case 2 deferred (O-42), case 3 rejected (O-43)** |
 | F-110 The invariant-8 objection to case 2 was wrong | Step 6 | **corrected by ISA review, and the correction is kept visible.** The proposal rejected "shrink Format B's immediate and add `rs1` at `[22:19]`" because an opcode-dependent immediate position is "exactly what invariant 8 forbids". It is not: invariant 8 governs **register** fields and says so, and immediates are explicitly not on the rename path. **Format D already varies its immediate position by opcode within one tag** — base+offset at `[31:19]`, base+index at `[31:24]`, selected by `opcode[2]`. So the option is legal and a 9-bit immediate at `[31:23]` would cover the motivating case. It is deferred on **cost** — one instruction does not justify a fourth Format B sub-layout — and O-42 records that reason instead, because a wrong reason in the log forecloses an option later on false grounds |
 | F-111 Defined-but-unselected encodings may be a pattern, not three incidents | Step 6 | **open — flagged by ISA review.** Three independent instances now: `bra.short` (found by the walkthrough review), the Format C′ immediate compare, and the compressed `C_ANDI`/`C_SHRI` forms where they fit. In each the encoding exists, is reachable, and ISel never matches it. Review suggests auditing Format B and Format K for anything else defined and unselected. A mechanical check is plausible — every instruction in the generated JSON that no `.td` pattern or custom-selection path can produce — and would turn a recurring discovery into a gate |
+| F-112 The GPR-count decision's four backend directives, audited | Step 6 | **three done, one not.** `gpr-count-decision.md` (16 GPRs settled, supersedes the "provisional" marking in v1.4 §1/§11) gives four instructions to backend work. **(1) One encoding path** — done: `GPRC` and R16–R31 are gone from the machine description, and the allocator's objectives are the two it names, O-8's destructive-form preference and width affinity, which F-80 implemented and measured against each other. **(3) Report aligned and unaligned separately** — done: both are columns in `benchmarks.md` §2, and F-102 showed why it matters, since the SASS comparison reads 1.30× on one and 1.05× on the other. **(4) Add warp-invariance analysis now** — done: `-ccv-uniformity-stats`, which is what produced F-52, F-56, F-57 and F-58. **(2) Instrument spill by cause is NOT done** — see F-113, and it is the measurement of the one live risk |
+| F-113 GEMM spill is reported by volume, not by cause | Step 6 | **open, and it is the top backend gap.** `gpr-count-decision.md` §"What this changes in backend work" item 2 asks for spill separated into **accumulator** spill (the live risk) and **pointer/index** spill (already addressed by O-23), swept over tile size, with **FP32 and INT8 reported separately** because `dp4.acc` does four MACs per accumulator register and changes the answer for INT8 and not for FP32. `tools/sweep-tiles.sh` reports only the **total** — `st/ld` through r15, which is exact but undifferentiated — and the prose beside it *infers* the split ("spill that scales with TM×TN is accumulator spill") rather than measuring it. That inference is the thing the decision asked to have measured, and FP32 is the case that gets neither of the two mitigations the decision credits (OoO tolerance of lower arithmetic intensity, and `dp4.acc`). **This is the evidence that would or would not trigger the warp-uniform escape hatch**, so it gates F-106 |
+| F-114 The `por`-rematerialization guidance is superseded | Step 6 | **closed by O-32, and recorded so it is not implemented.** `gpr-count-decision.md` §"Related allocator guidance" asks the allocator to rematerialize `por pd, !ps, ps` at each use rather than hoisting it, on the grounds that O-24 requires an all-true predicate before *every* semantically-unpredicated compare — making the effective predicate file 3 entries, not 4, in compare-heavy code. **O-32 removed the requirement entirely** by adding Format C″, the unpredicated compare, so no `por` is emitted before any compare and the effective file is 4. The guidance was correct when written and the document predates the fix; `benchmarks.md` measured the removal as the single largest avoidable overhead the benchmark had found, 13% of dynamically issued instructions in the reduction kernels |
