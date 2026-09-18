@@ -313,28 +313,64 @@ public:
         if (!maskable(dyn_cast<Instruction>(U))) { ++Crossings; break; }
     }
 
-    // Peak simultaneously-live uniform values, over a linear walk. A real
-    // allocator sees the CFG; this is a lower bound on what a uniform file
-    // would need, computed the same way for every kernel so the numbers
-    // compare.
-    unsigned Peak = 0;
-    std::vector<Instruction *> Order;
-    for (Instruction &I : instructions(F))
-      Order.push_back(&I);
-    for (unsigned At = 0; At != Order.size(); ++At) {
-      unsigned Live = 0;
-      for (unsigned D = 0; D <= At; ++D) {
+    // Peak simultaneously-live values, split by divergence, over a linear
+    // walk. A real allocator sees the CFG; this is a lower bound, computed the
+    // same way for every kernel so the numbers compare.
+    //
+    // The split is the point. F-128 read "peak uniform values live" beside the
+    // spill classifier's pointer/index column and concluded that a uniform
+    // register file would hold what was spilling. That inference skipped a
+    // step: a kernel's ADDRESSING can be divergent -- `sgemm` indexes by
+    // `threadIdx`, so its row and column offsets differ per lane -- and a
+    // uniform file cannot hold a divergent value whatever its role. What
+    // decides the question is whether the DIVERGENT peak alone already exceeds
+    // the register file. If it does, moving the uniform values elsewhere does
+    // not stop the spilling.
+    //
+    // Computed from def and last-use positions rather than by rescanning the
+    // users at every point: the old walk was cubic, and at the tile sizes
+    // F-113 added it stopped being something you could run.
+    unsigned PeakU = 0, PeakD = 0, PeakAll = 0, AtPeakU = 0;
+    {
+      std::vector<Instruction *> Order;
+      for (Instruction &I : instructions(F))
+        Order.push_back(&I);
+      DenseMap<const Instruction *, unsigned> Pos;
+      for (unsigned I = 0; I != Order.size(); ++I)
+        Pos[Order[I]] = I;
+
+      // +1 at the def, -1 after the last use, swept once.
+      std::vector<int> DeltaU(Order.size() + 1, 0), DeltaD(Order.size() + 1, 0);
+      for (unsigned D = 0; D != Order.size(); ++D) {
         Instruction *Def = Order[D];
-        if (Def->getType()->isVoidTy() || UI.isDivergent(Def))
+        if (Def->getType()->isVoidTy())
           continue;
+        unsigned Last = D;
         for (const User *U : Def->users())
           if (const auto *U2 = dyn_cast<Instruction>(U)) {
-            auto It = std::find(Order.begin() + At, Order.end(), U2);
-            if (It != Order.end()) { ++Live; break; }
+            auto It = Pos.find(U2);
+            if (It != Pos.end())
+              Last = std::max(Last, It->second);
           }
+        if (Last == D)
+          continue;                       // never read: not live anywhere
+        auto &Delta = UI.isDivergent(Def) ? DeltaD : DeltaU;
+        ++Delta[D];
+        --Delta[Last];
       }
-      Peak = std::max(Peak, Live);
+      int LiveU = 0, LiveD = 0;
+      for (unsigned At = 0; At != Order.size(); ++At) {
+        LiveU += DeltaU[At];
+        LiveD += DeltaD[At];
+        PeakU = std::max(PeakU, unsigned(LiveU));
+        PeakD = std::max(PeakD, unsigned(LiveD));
+        if (unsigned(LiveU + LiveD) > PeakAll) {
+          PeakAll = unsigned(LiveU + LiveD);
+          AtPeakU = unsigned(LiveU);
+        }
+      }
     }
+    unsigned Peak = PeakU;
 
     // Each masked instruction saves 31 lane-activations; each broadcast costs
     // 31 (lanes 1-31 are the ones that read). So the scheme pays exactly when
@@ -398,8 +434,14 @@ public:
     if (Total)
       errs() << "   (" << (Net > 0 ? 100 * Net * 31 / int(Total * 32) : 0)
              << "% of lane-activations saved)";
-    errs() << "\n    peak uniform values live: " << Peak
+    errs() << "\n    peak values live        : " << PeakAll
+           << "   (" << AtPeakU << " uniform, " << (PeakAll - AtPeakU)
+           << " divergent, at the busiest point)\n"
+           << "    peak uniform live       : " << PeakU
            << "   (a uniform file would hold these)\n"
+           << "    peak divergent live     : " << PeakD
+           << "   (these need GPRs whatever else exists -- if this alone"
+              " exceeds the file, a uniform file does not stop the spilling)\n"
     // Said out loud because the two numbers do not match and should not be
     // expected to. This pass runs on IR and counts what the ENCODING permits;
     // CCVMaskUniform runs post-ISel, sees real opcodes and real displacements,

@@ -23,8 +23,8 @@ TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 sweep() {                      # $1 = label, $2 = source
   echo
   echo "  $1"
-  printf '  %-5s %-5s %8s %8s %7s %7s %6s %6s %7s %7s %5s\n' \
-         tile accs instrs bits b/instr spills macs sp/mac acc-sp ptr-sp unif
+  printf '  %-5s %-5s %8s %8s %7s %7s %6s %6s %7s %7s %9s\n' \
+         tile accs instrs bits b/instr spills macs sp/mac acc-sp ptr-sp div/unif
   printf '  %s\n' "---------------------------------------------------------------------------------"
   for t in 1x1 1x2 2x2 2x4 4x4 8x8; do
     tm=${t%x*}; tn=${t#*x}
@@ -54,9 +54,10 @@ sweep() {                      # $1 = label, $2 = source
     # Beside ptr-sp this is the whole F-106 question in two columns: an address
     # is warp-uniform in this kernel, so a uniform file sized like `unif` is
     # holding exactly the values `ptr-sp` is spilling.
-    unif=$(build/ccv-llc "$TMP/s-lowered.ll" -o /dev/null -ccv-uniformity-stats \
-           2>&1 | grep -oP 'peak uniform values live:\s*\K\d+')
-    printf '  %-5s %-5s %8s %8s %7.1f %7s %6s %6.2f %7s %7s %5s\n' \
+    pk=$(build/ccv-llc "$TMP/s-lowered.ll" -o /dev/null -ccv-uniformity-stats 2>&1)
+    unif=$(echo "$pk" | grep -oP 'peak divergent live\s*:\s*\K\d+')/$(
+           echo "$pk" | grep -oP 'peak uniform live\s*:\s*\K\d+')
+    printf '  %-5s %-5s %8s %8s %7.1f %7s %6s %6.2f %7s %7s %9s\n' \
         "$t" "$((tm*tn))" "$n" "$b" "$(python3 -c "print($b/$n)")" "$sp" \
         "$macs" "$(python3 -c "print($sp/max($macs,1))")" \
         "${acc:-0}" "${ptr:-0}" "${unif:-0}"
@@ -80,10 +81,12 @@ cat <<'TXT'
   directions, mostly -- is left unclassified rather than assigned to whichever
   column looks likelier, and the residual is visible in the pass's own output.
 
-  unif is the peak number of warp-uniform values live at once, from the same
-  analysis that produced F-52 and F-58. It sits beside ptr-sp deliberately: an
-  address in these kernels IS warp-uniform -- the window base and the block
-  offsets are CTA-wide -- so a uniform register file of that size would hold
-  the values the ptr-sp column is spilling. That pairing, not the accumulator
-  column, is what the F-106 decision turns on.
+  div/unif is the peak number of values live at once, split by divergence. It
+  is the column F-128 got wrong by looking at only half of it: an address here
+  is not automatically warp-uniform, because `sgemm` indexes by `threadIdx` and
+  its row and column offsets differ per lane. A uniform register file cannot
+  hold a divergent value whatever its role, and the DIVERGENT peak alone is
+  several times the 16-entry file at every tile -- so moving every uniform
+  value out for free would not stop this kernel spilling. See sweep-decode.sh
+  for the shape where it would.
 TXT

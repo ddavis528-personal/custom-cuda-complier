@@ -43,6 +43,14 @@ FunctionPass *createCCVWindowRemat();
 
 namespace {
 
+static cl::opt<bool> Enable(
+    "ccv-window-remat", cl::init(true), cl::Hidden,
+    cl::desc("Rematerialize the §5.1 window chain at each use. Off is not a "
+             "supported configuration -- an i64 window address crossing a "
+             "block aborts the type legalizer -- but it is the A/B that says "
+             "what uniform-value pressure costs today, which is the baseline "
+             "any uniform register file has to beat (F-130)."));
+
 static cl::opt<bool> StopAtGPR(
     "ccv-window-remat-stop-at-gpr", cl::init(true), cl::Hidden,
     cl::desc("Stop the cloned window chain at values that fit a GPR. The i64 "
@@ -197,7 +205,9 @@ class CCVWindowRemat : public FunctionPass {
 public:
   static char ID;
   CCVWindowRemat() : FunctionPass(ID) {}
-  bool runOnFunction(Function &F) override { return runOnFn(F); }
+  bool runOnFunction(Function &F) override {
+    return Enable ? runOnFn(F) : false;
+  }
   StringRef getPassName() const override {
     return "CCV window rematerialization";
   }

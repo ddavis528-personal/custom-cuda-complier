@@ -870,24 +870,24 @@ only testable against an FP32 kernel of the same shape (F-113, F-121):
 
 ```
   FP32 -- test/cuda/sgemm.cu
-  tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  unif
+  tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  div/unif
   ---------------------------------------------------------------------------------
-  1x1   1          157     4512    28.7      34      9   3.78       0      22    11
-  1x2   2          211     6224    29.5      54     17   3.18       0      42    11
-  2x2   4          294     8880    30.2      85     35   2.43       4      66    11
-  2x4   8          440    13440    30.5     139     67   2.07       8     110    11
-  4x4   16         756    23472    31.0     323    133   2.43     148     146    11
-  8x8   64        2582    81808    31.7    1491    521   2.86    1164     294    11
+  1x1   1          157     4512    28.7      34      9   3.78       0      22     23/10
+  1x2   2          211     6224    29.5      54     17   3.18       0      42     34/10
+  2x2   4          294     8880    30.2      85     35   2.43       4      66     47/10
+  2x4   8          440    13440    30.5     139     67   2.07       8     110     69/10
+  4x4   16         756    23472    31.0     323    133   2.43     148     146     99/10
+  8x8   64        2582    81808    31.7    1491    521   2.86    1164     294    227/10
 
   INT8 -- test/cuda/igemm.cu, four MACs per dp4
-  tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  unif
+  tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  div/unif
   ---------------------------------------------------------------------------------
-  1x1   1          158     4544    28.8      34     33   1.03       0      22    11
-  1x2   2          213     6240    29.3      54     65   0.83       0      42    11
-  2x2   4          295     8864    30.0      85    131   0.65       4      66    11
-  2x4   8          431    13136    30.5     131    259   0.51       4     110    11
-  4x4   16         764    23680    31.0     330    517   0.64     153     146    11
-  8x8   64        2589    82000    31.7    1499   2057   0.73    1161     294    11
+  1x1   1          158     4544    28.8      34     33   1.03       0      22     23/10
+  1x2   2          213     6240    29.3      54     65   0.83       0      42     34/10
+  2x2   4          295     8864    30.0      85    131   0.65       4      66     51/10
+  2x4   8          431    13136    30.5     131    259   0.51       4     110     77/10
+  4x4   16         764    23680    31.0     330    517   0.64     153     146    107/10
+  8x8   64        2589    82000    31.7    1499   2057   0.73    1161     294    239/10
 
   sp/mac is the decision number: memory traffic the register file forced, per
   multiply-accumulate it bought. A bigger tile raises arithmetic intensity as
@@ -901,12 +901,14 @@ only testable against an FP32 kernel of the same shape (F-113, F-121):
   directions, mostly -- is left unclassified rather than assigned to whichever
   column looks likelier, and the residual is visible in the pass's own output.
 
-  unif is the peak number of warp-uniform values live at once, from the same
-  analysis that produced F-52 and F-58. It sits beside ptr-sp deliberately: an
-  address in these kernels IS warp-uniform -- the window base and the block
-  offsets are CTA-wide -- so a uniform register file of that size would hold
-  the values the ptr-sp column is spilling. That pairing, not the accumulator
-  column, is what the F-106 decision turns on.
+  div/unif is the peak number of values live at once, split by divergence. It
+  is the column F-128 got wrong by looking at only half of it: an address here
+  is not automatically warp-uniform, because `sgemm` indexes by `threadIdx` and
+  its row and column offsets differ per lane. A uniform register file cannot
+  hold a divergent value whatever its role, and the DIVERGENT peak alone is
+  several times the 16-entry file at every tile -- so moving every uniform
+  value out for free would not stop this kernel spilling. See sweep-decode.sh
+  for the shape where it would.
 
 ```
 
@@ -992,12 +994,16 @@ throughput SGEMM is not what a 16-GPR machine is for. But FP32 GEMM is the case
 `gpr-count-decision.md` itself named as having no mitigation, and this is what
 that looks like measured.
 
-**The column that matters for the next decision is `unif`.** Peak warp-uniform
-values live is **11 at every tile size** — it is a property of the addressing,
-not of the accumulator tile. Those eleven values are the window bases and block
-offsets, they are CTA-wide by construction, and they are what the `ptr-sp`
-column is spilling. A warp-uniform register file would hold them. That pairing,
-not the accumulator cliff, is the argument F-106 turns on.
+**The column that matters for the next decision is `unif` — and reading it
+alone gets the answer wrong.** Peak warp-uniform values live is **11 at every
+tile size**; it is a property of the addressing, not of the accumulator tile.
+F-128 put that beside the `ptr-sp` column and concluded that a warp-uniform
+register file would hold what was spilling. **That inference was wrong, and §4
+measures why:** `sgemm` indexes by `threadIdx`, so its row and column offsets
+differ per lane, and a uniform file cannot hold a divergent value whatever role
+it plays. At 2×4 the peak *divergent* working set is **69 values against a
+16-entry file**. Move every uniform value somewhere else for free and this
+kernel still spills.
 
 Density holds up under pressure: 26.4–28.1 bits per instruction across a 6.5×
 range of kernel size.
@@ -1010,7 +1016,98 @@ where code size matters most.
 
 ---
 
-## 4. What would strengthen this
+## 4. Decode and fused shapes: where a uniform file would actually pay
+
+`tools/sweep-decode.sh`. §3 is all `sgemm`, and a GEMM tile is not what most of
+an inference workload is. Batch-1 GEMV is what decode does per token; a fused
+elementwise epilogue — residual, scale, bias, activation, fused so the
+intermediates never reach memory — is what surrounds every matrix multiply. The
+two columns that decide the register-file question are the divergence split of
+peak live values, and the count of warp-uniform values re-loaded from the launch
+block:
+
+```
+  decode and fused shapes -- what binds when there is no tile to fill
+  kernel         instrs     bits  spills  div/unif   uni-ld
+  ------------------------------------------------------------
+  gemv              226     6992      11       6/7       0%
+  gemv8             226     6992      11       6/7       0%
+  fused NT=1         27      752       0       3/5      33%
+  fused NT=4         42     1184       0       3/8      36%
+  fused NT=8         62     1760       0      3/12      37%
+  fused NT=16       102     2912       0      3/20      38%
+
+  ...and the same fused chain as a grid-stride LOOP, which is how one is
+  actually written. The bases become loop-invariant, so they are hoisted
+  and have to stay live across the loop instead of for two instructions:
+  ------------------------------------------------------------
+  loop NT=1          33      928       0       4/7      27%
+  loop NT=4          64     1872      13      4/10      25%
+  loop NT=8         117     3408      38      4/14      21%
+  loop NT=16        202     6080      79      4/22      20%
+
+  For contrast, the same two columns on the GEMM this was compared against:
+  ------------------------------------------------------------
+  sgemm 2x2         294     8880      85     47/10       0%
+  sgemm 2x4         440    13440     139     69/10       0%
+  sgemm 4x4         756    23472     323     99/10       0%
+
+  Read the div/unif column first. In `sgemm` the divergent peak alone is several
+  times the 16-entry register file -- its addressing is indexed by `threadIdx`,
+  so the row and column offsets differ per lane and a uniform file cannot hold
+  them. In the fused kernels it is the other way round: almost everything live
+  is uniform, and the divergent peak never leaves single digits.
+
+  Then read uni-ld. The straight-line fused kernels do not spill at any tensor
+  count, which is not the same as not paying: each window base is re-fetched
+  from the launch block at its one use rather than kept in a register, so the
+  cost lands in the instruction count -- around a third of it -- instead of in
+  spill traffic.
+
+  The grid-stride rows are the ones that decide it. Making the chain a loop
+  makes the bases loop-invariant, so they are hoisted and must stay live; the
+  divergent peak stays at 4 whatever the tensor count, while the uniform peak
+  passes the 16-entry file and the kernel starts spilling. That is a working
+  set of four divergent values spilling because twenty uniform ones are in the
+  way, and it is the one shape measured here where a warp-uniform register file
+  would remove essentially all of the traffic rather than some of it.
+```
+
+**Three shapes, three different answers, and only one of them supports a uniform
+file.**
+
+`gemv` does not bind at all: six divergent and seven uniform values live, eleven
+spill transfers in 226 instructions. There is no reuse to tile for — every
+weight is read once — so the register file has nothing to hold onto and the
+kernel is bandwidth-bound by construction. Quantizing changes the bytes moved,
+not the register pressure: `gemv8` is identical on every column here and does
+four times the arithmetic per word loaded.
+
+`sgemm` binds on **divergent** values, 47–99 of them against sixteen registers.
+A uniform file is beside the point.
+
+The **grid-strided fused chain** is the case. Its divergent working set is **four
+values at every tensor count** — the element, the index, the loop counter, the
+bound. Its uniform working set is the window bases, and it grows with the number
+of tensors fused: 7, 10, 14, 22. Spill starts exactly where that crosses the
+file and rises with it, to 79 transfers at sixteen tensors. **That is four
+divergent values spilling because twenty-two uniform ones are in the way**, and
+it is the one measured shape where a uniform register file removes essentially
+all of the traffic rather than some of it.
+
+The straight-line version does not spill, which is not the same as not paying:
+each base is re-fetched from the launch block at its single use instead of being
+kept in a register, so the cost lands in the instruction count — about a third
+of the kernel — rather than in spill traffic. A uniform file removes that too.
+
+**So the case for F-106 rests on looping fused elementwise kernels**, the
+dominant non-GEMM shape in inference, and on neither of the two arguments made
+for it before this was measured: not GEMM accumulator pressure
+(`gpr-count-decision.md`'s framing), and not GEMM address pressure (F-128's).
+
+---
+
+## 5. What would strengthen this
 
 - ~~**SASS.**~~ Done — `tools/fetch-ptxas.sh`, and the numbers are in §2. What
   remains unmeasured on the NVIDIA side is *dynamic* SASS: instruction counts

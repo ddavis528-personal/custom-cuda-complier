@@ -229,6 +229,17 @@ def main():
     else:
         fail |= compare("GEMM sweep table", sweep.stdout, blocks[0])
 
+    # F-129's decode and fused sweep, same treatment: the document carries the
+    # tool's output verbatim, so it is compared verbatim.
+    dec = subprocess.run([str(ROOT / "tools/sweep-decode.sh")],
+                         capture_output=True, text=True, cwd=ROOT)
+    dblocks = fenced(doc, "decode and fused shapes")
+    if dec.returncode or not dblocks:
+        print("  FAIL  decode sweep missing, or tools/sweep-decode.sh did not run")
+        fail = 1
+    else:
+        fail |= compare("decode/fused sweep", dec.stdout, dblocks[0])
+
     return fail
 
 
