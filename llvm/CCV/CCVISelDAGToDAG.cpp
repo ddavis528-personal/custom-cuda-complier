@@ -143,7 +143,7 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     // index, so the AGU supplies the chwidth-derived shift (O-7); clear when
     // it is a byte offset, which is the unaligned shape (O-23).
     Ops.push_back(N->getOperand(ScaleOp));
-    Ops.push_back(CurDAG->getTargetConstant(0, DL, MVT::i32));      // disp
+    Ops.push_back(N->getOperand(ScaleOp + 1));                      // disp
     Ops.push_back(N->getOperand(0));                                // chain
 
     // §3 takes transfer size from `rdata`'s chwidth, so a 16-bit access has to
@@ -189,7 +189,7 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     Ops.push_back(N->getOperand(B));          // slot
     Ops.push_back(N->getOperand(B + 1));      // rindex
     Ops.push_back(N->getOperand(B + 2));      // scale enable
-    Ops.push_back(CurDAG->getTargetConstant(0, DL, MVT::i32));  // disp
+    Ops.push_back(N->getOperand(B + 3));      // disp
     Ops.push_back(N->getOperand(0));          // chain
     // Transfer size comes from `rdata`'s chwidth, so a 16-bit access must select
     // the narrow form to put its data register in GPR16 (F-125, and F-139 for

@@ -86,6 +86,20 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   // exactly what an integer constant costs, which is the right answer for a
   // machine whose GPRs hold either.
   setOperationAction(ISD::ConstantFP, MVT::f32, Legal);
+
+  // §4's SFU points 259 and 260 are the base-2 exponential and logarithm, and
+  // LLVM's default for both is Expand -- which does not mean "expand into
+  // arithmetic", it means "call exp2f". With no calling sequence (F-21) that
+  // libcall reached the back of the pipeline and crashed the compiler rather
+  // than diagnosing anything, which is how these stayed unreachable without
+  // anyone seeing a "cannot select". Declaring them Legal hands them to the
+  // patterns in CCVInstrPatterns.td, where the instruction has been all along.
+  //
+  // f32 only, and deliberately: this legalises the fast-math/`__expf` form,
+  // which is a single SFU instruction on this machine as it is on NVIDIA's. The
+  // accurate libm form is a different function and still needs F-21.
+  setOperationAction(ISD::FEXP2, MVT::f32, Legal);
+  setOperationAction(ISD::FLOG2, MVT::f32, Legal);
 }
 
 const char *CCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
@@ -186,9 +200,32 @@ static std::optional<unsigned> matchLaunchSlot(SDValue Win) {
 /// The fold is sound only because a single allocation is smaller than
 /// 4 GiB − 2^16, so roffset + byte-index cannot overflow 32 bits. That is F-23,
 /// and it is a precondition the compiler cannot check.
+///
+/// A CONSTANT BYTE DISPLACEMENT may sit on top of either shape, and Format D
+/// base+index has an 8-bit signed field for exactly that (`disp`, `Inst{31:24}`).
+/// It is what `out[i + 1]` compiles to: the GEP for the element index and a
+/// second GEP for the constant, which instcombine leaves as `(window + i*4) + 4`
+/// rather than folding into the index. This matcher ignored it for the life of
+/// the backend and the field was written as a literal zero at selection, so the
+/// address did not match here, did not match base+offset either, and reached
+/// the type legalizer as a live 64-bit add -- which has no expansion and
+/// SEGFAULTED the compiler. F-142.
 static bool matchBaseIdx(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
                          EVT MemVT, SDValue &Base, SDValue &Idx,
-                         bool &ScaleEnable) {
+                         bool &ScaleEnable, int64_t &Disp) {
+  // Peel the constant addend first, so the shapes below see the two- and
+  // three-addend forms they were written for. ADD canonicalises a constant to
+  // the right, but the check is symmetric because nothing here guarantees the
+  // combiner has run on this node yet.
+  Disp = 0;
+  if (Addr.getOpcode() == ISD::ADD) {
+    for (unsigned I = 0; I != 2; ++I)
+      if (auto *C = dyn_cast<ConstantSDNode>(Addr.getOperand(I))) {
+        Disp = C->getSExtValue();
+        Addr = Addr.getOperand(1 - I);
+        break;
+      }
+  }
   if (Addr.getOpcode() != ISD::ADD)
     return false;
   SDValue A = Addr.getOperand(0), B = Addr.getOperand(1);
@@ -227,19 +264,32 @@ static bool matchBaseIdx(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
     return false;
 
   Base = Win;
-  if (!ROff) {                       // aligned: let the AGU do the scaling
+  if (!ROff && isInt<8>(Disp)) {     // aligned: let the AGU do the scaling
     Idx = Index;
     ScaleEnable = Scaled;
     return true;
   }
 
-  // Unaligned: fold roffset and the byte index into one register. The index
-  // then carries bytes, so the AGU must not scale it again.
+  // Either the displacement is too big for the 8-bit field, or this is the
+  // unaligned shape and the in-window offset has to be folded anyway. Both
+  // resolve the same way: compute a BYTE offset in one register, which means
+  // the AGU must not scale it again.
+  //
+  // A displacement that fits stays in the field even here -- the fold is one
+  // `add` per access and the field is free, so spending it when it is available
+  // is the whole reason the field exists.
   SDValue Bytes =
       Scaled ? DAG.getNode(ISD::SHL, DL, MVT::i32, Index,
                            DAG.getConstant(ElemLog2, DL, MVT::i32))
              : Index;
-  Idx = DAG.getNode(ISD::ADD, DL, MVT::i32, ROff, Bytes);
+  if (ROff)
+    Bytes = DAG.getNode(ISD::ADD, DL, MVT::i32, ROff, Bytes);
+  if (!isInt<8>(Disp)) {
+    Bytes = DAG.getNode(ISD::ADD, DL, MVT::i32, Bytes,
+                        DAG.getConstant(Disp, DL, MVT::i32));
+    Disp = 0;
+  }
+  Idx = Bytes;
   ScaleEnable = false;
   return true;
 }
@@ -575,19 +625,22 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     SDVTList VTs = DAG.getVTList(LD->getValueType(0), MVT::Other);
     SDValue Base, Idx, New;
     bool Scale = false;
-    if (matchBaseIdx(DAG, DL, LD->getBasePtr(), LD->getMemoryVT(), Base, Idx, Scale)) {
+    int64_t IdxDisp = 0;
+    if (matchBaseIdx(DAG, DL, LD->getBasePtr(), LD->getMemoryVT(), Base, Idx,
+                     Scale, IdxDisp)) {
+      SDValue D = DAG.getTargetConstant(IdxDisp, DL, MVT::i32);
       // O-45: when the window is a launch-block slot, the AGU reads it and the
       // value never occupies a register. The window load is left behind with no
       // uses of its value and the generic combiner drops it.
       if (auto Slot = matchLaunchSlot(Base)) {
         SDValue Ops[] = {LD->getChain(),
                          DAG.getTargetConstant(*Slot, DL, MVT::i32), Idx,
-                         DAG.getTargetConstant(Scale, DL, MVT::i32)};
+                         DAG.getTargetConstant(Scale, DL, MVT::i32), D};
         New = DAG.getMemIntrinsicNode(CCVISD::LD_SLOTIDX, DL, VTs, Ops,
                                       LD->getMemoryVT(), LD->getMemOperand());
       } else {
         SDValue Ops[] = {LD->getChain(), Base, Idx,
-                         DAG.getTargetConstant(Scale, DL, MVT::i32)};
+                         DAG.getTargetConstant(Scale, DL, MVT::i32), D};
         New = DAG.getMemIntrinsicNode(CCVISD::LD_BASEIDX, DL, VTs, Ops,
                                       LD->getMemoryVT(), LD->getMemOperand());
       }
@@ -623,16 +676,19 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     SDVTList VTs = DAG.getVTList(MVT::Other);
     SDValue Base, Idx;
     bool Scale = false;
-    if (matchBaseIdx(DAG, DL, ST->getBasePtr(), ST->getMemoryVT(), Base, Idx, Scale)) {
+    int64_t IdxDisp = 0;
+    if (matchBaseIdx(DAG, DL, ST->getBasePtr(), ST->getMemoryVT(), Base, Idx,
+                     Scale, IdxDisp)) {
+      SDValue D = DAG.getTargetConstant(IdxDisp, DL, MVT::i32);
       if (auto Slot = matchLaunchSlot(Base)) {        // O-45
         SDValue Ops[] = {ST->getChain(), ST->getValue(),
                          DAG.getTargetConstant(*Slot, DL, MVT::i32), Idx,
-                         DAG.getTargetConstant(Scale, DL, MVT::i32)};
+                         DAG.getTargetConstant(Scale, DL, MVT::i32), D};
         return DAG.getMemIntrinsicNode(CCVISD::ST_SLOTIDX, DL, VTs, Ops,
                                        ST->getMemoryVT(), ST->getMemOperand());
       }
       SDValue Ops[] = {ST->getChain(), ST->getValue(), Base, Idx,
-                       DAG.getTargetConstant(Scale, DL, MVT::i32)};
+                       DAG.getTargetConstant(Scale, DL, MVT::i32), D};
       return DAG.getMemIntrinsicNode(CCVISD::ST_BASEIDX, DL, VTs, Ops,
                                      ST->getMemoryVT(), ST->getMemOperand());
     }

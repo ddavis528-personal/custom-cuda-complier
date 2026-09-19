@@ -290,6 +290,28 @@ def : Pat<(fdiv fpimm_one, GPR:$a), (RCP_F32 GPR:$a, GPR:$a, GPR:$a)>;
 
 def : Pat<(fsqrt GPR:$a), (SQRT_F32 GPR:$a, GPR:$a, GPR:$a)>;
 
+// The rest of the SFU group (F-141, closing half of F-120).
+//
+// §4 allocates eight SFU points and the simulator has always implemented them,
+// but until now nothing in the compiler could emit five of them, so they sat in
+// check-unselected.py's `todo` list with the reason "clang emits a libm call
+// and there is no calling sequence yet". That reason was right about `expf` and
+// wrong about the machine: a CUDA kernel does not call `expf` on the fast path.
+// It writes `__expf`/`__sinf`/`rsqrtf`, or is compiled with fast-math, and all
+// of those reach LLVM as an INTRINSIC rather than a call -- `llvm.exp2.f32` for
+// the first, the NVVM approx intrinsics for the others. Those are what these
+// patterns select, and they are also exactly what `ptxas` turns into a single
+// `ex2.approx.f32` / `rsqrt.approx.f32`, so the correspondence is one to one.
+//
+// What stays unreachable is the accurate libm form, which genuinely does need
+// F-21's calling sequence. The gap was never "the SFU cannot be reached"; it
+// was "the SFU cannot be reached the slow way".
+def : Pat<(fexp2 GPR:$a), (EX2_F32 GPR:$a, GPR:$a, GPR:$a)>;
+def : Pat<(flog2 GPR:$a), (LG2_F32 GPR:$a, GPR:$a, GPR:$a)>;
+def : Pat<(int_nvvm_rsqrt_approx_f GPR:$a), (RSQRT_F32 GPR:$a, GPR:$a, GPR:$a)>;
+def : Pat<(int_nvvm_sin_approx_f GPR:$a),   (SIN_F32   GPR:$a, GPR:$a, GPR:$a)>;
+def : Pat<(int_nvvm_cos_approx_f GPR:$a),   (COS_F32   GPR:$a, GPR:$a, GPR:$a)>;
+
 // ---------------------------------------------------------------------------
 // 16-bit element width (§1, F-3).
 //

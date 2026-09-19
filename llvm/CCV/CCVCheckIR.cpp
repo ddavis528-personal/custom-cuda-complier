@@ -170,12 +170,21 @@ bool llvm::checkCCVModule(Module &M, raw_ostream &Err) {
           const Value *Base = Ptr;
           while (const auto *GEP = dyn_cast<GetElementPtrInst>(Base))
             Base = GEP->getPointerOperand();
+          // Only a DYNAMIC index counts against the AGU's register inputs. A
+          // constant one is a displacement -- Format D base+index has an 8-bit
+          // signed field for it, and a constant too large for the field folds
+          // into the index register at the cost of one `add`. Counting them as
+          // register addends made this check DISAGREE with the DAG matcher in
+          // the safe direction for the unaligned shape and the unsafe direction
+          // for the aligned one: `out[i + 1]` on an aligned pointer counted two,
+          // passed here, and then segfaulted the type legalizer because the
+          // matcher genuinely did not implement the displacement (F-142).
           unsigned GEPIndices = 0;
           for (const Value *W = Ptr; ;) {
             const auto *G = dyn_cast<GetElementPtrInst>(W);
             if (!G)
               break;
-            if (!G->hasAllZeroIndices())
+            if (!G->hasAllZeroIndices() && !G->hasAllConstantIndices())
               ++GEPIndices;
             W = G->getPointerOperand();
           }

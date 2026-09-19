@@ -88,6 +88,17 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-local-array.sh || fail=1
 fi
 
+# F-141 made the SFU group reachable from CUDA through the intrinsics a kernel
+# actually uses. Five patterns into one instruction family is where two entries
+# get crossed, and a crossed entry compiles, encodes, disassembles and round
+# trips perfectly. This also stands as the regression test for F-142: the kernel
+# writes `o[i*5+k]`, which is the constant-displacement shape that used to
+# segfault the compiler.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  each SFU intrinsic computes its own function"
+  ./tools/check-sfu.sh || fail=1
+fi
+
 # F-121 formed the four-byte dot product in a DAG combine, which is the
 # compiler asserting that a tree of shifts, sign-extends, multiplies and adds
 # means `dp4`. A combine that picks the wrong byte or drops the accumulator
