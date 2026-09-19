@@ -78,7 +78,8 @@ questions and only one of them can be measured on both machines.
   dot        |     52    162   24.9 |     43    134 |     60    300   40.0 |     46
   reduce     |     48    150   25.0 |     41    128 |     54    268   39.7 |     41
   transpose  |     60    210   28.0 |     52    184 |     64    308   38.5 |     43
-
+  gemv       |    206    728   28.3 |    197    698 |    306   1688   44.1 |    228
+  sgemm      |    384   1352   28.2 |    360   1268 |    238   1376   46.3 |    201
 ```
 
 **Dynamic — instructions actually issued, per thread of work.**
@@ -94,7 +95,8 @@ questions and only one of them can be measured on both machines.
   dot            74.9    66%         -- |      2397       100%   has 3 loops; not modelled
   reduce         72.9    66%         -- |      2333       100%   has 3 loops; not modelled
   transpose      52.0   100%         64 |      1127        68%   exact: no backward branch
-
+  gemv          196.0   100%         -- |      6272       100%   has 2 loops; not modelled
+  sgemm         516.0   100%         -- |     15973        97%   has 5 loops; not modelled
 ```
 
 **CCV's dynamic column is measured** on the simulator — lane-instructions
@@ -137,9 +139,10 @@ spanning both encoding families and the datacentre line.
   dot                   24.9          128.0           40.0           41.5           40.9           42.3           42.1
   reduce                25.0          128.0           39.7           42.9           39.2           41.4           40.2
   transpose             28.0          128.0           38.5           41.1           39.6           39.2           38.7
+  gemv                  28.3          128.0           44.1           48.1           50.3           49.4           43.4
+  sgemm                 28.2          128.0           46.3           43.4           43.6           43.4           42.9
   --------------------------------------------------------------------------------------------------------------------
-  pooled                25.9          128.0           40.7           43.7           41.8           43.8           43.1
-
+  pooled                27.5          128.0           43.4           45.2           45.0           45.6           43.1
 ```
 
 **Instruction counts, same sweep — the control:**
@@ -155,7 +158,8 @@ spanning both encoding families and the datacentre line.
   dot                     52             42             60             64             68             62             54
   reduce                  48             39             54             50             71             58             51
   transpose               60             53             64             60             76             76             62
-
+  gemv                   206            166            306            305            312            323            238
+  sgemm                  384            196            238            222            245            247            205
 ```
 
 **The objection does not land.** AMD's density is flat across eight years and two
@@ -246,16 +250,42 @@ them. Compared build-for-build:
 | `dot` | 52 | 43 | **42** |
 | `reduce` | 48 | 41 | **39** |
 | `transpose` | 60 | **52** | 53 |
-| total | 269 | **210** | 224 |
+| | | | |
+| `gemv` | 206 | 197 | **166** |
+| `sgemm` | 384 | 360 | **196** |
+| total | 859 | 767 | **586** |
 
-**CCV aligned is 0.94× SASS — fewer instructions, not more.** That is a reversal
-and it is worth stating plainly, because this document has carried the opposite
-claim in three revisions: 1.32×, then 1.06× after O-41 and `mul.lo`, then 1.05×,
-and now below parity. **O-45 is what moved it.** Launch-slot addressing removes
-the window load from every global access, and a windowed load was two
-instructions where NVIDIA's is one — so the gap that remained was mostly this one
-thing. The three complex kernels are still behind (`dot` 43 against 42, `reduce`
-41 against 39); the five simple ones are now ahead by 3–4 instructions each.
+**CORRECTION (F-148). This document claimed 0.94× of SASS for four revisions,
+and that number was an artifact of which kernels were in the sweep.** The eight
+kernels above the rule are straight-line or single-loop, spill nothing, and
+never reach a 48-bit immediate; on those eight CCV aligned really is 210
+instructions against SASS's 224, and the reversal from 1.32× → 1.06× → 1.05× →
+0.94× really did happen and really was O-45. What was never tested is whether it
+held on a kernel that stresses the machine, because **`sgemm` and `gemv` had
+never been compiled for another target at all** — `sgemm` was written against
+`__clang_cuda_builtin_vars.h` directly, which is exactly why nobody noticed.
+
+With them in, **CCV aligned is 767 instructions against SASS's 586 — 1.31×, not
+0.94×.** And it is one kernel: `sgemm` alone is 360 against 196, and removing it
+puts the remaining nine at 1.04×. `gemv` is fine (197 against 166, and *below*
+every AMD generation). The GEMM is where 16 GPRs is paid for, and the
+instruction-count control is where it shows up.
+
+**What survives, and it is the claim that was always the load-bearing one: code
+size.** Across all ten kernels CCV aligned is **2656 bytes against SASS's 9376
+(0.28×) and gfx900's 4748 (0.56×)**, and pooled density is 27.5 bits per
+instruction against 43.4 and 128.0. Adding the two hard kernels moved CCV's
+pooled density from 25.9 to 27.5 and gfx900's from 40.7 to 43.4 — the ratio
+barely moved. **The encoding claim is robust to the kernel set; the instruction
+count claim was not.**
+
+On `sgemm` specifically the two columns say opposite things: 1352 bytes against
+gfx900's 1376 is a dead heat, reached with 384 instructions against 238. CCV
+issues 61% more instructions and fetches the same bytes. About 102 of those
+instructions are spill traffic (§3's 2×2 row), and NVIDIA's ptxas uses 32
+registers with zero spill at that tile (§3's pressure table). That is the
+16-GPR decision, priced in the one comparison that had never been asked to price
+it.
 
 That is the variable-length encoding doing exactly what §6 designed it to do,
 against the machine it was designed against. It is also the cleanest statement
@@ -286,16 +316,20 @@ reproduces the published gfx900 column **exactly** on all five kernels.
 
 ### The control that matters: instruction counts are comparable
 
-A denser encoding that needs twice the instructions has gained nothing. The
-counts are within 30% everywhere and CCV is *lower* on seven of eight:
+A denser encoding that needs twice the instructions has gained nothing. Against
+GCN5 the counts are within 30% and CCV is *lower* on nine of ten:
 
-| | vadd | saxpy | vadd16 | vadd_loop | vadd16_loop | dot | reduce | transpose |
-|---|---|---|---|---|---|---|---|---|
-| CCV | 20 | 19 | 21 | 24 | 25 | 52 | 48 | 60 |
-| GCN | 29 | 25 | 29 | 35 | 35 | 60 | 54 | 64 |
+| | vadd | saxpy | vadd16 | vadd_loop | vadd16_loop | dot | reduce | transpose | gemv | sgemm |
+|---|---|---|---|---|---|---|---|---|---|---|
+| CCV | 20 | 19 | 21 | 24 | 25 | 52 | 48 | 60 | 206 | 384 |
+| GCN | 29 | 25 | 29 | 35 | 35 | 60 | 54 | 64 | 306 | 238 |
 
-So the density is not bought with instruction count. **Code size lands below
-GCN on seven of eight kernels** — 166 against 268 bytes on the reduction, and
+`sgemm` is the exception and it is not a small one: 384 against 238. Read it
+beside the same kernel's byte column — 1352 against 1376 — and the shape of the
+trade is exact. The density is not bought with instruction count on nine
+kernels; on the tenth it is, and the tenth is the one with register pressure.
+
+Otherwise **code size lands below GCN on nine of ten kernels** — 166 against 268 bytes on the reduction, and
 with the alignment attribute `vadd` is 56 bytes against 152, which is 2.7×.
 
 **This table is not a fair comparison, and the next section is the fair one.**
@@ -335,7 +369,6 @@ emits `.amdhsa_wavefront_size32` and its absence means wave64.
     vadd_loop             200             --             --             --             --             --
     vadd16_loop            224             --             --             --             --             --
     transpose            5888           4928           9856          12032          11904           4800
-
 ```
 
 **Two results, and they point opposite ways.**
@@ -572,7 +605,8 @@ had measured that. The simulator now counts it:
   dot              113         92       0   0.000       113.0       --
   reduce           111         90       0   0.000       111.0       --
   transpose         52         49       0   0.000        52.0       --
-
+  gemv             196        190       0   0.000       196.0       --
+  sgemm            516        495       0   0.000       516.0       --
 ```
 
 **`vadd16` is exactly break-even.** 18 issued instructions, 4 of them narrow
@@ -991,11 +1025,18 @@ accumulators, the tile a throughput SGEMM actually uses — in 121 registers,
 still with nothing spilled. CCV at 8×8 issues 2582 instructions and spills 1491
 times, which is not a tuning point but a report that the tile does not fit.
 
-The gap that matters is not instruction count, where CCV is competitive
-(§2 puts it at 0.94× of SASS on the aligned build after O-45). It is **arithmetic
-intensity**: a TM×TN tile does TM·TN MACs per TM+TN operand elements loaded, so
-2×4 buys 1.33 and 8×8 buys 4.0. Three times the arithmetic per byte of operand
-traffic is a bandwidth argument, and no amount of encoding density answers it.
+**The gap shows up in instruction count too, and §2 used to say it did not.**
+That paragraph read "the gap that matters is not instruction count, where CCV is
+competitive (0.94× of SASS)" — and the 0.94× came from a sweep with no GEMM in
+it. `sgemm` is now in it: 360 instructions aligned against SASS's 196, 1.84×, on
+the same file. Roughly 102 of the difference is spill traffic and the rest is the
+addressing those spills need. F-148.
+
+The deeper gap is still **arithmetic intensity**, and it is the one no encoding
+answers: a TM×TN tile does TM·TN MACs per TM+TN operand elements loaded, so 2×4
+buys 1.33 and 8×8 buys 4.0. Three times the arithmetic per byte of operand
+traffic is a bandwidth argument. But the instruction count is no longer a
+column that lets this section off.
 
 Two things properly qualify that, and neither removes it. `dp4.acc` closes most
 of it for quantized work — the INT8 kernel gets four MACs per accumulator

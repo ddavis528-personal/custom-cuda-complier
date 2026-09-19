@@ -66,7 +66,7 @@ echo "  For contrast, the same two columns on the GEMM this was compared against
 printf '  %s\n' "------------------------------------------------------------"
 for t in 2x2 2x4 4x4; do
   tm=${t%x*}; tn=${t#*x}
-  row "sgemm $t" test/cuda/sgemm.cu "-DTM=$tm -DTN=$tn"
+  row "sgemm $t" test/cuda/sgemm.cu "-DCCV_ALIGNED -DTM=$tm -DTN=$tn"
 done
 
 cat <<'TXT'

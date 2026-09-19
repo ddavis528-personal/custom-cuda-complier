@@ -25,7 +25,7 @@ printf '  %s\n' "-----------------------------------"
 for t in 1x1 1x2 2x2 2x4 4x4 8x8; do
   tm=${t%x*}; tn=${t#*x}
   clang -x cuda -nocudainc -nocudalib --cuda-device-only \
-        --cuda-gpu-arch=sm_70 -I "$INC" -O2 -DTM="$tm" -DTN="$tn" \
+        --cuda-gpu-arch=sm_70 -I "$INC" -Itest/bench -DCCV_ALIGNED -O2 -DTM="$tm" -DTN="$tn" \
         -S test/cuda/sgemm.cu -o "$TMP/n.ptx" 2>/dev/null || continue
   out=$("$PTXAS" -arch=sm_70 -O3 -v "$TMP/n.ptx" -o "$TMP/n.cubin" 2>&1)
   regs=$(echo "$out" | grep -oP 'Used \K\d+')

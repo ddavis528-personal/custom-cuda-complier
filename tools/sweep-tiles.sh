@@ -28,7 +28,7 @@ sweep() {                      # $1 = label, $2 = source
   printf '  %s\n' "---------------------------------------------------------------------------------"
   for t in 1x1 1x2 2x2 2x4 4x4 8x8; do
     tm=${t%x*}; tn=${t#*x}
-    CCV_CFLAGS="-DTM=$tm -DTN=$tn" ./tools/cuda-to-asm.sh "$2" \
+    CCV_CFLAGS="-Itest/bench -DCCV_ALIGNED -DTM=$tm -DTN=$tn" ./tools/cuda-to-asm.sh "$2" \
         "$TMP/s.s" "$TMP/s" >/dev/null 2>"$TMP/err"
     if [ ! -s "$TMP/s.s" ]; then
       why=$(grep -oP 'CCV: \K.*?(?= --|$)' "$TMP/err" | head -1)
