@@ -164,6 +164,15 @@ UNREACHABLE = {
     # for CCVCompress to fold. F-121.
     "FFMA_ACC_F1": ("todo", "no bf16 type in the backend, so there is no "
                             "format-1 multiply-add to compress; F-121"),
+
+    # O-44's FP packed dot products. Adopted encodings the compiler cannot yet
+    # reach: forming one needs a bfloat, half or FP8 value in the IR, and this
+    # backend has none of those types. The simulator implements them and
+    # tools/check-dp-fp.sh executes them, so the SEMANTICS are pinned even
+    # though selection is not. F-137.
+    **{n: ("todo", "no bf16/half/FP8 type in the backend, so nothing forms the "
+                   "packed operand; semantics pinned by check-dp-fp.sh; F-137")
+       for n in "DP2_BF16 DP2_F16 DP4_E4M3 DP4_E5M2".split()},
     # Sub-word pack/unpack. These address MEMORY packing -- a lane still holds
     # one element at every width (O-13, F-79) -- and nothing in the backend
     # forms a packed load. F-122.

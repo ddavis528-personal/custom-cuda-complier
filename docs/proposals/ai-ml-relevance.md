@@ -121,9 +121,27 @@ the same class as `dp4`'s.
 
 ### What the compiler will do with it
 
-`CCVCompress` already folds any three-source accumulate whose addend the allocator landed on
-the destination into Format J (F-121). A `dp2` would ride that unchanged. Forming it from IR
-needs the same DAG combine shape `combineDP4` uses, which exists.
+> **CORRECTION (ISA review).** This section originally read: "`CCVCompress` already folds any
+> three-source accumulate whose addend the allocator landed on the destination into Format J
+> (F-121). A `dp2` would ride that unchanged." **It cannot.** Format J's subop field is two
+> bits and all four points are allocated — `ffma.acc` format 0, `ffma.acc` format 1,
+> `dp4.acc`, `mad.acc` — so there is no free subop. **`dp2` is 32-bit only**, and the
+> compressed-form density that makes `dp4.acc` valuable in a GEMM inner loop is not available
+> to it. The ask was priced as though it were, and it should not have been: the twelve bits of
+> register fields leaving exactly two for the subop is stated in §3 of the spec, beside the
+> table I was reading from.
+>
+> The arithmetic credit — two MACs per accumulator register — is real and independent of
+> encoding length, so the ask survives at the corrected price. What it forces is a trade the
+> ISA review declined to resolve and neither does this document: if a compressed `dp2` turns
+> out to matter, something in Format J has to be displaced, and the only candidates are the two
+> `ffma.acc` points `dp2` would partly subsume. **That question should not be opened until
+> `dp2` is measured at 32 bits** — if the 32-bit form closes the FP32 accumulator cliff
+> adequately, it never needs answering.
+
+Forming `dp2` from IR needs the same DAG combine shape `combineDP4` uses, which exists and is
+tested by mutation (`tools/check-dp4.sh`). `CCVCompress`'s Format J fold is not available to it
+per the correction above.
 
 ---
 

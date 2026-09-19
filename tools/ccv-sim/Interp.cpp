@@ -134,6 +134,8 @@ static bool isWidthAware(unsigned Op) {
   case CCV::LD_GLOBAL_IDX: case CCV::ST_GLOBAL_IDX:
   case CCV::LD_SHARED: case CCV::ST_SHARED:
   case CCV::MAD_ACC:
+  case CCV::DP2_BF16: case CCV::DP2_F16:
+  case CCV::DP4_E4M3: case CCV::DP4_E5M2:
   case CCV::MOVI: case CCV::MOVI48:
   case CCV::C_MOV: case CCV::C_EXIT:
     return true;
@@ -159,6 +161,44 @@ static bool isWidthAware(unsigned Op) {
 
 static float bitsToFloat(uint32_t B) { float F; std::memcpy(&F, &B, 4); return F; }
 static uint32_t floatToBits(float F) { uint32_t B; std::memcpy(&B, &F, 4); return B; }
+
+// O-44's FP packed dot products. The packed element types are decoded here
+// rather than by the C++ type system: BF16 is the top half of an FP32, FP16 and
+// the two FP8 formats need their fields laid out explicitly, and none of them
+// is a type this simulator otherwise carries.
+static float bf16ToFloat(uint16_t H) { return bitsToFloat(uint32_t(H) << 16); }
+
+static float f16ToFloat(uint16_t H) {
+  uint32_t S = uint32_t(H >> 15) << 31, E = (H >> 10) & 0x1f, M = H & 0x3ff;
+  if (E == 0)                             // zero or subnormal
+    return bitsToFloat(S) + (M ? std::ldexp(float(M), -24) *
+                                 (S ? -1.0f : 1.0f) : 0.0f);
+  if (E == 0x1f)                          // inf or NaN
+    return bitsToFloat(S | 0x7f800000u | (M << 13));
+  return bitsToFloat(S | ((E + 112) << 23) | (M << 13));
+}
+
+/// One FP8 value. `MantBits` is 3 for E4M3 and 2 for E5M2, which fixes the
+/// exponent width and bias with it. E4M3 has no infinity -- its all-ones
+/// exponent with a non-zero mantissa is NaN and with a zero mantissa is a
+/// finite value -- which is why the two formats cannot share one decoder
+/// parameterised only by field width.
+template <unsigned MantBits> static float fp8ToFloat(uint8_t B) {
+  constexpr unsigned ExpBits = 7 - MantBits;
+  constexpr int Bias = (1 << (ExpBits - 1)) - 1;
+  uint32_t S = uint32_t(B >> 7) << 31;
+  int E = (B >> MantBits) & ((1 << ExpBits) - 1);
+  uint32_t M = B & ((1u << MantBits) - 1);
+  if (E == 0)
+    return (S ? -1.0f : 1.0f) * std::ldexp(float(M), -Bias - int(MantBits) + 1);
+  if (MantBits == 2 && E == (1 << ExpBits) - 1)        // E5M2 has inf/NaN
+    return bitsToFloat(S | 0x7f800000u | (M << 21));
+  if (MantBits == 3 && E == (1 << ExpBits) - 1 && M == (1u << MantBits) - 1)
+    return bitsToFloat(S | 0x7fc00000u);               // E4M3: only S.1111.111 is NaN
+  return (S ? -1.0f : 1.0f) *
+         std::ldexp(1.0f + float(M) / float(1u << MantBits), E - Bias);
+}
+
 
 /// One lane of a conversion or SFU operation. Lifted out of the dispatch so the
 /// Format A′ twins O-34 made possible share the semantics rather than copying
@@ -547,6 +587,56 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   //
   // Format J's `dp4.acc` is the same operation with the addend fixed at the
   // destination, so it maps onto this rather than repeating the byte loop.
+  // O-44's FP packed dot products. §4 makes the rule normative: the products
+  // sum EXACTLY and the result rounds ONCE into the accumulator. Integer dp4
+  // needed no such rule because its reduction cannot round; this one can, and
+  // two implementations rounding differently would show up as a convergence
+  // drift rather than as a test failure.
+  //
+  // Summed in long double, which carries a 64-bit mantissa where FP32 carries
+  // 24 and the widest product here needs 22. That is exact for every input
+  // whose addends span less than about forty binades. It is NOT exact in the
+  // absolute worst case: BF16 has FP32's full exponent range, so a sum of
+  // values from 2^-126 to 2^127 would need a few hundred bits, and no
+  // fixed-width accumulator delivers that. Stated rather than glossed -- the
+  // rule is what the hardware must implement, and this is how far the model
+  // checks it.
+  case CCV::DP2_BF16:
+  case CCV::DP2_F16:
+  case CCV::DP4_E4M3:
+  case CCV::DP4_E5M2: {
+    unsigned D = regOf(MI, 0), A = regOf(MI, 1), B = regOf(MI, 2),
+             C = regOf(MI, 3);
+    forEachLane([&](unsigned L) {
+      uint32_t X = W.GPR[A][L], Y = W.GPR[B][L];
+      long double Sum = (long double)bitsToFloat(W.GPR[C][L]);
+      switch (Op) {
+      case CCV::DP2_BF16:
+        for (unsigned K = 0; K != 2; ++K)
+          Sum += (long double)bf16ToFloat(uint16_t(X >> (16 * K))) *
+                 (long double)bf16ToFloat(uint16_t(Y >> (16 * K)));
+        break;
+      case CCV::DP2_F16:
+        for (unsigned K = 0; K != 2; ++K)
+          Sum += (long double)f16ToFloat(uint16_t(X >> (16 * K))) *
+                 (long double)f16ToFloat(uint16_t(Y >> (16 * K)));
+        break;
+      case CCV::DP4_E4M3:
+        for (unsigned K = 0; K != 4; ++K)
+          Sum += (long double)fp8ToFloat<3>(uint8_t(X >> (8 * K))) *
+                 (long double)fp8ToFloat<3>(uint8_t(Y >> (8 * K)));
+        break;
+      default:
+        for (unsigned K = 0; K != 4; ++K)
+          Sum += (long double)fp8ToFloat<2>(uint8_t(X >> (8 * K))) *
+                 (long double)fp8ToFloat<2>(uint8_t(Y >> (8 * K)));
+        break;
+      }
+      W.GPR[D][L] = floatToBits((float)Sum);   // the one rounding
+    });
+    break;
+  }
+
   case CCV::DP4_SS:
   case CCV::DP4_ACC: {
     bool Acc = Op == CCV::DP4_ACC;

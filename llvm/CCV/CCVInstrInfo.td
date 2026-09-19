@@ -318,6 +318,31 @@ def FFMA_F0 : FormatA<FpOpc<fpOp.FFMA, 0>.V, (outs GPR:$rd),
 def DP4_SS : FormatA<48, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
                      "dp4.ss $rd, $rs0, $rs1, $rs2">;
 
+// O-44: the FP packed dot products. Four of the eight free points at 48-63.
+//
+// `dp2` is two BF16 or FP16 per lane; `dp4.e4m3`/`dp4.e5m2` are four FP8, which
+// fill a 32-bit lane exactly as four INT8 do -- so the FP8 forms are ordinary
+// two-source Format A instructions and need no operand model beyond integer
+// dp4's. Only the 16-bit types are lane-constrained.
+//
+// All four accumulate into FP32 and all four sum their products EXACTLY,
+// rounding once into the accumulator (§4, normative). Integer dp4 needed no
+// such rule because its reduction cannot round; this one can, and two
+// implementations rounding differently would produce a convergence drift
+// rather than a test failure.
+//
+// NOT in Format J. Its subop field is two bits and all four points are
+// allocated, so none of these has a compressed accumulate form -- the
+// proposal that asked for them priced it as though Format J had room.
+def DP2_BF16  : FormatA<52, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                        "dp2.bf16 $rd, $rs0, $rs1, $rs2">;
+def DP2_F16   : FormatA<53, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                        "dp2.f16 $rd, $rs0, $rs1, $rs2">;
+def DP4_E4M3  : FormatA<54, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                        "dp4.e4m3 $rd, $rs0, $rs1, $rs2">;
+def DP4_E5M2  : FormatA<55, (outs GPR:$rd), (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                        "dp4.e5m2 $rd, $rs0, $rs1, $rs2">;
+
 // Predicated twins, Format A′ (O-33). These are what mask-and-broadcast
 // selects: a warp-uniform computation runs with only lane 0 active and the
 // result is broadcast, so lanes 1-31 never switch.

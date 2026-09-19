@@ -891,7 +891,46 @@ it is the rarest of the four and the index register carries most of the addressi
 | `00000`–`00011` | base + offset | `ld.global`, `st.global`, `ld.shared`, `st.shared` |
 | `00100`–`00111` | base + index | same four |
 | `01000`–`01011` | base + offset | `ld.pred`, `st.pred` × `{global, shared}` |
-| `01100`+ | — | reserved (span/wide transfers) — deferred, see §10 |
+| `01100`–`01111` | **launch-slot + index** | `ld.global`, `st.global`, `ld.shared`, `st.shared` (O-45) |
+| `10000`+ | — | reserved (span/wide transfers) — deferred, see §10 |
+
+**Launch-slot + index (O-45).** A third addressing mode in which `[18:15]` is **not a register
+number but a 4-bit launch-block slot index**: the window base comes from the launch block
+directly and never occupies a GPR.
+
+| Bits | Width | Field |
+|---|---|---|
+| `[1:0]` | 2 | length = `00` |
+| `[5:2]` | 4 | fmt = `1000` |
+| `[10:6]` | 5 | opcode |
+| `[14:11]` | 4 | `rdata` |
+| `[18:15]` | 4 | **launch slot** — an immediate, not a register |
+| `[22:19]` | 4 | `rindex` |
+
+**This does not weaken invariant 8, and the precedent is Format D itself.** `[22:19]` is
+already a register field in one mode of tag `1000` and immediate bits in the other, selected
+by `opcode[2]`; the renamer already consults the opcode for this tag. Adding `[18:15]` to the
+conditional set is the same kind of cost, not a new kind. Invariant 8's content is that
+register fields sit at fixed positions **when present** — presence being opcode-conditional is
+shipped behaviour, and the invariant now says so explicitly rather than leaving it implicit,
+which had cost two review cycles by the time this was written.
+
+**Why it exists.** The §5.1 window bases of a fused elementwise kernel are warp-uniform,
+loop-invariant, and already resident in the launch block — a small, CTA-wide, read-only table
+(§5.2). Holding one in a GPR spends a register caching something that is already in memory,
+and the compiler measurement is that this is what binds: in a grid-strided fused chain the
+*divergent* working set is four values at any tensor count while the uniform one grows with
+the number of tensors fused, crossing the 16-entry file and spilling from there (F-129).
+
+**The open cost is on the hardware side and is not settled here:** something has to hold or
+cache the launch block for the AGU. It is CTA-wide, read-only and small, which is what makes a
+cache plausible, but plausible is not priced.
+
+**A second shape was considered and rejected** — keeping `[18:15]` a register field and adding
+a mode bit selecting which *file* it indexes. That introduces a second register namespace for
+no encoding benefit over a form the tag already precedents. If a second namespace is ever
+wanted it should be wanted on its own merits, not arrive as a side effect of an addressing
+mode. See O-46.
 
 Transfer size is inherited from `rdata`'s `chwidth` — no size field. Address space is in
 the opcode.
@@ -1485,6 +1524,29 @@ applied to width mismatches generally.
 |---|---|
 | `dp4.ss` / `dp4.su` / `dp4.us` / `dp4.uu` | 4×INT8 per lane → INT32, signedness per operand |
 | `dp8.ss` / `dp8.su` / `dp8.us` / `dp8.uu` | 8×INT4 per lane → INT32 |
+| `dp2.bf16` / `dp2.f16` | 2×BF16 or 2×FP16 per lane → **FP32** |
+| `dp4.e4m3` / `dp4.e5m2` | 4×FP8 per lane → **FP32** |
+
+**The FP entries were added by the AI/ML relevance decision (O-44).** Twelve of sixteen points
+are now used; four remain. They are ordinary two-source Format A instructions: four E4M3
+values occupy one 32-bit lane exactly as four INT8 do, so FP8 needs no operand model beyond
+integer `dp4`'s. Only the 16-bit types are lane-constrained, at two per lane.
+
+**Accumulation order and rounding — normative.** The products are summed **exactly** and the
+result rounds **once** into the accumulator. Per-product rounding is not permitted.
+
+This has to be stated and integer `dp4` sets no precedent for it: a sum of four INT8 products
+into INT32 is exact, so the order is unobservable and §4 never needed a rule. An FP reduction
+is observable, both orders are defensible, and shipping implementations differ. Leaving it
+unstated would be an O-28-class gap — two implementations producing numerically different
+output from identical binaries, surfacing as a convergence drift rather than as a test
+failure. `ffma` already fuses one product with one addend under a single rounding (F-63); this
+is the same principle at four products, and choosing it keeps the two consistent.
+
+**The integer reduction is exact, which is why no order is specified for it** — four INT8
+products into INT32 cannot overflow or round, so every summation order agrees. The FP rule
+above is a deliberate addition for the cases where that stops being true, not an
+inconsistency.
 
 **All operands are `chwidth`=32.** `dp4` reads two ordinary full-width registers, interprets
 each lane's 32 bits as four INT8, multiplies elementwise, sums the four products and adds
@@ -1997,7 +2059,8 @@ quantified on one side of it.
    wider immediate, so they exist only at 32 bits even though Format B has a 48-bit sibling.
    Format I splits the other way — `chwidth.multi` fits in 32 and has no long form, `pmov`
    needs 32 immediate bits and has no short one.
-8. **Register fields sit at fixed positions across format tiers *and lengths*.** `rd` at `[14:11]`,
+8. **Register fields sit at fixed positions across format tiers *and lengths*, when
+   present.** `rd` at `[14:11]`,
    `rs0` at `[18:15]`, `rs1` at `[22:19]`, `rs2` at `[26:23]`, predicate qualifier at
    `[29:27]`, predicate dest at `[31:30]` — held constant across A/A′/A″, C/C′ and, for the
    fields they use, B/B′/B″, D/D′ and M/M′ — and identically in the 48-bit rendering of any
@@ -2138,6 +2201,67 @@ is catching up.
 Revisit when `sgemm` at larger tiles has been examined for strided addressing. A wrong
 reason in the log forecloses an option later on false grounds, which is worse than
 recording none.
+
+---
+
+**O-44 — FP packed dot-product-accumulate — adopted.** `dp2.bf16`, `dp2.f16`, `dp4.e4m3` and
+`dp4.e5m2` join §4's points 48–63, taking four of the eight that were free. Twelve of sixteen
+are now used.
+
+The argument is that the mechanism is already built and measured, and covers the wrong
+precision. `dp4.acc` is what `gpr-count-decision.md` credits with making 16 GPRs sufficient
+under INT8 accumulator pressure, and the credit is earned: the INT8 GEMM's spill profile is
+nearly identical to the FP32 one — same tiles, same addressing, same accumulator count — while
+doing four times the arithmetic per accumulator, so spill per MAC lands at 0.51–1.03 against
+FP32's 2.07–3.78. **And FP32 GEMM is not the workload.** BF16 or FP16 in with FP32 accumulate
+is, and `dp2` gives that case two MACs per accumulator register.
+
+**The FP8 variants are allocated on timing rather than on demonstrated need.** The points are
+free today and will not be after a second round, FP8 inference is where the frontier already
+is, and both formats are first-class in the ISA with `cvt` support (O-34). FP8 also costs
+nothing structurally: four E4M3 fill a 32-bit lane exactly as four INT8 do, so `dp4.e4m3` is an
+ordinary two-source Format A instruction.
+
+**Three things the adoption carries.** (1) §10's objection to FP packing is struck, with the
+reason recorded there: exponent handling is a property of the reduction, not of the operand
+model. (2) The accumulation order and rounding are **normative** — products sum exactly and the
+result rounds once — because an FP reduction is observable where the integer one is not. (3)
+**`dp2` is 32-bit only.** Format J's subop field is two bits and all four points are allocated,
+so the compressed accumulate form is unavailable to it. The compiler-side proposal priced the
+ask as though Format J had room; it does not. Whether a compressed `dp2` is worth displacing
+one of Format J's two `ffma.acc` points is deferred until `dp2` has been measured at 32 bits —
+if the 32-bit form closes the FP32 accumulator cliff adequately the question never arises.
+
+**Mixed-format FP8 is left unallocated, and one point would do it if it is ever wanted.** A dot
+product is symmetric in its two operands, so `e4m3 × e5m2` and `e5m2 × e4m3` are one operation
+with the registers swapped — the compiler picks the order, exactly as it does for the compare
+points F-115 found unreachable. Four points remain free.
+
+---
+
+**O-45 — Launch-slot-relative addressing — adopted, and invariant 8 gains two words.** §3's
+Format D takes a third addressing mode at opcodes `01100`–`01111`, in which `[18:15]` is a
+4-bit launch-block slot index rather than a register number, so a §5.1 window base never
+occupies a GPR.
+
+**The invariant-8 question has a clear answer and the precedent is Format D itself.** `[22:19]`
+is already a register field in one mode of tag `1000` and immediate bits in the other, selected
+by `opcode[2]`. The renamer already consults the opcode for this tag; adding `[18:15]` to the
+conditional set is the same kind of cost, not a new kind. The invariant now reads "when
+present", which is what it has always meant and what Format D has always done — leaving it
+implicit had cost two review cycles, once in F-110 and once in the proposal that produced this
+decision.
+
+The hardware cost is real and unpriced: something must hold or cache the launch block for the
+AGU. It is CTA-wide, read-only and small, which makes a cache plausible without making it free.
+
+---
+
+**O-46 — A second register namespace, if ever wanted, must be wanted on its own merits.** The
+rejected alternative to O-45 kept `[18:15]` a register field and added a mode bit selecting
+which *file* it indexes. That is a second register namespace arriving as a side effect of an
+addressing mode, for no encoding benefit over a form the tag already precedents. The
+warp-uniform register file (F-106) is the place to want one; see the deferral recorded there.
 
 ---
 
@@ -3418,10 +3542,23 @@ because it reinterprets rather than converts, and the narrow write then lands in
 
 - **Format H (tensor/MMA)** — register-group operand model undesigned. The `11` length escape
   and the `1111` format tag are reserved for it.
-- **FP packed dot-product** (BF16×BF16 → FP32 and similar). `dp4`/`dp8` are integer-only.
-  The FP case needs per-element exponent handling inside the reduction rather than a simple
-  product sum, and it is the natural companion to Format H's fragment operands — design it
-  there.
+
+  **Design input, recorded by O-44's review:** an MMA accumulator fragment is **4–8 registers
+  per thread** depending on tile geometry — 4 for an m16n8k16-shaped output, 8 for m16n16k16.
+  At 16 GPRs that is a quarter to half the architectural file for **one** fragment, and a real
+  GEMM holds several. So Format H does not settle O-25; it re-poses it in a harder shape,
+  because the accumulator count stops being a tiler's free choice and becomes fixed by the
+  matrix unit's geometry. **Register-file capacity is a co-design input for H, not a constraint
+  to fit within afterwards.**
+- ~~**FP packed dot-product** (BF16×BF16 → FP32 and similar)~~ — **removed by O-44.** The
+  recorded objection was that the FP case needs per-element exponent handling inside the
+  reduction and is the natural companion to Format H's fragment operands. **That reasoning does
+  not hold, and the reason it does not is worth keeping:** exponent handling is a property of
+  the *reduction*, not of the operand model. The reduction hardware is the same whether the
+  operands arrive from Format A registers or from Format H fragments. Integer `dp4` already
+  established that a packed reduction lives in Format A without touching invariant 1 — the
+  packing factor is in the opcode, no register is narrow, and nothing outside the instruction
+  observes the packed view. See §4's points 48–63.
 - **Texture / surface operations** — likely permanently out of scope for an AI/ML target.
 - **Instruction fetch alignment and bundle crossing** — RTL-level, deferred by prior
   agreement, but note the compressed forms make this more load-bearing: with 16-bit

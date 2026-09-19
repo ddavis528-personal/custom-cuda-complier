@@ -52,6 +52,15 @@ else
   echo "  (build/ccv-llc or the kernel-arg plugin not built -- skipping listing provenance)"
 fi
 
+# O-44's FP packed dot products cannot be reached from CUDA -- the backend has
+# no bfloat, half or FP8 type -- so nothing would notice if their semantics were
+# wrong. §4 makes the rounding rule normative; this executes it against a
+# reference computed in exact rationals.
+if [ -x build/ccv-sim ]; then
+  echo "  FP packed dot product, exact-sum reference"
+  ./tools/check-dp-fp.sh || fail=1
+fi
+
 # F-134: sgemm had never been executed. Every check it passed -- instruction
 # counts, spill counts, the tile sweep, the register-pressure argument the GPR
 # decision rests on -- was a check on its text, and the first time it ran it
