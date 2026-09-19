@@ -127,7 +127,7 @@ one-register form arrives from `instcombine`, not from a backend special case.
 | `mad.lo r1, r3, r1, r2` | the three-source form takes `ctaid*ntid + tid` in one instruction |
 | `setp.le p0, r2, r1` | Format C″ (O-32), the **unpredicated** compare. Earlier revisions had no such form: Formats C/C′ carry a mandatory qualifier, so every compare had to be preceded by a `por` manufacturing a true predicate (O-24). That cost one instruction per compare — 13% of dynamically issued instructions in the reduction kernels — and is now zero |
 | `@p0 bra LBB0_2` | the guard branches *over* the body, so the fall-through path has no branch at all |
-| `[r2, r1, 1, 0]` | Format D base+index with **scale-enable set**: the AGU supplies the `chwidth`-derived shift. O-7 only fires like this for aligned pointers |
+| `[#4, r0, 1, 0]` | Format D with a **launch-block slot** where the base register would be (O-45). The window index is read by the AGU straight out of §5.2's block, so the pointer never occupies a GPR — three of this kernel's twelve instructions were loading window bases before the form existed. Scale-enable is set, so the AGU also supplies the `chwidth`-derived shift (O-7), which only fires like this for aligned pointers |
 | `fadd r3, r2` | the compressed destructive form, 16 bits, because `rd == rs0` fell out naturally |
 
 There is **no branch on the fall-through path** — the guard branches over the

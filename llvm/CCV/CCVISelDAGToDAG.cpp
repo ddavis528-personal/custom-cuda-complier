@@ -177,6 +177,35 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
                                            N->getOperand(2)}));
     return;
   }
+  case CCVISD::LD_SLOTIDX:
+  case CCVISD::ST_SLOTIDX: {
+    // O-45. Same shape as base+index, with a 4-bit launch-slot immediate where
+    // `rbase` would be.
+    bool IsLoad = N->getOpcode() == CCVISD::LD_SLOTIDX;
+    SmallVector<SDValue, 6> Ops;
+    unsigned B = IsLoad ? 1 : 2;              // first non-chain/value operand
+    if (!IsLoad)
+      Ops.push_back(N->getOperand(1));        // value
+    Ops.push_back(N->getOperand(B));          // slot
+    Ops.push_back(N->getOperand(B + 1));      // rindex
+    Ops.push_back(N->getOperand(B + 2));      // scale enable
+    Ops.push_back(CurDAG->getTargetConstant(0, DL, MVT::i32));  // disp
+    Ops.push_back(N->getOperand(0));          // chain
+    // Transfer size comes from `rdata`'s chwidth, so a 16-bit access must select
+    // the narrow form to put its data register in GPR16 (F-125, and F-139 for
+    // the repeat).
+    bool Narrow = cast<MemSDNode>(N)->getMemoryVT() == MVT::i16;
+    MachineSDNode *MN =
+        IsLoad ? CurDAG->getMachineNode(Narrow ? CCV::LD_GLOBAL_SLOT_W16
+                                               : CCV::LD_GLOBAL_SLOT,
+                                        DL, N->getValueType(0), MVT::Other, Ops)
+               : CurDAG->getMachineNode(Narrow ? CCV::ST_GLOBAL_SLOT_W16
+                                               : CCV::ST_GLOBAL_SLOT,
+                                        DL, MVT::Other, Ops);
+    CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
+    ReplaceNode(N, MN);
+    return;
+  }
   case CCVISD::LD_FRAME:
   case CCVISD::ST_FRAME: {
     // A .local access. R15 is the window base (O-30) and eliminateFrameIndex

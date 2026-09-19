@@ -70,14 +70,14 @@ questions and only one of them can be measured on both machines.
   kernel     |     CCV unaligned     |  CCV aligned   |     AMDGCN gfx900     |  PTX  
              |  instr  bytes    b/i |  instr  bytes |  instr  bytes    b/i |  instr
   --------------------------------------------------------------------------------
-  vadd       |     23     76   26.4 |     16     54 |     29    152   41.9 |     21
-  saxpy      |     21     72   27.4 |     16     56 |     25    136   43.5 |     19
-  vadd16     |     24     82   27.3 |     17     60 |     29    152   41.9 |     21
-  vadd_loop  |     27     90   26.7 |     19     62 |     35    184   42.1 |     23
-  vadd16_loop |     28     96   27.4 |     20     68 |     35    184   42.1 |     23
-  dot        |     54    170   25.2 |     46    146 |     60    300   40.0 |     46
-  reduce     |     49    154   25.1 |     43    136 |     54    268   39.7 |     41
-  transpose  |     64    228   28.5 |     56    200 |     64    308   38.5 |     43
+  vadd       |     20     62   24.8 |     13     42 |     29    152   41.9 |     21
+  saxpy      |     19     64   26.9 |     14     48 |     25    136   43.5 |     19
+  vadd16     |     21     68   25.9 |     14     48 |     29    152   41.9 |     21
+  vadd_loop  |     24     74   24.7 |     16     50 |     35    184   42.1 |     23
+  vadd16_loop |     25     80   25.6 |     17     56 |     35    184   42.1 |     23
+  dot        |     52    162   24.9 |     43    134 |     60    300   40.0 |     46
+  reduce     |     48    150   25.0 |     41    128 |     54    268   39.7 |     41
+  transpose  |     60    210   28.0 |     52    184 |     64    308   38.5 |     43
 
 ```
 
@@ -86,14 +86,14 @@ questions and only one of them can be measured on both machines.
 ```
   kernel          CCV   SIMT     AMDGCN |  lane-act  of issued   how AMDGCN was obtained
   ----------------------------------------------------------------------------------------------
-  vadd           16.0   100%         29 |       512       100%   exact: no backward branch
-  saxpy          16.0   100%         25 |       512       100%   exact: no backward branch
-  vadd16         17.0   100%         29 |       544       100%   exact: no backward branch
-  vadd_loop      68.0   100%         -- |      2176       100%   has 1 loops; not modelled
-  vadd16_loop     69.0   100%         -- |      2208       100%   has 1 loops; not modelled
-  dot            77.9    67%         -- |      2493       100%   has 3 loops; not modelled
-  reduce         74.9    66%         -- |      2397       100%   has 3 loops; not modelled
-  transpose      56.0   100%         64 |      1191        66%   exact: no backward branch
+  vadd           13.0   100%         29 |       416       100%   exact: no backward branch
+  saxpy          14.0   100%         25 |       448       100%   exact: no backward branch
+  vadd16         14.0   100%         29 |       448       100%   exact: no backward branch
+  vadd_loop      65.0   100%         -- |      2080       100%   has 1 loops; not modelled
+  vadd16_loop     66.0   100%         -- |      2112       100%   has 1 loops; not modelled
+  dot            74.9    66%         -- |      2397       100%   has 3 loops; not modelled
+  reduce         72.9    66%         -- |      2333       100%   has 3 loops; not modelled
+  transpose      52.0   100%         64 |      1127        68%   exact: no backward branch
 
 ```
 
@@ -129,16 +129,16 @@ spanning both encoding families and the datacentre line.
   kernel                 CCV        NV SASS    GCN5 / Vega          RDNA2          RDNA3          RDNA4  CDNA3 / MI300
                                       sm_70           2017           2020           2022           2024           2023
   --------------------------------------------------------------------------------------------------------------------
-  vadd                  26.4          128.0           41.9           48.6           46.0           48.0           48.7
-  saxpy                 27.4          128.0           43.5           47.3           44.6           46.9           47.2
-  vadd16                27.3          128.0           41.9           49.8           47.0           49.0           48.7
-  vadd_loop             26.7          128.0           42.1           42.9           41.8           45.9           45.2
-  vadd16_loop            27.4          128.0           42.1           43.6           42.4           46.8           45.2
-  dot                   25.2          128.0           40.0           41.5           40.9           42.3           42.1
-  reduce                25.1          128.0           39.7           42.9           39.2           41.4           40.2
-  transpose             28.5          128.0           38.5           41.1           39.6           39.2           38.7
+  vadd                  24.8          128.0           41.9           48.6           46.0           48.0           48.7
+  saxpy                 26.9          128.0           43.5           47.3           44.6           46.9           47.2
+  vadd16                25.9          128.0           41.9           49.8           47.0           49.0           48.7
+  vadd_loop             24.7          128.0           42.1           42.9           41.8           45.9           45.2
+  vadd16_loop            25.6          128.0           42.1           43.6           42.4           46.8           45.2
+  dot                   24.9          128.0           40.0           41.5           40.9           42.3           42.1
+  reduce                25.0          128.0           39.7           42.9           39.2           41.4           40.2
+  transpose             28.0          128.0           38.5           41.1           39.6           39.2           38.7
   --------------------------------------------------------------------------------------------------------------------
-  pooled                26.7          128.0           40.7           43.7           41.8           43.8           43.1
+  pooled                25.9          128.0           40.7           43.7           41.8           43.8           43.1
 
 ```
 
@@ -147,14 +147,14 @@ spanning both encoding families and the datacentre line.
 ```
   kernel                 CCV        NV SASS    GCN5 / Vega          RDNA2          RDNA3          RDNA4  CDNA3 / MI300
   --------------------------------------------------------------------------------------------------------------------
-  vadd                    23             17             29             27             32             32             23
-  saxpy                   21             16             25             23             28             28             21
-  vadd16                  24             17             29             27             32             32             23
-  vadd_loop               27             20             35             44             49             39             29
-  vadd16_loop              28             20             35             44             49             39             29
-  dot                     54             42             60             64             68             62             54
-  reduce                  49             39             54             50             71             58             51
-  transpose               64             53             64             60             76             76             62
+  vadd                    20             17             29             27             32             32             23
+  saxpy                   19             16             25             23             28             28             21
+  vadd16                  21             17             29             27             32             32             23
+  vadd_loop               24             20             35             44             49             39             29
+  vadd16_loop              25             20             35             44             49             39             29
+  dot                     52             42             60             64             68             62             54
+  reduce                  48             39             54             50             71             58             51
+  transpose               60             53             64             60             76             76             62
 
 ```
 
@@ -223,13 +223,13 @@ density argument is really written against. Pooled over all eight kernels:
 
 | pooled over eight kernels | instructions | bytes | bits/instruction |
 |---|---|---|---|
-| `CCV` | 291 | 990 | **27.2** |
+| `CCV` | 269 | 870 | **25.9** |
 | `NVIDIA SASS` (sm_70) | 224 | 3584 | **128.0** |
 
-**SASS uses the fewest instructions of any machine here** — fewer than CCV and
-fewer than every AMD generation — and spends 128 bits on each of them. So the
-two machines fail in opposite directions: **CCV needs 1.32× the instructions and
-0.28× the bytes.** The same eight kernels are 3.6× larger as SASS.
+**SASS spends 128 bits on every instruction**, and on instruction count the two
+machines are now close: **CCV's unaligned build needs 1.20× the instructions and
+0.24× the bytes.** The same eight kernels are 4.1× larger as SASS. That ratio
+was 1.32× before O-45 removed the window loads.
 
 **On instruction count the comparison above uses CCV's UNALIGNED build, and that
 is the pessimistic one.** O-23's alignment attribute is CCV's intended ABI, and
@@ -238,17 +238,24 @@ them. Compared build-for-build:
 
 | | CCV unaligned | CCV aligned | SASS sm_70 |
 |---|---|---|---|
-| `vadd` | 23 | **16** | 17 |
-| `saxpy` | 22 | 17 | **16** |
-| `vadd_loop` | 27 | **19** | 20 |
-| `dot` | 55 | 47 | **42** |
-| `reduce` | 50 | 44 | **39** |
-| `transpose` | 62 | 54 | **53** |
-| total | 291 | **234** | 224 |
+| `vadd` | 20 | **13** | 17 |
+| `saxpy` | 19 | **14** | 16 |
+| `vadd16` | 21 | **14** | 17 |
+| `vadd_loop` | 24 | **16** | 20 |
+| `vadd16_loop` | 25 | **17** | 20 |
+| `dot` | 52 | 43 | **42** |
+| `reduce` | 48 | 41 | **39** |
+| `transpose` | 60 | **52** | 53 |
+| total | 269 | **210** | 224 |
 
-**CCV aligned is 1.05× SASS, not 1.32×** — parity, and ahead on the simple
-kernels. It was 1.06× before O-41 and the `mul.lo` definition landed; the
-remaining gap is in the three complex kernels.
+**CCV aligned is 0.94× SASS — fewer instructions, not more.** That is a reversal
+and it is worth stating plainly, because this document has carried the opposite
+claim in three revisions: 1.32×, then 1.06× after O-41 and `mul.lo`, then 1.05×,
+and now below parity. **O-45 is what moved it.** Launch-slot addressing removes
+the window load from every global access, and a windowed load was two
+instructions where NVIDIA's is one — so the gap that remained was mostly this one
+thing. The three complex kernels are still behind (`dot` 43 against 42, `reduce`
+41 against 39); the five simple ones are now ahead by 3–4 instructions each.
 
 That is the variable-length encoding doing exactly what §6 designed it to do,
 against the machine it was designed against. It is also the cleanest statement
@@ -284,7 +291,7 @@ counts are within 30% everywhere and CCV is *lower* on seven of eight:
 
 | | vadd | saxpy | vadd16 | vadd_loop | vadd16_loop | dot | reduce | transpose |
 |---|---|---|---|---|---|---|---|---|
-| CCV | 23 | 21 | 24 | 27 | 28 | 54 | 49 | 64 |
+| CCV | 20 | 19 | 21 | 24 | 25 | 52 | 48 | 60 |
 | GCN | 29 | 25 | 29 | 35 | 35 | 60 | 54 | 64 |
 
 So the density is not bought with instruction count. **Code size lands below
@@ -315,19 +322,19 @@ emits `.amdhsa_wavefront_size32` and its absence means wave64.
   warp width               32             64             32             32             32             64
   ------------------------------------------------------------------------------------------------------
   issues / 1K elem
-    vadd                  512            464            864           1024           1024            368
-    saxpy                 512            400            736            896            896            336
-    vadd16                544            464            864           1024           1024            368
-    vadd_loop             272             --             --             --             --             --
-    vadd16_loop            276             --             --             --             --             --
-    transpose            1792           1024           1920           2432           2432            992
+    vadd                  416            464            864           1024           1024            368
+    saxpy                 448            400            736            896            896            336
+    vadd16                448            464            864           1024           1024            368
+    vadd_loop             260             --             --             --             --             --
+    vadd16_loop            264             --             --             --             --             --
+    transpose            1664           1024           1920           2432           2432            992
   instr bytes / 1K elem
-    vadd                 1728           2432           5248           5888           6144           2240
-    saxpy                1792           2176           4352           4992           5248           1984
-    vadd16               1920           2432           5376           6016           6272           2240
-    vadd_loop             248             --             --             --             --             --
-    vadd16_loop            272             --             --             --             --             --
-    transpose            6400           4928           9856          12032          11904           4800
+    vadd                 1344           2432           5248           5888           6144           2240
+    saxpy                1536           2176           4352           4992           5248           1984
+    vadd16               1536           2432           5376           6016           6272           2240
+    vadd_loop             200             --             --             --             --             --
+    vadd16_loop            224             --             --             --             --             --
+    transpose            5888           4928           9856          12032          11904           4800
 
 ```
 
@@ -361,9 +368,9 @@ unit, one instruction for the whole wavefront.
 
 **`transpose` was the one kernel above GCN on instruction count, and is no
 longer**, and it now
-grew to **64 instructions and 228 bytes** against GCN's 64 and 308 — level on
-instructions now, below on bytes, and below on issued work at 56 per thread
-against 64. For most of this project's life it was far worse
+grew to **60 instructions and 210 bytes** against GCN's 64 and 308 — below on
+both again after O-45 removed its window loads, and below on issued work at 52
+per thread against 64. For most of this project's life it was far worse
 than that and the explanation on file was wrong, which is worth recording
 because the wrong explanation was plausible for two revisions. See
 "`transpose` was not what it looked like" below.
@@ -557,14 +564,14 @@ had measured that. The simulator now counts it:
 ```
   kernel        issues  elem work  narrow    frac  cycles @2x   vs f32
   --------------------------------------------------------------------
-  vadd              16         14       0   0.000        16.0   1.000x
-  saxpy             16         14       0   0.000        16.0       --
-  vadd16            17         14       4   0.286        15.0   1.067x
-  vadd_loop         68         58       0   0.000        68.0   1.000x
-  vadd16_loop       69         58      32   0.552        53.0   1.283x
-  dot              116         95       0   0.000       116.0       --
-  reduce           113         92       0   0.000       113.0       --
-  transpose         56         53       0   0.000        56.0       --
+  vadd              13         11       0   0.000        13.0   1.000x
+  saxpy             14         12       0   0.000        14.0       --
+  vadd16            14         11       4   0.364        12.0   1.083x
+  vadd_loop         65         55       0   0.000        65.0   1.000x
+  vadd16_loop       66         55      32   0.582        50.0   1.300x
+  dot              113         92       0   0.000       113.0       --
+  reduce           111         90       0   0.000       111.0       --
+  transpose         52         49       0   0.000        52.0       --
 
 ```
 
@@ -659,12 +666,12 @@ The `lane-act` column is the measurement, from `ccv-sim -counters`:
 
 | | issued/thread | issued lane slots | activations | share |
 |---|---|---|---|---|
-| `transpose`, masking off | 47.0 | 1504 | 1408 | 94% |
-| `transpose`, masking on | 56.0 | 1792 | **1191** | **66%** |
+| `transpose`, masking off | 45.0 | 1440 | 1344 | 93% |
+| `transpose`, masking on | 52.0 | 1664 | **1127** | **68%** |
 
-**217 fewer lanes switched — a 15% cut — for 9 added instructions per thread.**
-The pass's own stats account for them: 16 operations masked to lane 0, 1 already
-predicated and composed with `pand` (F-58), 9 broadcasts inserted, plus the one
+**217 fewer lanes switched — a 16% cut — for 7 added instructions per thread.**
+The pass's own stats account for them: 14 operations masked to lane 0, 1 already
+predicated and composed with `pand` (F-58), 7 broadcasts inserted, plus the one
 `pmov` that materializes the lane-0 mask. The broadcast count rose and the
 saving fell when F-134 fixed the pass: a value consumed by an instruction that
 is NOT masked needs broadcasting however uniform it is, and compares -- which
@@ -749,7 +756,7 @@ anything to do with masking:
 | after F-94 — collect the dead reciprocal seed | 58 | −9% |
 | after O-41 and `mul.lo` — immediates have somewhere to go | **54** | **−16%** |
 
-56 instructions issued against GCN5's 64 is where it lands.
+52 instructions issued against GCN5's 64 is where it lands.
 
 **F-93 is the large one, and it hid behind a comment.** `CCVExpandDivision`
 opened with "constant divisors never reach here — instcombine turns those into a
@@ -876,22 +883,22 @@ only testable against an FP32 kernel of the same shape (F-113, F-121):
   FP32 -- test/cuda/sgemm.cu
   tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  div/unif
   ---------------------------------------------------------------------------------
-  1x1   1          199     5664    28.5      47     10   4.70       2      29     28/10
-  1x2   2          291     8560    29.4      85     22   3.86       2      61     46/10
-  2x2   4          382    11296    29.6     118     40   2.95       4      88     60/10
-  2x4   8          601    18208    30.3     207     75   2.76      23     132     95/10
-  4x4   16         934    28752    30.8     412    142   2.90     182     168    131/10
-  8x8   64        2552    80368    31.5    1459    521   2.80    1136     283    282/10
+  1x1   1          185     5248    28.4      40     10   4.00       2      24     28/10
+  1x2   2          275     7952    28.9      74     22   3.36       2      54     46/10
+  2x2   4          360    10512    29.2     102     40   2.55       4      76     60/10
+  2x4   8          579    17472    30.2     190     75   2.53      17     116     95/10
+  4x4   16         916    28112    30.7     397    142   2.80     180     152    131/10
+  8x8   64        2530    79664    31.5    1441    521   2.77    1133     272    282/10
 
   INT8 -- test/cuda/igemm.cu, four MACs per dp4
   tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  div/unif
   ---------------------------------------------------------------------------------
-  1x1   1          195     5632    28.9      44     34   1.29       2      27     28/10
-  1x2   2          288     8368    29.1      79     70   1.13       2      61     46/10
-  2x2   4          376    11168    29.7     115    136   0.85       4      86     60/10
-  2x4   8          607    18304    30.2     209    267   0.78      24     130     95/10
-  4x4   16         930    28512    30.7     402    526   0.76     170     168    131/10
-  8x8   64        2547    80240    31.5    1452   2057   0.71    1129     283    282/10
+  1x1   1          182     5184    28.5      37     34   1.09       2      22     28/10
+  1x2   2          271     7824    28.9      69     70   0.99       2      50     46/10
+  2x2   4          368    10672    29.0     105    136   0.77       4      76     60/10
+  2x4   8          589    17760    30.2     199    267   0.75      18     116     95/10
+  4x4   16         914    28112    30.8     392    526   0.75     165     152    131/10
+  8x8   64        2525    79584    31.5    1437   2057   0.70    1127     272    282/10
 
   sp/mac is the decision number: memory traffic the register file forced, per
   multiply-accumulate it bought. A bigger tile raises arithmetic intensity as
@@ -985,7 +992,7 @@ still with nothing spilled. CCV at 8×8 issues 2582 instructions and spills 1491
 times, which is not a tuning point but a report that the tile does not fit.
 
 The gap that matters is not instruction count, where CCV is competitive
-(§2 puts it at 1.045× of SASS on the aligned build). It is **arithmetic
+(§2 puts it at 0.94× of SASS on the aligned build after O-45). It is **arithmetic
 intensity**: a TM×TN tile does TM·TN MACs per TM+TN operand elements loaded, so
 2×4 buys 1.33 and 8×8 buys 4.0. Three times the arithmetic per byte of operand
 traffic is a bandwidth argument, and no amount of encoding density answers it.
@@ -1034,27 +1041,27 @@ block:
   decode and fused shapes -- what binds when there is no tile to fill
   kernel         instrs     bits  spills  div/unif   uni-ld
   ------------------------------------------------------------
-  gemv              217     6720      11       6/7       4%
-  gemv8             217     6704      11       6/7       4%
-  fused NT=1         27      752       0       3/5      33%
-  fused NT=4         42     1184       0       3/8      36%
-  fused NT=8         62     1760       0      3/12      37%
-  fused NT=16       102     2912       0      3/20      38%
+  gemv              206     6352       3       6/7       3%
+  gemv8             206     6336       3       6/7       3%
+  fused NT=1         24      640       0       3/5      25%
+  fused NT=4         36      976       0       3/8      25%
+  fused NT=8         54     1488       0      3/12      28%
+  fused NT=16        94     2640       0      3/20      33%
 
   ...and the same fused chain as a grid-stride LOOP, which is how one is
   actually written. The bases become loop-invariant, so they are hoisted
   and have to stay live across the loop instead of for two instructions:
   ------------------------------------------------------------
-  loop NT=1          33      928       0       4/7      27%
-  loop NT=4          64     1872      13      4/10      25%
-  loop NT=8         117     3408      38      4/14      21%
-  loop NT=16        202     6080      79      4/22      20%
+  loop NT=1          30      800       0       4/7      20%
+  loop NT=4          42     1136       0      4/10      21%
+  loop NT=8          60     1648       0      4/14      25%
+  loop NT=16        114     3168       9      4/22      28%
 
   For contrast, the same two columns on the GEMM this was compared against:
   ------------------------------------------------------------
-  sgemm 2x2         382    11296     118     60/10       0%
-  sgemm 2x4         601    18208     207     95/10       0%
-  sgemm 4x4         934    28752     412    131/10       0%
+  sgemm 2x2         360    10512     102     60/10       0%
+  sgemm 2x4         579    17472     190     95/10       0%
+  sgemm 4x4         916    28112     397    131/10       0%
 
   Read the div/unif column first. In `sgemm` the divergent peak alone is several
   times the 16-entry register file -- its addressing is indexed by `threadIdx`,

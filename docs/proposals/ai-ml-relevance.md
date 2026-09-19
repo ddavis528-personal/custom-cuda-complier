@@ -274,7 +274,8 @@ accumulators do not fit in 16 registers.
 **The gap is arithmetic intensity, not instruction count.** A TM×TN tile does TM·TN MACs per
 TM+TN operand elements, so 2×4 buys 1.33 and 8×8 buys 4.0. Three times the arithmetic per byte
 of operand traffic is a bandwidth argument, and CCV is already competitive on density — 1.045×
-of SASS on the aligned build.
+of SASS on the aligned build when this was written, and **0.94× after O-45**, which is below
+parity on instruction count.
 
 Two things properly qualify that. `dp4.acc` closes most of it for quantized work, which is why
 ask 1 extends the same mechanism to the precision that runs. And **nobody does throughput ML

@@ -111,6 +111,16 @@ static SDValue narrowTo32(SDValue V) {
 }
 
 /// Is this (zext rbase) << 16 -- the window half of an address?
+// O-45 needs the launch block's address to recognise a slot load. FOURTH copy
+// of these -- CCVLowerKernelArgs.cpp owns them, CCVFrameLowering.cpp repeats the
+// base, the simulator's AGU model repeats both. tools/check-launch-abi.sh
+// requires all four to agree; there is no shared header between the compiler
+// and the simulator to put them in.
+static cl::opt<uint64_t> LaunchBase("ccv-isel-launch-base", cl::Hidden,
+                                    cl::init(0x20000),
+                                    cl::desc("CCV launch block address"));
+static constexpr unsigned kOffArgs = 32;
+
 static SDValue matchWindow(SDValue V) {
   if (V.getOpcode() != ISD::SHL)
     return SDValue();
@@ -118,6 +128,42 @@ static SDValue matchWindow(SDValue V) {
   if (!C || C->getZExtValue() != 16)
     return SDValue();
   return narrowTo32(V.getOperand(0));
+}
+
+/// O-45: is this window value a load of a pointer argument's window index out
+/// of the launch block? If so, give back the slot number so the AGU can read it
+/// and the value never needs a register.
+///
+/// Two shapes reach here depending on what the combiner has already done to the
+/// window load: the original constant-address `.const` load, or the
+/// `CCVISD::LD_BASEOFF` the windowed-address combine turns it into. Matching
+/// only one of them would make the optimisation depend on visitation order,
+/// which is the kind of thing that works on the kernel it was written for.
+static std::optional<unsigned> matchLaunchSlot(SDValue Win) {
+  auto slotOf = [](uint64_t Addr) -> std::optional<unsigned> {
+    uint64_t Args = LaunchBase + kOffArgs;
+    if (Addr < Args || (Addr - Args) % 4)
+      return std::nullopt;
+    uint64_t Slot = (Addr - Args) / 4;
+    return Slot < 16 ? std::optional<unsigned>(unsigned(Slot)) : std::nullopt;
+  };
+
+  if (auto *LD = dyn_cast<LoadSDNode>(Win)) {
+    if (!LD->isSimple() || LD->getExtensionType() != ISD::NON_EXTLOAD ||
+        LD->getAddressSpace() != AS_CONST)
+      return std::nullopt;
+    if (auto *C = dyn_cast<ConstantSDNode>(LD->getBasePtr()))
+      return slotOf(C->getZExtValue());
+    return std::nullopt;
+  }
+  if (Win.getOpcode() == CCVISD::LD_BASEOFF) {
+    auto *B = dyn_cast<ConstantSDNode>(Win.getOperand(1));
+    auto *O = dyn_cast<ConstantSDNode>(Win.getOperand(2));
+    if (!B || !O)
+      return std::nullopt;
+    return slotOf((B->getZExtValue() << 16) + O->getZExtValue());
+  }
+  return std::nullopt;
 }
 
 /// Match an address onto Format D base+index: (rbase << 16) + (rindex << scale).
@@ -530,10 +576,21 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     SDValue Base, Idx, New;
     bool Scale = false;
     if (matchBaseIdx(DAG, DL, LD->getBasePtr(), LD->getMemoryVT(), Base, Idx, Scale)) {
-      SDValue Ops[] = {LD->getChain(), Base, Idx,
-                       DAG.getTargetConstant(Scale, DL, MVT::i32)};
-      New = DAG.getMemIntrinsicNode(CCVISD::LD_BASEIDX, DL, VTs, Ops,
-                                    LD->getMemoryVT(), LD->getMemOperand());
+      // O-45: when the window is a launch-block slot, the AGU reads it and the
+      // value never occupies a register. The window load is left behind with no
+      // uses of its value and the generic combiner drops it.
+      if (auto Slot = matchLaunchSlot(Base)) {
+        SDValue Ops[] = {LD->getChain(),
+                         DAG.getTargetConstant(*Slot, DL, MVT::i32), Idx,
+                         DAG.getTargetConstant(Scale, DL, MVT::i32)};
+        New = DAG.getMemIntrinsicNode(CCVISD::LD_SLOTIDX, DL, VTs, Ops,
+                                      LD->getMemoryVT(), LD->getMemOperand());
+      } else {
+        SDValue Ops[] = {LD->getChain(), Base, Idx,
+                         DAG.getTargetConstant(Scale, DL, MVT::i32)};
+        New = DAG.getMemIntrinsicNode(CCVISD::LD_BASEIDX, DL, VTs, Ops,
+                                      LD->getMemoryVT(), LD->getMemOperand());
+      }
     } else if (matchBaseOff(DAG, DL, LD->getBasePtr(), Base, Idx)) {
       SDValue Ops[] = {LD->getChain(), Base, Idx};
       New = DAG.getMemIntrinsicNode(CCVISD::LD_BASEOFF, DL, VTs, Ops,
@@ -567,6 +624,13 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     SDValue Base, Idx;
     bool Scale = false;
     if (matchBaseIdx(DAG, DL, ST->getBasePtr(), ST->getMemoryVT(), Base, Idx, Scale)) {
+      if (auto Slot = matchLaunchSlot(Base)) {        // O-45
+        SDValue Ops[] = {ST->getChain(), ST->getValue(),
+                         DAG.getTargetConstant(*Slot, DL, MVT::i32), Idx,
+                         DAG.getTargetConstant(Scale, DL, MVT::i32)};
+        return DAG.getMemIntrinsicNode(CCVISD::ST_SLOTIDX, DL, VTs, Ops,
+                                       ST->getMemoryVT(), ST->getMemOperand());
+      }
       SDValue Ops[] = {ST->getChain(), ST->getValue(), Base, Idx,
                        DAG.getTargetConstant(Scale, DL, MVT::i32)};
       return DAG.getMemIntrinsicNode(CCVISD::ST_BASEIDX, DL, VTs, Ops,

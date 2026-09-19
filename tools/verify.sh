@@ -52,6 +52,13 @@ else
   echo "  (build/ccv-llc or the kernel-arg plugin not built -- skipping listing provenance)"
 fi
 
+# O-45 made the launch-block ABI a fourth-copy problem: the AGU model in the
+# simulator needs the base and the argument offset that CCVLowerKernelArgs owns,
+# and the ISel matcher needs them again. A constant that disagrees with itself
+# produces a kernel reading the wrong argument, which looks like nothing.
+echo "  launch-block ABI constants agree"
+./tools/check-launch-abi.sh || fail=1
+
 # O-44's FP packed dot products cannot be reached from CUDA -- the backend has
 # no bfloat, half or FP8 type -- so nothing would notice if their semantics were
 # wrong. §4 makes the rounding rule normative; this executes it against a

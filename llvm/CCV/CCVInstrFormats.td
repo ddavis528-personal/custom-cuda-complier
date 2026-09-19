@@ -237,6 +237,25 @@ class FormatD<bits<5> opc, dag outs, dag ins, string asm>
 // Format D, base + index. Effective address for .global is
 // (rbase << 16) + (rindex << scale) + disp -- the shift is a property of the
 // address space, not a field, so this bit map is unchanged from v1.2. §5.1.
+/// O-45: base+index with the base taken from a LAUNCH-BLOCK SLOT rather than a
+/// register. `[18:15]` holds a 4-bit slot index, an immediate where the other
+/// Format D modes hold `rbase`.
+///
+/// This is invariant 8 "when present", not an exception to it: `[22:19]` is
+/// already a register field in one mode of tag `1000` and immediate bits in the
+/// other, selected by `opcode[2]`, so the renamer already consults the opcode
+/// for this tag and `[18:15]` joins the same conditional set.
+class FormatDslot<bits<5> opc, dag outs, dag ins, string asm>
+    : CCVInst32<0b1000, outs, ins, asm> {
+  bits<4> rdata; bits<4> slot; bits<4> rindex; bits<1> scale; bits<8> disp;
+  let Inst{10-6}  = opc;
+  let Inst{14-11} = rdata;
+  let Inst{18-15} = slot;
+  let Inst{22-19} = rindex;
+  let Inst{23}    = scale;
+  let Inst{31-24} = disp;
+}
+
 class FormatDidx<bits<5> opc, dag outs, dag ins, string asm>
     : CCVInst32<0b1000, outs, ins, asm> {
   bits<4> rdata; bits<4> rbase; bits<4> rindex; bits<1> scale; bits<8> disp;

@@ -29,6 +29,19 @@ using namespace ccv;
 // here -- no register holds more than 32 (invariant 11).
 static constexpr unsigned kBaseShift = 16;
 
+// O-45: the AGU reads a window index straight out of the launch block, so the
+// simulator needs the block's address and argument offset -- architectural
+// facts under §5.2, not tool configuration.
+//
+// This is the THIRD copy of these two numbers: CCVLowerKernelArgs.cpp has them
+// as the kernel-argument ABI, CCVFrameLowering.cpp has the base again for the
+// `.local` window, and now the AGU model needs both. tools/check-launch-abi.sh
+// requires all three to agree, because an ABI constant that disagrees with
+// itself produces a kernel that reads the wrong argument and nothing that looks
+// like a compile error.
+static constexpr uint64_t kLaunchBase = 0x20000;
+static constexpr unsigned kOffArgs    = 32;
+
 static uint32_t regOf(const MCInst &MI, unsigned I) {
   unsigned R = MI.getOperand(I).getReg();
   if (R >= CCV::R0 && R <= CCV::R15)
@@ -132,6 +145,7 @@ static bool isWidthAware(unsigned Op) {
   case CCV::LD_GLOBAL: case CCV::ST_GLOBAL:
   case CCV::C_LD_GLOBAL: case CCV::C_ST_GLOBAL:
   case CCV::LD_GLOBAL_IDX: case CCV::ST_GLOBAL_IDX:
+  case CCV::LD_GLOBAL_SLOT: case CCV::ST_GLOBAL_SLOT:
   case CCV::LD_SHARED: case CCV::ST_SHARED:
   case CCV::MAD_ACC:
   case CCV::DP2_BF16: case CCV::DP2_F16:
@@ -868,6 +882,39 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
     forEachLane([&](unsigned L) {
       uint64_t A = (uint64_t(W.GPR[Base][L]) << kBaseShift) +
+                   (uint64_t(W.GPR[Idx][L]) << Sh) + Disp;
+      if (IsLoad)
+        W.GPR[Data][L] =
+            writeElem(W.GPR[Data][L], Mem.readN(A, Bytes), W.ChWidth[Data]);
+      else
+        Mem.writeN(A, narrow(W.GPR[Data][L], W.ChWidth[Data]), Bytes);
+    });
+    break;
+  }
+
+  // ---- Format D: launch-slot + index (O-45) ------------------------------
+  // The window base is the 32-bit word at launch-block byte offset
+  // `kOffArgs + 4*slot`, which is where a pointer argument's window index sits.
+  // Everything downstream is the base+index case: same scale rule, same
+  // transfer size from `rdata`'s chwidth, same displacement.
+  //
+  // The read is WARP-UNIFORM by construction -- the launch block is CTA-wide
+  // and read-only for the kernel's lifetime (§5.2) -- which is the property
+  // that makes it cacheable in hardware and is the entire point of the form.
+  case CCV::LD_GLOBAL_SLOT:
+  case CCV::ST_GLOBAL_SLOT: {
+    bool IsLoad = Op == CCV::LD_GLOBAL_SLOT;
+    // Both forms carry (rdata, slot, rindex, scale, disp) in that order -- the
+    // store has rdata as a use rather than a def, which does not move it.
+    unsigned Data = regOf(MI, 0), Idx = regOf(MI, 2);
+    unsigned Slot = unsigned(MI.getOperand(1).getImm());
+    unsigned ScaleEn = unsigned(MI.getOperand(3).getImm());
+    int64_t Disp = MI.getOperand(4).getImm();
+    uint32_t Window = Mem.read32(kLaunchBase + kOffArgs + 4 * Slot);
+    unsigned Sh = ScaleEn ? (2 - W.ChWidth[Data]) : 0;
+    unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
+    forEachLane([&](unsigned L) {
+      uint64_t A = (uint64_t(Window) << kBaseShift) +
                    (uint64_t(W.GPR[Idx][L]) << Sh) + Disp;
       if (IsLoad)
         W.GPR[Data][L] =

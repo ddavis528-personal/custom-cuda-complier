@@ -53,10 +53,10 @@ static cl::opt<bool> Enable(
 
 static cl::opt<bool> StopAtGPR(
     "ccv-window-remat-stop-at-gpr", cl::init(true), cl::Hidden,
-    cl::desc("Stop the cloned window chain at values that fit a GPR. The i64 "
-             "arithmetic is what cannot cross a block; the i32 launch-block "
-             "load feeding it can, and cloning it too re-executes a "
-             "loop-invariant load every iteration."));
+    cl::desc("Stop the cloned window chain at values that fit a GPR -- except "
+             "launch-block loads, which O-45 makes free to clone because the "
+             "clone becomes an addressing-mode field rather than a load. Off "
+             "clones everything, which is the F-86 behaviour this replaced."));
 
 /// Does a value of this type cross a basic block without trouble? That is the
 /// whole question this pass exists to answer: an i64 window address has no
@@ -73,13 +73,20 @@ bool fitsRegister(const Type *T) {
   return T->isIntegerTy() && T->getIntegerBitWidth() <= 32;
 }
 
+/// A load of launch-block state: §5.2 makes the block read-only for the
+/// lifetime of the kernel, which is what `invariant.load` records.
+bool isLaunchBlockLoad(const Instruction *I) {
+  const auto *LI = dyn_cast<LoadInst>(I);
+  return LI && LI->isSimple() &&
+         LI->getMetadata(LLVMContext::MD_invariant_load) &&
+         LI->getPointerAddressSpace() == 4;
+}
+
 /// Can this instruction be cloned to an arbitrary point without changing
-/// behaviour? Launch-block loads qualify because §5.2 makes the block read-only
-/// for the lifetime of the kernel, which is what `invariant.load` records.
+/// behaviour? Launch-block loads qualify, for the reason above.
 bool isRematerializable(const Instruction *I) {
-  if (const auto *LI = dyn_cast<LoadInst>(I))
-    return LI->isSimple() && LI->getMetadata(LLVMContext::MD_invariant_load) &&
-           LI->getPointerAddressSpace() == 4;
+  if (isa<LoadInst>(I))
+    return isLaunchBlockLoad(I);
   switch (I->getOpcode()) {
   case Instruction::ZExt:
   case Instruction::SExt:
@@ -123,7 +130,18 @@ bool collectChain(Instruction *Root, SmallVectorImpl<Instruction *> &Order) {
         // A GPR-width operand is a leaf: it stays where it is and reaches the
         // clone as an ordinary cross-block register value. Operands not in the
         // clone map keep pointing at the original, which is exactly right.
-        if (StopAtGPR && fitsRegister(OpI->getType()))
+        //
+        // EXCEPT a launch-block load, and O-45 is why. F-86 stopped here
+        // because cloning the i32 load "costs a load in every block that uses
+        // the window, which in a LOOP means every iteration" -- which was true
+        // and is no longer. With launch-slot addressing the clone does not
+        // become a load at all: it becomes a 4-bit field in the instruction
+        // that uses it, and the value never occupies a register. So the thing
+        // F-86 declined to pay for is now free, and declining still costs the
+        // whole optimisation, because SelectionDAG works one block at a time
+        // and cannot see a window load that LICM hoisted to the preheader.
+        if (StopAtGPR && fitsRegister(OpI->getType()) &&
+            !isLaunchBlockLoad(OpI))
           continue;
         Stack.push_back({OpI, false});
       }

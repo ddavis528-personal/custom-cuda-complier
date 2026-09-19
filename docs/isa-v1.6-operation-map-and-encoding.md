@@ -891,8 +891,13 @@ it is the rarest of the four and the index register carries most of the addressi
 | `00000`–`00011` | base + offset | `ld.global`, `st.global`, `ld.shared`, `st.shared` |
 | `00100`–`00111` | base + index | same four |
 | `01000`–`01011` | base + offset | `ld.pred`, `st.pred` × `{global, shared}` |
-| `01100`–`01111` | **launch-slot + index** | `ld.global`, `st.global`, `ld.shared`, `st.shared` (O-45) |
+| `01100`–`01101` | **launch-slot + index** | `ld.global`, `st.global` (O-45) |
+| `01110`–`01111` | — | reserved (the O-45 form for other spaces, if wanted) |
 | `10000`+ | — | reserved (span/wide transfers) — deferred, see §10 |
+
+*(This row first read `01100`–`01111` covering all four spaces. `.shared` is flat 32-bit and
+has no window — §5.1 exempts it — so a launch-slot base means nothing there, and `.const` is
+where the launch block itself lives. Two points, not four.)*
 
 **Launch-slot + index (O-45).** A third addressing mode in which `[18:15]` is **not a register
 number but a 4-bit launch-block slot index**: the window base comes from the launch block
@@ -905,6 +910,8 @@ directly and never occupies a GPR.
 | `[10:6]` | 5 | opcode |
 | `[14:11]` | 4 | `rdata` |
 | `[18:15]` | 4 | **launch slot** — an immediate, not a register |
+| `[23]` | 1 | scale enable, as base+index |
+| `[31:24]` | 8 | signed displacement, as base+index |
 | `[22:19]` | 4 | `rindex` |
 
 **This does not weaken invariant 8, and the precedent is Format D itself.** `[22:19]` is
@@ -914,6 +921,17 @@ conditional set is the same kind of cost, not a new kind. Invariant 8's content 
 register fields sit at fixed positions **when present** — presence being opcode-conditional is
 shipped behaviour, and the invariant now says so explicitly rather than leaving it implicit,
 which had cost two review cycles by the time this was written.
+
+**The slot numbering.** Slot *k* is the 32-bit word at launch-block byte offset
+`OffArgs + 4k`, where `OffArgs` is 32 — so the sixteen slots cover the first 64 bytes of the
+argument area. A pointer argument's **window index** is the word at its slot; four-byte
+granularity rather than per-argument indexing, because §5.2's block mixes 8-byte pointer slots
+with 4-byte scalars and only a byte offset addresses both uniformly.
+
+**Unaligned pointers get less from this than aligned ones**, and that is consistent rather than
+surprising. O-23's unaligned form carries a window *and* an in-window byte offset; the slot
+supplies the window, so the offset still has to reach the index register, exactly as it does
+for base+index today. The form is a win for aligned pointers and neutral for unaligned ones.
 
 **Why it exists.** The §5.1 window bases of a fused elementwise kernel are warp-uniform,
 loop-invariant, and already resident in the launch block — a small, CTA-wide, read-only table
@@ -1852,9 +1870,6 @@ against fresh `ccv-llc` output by `tools/check-spec-vs-codegen.py`, which runs i
 `tools/verify.sh`; a divergence is a build failure, not a review catch.
 
 ```
-;  __global__ void add(float* c, const float* a, const float* b, int n)
-;  { int i = blockIdx.x*blockDim.x + threadIdx.x; if (i<n) c[i] = a[i] + b[i]; }
-
     movi       r0, 2                ; 32   launch window (O-28: 17 bits is plenty)
     ld.global  r1, [r0 + 0]         ; 32   blockDim.x, from the block (§5.3)
     srd        r2, 0                ; 16   %ctatid
@@ -1864,24 +1879,21 @@ against fresh `ccv-llc` output by `tools/check-spec-vs-codegen.py`, which runs i
     setp.le    p0, r2, r1           ; 32   Format C″, unpredicated (O-32)
     @p0 bra    Lexit                ; 32
     shl        r1, 2                ; 16   element index -> byte offset, hoisted
-    ld.global  r2, [r0 + 52]        ; 32   b.roffset
+    ld.global  r2, [r0 + 52]        ; 32   b.roffset -- the UNALIGNED half
     add        r2, r1               ; 16   fold; rd == rs0, so Format K
-    ld.global  r3, [r0 + 48]        ; 32   b.rbase
-    ld.global  r2, [r3, r2, 0, 0]   ; 32   b[i]; scale-enable CLEAR
+    ld.global  r2, [#4, r2, 0, 0]   ; 32   b[i]; O-45 slot 4 = b.rbase, scale CLEAR
     ld.global  r3, [r0 + 44]        ; 32   a.roffset
     add        r3, r1               ; 16   fold; Format K
-    ld.global  r4, [r0 + 40]        ; 32   a.rbase
-    ld.global  r3, [r4, r3, 0, 0]   ; 32   a[i]
+    ld.global  r3, [#2, r3, 0, 0]   ; 32   a[i]; slot 2
     fadd       r3, r2               ; 16   compressed destructive, rd == rs0
-    ld.global  r2, [r0 + 36]        ; 32   c.roffset
-    add        r1, r2, r1           ; 32   fold; rd != rs0 -- NOT compressed, see F-29
-    ld.global  r0, [r0 + 32]        ; 32   c.rbase; r0 reused at the last moment
-    st.global  r3, [r0, r1, 0, 0]   ; 32   c[i]
+    ld.global  r0, [r0 + 36]        ; 32   c.roffset
+    add        r0, r1               ; 16   fold
+    st.global  r3, [#0, r0, 0, 0]   ; 32   c[i]; slot 0
 Lexit:
     exit                            ; 16
 ```
 
-23 instructions, 624 bits — **27.1 bits per instruction**, against 736 for a
+20 instructions, 512 bits — **25.6 bits per instruction**, against 640 for a
 fixed-32 encoding, a 15% saving. The compressed forms fire on `srd`, `por`, the
 index shift, two of the three offset folds, `fadd` and `exit` without the
 allocator being asked for anything.
@@ -1932,21 +1944,18 @@ two sections are the same source file compiled twice: `test/cuda/vadd.cu` and
 pointer arguments.
 
 ```
-    movi       r0, 2                ; 32   launch window
-    ld.global  r1, [r0 + 0]         ; 32   blockDim.x, from the block (§5.3)
+    movi       r1, 2                ; 32   launch window
+    ld.global  r0, [r1 + 0]         ; 32   blockDim.x
     srd        r2, 0                ; 16   %ctatid
     srd        r3, 1                ; 16   %ctaid
-    mad.lo     r1, r3, r1, r2       ; 32   i = ctaid*ntid + tid
-    ld.global  r2, [r0 + 56]        ; 32   n
-    setp.le    p0, r2, r1           ; 32   Format C″, unpredicated (O-32)
+    mad.lo     r0, r3, r0, r2       ; 32   i = ctaid*ntid + tid
+    ld.global  r1, [r1 + 56]        ; 32   n
+    setp.le    p0, r1, r0           ; 32   Format C″
     @p0 bra    Lexit                ; 32
-    ld.global  r2, [r0 + 48]        ; 32   b.rbase -- one slot, not two
-    ld.global  r2, [r2, r1, x4]     ; 32   b[i], scale-enable set
-    ld.global  r3, [r0 + 40]        ; 32   a.rbase
-    ld.global  r3, [r3, r1, x4]     ; 32   a[i]
-    fadd       r3, r2               ; 16   compressed destructive, rd == rs0
-    ld.global  r0, [r0 + 32]        ; 32   c.rbase -- r0 reused at the last moment
-    st.global  r3, [r0, r1, x4]     ; 32   c[i]
+    ld.global  r1, [#4, r0, 1, 0]   ; 32   b[i]; O-45 slot 4, scale-enable SET
+    ld.global  r2, [#2, r0, 1, 0]   ; 32   a[i]; slot 2
+    fadd       r2, r1               ; 16   compressed destructive
+    st.global  r2, [#0, r0, 1, 0]   ; 32   c[i]; slot 0
 Lexit:
     exit                            ; 16
 ```

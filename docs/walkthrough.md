@@ -127,21 +127,18 @@ one-register form arrives from `instcombine`, not from a backend special case.
 
 ```
 _Z4vaddPfPKfS1_i:
-	movi r0, 2
-	ld.global r1, [r0]
+	movi r1, 2
+	ld.global r0, [r1]
 	srd r2, 0
 	srd r3, 1
-	mad.lo r1, r3, r1, r2
-	ld.global r2, [r0 + 56]
-	setp.le p0, r2, r1
+	mad.lo r0, r3, r0, r2
+	ld.global r1, [r1 + 56]
+	setp.le p0, r1, r0
 	@p0 bra LBB0_2
-	ld.global r2, [r0 + 48]
-	ld.global r2, [r2, r1, 1, 0]
-	ld.global r3, [r0 + 40]
-	ld.global r3, [r3, r1, 1, 0]
-	fadd r3, r2
-	ld.global r0, [r0 + 32]
-	st.global r3, [r0, r1, 1, 0]
+	ld.global r1, [#4, r0, 1, 0]
+	ld.global r2, [#2, r0, 1, 0]
+	fadd r2, r1
+	st.global r2, [#0, r0, 1, 0]
 LBB0_2:
 	exit
 Lfunc_end0:
@@ -155,7 +152,7 @@ Lfunc_end0:
 | `mad.lo r1, r3, r1, r2` | the three-source form takes `ctaid*ntid + tid` in one instruction |
 | `setp.le p0, r2, r1` | Format C″ (O-32), the **unpredicated** compare. Earlier revisions had no such form: Formats C/C′ carry a mandatory qualifier, so every compare had to be preceded by a `por` manufacturing a true predicate (O-24). That cost one instruction per compare — 13% of dynamically issued instructions in the reduction kernels — and is now zero |
 | `@p0 bra LBB0_2` | the guard branches *over* the body, so the fall-through path has no branch at all |
-| `[r2, r1, 1, 0]` | Format D base+index with **scale-enable set**: the AGU supplies the `chwidth`-derived shift. O-7 only fires like this for aligned pointers |
+| `[#4, r0, 1, 0]` | Format D with a **launch-block slot** where the base register would be (O-45). The window index is read by the AGU straight out of §5.2's block, so the pointer never occupies a GPR — three of this kernel's twelve instructions were loading window bases before the form existed. Scale-enable is set, so the AGU also supplies the `chwidth`-derived shift (O-7), which only fires like this for aligned pointers |
 | `fadd r3, r2` | the compressed destructive form, 16 bits, because `rd == rs0` fell out naturally |
 
 There is **no branch on the fall-through path** — the guard branches over the
@@ -168,8 +165,8 @@ and the generic folder could not act (F-26).
 ```
   figure           §5.6 listing    ccv-llc
   ------------------------------------------
-  instructions               16         16
-  bits                      448        448
+  instructions               13         13
+  bits                      352        352
   peak_live                   4          4
 
   spec listing matches codegen
@@ -200,17 +197,14 @@ _Z4vaddPfPKfS1_i:
 	shl r1, 2
 	ld.global r2, [r0 + 52]
 	add r2, r1
-	ld.global r3, [r0 + 48]
-	ld.global r2, [r3, r2, 0, 0]
+	ld.global r2, [#4, r2, 0, 0]
 	ld.global r3, [r0 + 44]
 	add r3, r1
-	ld.global r4, [r0 + 40]
-	ld.global r3, [r4, r3, 0, 0]
+	ld.global r3, [#2, r3, 0, 0]
 	fadd r3, r2
-	ld.global r2, [r0 + 36]
-	add r1, r2, r1
-	ld.global r0, [r0 + 32]
-	st.global r3, [r0, r1, 0, 0]
+	ld.global r0, [r0 + 36]
+	add r0, r1
+	st.global r3, [#0, r0, 0, 0]
 LBB0_2:
 	exit
 Lfunc_end0:
@@ -219,9 +213,9 @@ Lfunc_end0:
 ```
   figure           §5.5 listing    ccv-llc
   ------------------------------------------
-  instructions               23         23
-  bits                      624        624
-  peak_live                   5          5
+  instructions               20         20
+  bits                      512        512
+  peak_live                   4          4
 
   spec listing matches codegen
 ```
@@ -233,48 +227,45 @@ landed on `rd != rs0` and nothing tries to prevent that (F-29).
 
 ## 5. The binary
 
-16 instructions in 54 bytes. Each length comes from bits `[1:0]` of
+13 instructions in 42 bytes. Each length comes from bits `[1:0]` of
 its first halfword alone — this walker never looks at the format tag, which is
 exactly what §2 claims.
 
 ```
   addr  bytes              len                fmt
 ----------------------------------------------------------
-0x0000  2c 00 01 00        32-bit             F
-0x0004  62 01              16-bit, Format K   K
+0x0000  2c 08 01 00        32-bit             F
+0x0004  62 10              16-bit, Format K   K
 0x0006  72 02              16-bit, Format K   K
 0x0008  72 13              16-bit, Format K   K
-0x000a  40 89 09 01        32-bit             A
-0x000e  20 10 c0 01        32-bit             D
-0x0012  7c 10 09 00        32-bit             H
-0x0016  68 68 00 00        32-bit             E
-0x001a  20 10 80 01        32-bit             D
-0x001e  20 11 89 00        32-bit             D
-0x0022  20 18 40 01        32-bit             D
-0x0026  20 99 89 00        32-bit             D
-0x002a  4a 23              16-bit, Format K   K
-0x002c  20 00 00 01        32-bit             D
-0x0030  60 19 88 00        32-bit             D
-0x0034  da 00              16-bit, Format K   K
+0x000a  40 81 01 01        32-bit             A
+0x000e  20 88 c0 01        32-bit             D
+0x0012  7c 88 00 00        32-bit             H
+0x0016  68 38 00 00        32-bit             E
+0x001a  20 0b 82 00        32-bit             D
+0x001e  20 13 81 00        32-bit             D
+0x0022  4a 12              16-bit, Format K   K
+0x0024  60 13 80 00        32-bit             D
+0x0028  da 00              16-bit, Format K   K
 
-54 bytes total
+42 bytes total
 ```
 
-54 bytes against 64 for a fixed-32 encoding.
+42 bytes against 52 for a fixed-32 encoding.
 
 ### Two instructions, field by field
 
 The O-24 bootstrap, decoded from the real bytes using the §3 bit map:
 
 ```
-  32-bit instruction at 0x0016: 68 68 00 00  ->  BRA_PRED
-  raw = 0x00006868 = 00000000000000000110100001101000
+  32-bit instruction at 0x0016: 68 38 00 00  ->  BRA_PRED
+  raw = 0x00003868 = 00000000000000000011100001101000
 
   bits         field      value
   --------------------------------------------
   [1:0]        class      0b00  (§2: length from bits [1:0] alone)
   [5:2]        fmt tag    0b1010
-  [31,30,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11] off        13
+  [31,30,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11] off        7
   [29:27]      pq         0
 ```
 
@@ -284,14 +275,14 @@ The O-24 bootstrap, decoded from the real bytes using the §3 bit map:
 And the 48-bit constant:
 
 ```
-  32-bit instruction at 0x0000: 2c 00 01 00  ->  MOVI
-  raw = 0x0001002c = 00000000000000010000000000101100
+  32-bit instruction at 0x0000: 2c 08 01 00  ->  MOVI
+  raw = 0x0001082c = 00000000000000010000100000101100
 
   bits         field      value
   --------------------------------------------
   [1:0]        class      0b00  (§2: length from bits [1:0] alone)
   [5:2]        fmt tag    0b1011
-  [14:11]      rd         0
+  [14:11]      rd         1
   [31:15]      imm        2
 ```
 
@@ -303,22 +294,19 @@ back by a different TableGen backend than the one that wrote it. This run has
 set of lanes issuing together.
 
 ```
-  0000  mask=ffffffff  	movi r0, 2
-  0004  mask=ffffffff  	ld.global r1, [r0]
+  0000  mask=ffffffff  	movi r1, 2
+  0004  mask=ffffffff  	ld.global r0, [r1]
   0006  mask=ffffffff  	srd r2, 0
   0008  mask=ffffffff  	srd r3, 1
-  000a  mask=ffffffff  	mad.lo r1, r3, r1, r2
-  000e  mask=ffffffff  	ld.global r2, [r0 + 56]
-  0012  mask=ffffffff  	setp.le p0, r2, r1
-  0016  mask=ffffffff  	@p0 bra 13
-  001a  mask=000fffff  	ld.global r2, [r0 + 48]
-  001e  mask=000fffff  	ld.global r2, [r2, r1, 1, 0]
-  0022  mask=000fffff  	ld.global r3, [r0 + 40]
-  0026  mask=000fffff  	ld.global r3, [r3, r1, 1, 0]
-  002a  mask=000fffff  	fadd r3, r2
-  002c  mask=000fffff  	ld.global r0, [r0 + 32]
-  0030  mask=000fffff  	st.global r3, [r0, r1, 1, 0]
-  0034  mask=ffffffff  	exit
+  000a  mask=ffffffff  	mad.lo r0, r3, r0, r2
+  000e  mask=ffffffff  	ld.global r1, [r1 + 56]
+  0012  mask=ffffffff  	setp.le p0, r1, r0
+  0016  mask=ffffffff  	@p0 bra 7
+  001a  mask=000fffff  	ld.global r1, [#4, r0, 1, 0]
+  001e  mask=000fffff  	ld.global r2, [#2, r0, 1, 0]
+  0022  mask=000fffff  	fadd r2, r1
+  0024  mask=000fffff  	st.global r2, [#0, r0, 1, 0]
+  0028  mask=ffffffff  	exit
 ```
 
 The mask is `ffffffff` through the prologue, narrows to `000fffff` for the body,
@@ -329,9 +317,9 @@ there is no bracket instruction and nothing forces it (§1).
 
 ```
   --- CUDA source to executed result ---
-  PASS  n=32: 32 lanes correct (16 issue groups)
-  PASS  n=20: 32 lanes correct (16 issue groups)
-  PASS  n= 1: 32 lanes correct (16 issue groups)
+  PASS  n=32: 32 lanes correct (13 issue groups)
+  PASS  n=20: 32 lanes correct (13 issue groups)
+  PASS  n= 1: 32 lanes correct (13 issue groups)
   PASS  n= 0: 32 lanes correct (9 issue groups)
 ```
 
@@ -378,12 +366,12 @@ __global__ void vadd16_loop(short *ALIGNED c, const short *ALIGNED a,
 
 ```
 LBB0_1:
-	ld.global r14, [r3, r1, 1, 0]
-	ld.global r13, [r2, r1, 1, 0]
+	ld.global r14, [#2, r1, 1, 0]
+	ld.global r13, [#4, r1, 1, 0]
 	add r14, r13, r14
-	st.global r14, [r4, r1, 1, 0]
+	st.global r14, [#0, r1, 1, 0]
 	add r1, r0
-	setp.lt.u p0, r1, r5
+	setp.lt.u p0, r1, r2
 	@p0 bra LBB0_1
 ```
 
@@ -391,12 +379,12 @@ Against the fp32 kernel's body, which is the control:
 
 ```
 LBB0_1:
-	ld.global r6, [r2, r1, 1, 0]
-	ld.global r7, [r3, r1, 1, 0]
-	fadd r7, r6
-	st.global r7, [r4, r1, 1, 0]
+	ld.global r3, [#4, r1, 1, 0]
+	ld.global r4, [#2, r1, 1, 0]
+	fadd r4, r3
+	st.global r4, [#0, r1, 1, 0]
 	add r1, r0
-	setp.lt.u p0, r1, r5
+	setp.lt.u p0, r1, r2
 	@p0 bra LBB0_1
 ```
 
@@ -432,12 +420,12 @@ Turning that placement off (`-ccv-chwidth-cross-block=false`) puts it back:
 ```
 LBB0_1:
 	chwidth.multi 24576, 1
-	ld.global r14, [r3, r1, 1, 0]
-	ld.global r13, [r2, r1, 1, 0]
+	ld.global r14, [#2, r1, 1, 0]
+	ld.global r13, [#4, r1, 1, 0]
 	add r14, r13, r14
-	st.global r14, [r4, r1, 1, 0]
+	st.global r14, [#0, r1, 1, 0]
 	add r1, r0
-	setp.lt.u p0, r1, r5
+	setp.lt.u p0, r1, r2
 	@p0 bra LBB0_1
 ```
 
@@ -450,17 +438,20 @@ outcome:
 
 ```
 LBB0_1:
-	mov r9, r1
-	shl r9, 1
-	add r10, r4, r9
-	ld.global r14, [r5, r10, 0, 0]
-	add r10, r2, r9
-	ld.global r13, [r3, r10, 0, 0]
+	mov r4, r2
+	shl r4, 1
+	ld.global r5, [r0 + 44]
+	add r5, r4
+	ld.global r14, [#2, r5, 0, 0]
+	ld.global r5, [r0 + 52]
+	add r5, r4
+	ld.global r13, [#4, r5, 0, 0]
 	add r14, r13, r14
-	add r9, r6, r9
-	st.global r14, [r7, r9, 0, 0]
-	add r1, r0
-	setp.lt.u p0, r1, r8
+	ld.global r5, [r0 + 36]
+	add r4, r5, r4
+	st.global r14, [#0, r4, 0, 0]
+	add r2, r1
+	setp.lt.u p0, r2, r3
 	@p0 bra LBB0_1
 ```
 
@@ -486,24 +477,21 @@ That is why the narrow data above is in `r14`/`r13` while the addresses stay low
 ```
 _Z11vadd16_loopPsPKsS1_i:
 	chwidth.multi 24576, 1
-	movi r5, 2
-	ld.global r0, [r5]
+	movi r2, 2
+	ld.global r0, [r2]
 	srd r1, 0
-	srd r2, 1
-	mad.acc r1, r2, r0
-	ld.global r2, [r5 + 48]
-	ld.global r3, [r5 + 40]
-	ld.global r4, [r5 + 32]
-	ld.global r5, [r5 + 56]
-	setp.le.u p0, r5, r1
+	srd r3, 1
+	mad.acc r1, r3, r0
+	ld.global r2, [r2 + 56]
+	setp.le.u p0, r2, r1
 	@p0 bra LBB0_2
 LBB0_1:
-	ld.global r14, [r3, r1, 1, 0]
-	ld.global r13, [r2, r1, 1, 0]
+	ld.global r14, [#2, r1, 1, 0]
+	ld.global r13, [#4, r1, 1, 0]
 	add r14, r13, r14
-	st.global r14, [r4, r1, 1, 0]
+	st.global r14, [#0, r1, 1, 0]
 	add r1, r0
-	setp.lt.u p0, r1, r5
+	setp.lt.u p0, r1, r2
 	@p0 bra LBB0_1
 LBB0_2:
 	exit

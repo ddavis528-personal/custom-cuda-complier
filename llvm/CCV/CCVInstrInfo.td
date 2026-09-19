@@ -576,6 +576,44 @@ let isCodeGenOnly = 1 in {
                              "st.global $rdata, [$rbase + $off]">;
 }
 
+// O-45: the window base comes from a launch-block slot, so it never occupies a
+// GPR. Two points, not four: `.shared` is flat 32-bit and has no window (§5.1),
+// and `.const` is where the launch block itself lives.
+//
+// Slot k is the 32-bit word at launch-block byte offset 32 + 4k, which is where
+// CCVLowerKernelArgs puts a pointer argument's window index. Four-byte
+// granularity because §5.2's block mixes 8-byte pointer slots with 4-byte
+// scalars and only a byte offset addresses both.
+let mayLoad = 1 in
+def LD_GLOBAL_SLOT : FormatDslot<0b01100, (outs GPR:$rdata),
+                         (ins uimm4:$slot, GPR:$rindex, uimm2:$scale,
+                          simm8:$disp),
+                         "ld.global $rdata, [#$slot, $rindex, $scale, $disp]">;
+let mayStore = 1 in
+def ST_GLOBAL_SLOT : FormatDslot<0b01101, (outs),
+                         (ins GPR:$rdata, uimm4:$slot, GPR:$rindex,
+                          uimm2:$scale, simm8:$disp),
+                         "st.global $rdata, [#$slot, $rindex, $scale, $disp]">;
+
+// The width twins. Every other Format D form has them and this one has to as
+// well: §3 takes transfer size from `rdata`'s chwidth, so a 16-bit access whose
+// destination is not in GPR16 gets widened before the access and moves four
+// bytes for a two-byte element. Adding the addressing mode without these
+// reintroduced F-125 in a new place, and tools/check-narrow.sh caught it on the
+// guard word past the array -- which is the only thing that would have.
+let isCodeGenOnly = 1 in {
+  let mayLoad = 1 in
+  def LD_GLOBAL_SLOT_W16 : FormatDslot<0b01100, (outs GPR16:$rdata),
+                           (ins uimm4:$slot, GPR:$rindex, uimm2:$scale,
+                            simm8:$disp),
+                           "ld.global $rdata, [#$slot, $rindex, $scale, $disp]">;
+  let mayStore = 1 in
+  def ST_GLOBAL_SLOT_W16 : FormatDslot<0b01101, (outs),
+                           (ins GPR16:$rdata, uimm4:$slot, GPR:$rindex,
+                            uimm2:$scale, simm8:$disp),
+                           "st.global $rdata, [#$slot, $rindex, $scale, $disp]">;
+}
+
 def LD_GLOBAL  : FormatD<0b00000, (outs GPR:$rdata), (ins GPR:$rbase, simm13:$off),
                          "ld.global $rdata, [$rbase + $off]">;
 let mayStore = 1 in

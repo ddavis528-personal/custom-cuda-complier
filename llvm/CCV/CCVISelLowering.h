@@ -18,6 +18,8 @@ enum NodeType : unsigned {
   LD_BASEOFF, ///< load  from (rbase << 16) + off  -- chain, rbase, off
   ST_BASEOFF, ///< store to   (rbase << 16) + off  -- chain, value, rbase, off
   DP4_SS,     ///< 4xINT8 dot product plus accumulator -- x, y, acc (F-121)
+  LD_SLOTIDX, ///< load  from (launch[slot] << 16) + idx -- chain, slot, idx, scale
+  ST_SLOTIDX, ///< store to   (launch[slot] << 16) + idx -- chain, value, slot, idx, scale
   LD_FRAME,   ///< load  from a .local frame slot -- chain, FI, idx, scale
   ST_FRAME,   ///< store to   a .local frame slot -- chain, value, FI, idx, scale
 };

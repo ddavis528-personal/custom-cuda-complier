@@ -36,6 +36,17 @@ CANON = {
 # whose name already is a canonical slot need no entry.
 ALIAS = {"rdata": "rd", "rbase": "rs0", "rindex": "rs1"}
 
+# Fields that deliberately occupy a canonical REGISTER span while not being
+# registers. Invariant 8 fixes register positions "when present", and O-45 makes
+# presence opcode-conditional for `rbase` exactly as tag 1000 already does for
+# `rindex` -- so this is legal, and it is also the kind of thing that must be
+# declared rather than pass by not being recognised. An immediate whose name the
+# canonical table does not know would otherwise be skipped in silence, which is
+# how a field lands in a register slot by accident.
+IMMEDIATE_IN_REG_SLOT = {
+    "slot": "O-45: launch-block slot index in rbase's span, selected by opcode",
+}
+
 # Compressed forms have their own geometry, and J and K do NOT share it:
 # Format J needs three 4-bit register fields in the 12 bits left after the
 # class code and subop, so its rd sits lower than K's. Invariant 8 states a
@@ -196,6 +207,22 @@ def main(path):
         for var in {b["var"] for b in inst if isinstance(b, dict)}:
             slot = var if var in table else ALIAS.get(var)
             if slot is None or slot not in table:
+                # Not a register field by name. If it nonetheless SITS in a
+                # canonical register span it has to say so on purpose.
+                #
+                # Only for the 32/48-bit geometry. In the compressed formats an
+                # immediate in the `rs` span is the normal shape of a
+                # register-immediate operation -- `C_ADDI` is the example -- and
+                # demanding a declaration there would be demanding one for
+                # every Format K immediate form.
+                span = bit_span(inst, var)
+                if table is CANON and span is not None and \
+                        span in table.values() and \
+                        var not in IMMEDIATE_IN_REG_SLOT:
+                    errors.append(
+                        f"{name}: {var} occupies the canonical register span "
+                        f"[{span[0]}:{span[1]}] but is not a register field and "
+                        f"is not declared in IMMEDIATE_IN_REG_SLOT")
                 continue
             span = bit_span(inst, var)
             if span is None:

@@ -1,17 +1,14 @@
-  0000  mask=ffffffff  	movi r0, 2
-  0004  mask=ffffffff  	ld.global r1, [r0]
+  0000  mask=ffffffff  	movi r1, 2
+  0004  mask=ffffffff  	ld.global r0, [r1]
   0006  mask=ffffffff  	srd r2, 0
   0008  mask=ffffffff  	srd r3, 1
-  000a  mask=ffffffff  	mad.lo r1, r3, r1, r2
-  000e  mask=ffffffff  	ld.global r2, [r0 + 56]
-  0012  mask=ffffffff  	setp.le p0, r2, r1
-  0016  mask=ffffffff  	@p0 bra 13
-  001a  mask=000fffff  	ld.global r2, [r0 + 48]
-  001e  mask=000fffff  	ld.global r2, [r2, r1, 1, 0]
-  0022  mask=000fffff  	ld.global r3, [r0 + 40]
-  0026  mask=000fffff  	ld.global r3, [r3, r1, 1, 0]
-  002a  mask=000fffff  	fadd r3, r2
-  002c  mask=000fffff  	ld.global r0, [r0 + 32]
-  0030  mask=000fffff  	st.global r3, [r0, r1, 1, 0]
-  0034  mask=ffffffff  	exit
-  executed 16 issue groups
+  000a  mask=ffffffff  	mad.lo r0, r3, r0, r2
+  000e  mask=ffffffff  	ld.global r1, [r1 + 56]
+  0012  mask=ffffffff  	setp.le p0, r1, r0
+  0016  mask=ffffffff  	@p0 bra 7
+  001a  mask=000fffff  	ld.global r1, [#4, r0, 1, 0]
+  001e  mask=000fffff  	ld.global r2, [#2, r0, 1, 0]
+  0022  mask=000fffff  	fadd r2, r1
+  0024  mask=000fffff  	st.global r2, [#0, r0, 1, 0]
+  0028  mask=ffffffff  	exit
+  executed 13 issue groups
