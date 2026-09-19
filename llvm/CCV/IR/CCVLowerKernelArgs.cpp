@@ -21,6 +21,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/IR/DataLayout.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -180,7 +182,39 @@ PreservedAnalyses LowerKernelArgs::run(Module &M, ModuleAnalysisManager &) {
     // benchmark measuring a kernel whose guard failed for every lane.
     SmallVector<std::string, 8> ArgOffsets;
     unsigned Off = OffArgs;
+    const DataLayout &DL = M.getDataLayout();
     for (Argument &A : F.args()) {
+      // A BY-VALUE AGGREGATE is a pointer at the IR level and is not a pointer
+      // argument. clang passes `__global__ void k(..., Params p)` as
+      // `ptr byval(%struct.Params)`: the struct's BYTES are in the parameter
+      // space, and the pointer is a fiction of the calling convention. Testing
+      // `isPointerTy()` classified it as a window index, consumed a launch slot
+      // for it, and then read every field from whatever window the struct's
+      // first four bytes happened to name.
+      //
+      // That compiled. It assembled, it round-tripped, and it read the wrong
+      // memory -- a silent miscompile of an idiom as ordinary as a parameter
+      // struct, and it was reachable by anything that passed one. F-147.
+      //
+      // The correct lowering is the simplest one: the object IS the launch
+      // block's bytes at its offset, so the argument becomes a pointer to
+      // there and every field access is an ordinary load from it. The address
+      // is a constant, so the backend's base+displacement matcher folds it the
+      // same way it folds the scalar slots above.
+      if (A.hasByValAttr()) {
+        Type *VT = A.getParamByValType();
+        Align AA = A.getParamAlign().value_or(DL.getABITypeAlign(VT));
+        Off = alignTo(Off, std::max<uint64_t>(AA.value(), 4));
+        ArgOffsets.push_back("a" + std::to_string(Off) + ":" +
+                             std::to_string(DL.getTypeAllocSize(VT)));
+        Value *P = B.CreateIntToPtr(
+            ConstantInt::get(I64, LaunchBase + Off), A.getType(),
+            A.getName() + ".byval");
+        Off += alignTo(DL.getTypeAllocSize(VT), 4);
+        A.replaceAllUsesWith(P);
+        Changed = true;
+        continue;
+      }
       if (A.getType()->isPointerTy()) {
         // O-23: alignment is a property of the argument. Query it rather than
         // special-casing an attribute -- getParamAlign covers align_value and

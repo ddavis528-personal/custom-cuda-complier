@@ -156,6 +156,32 @@ bool llvm::checkCCVModule(Module &M, raw_ostream &Err) {
               }
         }
 
+        // --- a pointer READ out of memory ---------------------------------
+        //
+        // The invariant-11 group above covers a pointer compared, a pointer
+        // phi, a pointer passed across a call and a pointer STORED. Reading one
+        // back was the one direction nobody wrote a rule for, and it is the
+        // direction that occurs: `multi_tensor_apply` passes an array of tensor
+        // pointers in a by-value metadata struct and indexes it at runtime, so
+        // it never stores a pointer and loads one on every access. It reached
+        // the type legalizer as a 64-bit value with no expansion and aborted
+        // with "Do not know how to expand this operator's operand", which names
+        // nothing a reader could act on. F-147.
+        //
+        // The diagnosis is the whole fix available here. §5.1 addresses memory
+        // as a window index plus an in-window offset and invariant 11 keeps the
+        // pair out of the register file; nothing says what that pair looks like
+        // as a value IN memory, and settling it is an ISA question, not a
+        // compiler one -- proposals/pointer-representation.md.
+        if (auto *LI = dyn_cast<LoadInst>(&I))
+          if (LI->getType()->isPointerTy())
+            report(I, "pointer loaded from memory",
+                   "invariant 11: §5.1 gives an address a window and an offset "
+                   "and keeps the pair out of a register; nothing defines what "
+                   "it looks like stored in memory -- see "
+                   "proposals/pointer-representation.md and F-147",
+                   Problems);
+
         // --- an address the DAGCombine whitelist will not consume ---------
         const Value *Ptr = nullptr;
         if (auto *LI = dyn_cast<LoadInst>(&I))

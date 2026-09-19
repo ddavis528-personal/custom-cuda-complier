@@ -88,6 +88,15 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-local-array.sh || fail=1
 fi
 
+# F-147: a by-value parameter struct was classified as a pointer, so the kernel
+# read every field from whatever window the struct's first four bytes named. It
+# compiled, assembled and round-tripped. Only execution sees that, and only with
+# field values that would name a real window if they were misread as one.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  by-value struct argument reads the launch block"
+  ./tools/check-byval.sh || fail=1
+fi
+
 # F-143's fused-kernel corpus executes. F-134's lesson applies with full force
 # here: a corpus assembled to settle an architectural question has to be one
 # whose kernels are known to work, or the question is being settled from the
