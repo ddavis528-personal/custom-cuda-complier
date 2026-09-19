@@ -223,17 +223,23 @@ supplied for free.
 #### And against SASS, which is the comparison that actually matters
 
 CCV's compatibility target is CUDA, so NVIDIA's machine encoding is the one the
-density argument is really written against. Pooled over all eight kernels:
+density argument is really written against. Pooled over all ten kernels:
 
-| pooled over eight kernels | instructions | bytes | bits/instruction |
+| pooled over ten kernels | instructions | bytes | bits/instruction |
 |---|---|---|---|
-| `CCV` | 269 | 870 | **25.9** |
-| `NVIDIA SASS` (sm_70) | 224 | 3584 | **128.0** |
+| `CCV` | 859 | 2950 | **27.5** |
+| `NVIDIA SASS` (sm_70) | 586 | 9376 | **128.0** |
 
-**SASS spends 128 bits on every instruction**, and on instruction count the two
-machines are now close: **CCV's unaligned build needs 1.20× the instructions and
-0.24× the bytes.** The same eight kernels are 4.1× larger as SASS. That ratio
-was 1.32× before O-45 removed the window loads.
+**SASS spends 128 bits on every instruction**, and the two columns say different
+things: **CCV's unaligned build needs 1.47× the instructions and 0.31× the
+bytes.** The same ten kernels are 3.2× larger as SASS.
+
+**Read the instruction column against F-148 before drawing anything from it.**
+Over the eight kernels this table used to cover it was 1.20×, and over the five
+simplest it is below parity; `sgemm` alone is 1.96× unaligned and moves the
+pooled figure on its own. The bytes column is the one that is stable across the
+kernel set — adding the two hard kernels moved CCV's pooled density from 25.9 to
+27.5 while gfx900's moved 40.7 to 43.4.
 
 **On instruction count the comparison above uses CCV's UNALIGNED build, and that
 is the pessimistic one.** O-23's alignment attribute is CCV's intended ABI, and

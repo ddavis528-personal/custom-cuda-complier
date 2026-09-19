@@ -249,6 +249,64 @@ def check_tag_prose(text, fail):
     return count
 
 
+WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+         "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+
+
+def check_self_version(text, fail):
+    """The document must not cite a revision later than its own.
+
+    §3's Format B map read "Until v1.7 this range was described but never
+    enumerated" in a document headed Version 1.6 -- a change described in the
+    past tense against a revision that does not exist. Harmless in isolation and
+    not in aggregate: the revision number is how every other document, every
+    proposal and the roadmap refer to what is settled, and a spec that
+    mis-numbers its own changes makes the decision trail unreadable.
+    """
+    m = re.search(r"^\*\*Version (\d+)\.(\d+)\*\*", text, re.M)
+    if not m:
+        fail.append("no '**Version X.Y**' header -- this check cannot run")
+        return None
+    own = (int(m.group(1)), int(m.group(2)))
+    bad = 0
+    for cite in re.finditer(r"\bv?(\d)\.(\d)\b", text):
+        ver = (int(cite.group(1)), int(cite.group(2)))
+        # Only revisions of THIS document: 1.x, and not a measurement that
+        # happens to read like one.
+        if ver[0] != own[0] or ver <= own:
+            continue
+        line = text[:cite.start()].count("\n") + 1
+        fail.append(f"line {line}: cites revision {cite.group(0)}, but this "
+                    f"document is {own[0]}.{own[1]}")
+        bad += 1
+    return bad
+
+
+def check_obligation_count(text, fail):
+    """§1a's prose count must equal the number of obligations §1a lists.
+
+    The intro said "§1a states three obligations" for two revisions after O-40
+    added a fourth. §1a is the one section that is addressed to the hardware
+    side rather than to the compiler, and an undercount there is an obligation
+    someone does not know they have.
+    """
+    body = re.search(r"^## 1a\..*?(?=^## 2\.)", text, re.M | re.S)
+    if not body:
+        fail.append("§1a not found -- this check cannot run")
+        return None
+    listed = len(re.findall(r"^### \d+\.", body.group(0), re.M))
+    stated = re.search(r"\u00a71a states (\w+) obligations", text)
+    if not stated:
+        fail.append("no '\u00a71a states N obligations' sentence -- if it was "
+                    "reworded, reword this check with it")
+        return None
+    want = WORDS.get(stated.group(1).lower())
+    if want != listed:
+        fail.append(f"prose says \u00a71a states {stated.group(1)} obligations; "
+                    f"\u00a71a lists {listed}")
+    return listed
+
+
 def main():
     text = SPEC.read_text()
     fail = []
@@ -260,12 +318,17 @@ def main():
               f"document -- if it was renamed, update check-spec-tables.py rather "
               f"than letting the prose go unchecked")
         return 1
+    check_self_version(text, fail)
+    o = check_obligation_count(text, fail)
     if fail:
         print(f"  FAIL  {len(fail)} cross-table inconsistenc"
               f"{'y' if len(fail) == 1 else 'ies'} in {SPEC.name}")
+        for f in fail:
+            print(f"        {f}")
         return 1
     print(f"  PASS  {n} sibling rows agree with their bit maps, "
-          f"{c} 48-bit tags agree with §2/§3 prose")
+          f"{c} 48-bit tags agree with §2/§3 prose, "
+          f"{o} obligations agree with §1a, no forward version citations")
     return 0
 
 

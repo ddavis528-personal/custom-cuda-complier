@@ -16,7 +16,7 @@ checked mechanically rather than by reading. One parameter remains provisional �
 predicate count — and is marked as such in §1. §9 is the decision log recording what was
 settled and why; §10 and §11 hold what is out of scope and what is deferred.
 
-**§1a states three obligations this specification places on the implementation** and cannot
+**§1a states four obligations this specification places on the implementation** and cannot
 check from the compiler side. One of them is a security requirement. Read that section
 before building anything.
 
@@ -671,7 +671,7 @@ destination. `packi`/`unpacki` exist in B and B′ and have no B″ form.
 
 ### Format B opcode map — the projection rule (O-41)
 
-Until v1.7 this range was described but never enumerated: §3 said "thirty-two points is
+Until 1.6 this range was described but never enumerated: §3 said "thirty-two points is
 ample for reg-immediate ALU" and named informally which Format A operations lack an
 immediate form. **That is the same exposure O-28 found twice and O-34 found once** — a range
 given as a description rather than a table lets two implementations choose different orders
@@ -2021,12 +2021,20 @@ out to be a host compiler that needs no GPU, and the benchmark now runs it. Ever
 measures **128.0 bits per instruction exactly**, from Volta through Blackwell — nine years
 with no change. `docs/benchmarks.md` §2 has the tables.
 
-The predicted "roughly 4×" was close. Measured over the benchmark's eight kernels, CCV
-encodes the same work in **27.3 bits per instruction against SASS's 128.0** — 0.21× — and
-the same kernels are **3.6× larger as SASS**. What the prediction did not anticipate is the
+The predicted "roughly 4×" was close. Measured over the benchmark's ten kernels, CCV
+encodes the same work in **27.5 bits per instruction against SASS's 128.0** — 0.21× — and
+the same kernels are **3.2× larger as SASS**. What the prediction did not anticipate is the
 direction of the instruction count: **SASS uses the fewest instructions of any machine
-measured**, 224 against CCV's 295, so the density win is not being paid for with extra
+measured**, 586 against CCV's 859, so the density win is not being paid for with extra
 instructions on NVIDIA's side but with 64 bits of control on each of theirs.
+
+The instruction-count ratio moved when the benchmark stopped being only easy kernels.
+Compiler-side F-148: the sweep carried eight straight-line or single-loop kernels for eight
+revisions, and `sgemm` — the one that spills — had never been compiled for another target
+at all, so it was absent. With it in, CCV's aligned build is 1.31× SASS's instruction count
+rather than the 0.94× this project published. The bits-per-instruction figure barely moved
+(25.9 → 27.5 as gfx900 moved 40.7 → 43.4); **the encoding claim is robust to the kernel set
+and the instruction-count claim was not**.
 
 The comparison is still not free, and the reason is unchanged: that control payload buys
 NVIDIA static scheduling, which this design replaces with hardware OoO. The density win and
