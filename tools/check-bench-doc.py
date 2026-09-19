@@ -240,6 +240,21 @@ def main():
     else:
         fail |= compare("decode/fused sweep", dec.stdout, dblocks[0])
 
+    # F-143's real fused-kernel corpus, same treatment: the document carries the
+    # tool's output verbatim, so it is compared verbatim. This one matters more
+    # than the others, because §5's argument is entirely a reading of its
+    # columns -- pointer counts of 2 to 6, `ptr-sp` zero everywhere, and the
+    # spill that remains attributed to warp-uniform scalars.
+    fus = subprocess.run([str(ROOT / "tools/sweep-fusion.sh")],
+                         capture_output=True, text=True, cwd=ROOT)
+    fblocks = fenced(doc, "real fused kernels")
+    if fus.returncode or not fblocks:
+        print("  FAIL  fused corpus sweep missing, or tools/sweep-fusion.sh "
+              "did not run")
+        fail = 1
+    else:
+        fail |= compare("fused-corpus sweep", fus.stdout, fblocks[0])
+
     return fail
 
 

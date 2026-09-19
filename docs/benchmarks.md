@@ -1119,7 +1119,103 @@ for it before this was measured: not GEMM accumulator pressure
 
 ---
 
-## 5. What would strengthen this
+## 5. Real fused kernels: what the synthetic one was standing in for
+
+`tools/sweep-fusion.sh`. §4's entire conclusion comes from `test/cuda/fused.cu`,
+one kernel written for that measurement, whose tensor count `NT` is a compile
+flag and whose range — 1 to 16 — was chosen here. Read the §4 table again with
+that in mind: the row that carries the argument is `loop NT=16`, and there is no
+claim anywhere that a real kernel fuses sixteen tensors. F-129 and F-140 were
+both read off a knob at its top setting.
+
+`test/cuda/fusion/` is the replacement: eight kernels written from the published
+shape of ones that actually run in inference and training stacks. **Every
+pointer count below is forced by the kernel's own mathematics.** RMSNorm has
+three tensors because RMSNorm has three tensors; `silu_and_mul` has two because
+the gate and up projections are halves of one allocation, which a kernel
+parameterised on "number of tensors" would have counted as three.
+
+```
+  real fused kernels -- pointer counts fixed by the mathematics, not swept
+  kernel         ptrs  scal  instrs    bits  slots  spills uni-sp ptr-sp acc-sp  div/unif
+  ---------------------------------------------------------------------------------------
+  swiglu            2     1      39    1040      3       0      0      0      0       3/7
+  rmsnorm           3     2      79    2128      4       0      0      0      0       6/9
+  add_rmsnorm       3     2      84    2256      6       0      0      0      0       8/9
+  rope              4     4     144    4000     13      24     17      0      0     11/15
+  adamw             4     8      78    2096      7      11      6      0      2      8/15
+  dequant           6     1      61    1616      6       0      0      0      0      5/10
+  layernorm         6     2     113    3040      7       0      0      0      0      8/14
+  attn_combine      4     2     219    6352     16      11      6      0      0      3/19
+
+  THE POINTER COUNTS ARE 2 TO 6. The synthetic `fused.cu` swept 1 to 16 and the
+  conclusions drawn from it -- F-129's case for a uniform register file, F-140's
+  case for widening the launch-slot field -- were both read off its top settings.
+  Nothing in this corpus reaches eight pointer arguments, which is the reach of
+  O-45's 4-bit slot index. On this evidence the slot field is not the constraint.
+
+  PTR-SP IS ZERO EVERYWHERE. F-126 and F-128 argued that what a uniform register
+  file would hold is the spilling window bases and indices. After O-45 there are
+  no spilling window bases: every one of these kernels addresses global memory
+  through the slot form or a base the allocator never has to evict.
+
+  WHAT SPILLS IS WARP-UNIFORM SCALARS. The three kernels that spill at all spill
+  their non-pointer arguments -- `rope`'s head geometry, `adamw`'s eight
+  optimiser constants, `attn_combine`'s split count -- together with the CTA
+  index. Each is one launch-block word, each is identical in all 32 lanes, each
+  is loop-invariant, and each currently costs a lane-0 masked load plus a
+  broadcast (O-33) or a spill slot. They are exactly what a warp-uniform
+  register file holds, and they are NOT what either previous argument for one
+  named: not GEMM accumulators, which are per-lane, and not window bases, which
+  O-45 removed.
+```
+
+**The corpus reaches six pointers. The slot field reaches eight.**
+
+F-140 recorded that O-45's 4-bit slot index covers pointer arguments 0–7, and
+proposed widening it because `fused.cu` at NT=16 has eighteen pointers and gets
+exactly eight slot-form accesses. Nothing in this corpus has more than six. On
+this evidence the slot field is not the constraint, and widening it is work with
+no measured kernel behind it — which is the same objection the warp-uniform
+register file was rated weak on.
+
+**Pointer and index spill is zero in all eight.**
+
+F-126 and F-128 argued that what a uniform register file would hold is the
+spilling window bases and indices; F-128 was retracted when the values turned out
+to be `threadIdx`-derived and divergent. This closes the rest of it from the
+other side: after O-45 there is no window-base spill left to hold. The
+`ptr-sp` column is zero in every row, including the six-pointer kernels.
+
+**What spills is warp-uniform scalars, and it is a third thing.**
+
+Three kernels spill. In each, the spilled values are the kernel's non-pointer
+arguments and the CTA index — `rope`'s head geometry, `adamw`'s eight optimiser
+constants, `attn_combine`'s split count. Each is one launch-block word, each is
+identical in all 32 lanes, each is loop-invariant, and each currently costs
+either a spill slot or O-33's lane-0 masked compute plus a `shfl.idx` broadcast.
+
+That is exactly what a warp-uniform register file holds. It is also **neither of
+the two things previously argued for one**: not GEMM accumulator pressure, which
+is per-lane and unreachable by any uniform mechanism (F-138), and not window
+bases, which O-45 removed. The case survives its own two failed arguments,
+narrower and better founded than either — and smaller, because the quantity is
+3 to 17 transfers in a real kernel rather than 79 in a synthetic one.
+
+**Four compiler defects, found on first contact.**
+
+Worth recording beside the numbers, because it is the strongest evidence that
+the corpus was measuring the machine rather than itself. Writing these kernels
+found, in order: the SFU group unreachable from CUDA (F-141); `out[i + 1]`
+segfaulting the compiler, with the displacement field it needed present in the
+encoding and written as a literal zero (F-142); every negative float constant
+unencodable, and `fdiv -1.0, x` unselectable (F-144); and O-33's lane-0 masking
+unsound whenever lanes are not co-issued, which made `rope` run forever (F-145).
+Not one of them was reachable by any kernel in `test/cuda/` or `test/bench/`.
+
+---
+
+## 6. What would strengthen this
 
 - ~~**SASS.**~~ Done — `tools/fetch-ptxas.sh`, and the numbers are in §2. What
   remains unmeasured on the NVIDIA side is *dynamic* SASS: instruction counts

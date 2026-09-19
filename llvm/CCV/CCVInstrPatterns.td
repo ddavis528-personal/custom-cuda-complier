@@ -184,8 +184,14 @@ def : Pat<(i32 imm:$i), (MOVI48 (imm_bits32 $i))>;
 // register), so the bit pattern goes in through the same wide immediate and no
 // conversion instruction exists or is needed.
 def fpimm_bits : SDNodeXForm<fpimm, [{
+  // i64 for the same reason imm_bits32 gives, and it was missing here: a 32-bit
+  // target constant reaches the MachineOperand SIGN-extended, so any float whose
+  // sign bit is set arrived as a negative 64-bit value and failed MOVI48's
+  // unsigned 33-bit field check -- which is a hard compiler error, not a
+  // miscompile. **Every negative float constant was unencodable**, and nothing
+  // noticed because not one kernel in the tree had ever written one. F-144.
   return CurDAG->getTargetConstant(
-      N->getValueAPF().bitcastToAPInt().getZExtValue(), SDLoc(N), MVT::i32);
+      N->getValueAPF().bitcastToAPInt().getZExtValue(), SDLoc(N), MVT::i64);
 }]>;
 def fpimm_small : PatLeaf<(fpimm), [{
   return N->getValueAPF().bitcastToAPInt().getZExtValue() < (1u << 17);
@@ -287,6 +293,19 @@ def : Pat<(i32 (fp_to_uint GPR:$a)), (CVT_U32_F32 GPR:$a, GPR:$a, GPR:$a)>;
 // not implemented -- see F-49.
 def fpimm_one : PatLeaf<(fpimm), [{ return N->isExactlyValue(1.0); }]>;
 def : Pat<(fdiv fpimm_one, GPR:$a), (RCP_F32 GPR:$a, GPR:$a, GPR:$a)>;
+
+// ...and its negation, which is not a second case anyone writes but is one the
+// generic combiner MANUFACTURES: `-(1.0f/x)` -- or, as it actually arises,
+// `a - b * (1.0f/x)` reassociated -- becomes `fdiv -1.0, x`. CCVExpandDivision
+// runs on IR and is long finished by then, so without this the node reaches
+// instruction selection with nothing to match and the compile fails outright.
+// Found by the AdamW step in the fused corpus, which is the first kernel here to
+// subtract a reciprocal-scaled term. F-144.
+def fpimm_minus_one : PatLeaf<(fpimm), [{ return N->isExactlyValue(-1.0); }]>;
+def : Pat<(fdiv fpimm_minus_one, GPR:$a),
+          (FNEG_F0 (RCP_F32 GPR:$a, GPR:$a, GPR:$a),
+                   (RCP_F32 GPR:$a, GPR:$a, GPR:$a),
+                   (RCP_F32 GPR:$a, GPR:$a, GPR:$a))>;
 
 def : Pat<(fsqrt GPR:$a), (SQRT_F32 GPR:$a, GPR:$a, GPR:$a)>;
 

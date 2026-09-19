@@ -88,6 +88,16 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-local-array.sh || fail=1
 fi
 
+# F-143's fused-kernel corpus executes. F-134's lesson applies with full force
+# here: a corpus assembled to settle an architectural question has to be one
+# whose kernels are known to work, or the question is being settled from the
+# compiler's opinion of itself. This is also the regression test for F-145 --
+# `rope` ran forever before the co-issue condition was added to O-33's masking.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  the fused corpus executes and computes the right numbers"
+  python3 tools/check-fusion.py || fail=1
+fi
+
 # F-141 made the SFU group reachable from CUDA through the intrinsics a kernel
 # actually uses. Five patterns into one instruction family is where two entries
 # get crossed, and a crossed entry compiles, encodes, disassembles and round
