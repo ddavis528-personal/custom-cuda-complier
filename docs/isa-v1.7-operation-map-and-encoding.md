@@ -1,13 +1,6 @@
 # CCV Native ISA — Operation Map and Encoding
 
-**Version 1.6** · 14 September 2026
-
-> **Superseded by [v1.7](isa-v1.7-operation-map-and-encoding.md).** Kept as the decision
-> trail, frozen at the content it had before O-40. Everything through O-39 is here; O-40
-> onward — the retire-rate obligation, Format B's enumerated opcode map, FP packed
-> dot-product with a normative rounding rule, launch-slot-relative addressing, and invariant
-> 8's "when present" — is in 1.7. Those seven decisions were taken after 1.6 was settled and
-> landed in this file without a revision bump, which is what 1.7 consolidates.
+**Version 1.7** · 19 September 2026
 
 **CCV — Custom CUDA Vector processing unit.** A VPU, not a GPU: the machine is a
 data-parallel compute engine and nothing in this document serves rasterization, texture or
@@ -23,70 +16,135 @@ checked mechanically rather than by reading. One parameter remains provisional �
 predicate count — and is marked as such in §1. §9 is the decision log recording what was
 settled and why; §10 and §11 hold what is out of scope and what is deferred.
 
-**§1a states three obligations this specification places on the implementation** and cannot
+**§1a states four obligations this specification places on the implementation** and cannot
 check from the compiler side. One of them is a security requirement. Read that section
 before building anything.
 
 ---
 
-## Changes since 1.5
+## Changes since 1.6
 
-**1.5 was a short revision that changed no encoding. 1.6 is not.** Every change below came
-from compiler work that ran into something the document did not say, and each is recorded
-with the measurement that forced it.
+**1.6 was cut and then kept moving.** Seven decisions — O-40 through O-46 — were taken after
+it was settled and landed in its text without a revision bump, which is why §3 came to
+describe one of them "until v1.7" in a document headed 1.6, and why the §1a summary counted
+three obligations after O-40 had added a fourth. This revision consolidates them. The 1.6
+file is frozen at the content it had before O-40.
+
+Three of the seven came from the compiler-side proposal `proposals/ai-ml-relevance.md` and
+the decision returned on it; the rest came from compiler work running into something this
+document did not say. As in 1.6, each is recorded with the measurement that forced it.
 
 ### The encoding
 
-**Conversions move from points 128+ to 64–127 and get an arithmetic (O-34).** §4 gave the
-conversion block a *count* — bases × source codes × rounding modes — and never said which
-number any conversion gets, so the backend assigned four points flat and nothing could have
-caught it. The destination is now a 2-bit **format code** read against the destination
-register's `chwidth`, symmetric with the source, which halves the block to 64 points and
-**removes an invariant-1 violation**: the old `cvt2fp32`/`cvt2fp16` bases differed only in
-element width, which is an element-width field sitting in an opcode.
+**FP packed dot-product-accumulate at §4 points 52–55 (O-44).** `dp2.bf16`, `dp2.f16`,
+`dp4.e4m3` and `dp4.e5m2`, taking four of the eight points that were free at 48–63; twelve of
+sixteen are now used. The mechanism was already built and measured and covered the wrong
+precision: `dp4.acc` is what `gpr-count-decision.md` credits with making 16 GPRs sufficient
+under INT8 accumulator pressure, and the credit is earned — the INT8 GEMM's spill per MAC
+lands at 0.51–1.03 against FP32's 2.07–3.78 — but **FP32 GEMM is not the workload**. BF16 or
+FP16 in with FP32 accumulate is, and `dp2` gives that case two MACs per accumulator register.
 
-**`dp4`/`dp8` move to 48–63**, the points `32 + 8×format + op` generates for the two
-reserved FP format codes. The FP rule's domain is now `format ∈ {00, 01}`, and 0–127 is
-packed solid.
+The FP8 pair is allocated on timing rather than demonstrated need: the points are free today
+and will not be after a second round, and four E4M3 fill a 32-bit lane exactly as four INT8
+do, so `dp4.e4m3` costs nothing structurally — it is an ordinary two-source Format A
+instruction. Mixed-format FP8 is left unallocated; a dot product is symmetric in its operands,
+so one point would cover `e4m3 × e5m2` if it is ever wanted, and four remain free.
 
-**`rcp.u32` at point 263 (O-35)** — an integer reciprocal seed under a 16-bit
-relative-accuracy contract, never over-estimating. It exists because the fp32 round trip
-cost four instructions of format crossing, and because **a more accurate `rcp.f32` would
-have bought nothing**: fp32's 24-bit significand is what forces the Newton step, not the
-unit's error.
-
-**Format A′ gets a 48-bit sibling (O-37).** A′'s 7-bit opcode reached points 0–127 and O-34
-had just filled that range, so the predicated tier had nowhere left to grow. The long form
-carries the full 10-bit opcode and encodes **exactly points 128–1023** — `opcode[9:7] ≠ 000`
-is a constraint on the field, because at `000` it would duplicate encodings the 32-bit form
-already has. No new format tag: tag `0001` at length `11` was free.
+**Launch-slot-relative addressing, Format D opcodes `01100`–`01101` (O-45).** `[18:15]` is a
+4-bit launch-block slot index rather than a register number, so a §5.1 window base never
+occupies a GPR. Two points, not four: `.shared` is flat 32-bit and has no window.
 
 ### Semantics the document did not state
 
-**Widening a narrow register clears the bits it exposes (O-38).** Nothing said what the bits
-above a narrow element held after a width change. They are cleared, and **the reason is
-security**: the register file is partitioned between resident warps and reused across kernel
-launches, so stale bits in a reclaimed slice are another warp's data or the previous
-kernel's, readable through an ordinary unprivileged instruction.
+**FP reduction order and rounding are normative (O-44).** Products sum exactly and the result
+rounds once into the accumulator. Integer `dp4` never needed this — the sum of four INT8
+products into INT32 is exact, so order is unobservable — and §4's `dp4` entry now says so, to
+keep the FP rule reading as a deliberate addition rather than an inconsistency. Leaving it
+unstated would have been an O-28-class gap: two implementations producing numerically
+different output from identical binaries, surfacing as convergence drift rather than as a
+test failure.
 
-**`rbase` and `rindex` are read at 32 bits whatever their own `chwidth` (O-39).** §3 took
-the addressing scale from `rdata`'s width and said nothing about the address registers.
-Invariant 11 implied the answer; it is now written down.
+**Narrow element work retires at a multiple of the 32-bit rate (O-40)** — the fourth
+obligation in §1a, and the one the whole element-width model returns on. It is a hardware
+target rather than a measurement, and the margin is thin: §1a carries the kernel that shows
+where 1.5× is not enough.
 
-### Not an encoding change, but the largest thing in this revision
+**Invariant 8 gains two words.** Register fields sit at fixed positions **when present**. That
+is what the invariant has always meant and what Format D has always done — `[22:19]` is a
+register field in one mode of tag `1000` and immediate bits in the other, selected by
+`opcode[2]` — and leaving it implicit cost two review cycles, once in F-110 and once in the
+proposal that produced O-45.
 
-**§1a — three obligations on the implementation.** O-33's lane gating, F-58's cheap
-predicate logic, and O-38's clear-on-widening. The first two are performance assumptions
-that cost their benefit if wrong; the third is a correctness and security requirement. They
-were scattered across three decision-log entries; they are now one section, because the
-compiler emits code that depends on all three and can verify none of them.
+### Normativity fixes
 
-### Software, for the record
+**The packed dot-product block is enumerated rather than described (O-47).** §4's points
+48–63 carried twelve operations in a list with no point column, and **O-44 added four
+instructions to it** — so without this the revision adopting them would have shipped four
+opcodes whose encoding is not specified anywhere. Found while auditing this revision against
+the decision that produced O-44. The order recorded is the one already implemented.
 
-`fdiv` is a software sequence over `rcp.f32` and `ffma` (O-36) — correctly rounded whenever
-the result is normal, about 30 instructions, and **no hardware divider**, whose latency would
-complicate scheduling. Integer division is 17 instructions. Neither is an encoding change;
-both are recorded because they are why the SFU points exist.
+**Format B's opcode map is enumerated rather than described (O-41).** §3 said "thirty-two
+points is ample for reg-immediate ALU" and named informally which Format A operations lack an
+immediate form. A range given as a description rather than a table lets two implementations
+choose different orders and produce silently incompatible binaries — the same exposure O-28
+found twice and O-34 once. Closed as a normativity fix; the instruction counts it bought are
+a bonus, not the justification.
+
+**§10 no longer defers FP packed dot-product to Format H.** The objection was exponent
+handling in the reduction, and that is a property of the reduction rather than of the operand
+model: the reduction hardware is the same whether operands arrive from Format A registers or
+Format H fragments, and `dp4` already established that a packed reduction lives in Format A
+without touching invariant 1. Struck, with the reason recorded, so §10 does not stand
+contradicting the instruction beside it.
+
+### Decisions recorded without an encoding change
+
+**O-42 — three-source with an immediate — deferred on cost, not legality**, and the previously
+recorded reason is withdrawn: it said an opcode-dependent immediate position is what invariant
+8 forbids, and **invariant 8 governs register fields**. Format D already places its immediate
+at `[31:19]` in one mode and `[31:24]` in the other under the same tag. A wrong reason in the
+log forecloses an option later on false grounds, which is worse than recording none.
+
+**O-43 — a hardwired zero register — rejected.** Proposed from five `movi rX, 0` in the
+benchmark; checking what each feeds dissolves all five. The cost decides it anyway: the file
+is 16, R15 is the frame pointer under O-30, and a zero register would leave **14** general
+registers while O-25 and the 32-GPR question are open.
+
+**O-46 — a second register namespace, if ever wanted, must be wanted on its own merits.** The
+rejected alternative to O-45 kept `[18:15]` a register field and added a mode bit selecting
+which *file* it indexes. That is a second namespace arriving as a side effect of an addressing
+mode. The warp-uniform register file (F-106) is the place to want one.
+
+### Recorded as an input to Format H
+
+**An MMA accumulator fragment is 4–8 registers per thread**, depending on tile geometry — 4
+for an m16n8k16-shaped output, 8 for m16n16k16. At 16 GPRs that is a quarter to half the
+architectural file for **one** fragment, and a real GEMM holds several. Format H therefore
+does not settle O-25; it re-poses it in a harder shape, because the accumulator count stops
+being a tiler's free choice and becomes fixed by the matrix unit's geometry. Whoever designs H
+should treat register-file capacity as a co-design input rather than a constraint to fit
+within afterwards.
+
+### Open against this revision, from the compiler side
+
+**O-33's lane-0 masking is unsound wherever lanes are not co-issued, and the ISA is what
+leaves it so.** The masking scheme computes a warp-uniform value in lane 0 and broadcasts it
+with `shfl.idx`. The broadcast is warp-collective: it needs lane 0 **issuing with** the lanes
+that read it. §1 gives this machine per-thread PCs with *opportunistic* reconvergence, and §3
+says `reconv.hint` does nothing in Phase 1 — so after any divergent branch, lanes that all
+eventually reach a block may reach it at different times, and a group issuing there need not
+contain lane 0. A kernel with a `threadIdx`-dependent inner loop was measured not terminating:
+the lanes that skipped the inner loop ran ahead to the outer latch and read lane 0's stale
+loop counter forever.
+
+The compiler has made itself safe by declining to mask anything after any divergent branch
+unless a barrier intervenes, which in a kernel with an early-exit guard is the whole body.
+**That bounds O-33's reach to a fraction of what §1a assumes it covers**, and the bound comes
+from a guarantee this specification deliberately does not give. It is recorded here rather
+than resolved: the candidate answers are making `reconv.hint` do something in Phase 1, a
+`shfl` variant naming the lowest *active* lane rather than lane 0, or the warp-uniform
+register file that would remove the need to approximate one in software. See
+`compiler-findings-since-v1.6.md` §5.
 
 ---
 
@@ -200,9 +258,9 @@ formats rather than one format with an optional field.
 
 ## 1a. Obligations on the implementation
 
-Three properties the compiler depends on, emits code against, and **cannot verify**. They
-were scattered across three decision-log entries; they are collected here because a reader
-building the machine needs all three and will not find them by reading §3.
+Four properties the compiler depends on, emits code against, and **cannot verify**. They
+were scattered across the decision log; they are collected here because a reader
+building the machine needs all four and will not find them by reading §3.
 
 They are not the same kind of obligation, and the difference matters more than the list.
 
@@ -248,6 +306,48 @@ A machine that skips the clear is not slower. It leaks.
 
 **Cost if wrong:** an information-disclosure channel between mutually distrusting contexts
 on the same device, and a compiler that has been emitting zero-extensions which are not.
+
+### 4. Narrow element work must retire at a multiple of the 32-bit rate (O-40)
+
+> The datapath allocation splits, so that an instruction operating on 16-bit elements
+> retires at **twice** the rate of a 32-bit one — and 8- and 4-bit work faster still.
+
+This is the whole reason the element-width model exists. Invariant 1 makes width per-register
+state rather than an opcode field precisely so that a narrow instruction is the *same*
+instruction against a *narrower slice*, which is what lets two of them share a 32-bit
+allocation. Without the higher retire rate the narrow forms are pure cost: they add `chwidth`
+transitions and save nothing an instruction count can see.
+
+**This obligation is measured against, and the margin is thin.** `vadd16` — the benchmark's
+16-bit kernel — issues 18 instructions against `vadd`'s 16, of which **4 are narrow element
+work**. At a 2× retire rate that is 14 + 4/2 = **16 cycles, exactly break-even**. At 1.5× it
+is a loss. The ISA is asking for 2× and getting no margin at the fraction today's codegen
+produces.
+
+Two consequences a reader building the machine should take from that:
+
+- **The narrow work is mostly memory, not ALU.** Of `vadd16`'s four narrow instructions,
+  **one is an ALU operation and three are loads and stores**. If the split allocation dual-
+  issues in the ALU but not the memory pipe, the kernel comes out at 17.5 cycles — *slower*
+  than the 32-bit version. The obligation is on the memory path first.
+- **The break-even is a codegen property, and the only lever is the non-element work.**
+  A lane holds one element at every width (invariant 1), so a narrow kernel issues exactly
+  as many element-work instructions as its 32-bit twin — the fraction rises only by removing
+  what is *not* element work. Width transitions the compiler did not need (F-80, F-87) and
+  per-thread prologue are the whole of it. `vadd16` at one element per thread reaches 0.286
+  and is 1.067×; `vadd16_loop`, where the prologue amortizes over eight elements, reaches
+  0.552 and 1.283×. Same instructions, same retire rate, different ratio of element work to
+  overhead.
+
+  It does **not** rise by packing two elements into a lane. That is the register-level
+  packing model O-13 rejected and this invariant forbids, and it is worth naming here
+  because the arithmetic above makes it tempting: halving the lane count would halve the
+  issue count directly. It would also put two elements in a register, which is the warning
+  sign §9 names rather than the optimisation it looks like.
+
+**Cost if wrong:** the element-width model is a net loss on every kernel, and the `chwidth`
+machinery is overhead with no return. This is the one obligation on the list that the whole
+feature rests on rather than one optimisation.
 
 ---
 
@@ -634,6 +734,53 @@ Immediate signedness remains opcode-defined.
 B″ is a bounded subset of it — only status-producing arithmetic has any use for a predicate
 destination. `packi`/`unpacki` exist in B and B′ and have no B″ form.
 
+### Format B opcode map — the projection rule (O-41)
+
+Until 1.6 this range was described but never enumerated: §3 said "thirty-two points is
+ample for reg-immediate ALU" and named informally which Format A operations lack an
+immediate form. **That is the same exposure O-28 found twice and O-34 found once** — a range
+given as a description rather than a table lets two implementations choose different orders
+and produce silently incompatible binaries. It is closed here as a normativity fix, not as
+an optimisation; the instruction counts that prompted it are a bonus, not the justification.
+
+> **Where §4 point *n* names a BINARY operation, Format B point *n* is that operation with
+> the second source replaced by the immediate. Where §4 point *n* is UNARY or TERNARY,
+> Format B point *n* carries no immediate form and is free for immediate-only operations.**
+
+The rule is derivable rather than memorised, and a decoder can share §4's map. `addi` at
+point 0 against `add` at §4 point 0 was already this rule, applied unaided.
+
+| pt | | pt | | pt | |
+|---|---|---|---|---|---|
+| 0 | `addi` | 8 | `ori` | 12 | `shri` |
+| 1 | `subi` | 9 | `xori` | 13 | `srai` |
+| 2 | `muli` | 10 | `andni` | 20 | `packi` |
+| 7 | `andi` | 11 | `shli` | 21 | `packi.z` |
+| | | | | 22 | `unpacki` |
+
+**Arity, stated because the rule depends on it.** §4's binary points are 0–4 and 7–17.
+Unary: 18, 20–24. Ternary: 5 (`mad.lo`), 6 (`mad.hi`), 25 (`prmt`). **Point 19 `sel` is
+binary in register operands** — `rd = pq ? rs0 : rs1`, with the condition taken from the
+predicate qualifier field rather than a third register — so the rule projects it. But a
+qualifier is exactly what plain Format B lacks, so **`seli` is meaningful only in the B′
+and B″ tiers**, and point 19 is unallocated in B itself. That is the one place where the
+projection is tier-dependent.
+
+**What the projection costs: Format B's points are no longer independently allocatable.**
+Coupling the two maps is the price of decoder sharing, and it has to be visible to whoever
+next wants a Format B point.
+
+| Category | §4 points | Format B status |
+|---|---|---|
+| Binary | 0–4, 7–17 (16) | **claimed by the rule.** 10 defined above; 6 reserved — `mul.hi.s`/`u`, `min.s`/`u`, `max.s`/`u` |
+| Unary | 18, 20–24 (6) | free for immediate-only; 3 used by the `packi` family |
+| Ternary | 5, 6, 25 (3) | free for immediate-only |
+| `sel` | 19 | B′/B″ only |
+| Unallocated in §4 | 26–31 (6) | free, but **claimed if §4 later allocates a binary operation there** |
+
+**Genuinely free for a future immediate-only operation: 13 of 32, not 28** — and shrinking
+as §4 grows.
+
 **`packi` and `unpacki` — moving between narrow and wide registers.**
 
 | Mnemonic | Effect |
@@ -809,7 +956,64 @@ it is the rarest of the four and the index register carries most of the addressi
 | `00000`–`00011` | base + offset | `ld.global`, `st.global`, `ld.shared`, `st.shared` |
 | `00100`–`00111` | base + index | same four |
 | `01000`–`01011` | base + offset | `ld.pred`, `st.pred` × `{global, shared}` |
-| `01100`+ | — | reserved (span/wide transfers) — deferred, see §10 |
+| `01100`–`01101` | **launch-slot + index** | `ld.global`, `st.global` (O-45) |
+| `01110`–`01111` | — | reserved (the O-45 form for other spaces, if wanted) |
+| `10000`+ | — | reserved (span/wide transfers) — deferred, see §10 |
+
+*(This row first read `01100`–`01111` covering all four spaces. `.shared` is flat 32-bit and
+has no window — §5.1 exempts it — so a launch-slot base means nothing there, and `.const` is
+where the launch block itself lives. Two points, not four.)*
+
+**Launch-slot + index (O-45).** A third addressing mode in which `[18:15]` is **not a register
+number but a 4-bit launch-block slot index**: the window base comes from the launch block
+directly and never occupies a GPR.
+
+| Bits | Width | Field |
+|---|---|---|
+| `[1:0]` | 2 | length = `00` |
+| `[5:2]` | 4 | fmt = `1000` |
+| `[10:6]` | 5 | opcode |
+| `[14:11]` | 4 | `rdata` |
+| `[18:15]` | 4 | **launch slot** — an immediate, not a register |
+| `[23]` | 1 | scale enable, as base+index |
+| `[31:24]` | 8 | signed displacement, as base+index |
+| `[22:19]` | 4 | `rindex` |
+
+**This does not weaken invariant 8, and the precedent is Format D itself.** `[22:19]` is
+already a register field in one mode of tag `1000` and immediate bits in the other, selected
+by `opcode[2]`; the renamer already consults the opcode for this tag. Adding `[18:15]` to the
+conditional set is the same kind of cost, not a new kind. Invariant 8's content is that
+register fields sit at fixed positions **when present** — presence being opcode-conditional is
+shipped behaviour, and the invariant now says so explicitly rather than leaving it implicit,
+which had cost two review cycles by the time this was written.
+
+**The slot numbering.** Slot *k* is the 32-bit word at launch-block byte offset
+`OffArgs + 4k`, where `OffArgs` is 32 — so the sixteen slots cover the first 64 bytes of the
+argument area. A pointer argument's **window index** is the word at its slot; four-byte
+granularity rather than per-argument indexing, because §5.2's block mixes 8-byte pointer slots
+with 4-byte scalars and only a byte offset addresses both uniformly.
+
+**Unaligned pointers get less from this than aligned ones**, and that is consistent rather than
+surprising. O-23's unaligned form carries a window *and* an in-window byte offset; the slot
+supplies the window, so the offset still has to reach the index register, exactly as it does
+for base+index today. The form is a win for aligned pointers and neutral for unaligned ones.
+
+**Why it exists.** The §5.1 window bases of a fused elementwise kernel are warp-uniform,
+loop-invariant, and already resident in the launch block — a small, CTA-wide, read-only table
+(§5.2). Holding one in a GPR spends a register caching something that is already in memory,
+and the compiler measurement is that this is what binds: in a grid-strided fused chain the
+*divergent* working set is four values at any tensor count while the uniform one grows with
+the number of tensors fused, crossing the 16-entry file and spilling from there (F-129).
+
+**The open cost is on the hardware side and is not settled here:** something has to hold or
+cache the launch block for the AGU. It is CTA-wide, read-only and small, which is what makes a
+cache plausible, but plausible is not priced.
+
+**A second shape was considered and rejected** — keeping `[18:15]` a register field and adding
+a mode bit selecting which *file* it indexes. That introduces a second register namespace for
+no encoding benefit over a form the tag already precedents. If a second namespace is ever
+wanted it should be wanted on its own merits, not arrive as a side effect of an addressing
+mode. See O-46.
 
 Transfer size is inherited from `rdata`'s `chwidth` — no size field. Address space is in
 the opcode.
@@ -1399,10 +1603,49 @@ applied to width mismatches generally.
 
 ### Packed dot-product-accumulate — points 48–63
 
-| Opcode | Operation |
-|---|---|
-| `dp4.ss` / `dp4.su` / `dp4.us` / `dp4.uu` | 4×INT8 per lane → INT32, signedness per operand |
-| `dp8.ss` / `dp8.su` / `dp8.us` / `dp8.uu` | 8×INT4 per lane → INT32 |
+| pt | Operation | | pt | Operation |
+|---|---|---|---|---|
+| 48 | `dp4.ss` | | 56 | `dp8.ss` |
+| 49 | `dp4.su` | | 57 | `dp8.su` |
+| 50 | `dp4.us` | | 58 | `dp8.us` |
+| 51 | `dp4.uu` | | 59 | `dp8.uu` |
+| 52 | `dp2.bf16` | | 60 | *free* |
+| 53 | `dp2.f16` | | 61 | *free* |
+| 54 | `dp4.e4m3` | | 62 | *free* |
+| 55 | `dp4.e5m2` | | 63 | *free* |
+
+`dp4.*` is 4×INT8 per lane → INT32 with signedness per operand; `dp8.*` is 8×INT4 per lane →
+INT32; `dp2.*` is 2×BF16 or 2×FP16 per lane → **FP32**; `dp4.e4m3`/`dp4.e5m2` are 4×FP8 per
+lane → **FP32**.
+
+**The numbering is normative, and enumerating it is new in 1.7 (O-47).** Through 1.6 this
+block was a list with no point column — the same shape §3's Format B range had before O-41,
+and the same exposure O-28 found twice: a range given as a description rather than a table
+lets two implementations choose different orders and produce silently incompatible binaries.
+It mattered here because **O-44 added four instructions to it**, so the revision that adopted
+them would otherwise have shipped them into an unnumbered range. The order chosen is the one
+the machine description, the encoder, the disassembler and the simulator already implement.
+
+**The FP entries were added by the AI/ML relevance decision (O-44).** Twelve of sixteen points
+are now used; four remain. They are ordinary two-source Format A instructions: four E4M3
+values occupy one 32-bit lane exactly as four INT8 do, so FP8 needs no operand model beyond
+integer `dp4`'s. Only the 16-bit types are lane-constrained, at two per lane.
+
+**Accumulation order and rounding — normative.** The products are summed **exactly** and the
+result rounds **once** into the accumulator. Per-product rounding is not permitted.
+
+This has to be stated and integer `dp4` sets no precedent for it: a sum of four INT8 products
+into INT32 is exact, so the order is unobservable and §4 never needed a rule. An FP reduction
+is observable, both orders are defensible, and shipping implementations differ. Leaving it
+unstated would be an O-28-class gap — two implementations producing numerically different
+output from identical binaries, surfacing as a convergence drift rather than as a test
+failure. `ffma` already fuses one product with one addend under a single rounding (F-63); this
+is the same principle at four products, and choosing it keeps the two consistent.
+
+**The integer reduction is exact, which is why no order is specified for it** — four INT8
+products into INT32 cannot overflow or round, so every summation order agrees. The FP rule
+above is a deliberate addition for the cases where that stops being true, not an
+inconsistency.
 
 **All operands are `chwidth`=32.** `dp4` reads two ordinary full-width registers, interprets
 each lane's 32 bits as four INT8, multiplies elementwise, sums the four products and adds
@@ -1708,9 +1951,6 @@ against fresh `ccv-llc` output by `tools/check-spec-vs-codegen.py`, which runs i
 `tools/verify.sh`; a divergence is a build failure, not a review catch.
 
 ```
-;  __global__ void add(float* c, const float* a, const float* b, int n)
-;  { int i = blockIdx.x*blockDim.x + threadIdx.x; if (i<n) c[i] = a[i] + b[i]; }
-
     movi       r0, 2                ; 32   launch window (O-28: 17 bits is plenty)
     ld.global  r1, [r0 + 0]         ; 32   blockDim.x, from the block (§5.3)
     srd        r2, 0                ; 16   %ctatid
@@ -1720,24 +1960,21 @@ against fresh `ccv-llc` output by `tools/check-spec-vs-codegen.py`, which runs i
     setp.le    p0, r2, r1           ; 32   Format C″, unpredicated (O-32)
     @p0 bra    Lexit                ; 32
     shl        r1, 2                ; 16   element index -> byte offset, hoisted
-    ld.global  r2, [r0 + 52]        ; 32   b.roffset
+    ld.global  r2, [r0 + 52]        ; 32   b.roffset -- the UNALIGNED half
     add        r2, r1               ; 16   fold; rd == rs0, so Format K
-    ld.global  r3, [r0 + 48]        ; 32   b.rbase
-    ld.global  r2, [r3, r2, 0, 0]   ; 32   b[i]; scale-enable CLEAR
+    ld.global  r2, [#4, r2, 0, 0]   ; 32   b[i]; O-45 slot 4 = b.rbase, scale CLEAR
     ld.global  r3, [r0 + 44]        ; 32   a.roffset
     add        r3, r1               ; 16   fold; Format K
-    ld.global  r4, [r0 + 40]        ; 32   a.rbase
-    ld.global  r3, [r4, r3, 0, 0]   ; 32   a[i]
+    ld.global  r3, [#2, r3, 0, 0]   ; 32   a[i]; slot 2
     fadd       r3, r2               ; 16   compressed destructive, rd == rs0
-    ld.global  r2, [r0 + 36]        ; 32   c.roffset
-    add        r1, r2, r1           ; 32   fold; rd != rs0 -- NOT compressed, see F-29
-    ld.global  r0, [r0 + 32]        ; 32   c.rbase; r0 reused at the last moment
-    st.global  r3, [r0, r1, 0, 0]   ; 32   c[i]
+    ld.global  r0, [r0 + 36]        ; 32   c.roffset
+    add        r0, r1               ; 16   fold
+    st.global  r3, [#0, r0, 0, 0]   ; 32   c[i]; slot 0
 Lexit:
     exit                            ; 16
 ```
 
-23 instructions, 624 bits — **27.1 bits per instruction**, against 736 for a
+20 instructions, 512 bits — **25.6 bits per instruction**, against 640 for a
 fixed-32 encoding, a 15% saving. The compressed forms fire on `srd`, `por`, the
 index shift, two of the three offset folds, `fadd` and `exit` without the
 allocator being asked for anything.
@@ -1788,21 +2025,18 @@ two sections are the same source file compiled twice: `test/cuda/vadd.cu` and
 pointer arguments.
 
 ```
-    movi       r0, 2                ; 32   launch window
-    ld.global  r1, [r0 + 0]         ; 32   blockDim.x, from the block (§5.3)
+    movi       r1, 2                ; 32   launch window
+    ld.global  r0, [r1 + 0]         ; 32   blockDim.x
     srd        r2, 0                ; 16   %ctatid
     srd        r3, 1                ; 16   %ctaid
-    mad.lo     r1, r3, r1, r2       ; 32   i = ctaid*ntid + tid
-    ld.global  r2, [r0 + 56]        ; 32   n
-    setp.le    p0, r2, r1           ; 32   Format C″, unpredicated (O-32)
+    mad.lo     r0, r3, r0, r2       ; 32   i = ctaid*ntid + tid
+    ld.global  r1, [r1 + 56]        ; 32   n
+    setp.le    p0, r1, r0           ; 32   Format C″
     @p0 bra    Lexit                ; 32
-    ld.global  r2, [r0 + 48]        ; 32   b.rbase -- one slot, not two
-    ld.global  r2, [r2, r1, x4]     ; 32   b[i], scale-enable set
-    ld.global  r3, [r0 + 40]        ; 32   a.rbase
-    ld.global  r3, [r3, r1, x4]     ; 32   a[i]
-    fadd       r3, r2               ; 16   compressed destructive, rd == rs0
-    ld.global  r0, [r0 + 32]        ; 32   c.rbase -- r0 reused at the last moment
-    st.global  r3, [r0, r1, x4]     ; 32   c[i]
+    ld.global  r1, [#4, r0, 1, 0]   ; 32   b[i]; O-45 slot 4, scale-enable SET
+    ld.global  r2, [#2, r0, 1, 0]   ; 32   a[i]; slot 2
+    fadd       r2, r1               ; 16   compressed destructive
+    st.global  r2, [#0, r0, 1, 0]   ; 32   c[i]; slot 0
 Lexit:
     exit                            ; 16
 ```
@@ -1859,11 +2093,34 @@ A GEMM inner loop consisting mostly of accumulate-FMA and pointer arithmetic sho
 encode at close to 16 bits per instruction. How close depends entirely on how often the
 allocator can arrange `rd == rs0`, which is a compiler-backend question, not an ISA one.
 
-For reference, Volta-and-later SASS uses 128 bits per instruction — 64 bits of instruction
-plus 64 bits of compiler-encoded scheduling control (stall counts, barrier masks, reuse
-flags). Roughly 4× density is available here, but the comparison is not free: that control
-payload is buying NVIDIA static scheduling, which this design replaces with hardware OoO.
-The density win and the OoO hardware cost are the same trade viewed from two directions.
+Volta-and-later SASS uses 128 bits per instruction — 64 bits of instruction plus 64 bits of
+compiler-encoded scheduling control (stall counts, barrier masks, reuse flags).
+
+**That figure is now measured rather than cited.** It was carried from the design
+discussion through four revisions of this document with no way to check it; `ptxas` turns
+out to be a host compiler that needs no GPU, and the benchmark now runs it. Every kernel
+measures **128.0 bits per instruction exactly**, from Volta through Blackwell — nine years
+with no change. `docs/benchmarks.md` §2 has the tables.
+
+The predicted "roughly 4×" was close. Measured over the benchmark's ten kernels, CCV
+encodes the same work in **27.5 bits per instruction against SASS's 128.0** — 0.21× — and
+the same kernels are **3.2× larger as SASS**. What the prediction did not anticipate is the
+direction of the instruction count: **SASS uses the fewest instructions of any machine
+measured**, 586 against CCV's 859, so the density win is not being paid for with extra
+instructions on NVIDIA's side but with 64 bits of control on each of theirs.
+
+The instruction-count ratio moved when the benchmark stopped being only easy kernels.
+Compiler-side F-148: the sweep carried eight straight-line or single-loop kernels for eight
+revisions, and `sgemm` — the one that spills — had never been compiled for another target
+at all, so it was absent. With it in, CCV's aligned build is 1.31× SASS's instruction count
+rather than the 0.94× this project published. The bits-per-instruction figure barely moved
+(25.9 → 27.5 as gfx900 moved 40.7 → 43.4); **the encoding claim is robust to the kernel set
+and the instruction-count claim was not**.
+
+The comparison is still not free, and the reason is unchanged: that control payload buys
+NVIDIA static scheduling, which this design replaces with hardware OoO. The density win and
+the OoO hardware cost are the same trade viewed from two directions — and the trade is now
+quantified on one side of it.
 
 ---
 
@@ -1900,7 +2157,8 @@ The density win and the OoO hardware cost are the same trade viewed from two dir
    wider immediate, so they exist only at 32 bits even though Format B has a 48-bit sibling.
    Format I splits the other way — `chwidth.multi` fits in 32 and has no long form, `pmov`
    needs 32 immediate bits and has no short one.
-8. **Register fields sit at fixed positions across format tiers *and lengths*.** `rd` at `[14:11]`,
+8. **Register fields sit at fixed positions across format tiers *and lengths*, when
+   present.** `rd` at `[14:11]`,
    `rs0` at `[18:15]`, `rs1` at `[22:19]`, `rs2` at `[26:23]`, predicate qualifier at
    `[29:27]`, predicate dest at `[31:30]` — held constant across A/A′/A″, C/C′ and, for the
    fields they use, B/B′/B″, D/D′ and M/M′ — and identically in the 48-bit rendering of any
@@ -2020,6 +2278,176 @@ which assumes the address is fully precomputed in `rbase`. If real code frequent
 small non-zero offset, four opcode points with a 2-bit displacement (scaled by `chwidth`)
 would be a better use of the range than four separate address-space opcodes. Needs data.
 
+
+---
+
+**O-42 — Three-source with an immediate — deferred, and the recorded reason matters.**
+`mad.lo rd, rs0, #imm, rs2` has no encoding. The compiler-side proposal rejected the obvious
+one — shrink Format B's immediate, put `rs1` at `[22:19]`, immediate at `[31:23]` — on the
+grounds that an opcode-dependent immediate position is what invariant 8 forbids. **That
+reasoning is wrong and must not stand in the log.** Invariant 8 governs *register* fields and
+says so; immediates are not on the rename path. And **Format D already does exactly this**:
+base+offset places its immediate at `[31:19]`, base+index at `[31:24]`, same tag `1000`,
+selected by `opcode[2]`.
+
+So the option is open, and a 9-bit immediate at `[31:23]` would cover the motivating case
+with room over. It is deferred on cost rather than legality: **one instruction in the
+benchmark does not justify a fourth Format B sub-layout**, and the asymmetry argument that
+carries O-41 does not apply here — no format of any length provides this today, so nothing
+is catching up.
+
+Revisit when `sgemm` at larger tiles has been examined for strided addressing. A wrong
+reason in the log forecloses an option later on false grounds, which is worse than
+recording none.
+
+---
+
+**O-44 — FP packed dot-product-accumulate — adopted.** `dp2.bf16`, `dp2.f16`, `dp4.e4m3` and
+`dp4.e5m2` join §4's points 48–63, taking four of the eight that were free. Twelve of sixteen
+are now used.
+
+The argument is that the mechanism is already built and measured, and covers the wrong
+precision. `dp4.acc` is what `gpr-count-decision.md` credits with making 16 GPRs sufficient
+under INT8 accumulator pressure, and the credit is earned: the INT8 GEMM's spill profile is
+nearly identical to the FP32 one — same tiles, same addressing, same accumulator count — while
+doing four times the arithmetic per accumulator, so spill per MAC lands at 0.51–1.03 against
+FP32's 2.07–3.78. **And FP32 GEMM is not the workload.** BF16 or FP16 in with FP32 accumulate
+is, and `dp2` gives that case two MACs per accumulator register.
+
+**The FP8 variants are allocated on timing rather than on demonstrated need.** The points are
+free today and will not be after a second round, FP8 inference is where the frontier already
+is, and both formats are first-class in the ISA with `cvt` support (O-34). FP8 also costs
+nothing structurally: four E4M3 fill a 32-bit lane exactly as four INT8 do, so `dp4.e4m3` is an
+ordinary two-source Format A instruction.
+
+**Three things the adoption carries.** (1) §10's objection to FP packing is struck, with the
+reason recorded there: exponent handling is a property of the reduction, not of the operand
+model. (2) The accumulation order and rounding are **normative** — products sum exactly and the
+result rounds once — because an FP reduction is observable where the integer one is not. (3)
+**`dp2` is 32-bit only.** Format J's subop field is two bits and all four points are allocated,
+so the compressed accumulate form is unavailable to it. The compiler-side proposal priced the
+ask as though Format J had room; it does not. Whether a compressed `dp2` is worth displacing
+one of Format J's two `ffma.acc` points is deferred until `dp2` has been measured at 32 bits —
+if the 32-bit form closes the FP32 accumulator cliff adequately the question never arises.
+
+**Mixed-format FP8 is left unallocated, and one point would do it if it is ever wanted.** A dot
+product is symmetric in its two operands, so `e4m3 × e5m2` and `e5m2 × e4m3` are one operation
+with the registers swapped — the compiler picks the order, exactly as it does for the compare
+points F-115 found unreachable. Four points remain free.
+
+---
+
+**O-45 — Launch-slot-relative addressing — adopted, and invariant 8 gains two words.** §3's
+Format D takes a third addressing mode at opcodes `01100`–`01111`, in which `[18:15]` is a
+4-bit launch-block slot index rather than a register number, so a §5.1 window base never
+occupies a GPR.
+
+**The invariant-8 question has a clear answer and the precedent is Format D itself.** `[22:19]`
+is already a register field in one mode of tag `1000` and immediate bits in the other, selected
+by `opcode[2]`. The renamer already consults the opcode for this tag; adding `[18:15]` to the
+conditional set is the same kind of cost, not a new kind. The invariant now reads "when
+present", which is what it has always meant and what Format D has always done — leaving it
+implicit had cost two review cycles, once in F-110 and once in the proposal that produced this
+decision.
+
+The hardware cost is real and unpriced: something must hold or cache the launch block for the
+AGU. It is CTA-wide, read-only and small, which makes a cache plausible without making it free.
+
+---
+
+**O-46 — A second register namespace, if ever wanted, must be wanted on its own merits.** The
+rejected alternative to O-45 kept `[18:15]` a register field and added a mode bit selecting
+which *file* it indexes. That is a second register namespace arriving as a side effect of an
+addressing mode, for no encoding benefit over a form the tag already precedents. The
+warp-uniform register file (F-106) is the place to want one; see the deferral recorded there.
+
+---
+
+**O-47 — The packed dot-product block is enumerated, not described — decided; the same
+normativity fix as O-41.** §4's points 48–63 carried twelve operations in a list with no point
+column. That is the shape the Format B range had before O-41 and the shape the conversion
+block had before O-34, and it is the exposure O-28 found twice: a range given as a description
+rather than a table lets two implementations choose different orders and produce silently
+incompatible binaries.
+
+**It became urgent rather than tidy because O-44 added four instructions to it.** A revision
+adopting `dp2.bf16`, `dp2.f16`, `dp4.e4m3` and `dp4.e5m2` into an unnumbered range ships four
+new opcodes whose encoding is not specified anywhere. Found while auditing this revision
+against the decision that produced O-44.
+
+The order recorded is the one already implemented — `dp4.*` at 48–51, the FP four at 52–55,
+`dp8.*` at 56–59, 60–63 free — so nothing that assembles today stops assembling, and the
+machine description, the encoder, the disassembler and the simulator were already agreeing
+with each other about a numbering the document did not state. `tools/check-spec-tables.py`
+now checks the table against the machine description, so the agreement is owned by the gate
+rather than by whoever last remembered it.
+
+Note the asymmetry with `dp8`: it is specified and has no implementation, so its points are
+reserved by this table and by nothing else. That is deliberate — the alternative is leaving
+four more points undefined in a block that has now been mis-specified once.
+
+---
+
+**O-43 — A hardwired zero register — rejected.** Proposed on the strength of five
+`movi rX, 0` in the benchmark. Checking what each feeds dissolves it: **two** are `setp.eq`
+against zero and Format C′ already carries the immediate compare, so they are a selection
+gap; **two** are loop accumulators, which need a writable register initialised to zero and
+would still cost `mov rd, rz`; **one** is `mad.lo rd, rs0, rs1, #0`, which is a multiply, and
+§4 point 2 already specifies `mul.lo`. None is an argument for spending a register.
+
+The cost is decisive on its own: the file is 16 (§1), R15 is reserved for the frame pointer
+under O-30, and a hardwired zero would leave **14** general registers while O-25 and the
+32-GPR question are open.
+
+Recorded so the `movi rX, 0` pattern is not re-proposed from the same evidence.
+
+---
+
+**O-41 — Format B's opcode map, by projection from §4 — decided; a normativity fix, not an
+optimisation.** Format B's 32 opcode points were described and never enumerated: §3 said the
+space was "ample" and named informally which operations lack an immediate form. **That is
+the O-28 exposure a third time** — a range given as a description rather than a table lets
+two implementations choose different orders and produce silently incompatible binaries.
+
+The closure is a rule rather than a flat list, so it is derivable and a decoder can share
+§4's map: **where §4 point *n* is binary, Format B point *n* is that operation with the
+second source replaced by the immediate; where §4 point *n* is unary or ternary, Format B
+point *n* carries no immediate form.** `addi` at 0 against `add` at 0 was already this,
+applied unaided by the backend.
+
+Nine points follow from it: `subi` 1, `muli` 2, `andi` 7, `ori` 8, `xori` 9, `andni` 10,
+`shli` 11, `shri` 12, `srai` 13. No field moves, no new decode path, and the 48-bit sibling
+comes free under §2's existing rule.
+
+**It would have been closed even with nothing to gain.** What it happens to gain is three
+instructions on the benchmark: the 16-bit compressed format carries eight register-immediate
+ALU forms and the 32-bit format carried one, so an operation was encodable only when the
+destination *was* the source and the constant fitted `uimm4`. See §3's Format B map for the
+arity table the rule depends on, the `sel` tier exception, and what the projection costs in
+allocatable points.
+
+---
+
+**O-40 — Narrow element work retires faster — decided; the ratio is a hardware target, not
+a measurement.** The datapath allocation splits so that 16-bit element work retires at twice
+the 32-bit rate. This is the return on the element-width model: invariant 1 keeps width out
+of the opcode so that a narrow instruction is the same instruction on a narrower slice, and
+two such slices share one 32-bit allocation.
+
+Recorded as an obligation in §1a.4 rather than as an encoding change, because **nothing in
+the encoding expresses it** — no bit anywhere says "this retires at 2×". The width is
+register state, the retire rate follows from the width, and the compiler's only lever is how
+much of the instruction stream it can make narrow.
+
+The benchmark now measures that fraction, and it is the number this decision lives or dies
+on: `vadd16` reaches **28.6% narrow element work** at one element per thread and
+**`vadd16_loop` reaches 55.2%**, where the per-thread prologue amortizes over eight
+elements. At 2× that is 1.067× and 1.283× against the same kernels at 32 bits.
+
+The fraction is raised only by removing what is **not** element work — invariant 1 puts one
+element in a lane at every width, so a narrow kernel issues exactly as many element-work
+instructions as its 32-bit twin and the difference is all overhead. F-80 and F-87 are that
+work on the compiler side. See §1a.4 for why the memory pipe matters more than the ALU.
 
 ---
 
@@ -3237,10 +3665,23 @@ because it reinterprets rather than converts, and the narrow write then lands in
 
 - **Format H (tensor/MMA)** — register-group operand model undesigned. The `11` length escape
   and the `1111` format tag are reserved for it.
-- **FP packed dot-product** (BF16×BF16 → FP32 and similar). `dp4`/`dp8` are integer-only.
-  The FP case needs per-element exponent handling inside the reduction rather than a simple
-  product sum, and it is the natural companion to Format H's fragment operands — design it
-  there.
+
+  **Design input, recorded by O-44's review:** an MMA accumulator fragment is **4–8 registers
+  per thread** depending on tile geometry — 4 for an m16n8k16-shaped output, 8 for m16n16k16.
+  At 16 GPRs that is a quarter to half the architectural file for **one** fragment, and a real
+  GEMM holds several. So Format H does not settle O-25; it re-poses it in a harder shape,
+  because the accumulator count stops being a tiler's free choice and becomes fixed by the
+  matrix unit's geometry. **Register-file capacity is a co-design input for H, not a constraint
+  to fit within afterwards.**
+- ~~**FP packed dot-product** (BF16×BF16 → FP32 and similar)~~ — **removed by O-44.** The
+  recorded objection was that the FP case needs per-element exponent handling inside the
+  reduction and is the natural companion to Format H's fragment operands. **That reasoning does
+  not hold, and the reason it does not is worth keeping:** exponent handling is a property of
+  the *reduction*, not of the operand model. The reduction hardware is the same whether the
+  operands arrive from Format A registers or from Format H fragments. Integer `dp4` already
+  established that a packed reduction lives in Format A without touching invariant 1 — the
+  packing factor is in the opcode, no register is narrow, and nothing outside the instruction
+  observes the packed view. See §4's points 48–63.
 - **Texture / surface operations** — likely permanently out of scope for an AI/ML target.
 - **Instruction fetch alignment and bundle crossing** — RTL-level, deferred by prior
   agreement, but note the compressed forms make this more load-bearing: with 16-bit

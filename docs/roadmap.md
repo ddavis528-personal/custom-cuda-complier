@@ -1,10 +1,11 @@
 # Bring-up Roadmap and Compiler-Side ISA Findings
 
-**Status:** Steps 0–5 complete, Step 6 substantially done. ISA at v1.6 with
-O-41/O-42/O-43 decided on top. *(This line read "Phase 0, no code yet" for far
-longer than it was true — there is a full backend, a simulator, an eight-kernel
-benchmark and a verification gate.)*
-**Companions:** `isa-v1.6-operation-map-and-encoding.md` (encoding ground truth),
+**Status:** Steps 0–5 complete, Step 6 substantially done. **ISA at v1.7**, which
+consolidates O-40 through O-46 — they had been landing in the 1.6 text without a
+revision bump. *(This line read "Phase 0, no code yet" for far longer than it was
+true — there is a full backend, a simulator, a ten-kernel density benchmark, an
+eight-kernel executed corpus of real fused kernels, and a 93-check gate.)*
+**Companions:** `isa-v1.7-operation-map-and-encoding.md` (encoding ground truth),
 `backend-context.md` (scope and rationale ground truth),
 `compiler-findings-v1.6.md` (the architecture-track report).
 
@@ -366,7 +367,7 @@ Format G point, 1 Format B point. No new formats, no moved fields, nothing above
 
 **Exit criterion: met.** All of it was folded into ISA v1.3, which superseded
 v1.2 as the encoding ground truth at the time. The current spec is
-`isa-v1.6-operation-map-and-encoding.md`; every revision before it is kept for
+`isa-v1.7-operation-map-and-encoding.md`; every revision before it is kept for
 the decision trail. The launch-block byte layout remains an ABI
 document to be written, and blocks nothing.
 

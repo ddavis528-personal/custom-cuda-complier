@@ -47,7 +47,7 @@ narrow_src    = open("test/bench/vadd16_loop.cu").read().rstrip()
 nb_n, nb_w    = len(narrow_body.splitlines()) - 1, len(wide_body.splitlines()) - 1
 nb_noedge     = len(noedge_body.splitlines()) - 1
 
-SPEC = "docs/isa-v1.6-operation-map-and-encoding.md"
+SPEC = "docs/isa-v1.7-operation-map-and-encoding.md"
 prov     = run("python3","tools/check-spec-vs-codegen.py", SPEC, "5.6", str(W/"4-asm.s"))
 prov55   = run("python3","tools/check-spec-vs-codegen.py", SPEC, "5.5",
                str(W/"4-asm-unaligned.s"))

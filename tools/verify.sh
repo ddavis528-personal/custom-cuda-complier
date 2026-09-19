@@ -29,7 +29,7 @@ llvm-tblgen -I "$INC" -I llvm/CCV --dump-json "$TD" -o "$OUT/ccv.json" 2>/dev/nu
 python3 tools/check-encoding.py "$OUT/ccv.json" || fail=1
 
 echo "  worked-listing arithmetic"
-python3 tools/check-listings.py docs/isa-v1.6-operation-map-and-encoding.md || fail=1
+python3 tools/check-listings.py docs/isa-v1.7-operation-map-and-encoding.md || fail=1
 
 # Spec listing against real codegen. check-listings.py only proves the spec is
 # internally consistent; it cannot notice the listing drifting from the machine,
@@ -37,7 +37,7 @@ python3 tools/check-listings.py docs/isa-v1.6-operation-map-and-encoding.md || f
 # Spec listings against real codegen, regenerated here rather than read from the
 # tree: the .s files are gitignored, so reading them would make this check skip
 # silently on a fresh clone.
-SPEC=docs/isa-v1.6-operation-map-and-encoding.md
+SPEC=docs/isa-v1.7-operation-map-and-encoding.md
 if [ -x build/ccv-llc ] && [ -f build/CCVLowerKernelArgs.so ]; then
   for pair in "5.5:test/cuda/vadd.cu" "5.6:test/cuda/vadd-aligned.cu"; do
     sec=${pair%%:*}; src=${pair#*:}

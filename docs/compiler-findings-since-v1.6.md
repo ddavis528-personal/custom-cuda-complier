@@ -6,11 +6,12 @@ fused kernels that found five compiler defects, closed two open findings, retrac
 published headline and produced the first evidence for the warp-uniform register file that
 was not written for the purpose.
 
-**Written against:** `isa-v1.6-operation-map-and-encoding.md`. **The compiler side has not
-seen a 1.7 or a 1.8** — neither exists in this repository and neither has been supplied — so
-this report is deliberately not numbered for a revision it cannot check itself against. If a
-later spec is pending, the items in §7 are what it should be reconciled with, and §5 is the
-one that should be read before it is frozen.
+**Written against:** the ISA text as it stood after O-46, which is now cut as
+[`isa-v1.7-operation-map-and-encoding.md`](isa-v1.7-operation-map-and-encoding.md). This
+report was written before that revision was cut — 1.6 had been accumulating decisions O-40
+through O-46 without a version bump — so it is named for what it covers rather than for a
+revision number. **§5 is the item 1.7 records as open against itself**, and §7 is the list a
+1.8 would need to be reconciled with.
 
 ---
 

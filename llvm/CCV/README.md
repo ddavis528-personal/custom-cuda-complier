@@ -1,7 +1,7 @@
 # CCV — TableGen machine description
 
 Target description for the ISA in
-[`../../docs/isa-v1.6-operation-map-and-encoding.md`](../../docs/isa-v1.6-operation-map-and-encoding.md).
+[`../../docs/isa-v1.7-operation-map-and-encoding.md`](../../docs/isa-v1.7-operation-map-and-encoding.md).
 
 **CCV — Custom CUDA Vector processing unit.** The name is settled. It appears as
 the LLVM target name, a namespace, a def prefix and the tool prefix (`ccv-llc`,

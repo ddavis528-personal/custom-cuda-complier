@@ -43,7 +43,7 @@ import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SPEC = (pathlib.Path(sys.argv[1]) if len(sys.argv) > 1
-        else ROOT / "docs" / "isa-v1.6-operation-map-and-encoding.md")
+        else ROOT / "docs" / "isa-v1.7-operation-map-and-encoding.md")
 
 # Fields whose bits the siblings table is summarizing. Load/store bit maps call the
 # immediate an offset or a displacement; the ALU and compare maps call it an
@@ -307,6 +307,63 @@ def check_obligation_count(text, fail):
     return listed
 
 
+def check_dp_points(text, fail):
+    """§4's packed dot-product table must agree with the machine description.
+
+    O-47. The block carried twelve operations and no point column through 1.6,
+    and O-44 added four instructions to it -- so the revision that adopted them
+    would have shipped four opcodes whose encoding the document did not state.
+    The numbering existed in TableGen, in the encoder, in the disassembler and in
+    the simulator, and those agreed with each other the whole time; only the
+    specification did not say it.
+
+    Read from the machine description itself rather than from a second copy kept
+    here, because a checker holding its own copy of the answer is the thing this
+    file exists to stop. The opcode is the first template argument of the format
+    class, which is where TableGen takes it from too: the generated JSON bakes it
+    into the instruction's bit vector, so reading it back would mean duplicating
+    the format's field placement here as well.
+    """
+    td = ROOT / "llvm/CCV/CCVInstrInfo.td"
+    if not td.exists():
+        print("  SKIP  \u00a74's dp point table: the machine description is not "
+              "present, so it cannot be checked against it")
+        return None
+    # The table is two columns wide, so a row carries two points. Scan each row
+    # for every (point, mnemonic) pair rather than anchoring on the line start,
+    # or the right-hand column -- which is where `dp8` lives -- goes unchecked.
+    spec = {}
+    for line in text.splitlines():
+        if not line.startswith("|"):
+            continue
+        for pt, op in re.findall(r"\|\s*(\d+)\s*\|\s*`([a-z0-9._]+)`", line):
+            if 48 <= int(pt) <= 63:
+                spec[int(pt)] = op
+    if not spec:
+        fail.append("\u00a74's dp table has no enumerated points -- if it was "
+                    "reformatted, reword this check with it (O-47)")
+        return None
+
+    got = {}
+    for m in re.finditer(
+            r"def\s+(DP[248]_\w+)\s*:\s*Format\w+<\s*(\d+)\s*,.*?\"([a-z0-9._]+)",
+            td.read_text(), re.S):
+        got[int(m.group(2))] = m.group(3)
+    if not got:
+        fail.append("no dp instructions found in the machine description -- if "
+                    "they were renamed, reword this check with them (O-47)")
+        return None
+
+    for pt, mnem in sorted(got.items()):
+        if pt not in spec:
+            fail.append(f"the machine description puts `{mnem}` at point {pt}, "
+                        f"which \u00a74's table does not list")
+        elif spec[pt] != mnem:
+            fail.append(f"point {pt}: \u00a74 says `{spec[pt]}`, the machine "
+                        f"description says `{mnem}`")
+    return len(spec)
+
+
 def main():
     text = SPEC.read_text()
     fail = []
@@ -320,6 +377,7 @@ def main():
         return 1
     check_self_version(text, fail)
     o = check_obligation_count(text, fail)
+    d = check_dp_points(text, fail)
     if fail:
         print(f"  FAIL  {len(fail)} cross-table inconsistenc"
               f"{'y' if len(fail) == 1 else 'ies'} in {SPEC.name}")
@@ -328,7 +386,8 @@ def main():
         return 1
     print(f"  PASS  {n} sibling rows agree with their bit maps, "
           f"{c} 48-bit tags agree with §2/§3 prose, "
-          f"{o} obligations agree with §1a, no forward version citations")
+          f"{o} obligations agree with §1a, no forward version citations"
+          + (f", {d} dp points agree with the machine description" if d else ""))
     return 0
 
 

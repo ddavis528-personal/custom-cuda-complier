@@ -434,7 +434,7 @@ times, and a benchmark reporting only static size called a 9× problem a 2× one
 
 ### `vadd16`: what the narrow element widths actually cost
 
-v1.6's headline capability is `chwidth` and the sub-32-bit element model, and
+1.6's headline capability was `chwidth` and the sub-32-bit element model, and
 until this revision no benchmark kernel touched it. `vadd16` is `vadd` at half
 the element width and otherwise identical, so the two are directly comparable.
 
