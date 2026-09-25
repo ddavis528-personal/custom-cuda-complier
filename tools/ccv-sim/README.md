@@ -100,7 +100,9 @@ skeleton, which takes *what* each instruction does from here and models only
 *when*. A record holds the bytes, the issue mask, every register the group reads
 with its value before the step (guard and predicate-logic sources included,
 though they are encoded as fields), its immediate operands in operand order
-(`imms`: displacements, scale enables, ALU immediates, branch offsets), every
+(`imms`: displacements, scale enables, ALU immediates, branch offsets), its
+predicate qualifiers as encoded (`quals`: guard, logic sources, masks --
+index plus negate, which `uses` cannot show), every
 register it writes with its value
 after, and each memory access attributed to its lane. The file opens with an
 `init` record (code, launch geometry, seeded memory) and closes with a `final`

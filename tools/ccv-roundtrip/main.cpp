@@ -149,7 +149,13 @@ int main(int argc, char **argv) {
           }
           MI.addOperand(MCOperand::createReg(RC.getRegister(RNG() % RC.getNumRegs())));
         } else if (OI.OperandType == MCOI::OPERAND_IMMEDIATE ||
-                   OI.OperandType == MCOI::OPERAND_UNKNOWN) {
+                   OI.OperandType == MCOI::OPERAND_UNKNOWN ||
+                   // Target operand types (the predicate qualifier, logic
+                   // source and mask) are encoded fields like any immediate.
+                   // Typing them for ccv-sim -oracle made all 85 instructions
+                   // carrying one "unbuildable", and they silently left this
+                   // check while it still printed clean (F-144).
+                   OI.OperandType >= MCOI::OPERAND_FIRST_TARGET) {
           const CCVOperandInfo *OpI = operandInfo(Name, I);
           unsigned Bits = OpI ? OpI->Bits : 0;
           bool Signed = OpI && OpI->Signed;
@@ -254,6 +260,13 @@ int main(int argc, char **argv) {
          << "  failures             : " << S.Failed << "\n\n";
   if (S.Failed) {
     outs() << "  ROUND-TRIP FAILED\n";
+    return 1;
+  }
+  // An instruction the check cannot build is an instruction it does not
+  // check, and a count of them is easy to read past. So any is a failure.
+  if (S.Unbuildable) {
+    outs() << "  ROUND-TRIP INCOMPLETE: " << S.Unbuildable
+           << " instruction(s) could not be built, so were not checked\n";
     return 1;
   }
   outs() << "  all round trips clean\n";

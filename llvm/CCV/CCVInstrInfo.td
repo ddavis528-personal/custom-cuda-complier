@@ -21,6 +21,7 @@ def simm13  : SImm<13>;
 def simm10  : SImm<10>;
 def simm8   : SImm<8>;
 def simm9   : SImm<9>;
+def simm16  : SImm<16>;   // cas's offset: §3 says signed (F-143)
 def simm21  : SImm<21>;
 def simm17  : SImm<17>;
 def simm18  : SImm<18>;
@@ -694,7 +695,7 @@ let mayLoad = 1, mayStore = 1 in {
 def ATOM_ADD_G : FormatM<0, (outs GPR:$rd), (ins GPR:$rbase, GPR:$rs1, simm9:$off),
                          "atom.add.global $rd, [$rbase + $off], $rs1">;
 def CAS_G : FormatMp<16, (outs GPR:$rd, PR:$pd),
-                     (ins pqual:$pq, GPR:$rbase, GPR:$rs1, GPR:$rs2, uimm16:$off),
+                     (ins pqual:$pq, GPR:$rbase, GPR:$rs1, GPR:$rs2, simm16:$off),
                      "@$pq cas.global $rd, [$rbase + $off], $rs1, $rs2, $pd">;
 }
 

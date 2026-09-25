@@ -254,6 +254,7 @@ int main(int argc, char **argv) {
       };
       std::vector<std::string> Uses, Defs;
       std::vector<int64_t> Imms;   // immediate operands, operand order
+      std::vector<int64_t> Quals;  // predicate qualifiers/sources/masks, raw
       auto addTo = [](std::vector<std::string> &V, const std::string &N) {
         if (std::find(V.begin(), V.end(), N) == V.end()) V.push_back(N);
       };
@@ -277,6 +278,8 @@ int main(int argc, char **argv) {
         if (T != CCVOp::OPERAND_PQUAL && T != CCVOp::OPERAND_PSRC &&
             T != CCVOp::OPERAND_PMASK4)
           Imms.push_back(Op.getImm());
+        else
+          Quals.push_back(Op.getImm());   // index + negate, as encoded
         if (T == CCVOp::OPERAND_PQUAL ||
             (T == CCVOp::OPERAND_PSRC &&
              !(MI.getOpcode() == CCV::PMOV && K == 2))) // pmov reads ps0 only
@@ -314,6 +317,10 @@ int main(int argc, char **argv) {
       std::fprintf(OF, ",\"imms\":[");
       for (size_t K = 0; K != Imms.size(); ++K)
         std::fprintf(OF, K ? ",%lld" : "%lld", (long long)Imms[K]);
+      std::fputc(']', OF);
+      std::fprintf(OF, ",\"quals\":[");
+      for (size_t K = 0; K != Quals.size(); ++K)
+        std::fprintf(OF, K ? ",%lld" : "%lld", (long long)Quals[K]);
       std::fputc(']', OF);
       emitRegs("uses", Uses, Before);
       emitRegs("defs", Defs, W);
