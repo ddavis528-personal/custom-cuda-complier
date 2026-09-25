@@ -99,7 +99,9 @@ per loop iteration and overstated a published speedup (F-91).
 skeleton, which takes *what* each instruction does from here and models only
 *when*. A record holds the bytes, the issue mask, every register the group reads
 with its value before the step (guard and predicate-logic sources included,
-though they are encoded as fields), every register it writes with its value
+though they are encoded as fields), its immediate operands in operand order
+(`imms`: displacements, scale enables, ALU immediates, branch offsets), every
+register it writes with its value
 after, and each memory access attributed to its lane. The file opens with an
 `init` record (code, launch geometry, seeded memory) and closes with a `final`
 one (all GPRs and predicates, and every memory word the run touched). It is

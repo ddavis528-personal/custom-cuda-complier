@@ -253,6 +253,7 @@ int main(int argc, char **argv) {
         return (N.size() >= 2 && N[0] == 'P') ? std::atoi(N.c_str() + 1) : -1;
       };
       std::vector<std::string> Uses, Defs;
+      std::vector<int64_t> Imms;   // immediate operands, operand order
       auto addTo = [](std::vector<std::string> &V, const std::string &N) {
         if (std::find(V.begin(), V.end(), N) == V.end()) V.push_back(N);
       };
@@ -270,6 +271,12 @@ int main(int argc, char **argv) {
         // operand.
         if (!Op.isImm() || K >= D.getNumOperands()) continue;
         uint8_t T = D.operands()[K].OperandType;
+        // Everything that is not a predicate name is an immediate the core
+        // has to carry: displacements, scale enables, ALU immediates,
+        // branch offsets, special-register selectors.
+        if (T != CCVOp::OPERAND_PQUAL && T != CCVOp::OPERAND_PSRC &&
+            T != CCVOp::OPERAND_PMASK4)
+          Imms.push_back(Op.getImm());
         if (T == CCVOp::OPERAND_PQUAL ||
             (T == CCVOp::OPERAND_PSRC &&
              !(MI.getOpcode() == CCV::PMOV && K == 2))) // pmov reads ps0 only
@@ -304,6 +311,10 @@ int main(int argc, char **argv) {
         }
         std::fputc(']', OF);
       };
+      std::fprintf(OF, ",\"imms\":[");
+      for (size_t K = 0; K != Imms.size(); ++K)
+        std::fprintf(OF, K ? ",%lld" : "%lld", (long long)Imms[K]);
+      std::fputc(']', OF);
       emitRegs("uses", Uses, Before);
       emitRegs("defs", Defs, W);
       // Memory: one access per executing lane, in ascending lane order -- the
