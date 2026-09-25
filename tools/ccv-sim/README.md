@@ -95,5 +95,17 @@ rather than element work, and Format C's `rd` is a register the compare never
 writes. Counting the latter made a 32-bit comparison read as narrow work once
 per loop iteration and overstated a published speedup (F-91).
 
+`-oracle FILE` writes one JSON record per issue group for the CCV core's Stage 3
+skeleton, which takes *what* each instruction does from here and models only
+*when*. A record holds the bytes, the issue mask, every register the group reads
+with its value before the step (guard and predicate-logic sources included,
+though they are encoded as fields), every register it writes with its value
+after, and each memory access attributed to its lane. The file opens with an
+`init` record (code, launch geometry, seeded memory) and closes with a `final`
+one (all GPRs and predicates, and every memory word the run touched). It is
+strict rather than approximate: a step whose accesses cannot be matched one per
+active lane, or whose memory traffic its descriptor does not declare (F-141),
+stops the run.
+
 `tools/run-tests.sh` drives the whole thing and checks results; `tools/bench.py`
 and `tools/sweep-tiles.sh` use the counters.

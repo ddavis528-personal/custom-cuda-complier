@@ -38,7 +38,14 @@ def uimm32  : Operand<i32>;
 def uimm33  : Operand<i32>;
 // 2-bit predicate address + negate (§1). Printed as @p1 / @!p1 rather than as
 // a raw field value -- these listings are the verification artifact.
-def pqual   : Operand<i32> { let PrintMethod = "printPredQual"; }
+// OperandType lets a consumer that sees only the MCInst -- ccv-sim -oracle --
+// find the predicate a guard reads, which is a register read that is not a
+// register operand.
+def pqual   : Operand<i32> {
+  let PrintMethod = "printPredQual";
+  let OperandNamespace = "CCVOp";
+  let OperandType = "OPERAND_PQUAL";
+}
 // Branch offsets are halfword-granular and SIGNED -- §3 puts the sign bit at 31
 // in both forms. The decoder side needs saying explicitly for the same reason
 // the simm classes do (F-39): a backward branch is the common case that the
@@ -55,8 +62,14 @@ def brtarget8 : Operand<OtherVT> {
   let EncoderMethod = "getBranch8OpValue";
   let DecoderMethod = "decodeSImm<8>";
 }
-def psrc    : Operand<i32>;   // same shape, used by predicate logic
-def pmask4  : Operand<i32>;   // 4-bit predicate bitmask for ld.pred/st.pred
+def psrc    : Operand<i32> {  // same shape, used by predicate logic
+  let OperandNamespace = "CCVOp";
+  let OperandType = "OPERAND_PSRC";
+}
+def pmask4  : Operand<i32> {  // 4-bit predicate bitmask for ld.pred/st.pred
+  let OperandNamespace = "CCVOp";
+  let OperandType = "OPERAND_PMASK4";
+}
 def pidx2   : Operand<i32>;   // 2-bit predicate address, read side, no negate
 def srdsel  : Operand<i32>;   // srd selector
 
@@ -528,14 +541,18 @@ defm SETP_GE_F : Setp<setpOpc.GE_F, "ge.f">;
 // 00000-00011 base+offset, 00100-00111 base+index, 01000-01011 predicate
 // transfer (v1.3, O-19), 01100+ reserved for span.
 // ---------------------------------------------------------------------------
-let mayLoad = 1 in
 // mayLoad/mayStore have to be stated explicitly here: these are selected in
 // C++ from CCVISD nodes rather than from TableGen patterns, so there is nothing
 // for TableGen to infer them from, and every memory instruction was marked as
 // having no memory effect. Nothing has depended on it -- no scheduler is
 // enabled -- but it is wrong for anything that reorders, and it made the
 // simulator's counters classify every global access as ALU.
-let mayLoad = 1 in
+//
+// State them on each def, never as a `let` wrapping a group: the first F-50
+// fix did the latter and each `let` bound to the NEXT def or block, so
+// LD_GLOBAL, LD_GLOBAL_P, the compressed pair and the atomics were left with no
+// memory effect and three narrow stores were marked as loads (F-141). ccv-sim
+// -oracle now refuses a step whose memory traffic disagrees with the flags.
 let isCodeGenOnly = 1 in {
   let mayLoad = 1 in
   def LD_SHARED_W16 : FormatD<0b00010, (outs GPR16:$rdata),
@@ -614,17 +631,15 @@ let isCodeGenOnly = 1 in {
                            "st.global $rdata, [#$slot, $rindex, $scale, $disp]">;
 }
 
+let mayLoad = 1 in
 def LD_GLOBAL  : FormatD<0b00000, (outs GPR:$rdata), (ins GPR:$rbase, simm13:$off),
                          "ld.global $rdata, [$rbase + $off]">;
-let mayStore = 1 in
 let mayStore = 1 in
 def ST_GLOBAL  : FormatD<0b00001, (outs), (ins GPR:$rdata, GPR:$rbase, simm13:$off),
                          "st.global $rdata, [$rbase + $off]">;
 let mayLoad = 1 in
-let mayLoad = 1 in
 def LD_SHARED  : FormatD<0b00010, (outs GPR:$rdata), (ins GPR:$rbase, simm13:$off),
                          "ld.shared $rdata, [$rbase + $off]">;
-let mayStore = 1 in
 let mayStore = 1 in
 def ST_SHARED  : FormatD<0b00011, (outs), (ins GPR:$rdata, GPR:$rbase, simm13:$off),
                          "st.shared $rdata, [$rbase + $off]">;
@@ -667,6 +682,7 @@ let mayStore = 1 in
 def ST_PRED_S : FormatD<0b01011, (outs), (ins pmask4:$rdata, GPR:$rbase, simm13:$off),
                         "st.pred.shared $rdata, [$rbase + $off]">;
 
+let mayLoad = 1 in
 def LD_GLOBAL_P : FormatDp<0b00000, (outs GPR:$rdata),
                            (ins pqual:$pq, GPR:$rbase, simm10:$off),
                            "@$pq ld.global $rdata, [$rbase + $off]">;
@@ -674,11 +690,13 @@ def LD_GLOBAL_P : FormatDp<0b00000, (outs GPR:$rdata),
 // ---------------------------------------------------------------------------
 // Format M / M' -- atomics.
 // ---------------------------------------------------------------------------
+let mayLoad = 1, mayStore = 1 in {
 def ATOM_ADD_G : FormatM<0, (outs GPR:$rd), (ins GPR:$rbase, GPR:$rs1, simm9:$off),
                          "atom.add.global $rd, [$rbase + $off], $rs1">;
 def CAS_G : FormatMp<16, (outs GPR:$rd, PR:$pd),
                      (ins pqual:$pq, GPR:$rbase, GPR:$rs1, GPR:$rs2, uimm16:$off),
                      "@$pq cas.global $rd, [$rbase + $off], $rs1, $rs2, $pd">;
+}
 
 // ---------------------------------------------------------------------------
 // Format E -- control flow, barrier.
@@ -803,7 +821,9 @@ def C_ABS  : FormatKrr<17, (outs GPR:$rd), (ins GPR:$rs), "abs $rd, $rs">;
 def C_MOV  : FormatKrr<14, (outs GPR:$rd), (ins GPR:$rs), "mov $rd, $rs">;
 
 // Compressed load/store, implicit zero offset (points 24-27).
+let mayLoad = 1 in
 def C_LD_GLOBAL : FormatKmem<24, (outs GPR:$rd), (ins GPR:$rbase), "ld.global $rd, [$rbase]">;
+let mayStore = 1 in
 def C_ST_GLOBAL : FormatKmem<25, (outs), (ins GPR:$rd, GPR:$rbase), "st.global $rd, [$rbase]">;
 
 // srd -- identity / dynamic state read (v1.3, O-18). Point 28.

@@ -335,6 +335,20 @@ static unsigned baseCompare(unsigned Op) {
   }
 }
 
+bool Interp::isCompare(unsigned Op) {
+  switch (Op) {
+#define REL(x) case CCV::x: case CCV::x##_I: case CCV::x##_NP: case CCV::x##_NPI:
+  REL(SETP_LT) REL(SETP_LE) REL(SETP_EQ) REL(SETP_NE) REL(SETP_GT) REL(SETP_GE)
+  REL(SETP_LT_U) REL(SETP_LE_U) REL(SETP_GT_U) REL(SETP_GE_U)
+  REL(SETP_LT_F) REL(SETP_LE_F) REL(SETP_EQ_F) REL(SETP_NE_F)
+  REL(SETP_GT_F) REL(SETP_GE_F)
+#undef REL
+    return true;
+  default:
+    return false;
+  }
+}
+
 /// Is this compare a floating-point one? FP has no narrow form in §4 -- the
 /// element-width model is integer-only for now -- so a narrow FP compare is a
 /// selection bug and must stop rather than silently compare 16 bits as a float.
@@ -446,8 +460,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     // register is free, which is often a narrow one. Counting it made a 32-bit
     // comparison read as narrow element work once per iteration, and inflated
     // the measured narrow fraction of every loop that has one.
-    const bool IsCmp = baseCompare(Op) != Op || isFloatCompare(Op) ||
-                       isSignedCompare(Op);
+    const bool IsCmp = isCompare(Op);
     for (unsigned I = 0, N = MI.getNumOperands(); I != N; ++I) {
       if (IsCmp && I == 1)
         continue;

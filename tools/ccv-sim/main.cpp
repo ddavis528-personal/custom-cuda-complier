@@ -48,6 +48,10 @@ static cl::list<std::string> Pokes("poke", cl::desc("addr=value, before run"),
                                    cl::value_desc("hex=hex"));
 static cl::list<std::string> Peeks("peek", cl::desc("addr, after run"),
                                    cl::value_desc("hex"));
+static cl::opt<std::string> OracleFile(
+    "oracle", cl::desc("write a per-issue-group oracle record (JSON lines) "
+                       "for the CCV core's Stage 3 skeleton"),
+    cl::value_desc("file"));
 
 /// Operations that read and write only the predicate file. A predicate is 32
 /// bits, one per lane (invariant 5), so these are narrow bitwise ops rather
@@ -61,6 +65,23 @@ static bool isPredicateFileOp(unsigned Op) {
   default:
     return false;
   }
+}
+
+// ---- oracle records (-oracle) ---------------------------------------------
+//
+// The CCV core's Stage 3 skeleton is a timing model that asks this simulator
+// WHAT each instruction does and owns WHEN (strategy §1). It consumes one
+// record per issue group: the bytes, the lane mask, every register operand's
+// value before the step, every register written and its value after, and each
+// memory access attributed to its lane. The skeleton routes those values
+// through its channels and checks them at every consumer, so the record has to
+// be exact -- which is why an access that cannot be attributed to a lane stops
+// the run rather than being approximated.
+static void jsonU32s(std::FILE *F, const uint32_t *V, unsigned N) {
+  std::fputc('[', F);
+  for (unsigned I = 0; I != N; ++I)
+    std::fprintf(F, I ? ",%u" : "%u", V[I]);
+  std::fputc(']', F);
 }
 
 int main(int argc, char **argv) {
@@ -106,6 +127,34 @@ int main(int argc, char **argv) {
     }
     I.Mem.write32(Addr, Val);
   }
+
+  std::FILE *OF = nullptr;
+  std::vector<Memory::Access> MemLog, ShLog;
+  std::vector<uint64_t> Touched;               // every address an access saw
+  if (!OracleFile.empty()) {
+    OF = std::fopen(OracleFile.c_str(), "w");
+    if (!OF) { errs() << "error: cannot write " << OracleFile << "\n"; return 1; }
+    std::fprintf(OF, "{\"init\":{\"code_base\":%llu,\"threads\":%u,"
+                     "\"ctaid\":%u,\"code\":\"",
+                 (unsigned long long)CodeBase, unsigned(NumThreads),
+                 unsigned(CtaId));
+    for (unsigned char Ch : Code) std::fprintf(OF, "%02x", Ch);
+    std::fprintf(OF, "\",\"mem\":[");
+    bool First = true;
+    for (const auto &P : Pokes) {
+      auto [A, V] = StringRef(P).split('=');
+      uint64_t Addr; uint32_t Val;
+      A.getAsInteger(0, Addr); V.getAsInteger(0, Val);
+      std::fprintf(OF, First ? "[%llu,%u]" : ",[%llu,%u]",
+                   (unsigned long long)Addr, Val);
+      First = false;
+      Touched.push_back(Addr);
+    }
+    std::fprintf(OF, "]}}\n");
+    I.Mem.Log = &MemLog;
+    I.Shared.Log = &ShLog;
+  }
+  uint64_t Seq = 0;
 
   Counters C;
   // Distinct PCs among runnable lanes, to tell reconvergence from mere
@@ -172,8 +221,133 @@ int main(int argc, char **argv) {
       outs() << format("  %04x  mask=%08x  %s\n", unsigned(Off), Mask, OS.str().c_str());
     }
 
+    Warp Before;
+    if (OF) { Before = W; MemLog.clear(); ShLog.clear(); }
+
     auto R = I.step(W, MI, Mask, Target, unsigned(Size));
     ++Issued;
+
+    if (OF) {
+      const MCInstrDesc &D = MII->get(MI.getOpcode());
+      std::fprintf(OF, "{\"seq\":%llu,\"pc\":%llu,\"size\":%u,\"bytes\":\"",
+                   (unsigned long long)Seq++, (unsigned long long)Target,
+                   unsigned(Size));
+      for (uint64_t K = 0; K != Size; ++K) std::fprintf(OF, "%02x", Bytes[K]);
+      const char *Kind = R.Kind == Interp::Result::Advance ? "advance"
+                         : R.Kind == Interp::Result::Branch ? "branch"
+                         : R.Kind == Interp::Result::BranchPred ? "branchpred"
+                         : R.Kind == Interp::Result::Exit ? "exit" : "stall";
+      std::fprintf(OF, "\",\"mask\":%u,\"op\":\"%s\",\"kind\":\"%s\","
+                       "\"target\":%llu,\"taken\":%u,\"load\":%d,\"store\":%d",
+                   Mask, MII->getName(MI.getOpcode()).str().c_str(), Kind,
+                   (unsigned long long)R.Target, R.TakenMask,
+                   int(D.mayLoad()), int(D.mayStore()));
+      // Register operands in operand order: uses read BEFORE the step, defs
+      // -- the descriptor's defs plus any register that actually changed --
+      // AFTER it. A GPR is 32 lanes; a predicate is one 32-bit mask.
+      auto regName = [&](unsigned Reg) { return std::string(MRI->getName(Reg)); };
+      auto gprIdx = [&](const std::string &N) {
+        return (N.size() >= 2 && N[0] == 'R') ? std::atoi(N.c_str() + 1) : -1;
+      };
+      auto prdIdx = [&](const std::string &N) {
+        return (N.size() >= 2 && N[0] == 'P') ? std::atoi(N.c_str() + 1) : -1;
+      };
+      std::vector<std::string> Uses, Defs;
+      auto addTo = [](std::vector<std::string> &V, const std::string &N) {
+        if (std::find(V.begin(), V.end(), N) == V.end()) V.push_back(N);
+      };
+      for (unsigned K = 0; K != MI.getNumOperands(); ++K) {
+        const MCOperand &Op = MI.getOperand(K);
+        if (Op.isReg()) {
+          // Format C's `rd` is a def in the descriptor that no compare writes;
+          // listing it would give the skeleton a false dependency.
+          if (K == 1 && Interp::isCompare(MI.getOpcode())) continue;
+          addTo(K < D.getNumDefs() ? Defs : Uses, regName(Op.getReg()));
+          continue;
+        }
+        // A guard qualifier or a predicate-logic source reads a predicate, and
+        // st.pred reads the ones its mask names, though none is a register
+        // operand.
+        if (!Op.isImm() || K >= D.getNumOperands()) continue;
+        uint8_t T = D.operands()[K].OperandType;
+        if (T == CCVOp::OPERAND_PQUAL ||
+            (T == CCVOp::OPERAND_PSRC &&
+             !(MI.getOpcode() == CCV::PMOV && K == 2))) // pmov reads ps0 only
+          addTo(Uses, "P" + std::to_string(Op.getImm() & 3));
+        else if (T == CCVOp::OPERAND_PMASK4 && D.mayStore())
+          for (unsigned B = 0; B != 4; ++B)
+            if (Op.getImm() & (1 << B)) addTo(Uses, "P" + std::to_string(B));
+      }
+      for (unsigned G = 0; G != kGPRs; ++G)
+        if (Before.GPR[G] != W.GPR[G]) {
+          std::string N = "R" + std::to_string(G);
+          if (std::find(Defs.begin(), Defs.end(), N) == Defs.end()) Defs.push_back(N);
+        }
+      for (unsigned P = 0; P != kPreds; ++P)
+        if (Before.Pred[P] != W.Pred[P]) {
+          std::string N = "P" + std::to_string(P);
+          if (std::find(Defs.begin(), Defs.end(), N) == Defs.end()) Defs.push_back(N);
+        }
+      auto emitRegs = [&](const char *Key, const std::vector<std::string> &Rs,
+                          const Warp &S) {
+        std::fprintf(OF, ",\"%s\":[", Key);
+        bool First = true;
+        for (const auto &N : Rs) {
+          int G = gprIdx(N), P = prdIdx(N);
+          if (G < 0 && P < 0) continue;       // not a GPR or predicate
+          std::fprintf(OF, First ? "{\"reg\":\"%s\",\"vals\":" : ",{\"reg\":\"%s\",\"vals\":",
+                       N.c_str());
+          if (G >= 0) jsonU32s(OF, S.GPR[G].data(), kLanes);
+          else        std::fprintf(OF, "%u", S.Pred[P]);
+          std::fputc('}', OF);
+          First = false;
+        }
+        std::fputc(']', OF);
+      };
+      emitRegs("uses", Uses, Before);
+      emitRegs("defs", Defs, W);
+      // Memory: one access per executing lane, in ascending lane order -- the
+      // order forEachLane visits them. Anything else cannot be attributed and
+      // is refused rather than guessed.
+      // The descriptor has to agree with the traffic: F-141 was a load whose
+      // descriptor said it touched no memory, which this record reported as
+      // "load":0 while listing 32 reads.
+      bool Rd = false, Wr = false;
+      for (const auto *Log : {&MemLog, &ShLog})
+        for (const auto &A : *Log) (A.Write ? Wr : Rd) = true;
+      if ((Rd && !D.mayLoad()) || (Wr && !D.mayStore())) {
+        errs() << "error: -oracle: " << MII->getName(MI.getOpcode())
+               << (Rd && !D.mayLoad() ? " reads" : " writes")
+               << " memory but its descriptor does not say so (F-141)\n";
+        return 1;
+      }
+      std::fprintf(OF, ",\"mem\":[");
+      unsigned NLanes = llvm::popcount(Mask), Emitted = 0;
+      for (int SpaceIdx = 0; SpaceIdx != 2; ++SpaceIdx) {
+        const auto &Log = SpaceIdx ? ShLog : MemLog;
+        if (Log.empty()) continue;
+        if (Log.size() != NLanes) {
+          errs() << "error: -oracle: " << Log.size() << " memory accesses for "
+                 << NLanes << " lanes at " << format_hex(Target, 10)
+                 << " -- cannot attribute them to lanes\n";
+          return 1;
+        }
+        unsigned K = 0;
+        for (unsigned L = 0; L != kLanes; ++L) {
+          if (!(Mask & (1u << L))) continue;
+          const auto &A = Log[K++];
+          std::fprintf(OF, Emitted ? ",{\"lane\":%u,\"space\":\"%s\",\"w\":%d,"
+                                     "\"addr\":%llu,\"bytes\":%u,\"val\":%u}"
+                                   : "{\"lane\":%u,\"space\":\"%s\",\"w\":%d,"
+                                     "\"addr\":%llu,\"bytes\":%u,\"val\":%u}",
+                       L, SpaceIdx ? "shared" : "global", int(A.Write),
+                       (unsigned long long)A.Addr, A.Bytes, A.Val);
+          ++Emitted;
+          if (!SpaceIdx) Touched.push_back(A.Addr);
+        }
+      }
+      std::fprintf(OF, "]}\n");
+    }
 
     // --- counters -------------------------------------------------------
     ++C.IssueGroups;
@@ -289,6 +463,37 @@ int main(int argc, char **argv) {
   }
 
   outs() << "  executed " << Issued << " issue groups\n";
+  if (OF) {
+    // Final architectural state: every GPR lane, every predicate, and every
+    // global word any access or poke touched -- what the skeleton's retired
+    // state is compared against.
+    I.Mem.Log = nullptr;
+    I.Shared.Log = nullptr;
+    std::fprintf(OF, "{\"final\":{\"gpr\":[");
+    for (unsigned G = 0; G != kGPRs; ++G) {
+      if (G) std::fputc(',', OF);
+      jsonU32s(OF, W.GPR[G].data(), kLanes);
+    }
+    std::fprintf(OF, "],\"pred\":");
+    jsonU32s(OF, W.Pred.data(), kPreds);
+    std::sort(Touched.begin(), Touched.end());
+    std::fprintf(OF, ",\"mem\":[");
+    uint64_t LastWord = UINT64_MAX;
+    bool First = true;
+    for (uint64_t A : Touched) {
+      uint64_t Wd = A & ~uint64_t(3);
+      if (Wd == LastWord) continue;
+      LastWord = Wd;
+      uint32_t V = 0;
+      for (unsigned B = 0; B != 4; ++B)
+        V |= uint32_t(I.Mem.peekByte(Wd + B)) << (8 * B);
+      std::fprintf(OF, First ? "[%llu,%u]" : ",[%llu,%u]",
+                   (unsigned long long)Wd, V);
+      First = false;
+    }
+    std::fprintf(OF, "],\"issue_groups\":%u}}\n", Issued);
+    std::fclose(OF);
+  }
   if (Stats) {
     unsigned Threads = NumThreads >= kLanes ? kLanes : NumThreads;
     auto pct = [](uint64_t N, uint64_t D) {

@@ -42,6 +42,12 @@ public:
 
   Result step(Warp &W, const llvm::MCInst &MI, uint32_t Mask, uint64_t PC,
               unsigned Size);
+
+  /// Is this one of the 64 Format C compares (every `setp` form)? Operand 1 of
+  /// each is the materialization destination `rd`, which these semantics never
+  /// write -- so it is neither data for the width counter nor a def for the
+  /// -oracle record.
+  static bool isCompare(unsigned Op);
 };
 
 } // namespace ccv

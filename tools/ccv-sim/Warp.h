@@ -42,18 +42,35 @@ class Memory {
   }
 
 public:
+  /// One architectural access, for the oracle record (`-oracle`). Only
+  /// recorded while `Log` is set, so the simulator's own runs pay nothing,
+  /// and pokes/peeks made from outside a step never appear.
+  struct Access { uint64_t Addr; unsigned Bytes; uint32_t Val; bool Write; };
+  std::vector<Access> *Log = nullptr;
+
   uint32_t read32(uint64_t Addr) {
     uint32_t V = 0;
     for (unsigned I = 0; I != 4; ++I)
       V |= uint32_t(*byteAt(Addr + I)) << (8 * I);
+    if (Log) Log->push_back({Addr, 4, V, false});
     return V;
   }
   void write32(uint64_t Addr, uint32_t V) {
     for (unsigned I = 0; I != 4; ++I)
       *byteAt(Addr + I) = uint8_t(V >> (8 * I));
+    if (Log) Log->push_back({Addr, 4, V, true});
   }
-  uint8_t read8(uint64_t Addr) { return *byteAt(Addr); }
-  void write8(uint64_t Addr, uint8_t V) { *byteAt(Addr) = V; }
+  uint8_t read8(uint64_t Addr) {
+    uint8_t V = *byteAt(Addr);
+    if (Log) Log->push_back({Addr, 1, V, false});
+    return V;
+  }
+  void write8(uint64_t Addr, uint8_t V) {
+    *byteAt(Addr) = V;
+    if (Log) Log->push_back({Addr, 1, V, true});
+  }
+  /// A raw byte, never logged: for dumping final state.
+  uint8_t peekByte(uint64_t Addr) { return *byteAt(Addr); }
 
   /// §3: "Transfer size is inherited from `rdata`'s `chwidth` -- no size
   /// field." So a load is 4, 2 or 1 bytes depending on the destination
@@ -62,11 +79,13 @@ public:
     uint32_t V = 0;
     for (unsigned I = 0; I != Bytes; ++I)
       V |= uint32_t(*byteAt(Addr + I)) << (8 * I);
+    if (Log) Log->push_back({Addr, Bytes, V, false});
     return V;
   }
   void writeN(uint64_t Addr, uint32_t V, unsigned Bytes) {
     for (unsigned I = 0; I != Bytes; ++I)
       *byteAt(Addr + I) = uint8_t(V >> (8 * I));
+    if (Log) Log->push_back({Addr, Bytes, V, true});
   }
 };
 
