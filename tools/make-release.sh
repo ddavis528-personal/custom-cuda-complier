@@ -88,7 +88,8 @@ python3 tools/bench.py --json >"$A/bench/bench.json" 2>/dev/null || die "bench -
 ASM_FAILED=""
 for cu in test/bench/*.cu test/cuda/*.cu; do
   name="$(basename "$(dirname "$cu")")-$(basename "$cu" .cu)"
-  if ! ./tools/cuda-to-asm.sh "$cu" "$A/asm/$name.s" >/dev/null 2>&1; then
+  # -Itest/bench: the shared portable.h, as tools/sweep-decode.sh passes it.
+  if ! CCV_CFLAGS="-Itest/bench" ./tools/cuda-to-asm.sh "$cu" "$A/asm/$name.s" >/dev/null 2>&1; then
     rm -f "$A/asm/$name.s"
     ASM_FAILED="$ASM_FAILED $cu"
   fi
