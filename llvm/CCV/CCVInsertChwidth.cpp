@@ -47,6 +47,7 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -57,6 +58,13 @@ static cl::opt<bool> CrossBlock(
     "ccv-chwidth-cross-block", cl::init(true), cl::Hidden,
     cl::desc("place a width transition on the incoming edges when predecessors "
              "disagree, instead of inside the block (F-87)"));
+
+// Mutation control for the srd refusal below: pretends srd's destination is a
+// 16-bit operand, as a narrow srd variant or a changed operand class would.
+// The compile must then fail by name. tools/run-tests.sh uses it.
+static cl::opt<bool> TestNarrowSrd(
+    "ccv-test-narrow-srd", cl::init(false), cl::Hidden,
+    cl::desc("treat srd's destination as 16-bit, to test that it is refused"));
 
 static cl::opt<bool> ReportChwidth(
     "ccv-chwidth-stats", cl::init(false),
@@ -406,6 +414,23 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
           continue;
         unsigned I = gprIndex(MO.getReg());
         uint8_t Need = operandWidth(MI.getDesc(), O);
+        if (MI.getOpcode() == CCV::SRD && TestNarrowSrd)
+          Need = 1;
+
+        // srd is written at its register's current width and truncates below
+        // it (ISA §5.3, invariant 3). %ctatid is 10 bits and %ctaid 32, so a
+        // narrow destination doesn't fault: past some CTA index every value
+        // aliases onto a lower one, and the kernel gives a plausible wrong
+        // answer at scale while passing every small test. Defined behaviour,
+        // so no hardware check can exist -- it is the compiler's, and it is a
+        // refusal, not a warning (compiler F-145). Today srd has only a 32-bit
+        // form and the insertion above widens the register first, so this
+        // guards against a later change making it possible. Checked on dead
+        // definitions too: a refusal that depends on liveness is a warning.
+        if (MI.getOpcode() == CCV::SRD && Need != 0)
+          report_fatal_error("CCV: srd's destination must be 32 bits wide; a "
+                             "narrow register truncates %ctaid/%ctatid silently "
+                             "(F-145)");
         if (I == ~0u || S[I] == Need)
           continue;
 

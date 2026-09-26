@@ -828,6 +828,19 @@ let mayStore = 1 in
 def C_ST_GLOBAL : FormatKmem<25, (outs), (ins GPR:$rd, GPR:$rbase), "st.global $rd, [$rbase]">;
 
 // srd -- identity / dynamic state read (v1.3, O-18). Point 28.
+//
+// isReMaterializable here is INERT, and knowingly left so (F-146). srd is
+// selected by hand, so it has no pattern, and TableGen assumes a patternless
+// instruction has unmodeled side effects, which vetoes rematerialization:
+// sgemm spills %ctatid to the frame and reloads it. Stating hasSideEffects = 0
+// makes remat real, and it is not a clean win -- sgemm 4x4 loses 13 frame
+// transfers, but igemm 1x1 gains a 14-mov register rotation inside its loop
+// body, where the allocator's eviction chain lands. F-146 has the numbers;
+// the choice is open.
+//
+// If it is flipped: that is right for the two allocated selectors only. If
+// %clock or %globaltimer is ever allocated (§5.3's reserved 2-15), it changes
+// between reads and needs its own def with side effects.
 let isReMaterializable = 1 in
 def SRD : FormatKsrd<28, (outs GPR:$rd), (ins srdsel:$sel), "srd $rd, $sel">;
 
