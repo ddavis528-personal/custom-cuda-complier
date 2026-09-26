@@ -1,0 +1,10 @@
+  chwidth insertion (F-3), _Z11vadd16_loopPsPKsS1_i
+    blocks                : 3
+    width transitions     : 2
+      at a definition     : 0   (old value dead -- nothing reinterpreted)
+      narrowing a live reg: 0   (a truncation; the element bits are preserved)
+      widening a live reg : 0   (a zero-extension -- O-38 clears the exposed bits)
+    placed on an edge     : 2   (F-87: loop-invariant, so out of the body)
+    hoisted               : 2   (O-6: as early as legal, to make merging possible)
+    merged by chwidth.multi: 2 into 1   (O-6: N drain events become one)
+    instructions emitted  : 1

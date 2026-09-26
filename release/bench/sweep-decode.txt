@@ -1,0 +1,44 @@
+  decode and fused shapes -- what binds when there is no tile to fill
+  kernel         instrs     bits  spills  div/unif   uni-ld
+  ------------------------------------------------------------
+  gemv              206     6352       3       6/7       3%
+  gemv8             206     6336       3       6/7       3%
+  fused NT=1         24      640       0       3/5      25%
+  fused NT=4         36      976       0       3/8      25%
+  fused NT=8         54     1488       0      3/12      28%
+  fused NT=16        94     2640       0      3/20      33%
+
+  ...and the same fused chain as a grid-stride LOOP, which is how one is
+  actually written. The bases become loop-invariant, so they are hoisted
+  and have to stay live across the loop instead of for two instructions:
+  ------------------------------------------------------------
+  loop NT=1          30      800       0       4/7      20%
+  loop NT=4          42     1136       0      4/10      21%
+  loop NT=8          60     1648       0      4/14      25%
+  loop NT=16        114     3168       9      4/22      28%
+
+  For contrast, the same two columns on the GEMM this was compared against:
+  ------------------------------------------------------------
+  sgemm 2x2         360    10512     102     60/10       0%
+  sgemm 2x4         579    17472     190     95/10       0%
+  sgemm 4x4         916    28112     397    131/10       0%
+
+  Read the div/unif column first. In `sgemm` the divergent peak alone is several
+  times the 16-entry register file -- its addressing is indexed by `threadIdx`,
+  so the row and column offsets differ per lane and a uniform file cannot hold
+  them. In the fused kernels it is the other way round: almost everything live
+  is uniform, and the divergent peak never leaves single digits.
+
+  Then read uni-ld. The straight-line fused kernels do not spill at any tensor
+  count, which is not the same as not paying: each window base is re-fetched
+  from the launch block at its one use rather than kept in a register, so the
+  cost lands in the instruction count -- around a third of it -- instead of in
+  spill traffic.
+
+  The grid-stride rows are the ones that decide it. Making the chain a loop
+  makes the bases loop-invariant, so they are hoisted and must stay live; the
+  divergent peak stays at 4 whatever the tensor count, while the uniform peak
+  passes the 16-entry file and the kernel starts spilling. That is a working
+  set of four divergent values spilling because twenty uniform ones are in the
+  way, and it is the one shape measured here where a warp-uniform register file
+  would remove essentially all of the traffic rather than some of it.

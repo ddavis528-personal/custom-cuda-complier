@@ -1,0 +1,41 @@
+
+  FP32 -- test/cuda/sgemm.cu
+  tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  div/unif
+  ---------------------------------------------------------------------------------
+  1x1   1          185     5248    28.4      40     10   4.00       2      24     28/10
+  1x2   2          275     7952    28.9      74     22   3.36       2      54     46/10
+  2x2   4          360    10512    29.2     102     40   2.55       4      76     60/10
+  2x4   8          579    17472    30.2     190     75   2.53      17     116     95/10
+  4x4   16         916    28112    30.7     397    142   2.80     180     152    131/10
+  8x8   64        2530    79664    31.5    1441    521   2.77    1133     272    282/10
+
+  INT8 -- test/cuda/igemm.cu, four MACs per dp4
+  tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  div/unif
+  ---------------------------------------------------------------------------------
+  1x1   1          182     5184    28.5      37     34   1.09       2      22     28/10
+  1x2   2          271     7824    28.9      69     70   0.99       2      50     46/10
+  2x2   4          368    10672    29.0     105    136   0.77       4      76     60/10
+  2x4   8          589    17760    30.2     199    267   0.75      18     116     95/10
+  4x4   16         914    28112    30.8     392    526   0.75     165     152    131/10
+  8x8   64        2525    79584    31.5    1437   2057   0.70    1127     272    282/10
+
+  sp/mac is the decision number: memory traffic the register file forced, per
+  multiply-accumulate it bought. A bigger tile raises arithmetic intensity as
+  TM*TN/(TM+TN), so it is only worth it while sp/mac does not rise faster.
+
+  acc-sp and ptr-sp are that traffic separated by cause (F-113), which is what
+  `gpr-count-decision.md` asked for: accumulator spill is the risk §1 names as
+  unmitigated for FP32, and pointer/index spill is the one O-23 addresses.
+  They do not sum to `spills`: a slot whose role neither a use nor a defining
+  opcode establishes -- a value live across a block boundary in both
+  directions, mostly -- is left unclassified rather than assigned to whichever
+  column looks likelier, and the residual is visible in the pass's own output.
+
+  div/unif is the peak number of values live at once, split by divergence. It
+  is the column F-128 got wrong by looking at only half of it: an address here
+  is not automatically warp-uniform, because `sgemm` indexes by `threadIdx` and
+  its row and column offsets differ per lane. A uniform register file cannot
+  hold a divergent value whatever its role, and the DIVERGENT peak alone is
+  several times the 16-entry file at every tile -- so moving every uniform
+  value out for free would not stop this kernel spilling. See sweep-decode.sh
+  for the shape where it would.

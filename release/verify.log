@@ -1,0 +1,206 @@
+  gen-register-info    ok (588 lines)
+  gen-instr-info       ok (4754 lines)
+  gen-emitter          ok (2401 lines)
+  gen-disassembler     ok (1367 lines)
+  gen-asm-writer       ok (1423 lines)
+  gen-dag-isel         ok (1382 lines)
+  gen-callingconv      ok (92 lines)
+
+checked 258 instructions
+
+  EXEMPT       CHWIDTH_MULTI: Format I metadata: register mask, no canonical slots
+  EXEMPT       PMOV_IMM: Format I metadata: pd at [9:8], excluded by invariant 8 (v1.4)
+
+  all checks pass
+
+0 error(s), 0 invariant-8 deviation(s)
+  worked-listing arithmetic
+  listing 1: 20 instructions, 512 bits, 25.6 b/instr, fixed-32 640, peak live 4
+  listing 2: 13 instructions, 352 bits, 27.1 b/instr, fixed-32 416, peak live 4
+  listing 3: 2 instructions, 48 bits, 24.0 b/instr, fixed-32 64, peak live 2
+
+  all stated figures match the listings
+  §5.5 listing vs codegen
+  figure           §5.5 listing    ccv-llc
+  ------------------------------------------
+  instructions               20         20
+  bits                      512        512
+  peak_live                   4          4
+
+  spec listing matches codegen
+  §5.6 listing vs codegen
+  figure           §5.6 listing    ccv-llc
+  ------------------------------------------
+  instructions               13         13
+  bits                      352        352
+  peak_live                   4          4
+
+  spec listing matches codegen
+  launch-block ABI constants agree
+  PASS  launch ABI agrees across all four copies (base 0x20000, args +32)
+  FP packed dot product, exact-sum reference
+  PASS  dp2.bf16: 5 cases match an exactly-summed reference
+  sgemm executes and computes a matrix product
+  PASS  sgemm: 4x8 of C correct against a matrix-product reference
+  local array addressed two ways
+  PASS  local array: dynamic and constant indexing agree, including where they alias
+  dp4 against a four-MAC reference
+  PASS  dp4: 32 lanes correct against a four-MAC reference (1 dp4 instruction(s) emitted)
+  every instruction has a production path
+  PASS  264 instructions, all with a production path (isel 73, pass 110, mc 1, declared 80)
+  the production-path gate catches its own cases
+  PASS  removing the bra.short pattern (with insertBranch also removed) fails the check
+  PASS  removing the immediate-compare mapping fails the check
+  PASS  removing C_ANDI from the compression table fails the check
+  PASS  an emit gated on an unreachable trigger is not a production path
+  PASS  an ungated emit makes the declaration stale, and it is caught
+  documentation structure
+  PASS  29 documents: paths resolve, 150 findings and 46 decisions all defined, no duplicate tracking rows
+  spec cross-table consistency
+  PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose
+  walkthrough prose vs its own listings
+  PASS  every instruction the walkthrough names appears in its listings
+  walkthrough document vs toolchain
+  PASS  docs/walkthrough.md matches the toolchain
+  benchmark document vs tools
+  PASS  static table matches the tool
+  PASS  dynamic table matches the tool
+  SKIP  prior-art tables: ptxas not installed, so the SASS column
+        cannot be regenerated. Run tools/fetch-ptxas.sh to check them.
+  PASS  O-40 retire-rate table matches the tool
+  PASS  work-per-element table matches the tool
+  PASS  GEMM sweep table matches the tool
+  PASS  decode/fused sweep matches the tool
+  encode -> decode round trip
+
+  CCV instructions     : 258
+  round trips          : 16512 (64 random operand sets each)
+  non-CCV opcodes      : 277 (LLVM pseudos and GlobalISel generics, no encoding)
+  unbuildable operands : 0
+  failures             : 0
+
+  all round trips clean
+
+  --- frontend and kernel ABI ---
+  PASS  kernel args lowered to launch block (unaligned 8 slots, aligned 5: -3, one per pointer)
+  PASS  aligned pointers carry no in-window offset (O-23)
+
+  --- functional simulator ---
+  PASS  elementwise, all 32 lanes active (17 issue groups)
+  PASS  elementwise, 20 of 32 lanes (divergence) (17 issue groups)
+  PASS  elementwise, 1 of 32 lanes (max divergence) (17 issue groups)
+
+  --- predicate idiom (O-24) ---
+  PASS  predicate re-materialisation from a mixed mask
+
+  --- per-register element width ---
+  PASS  16-bit load, add and store (transfer size follows chwidth)
+  PASS  widening clears the exposed bits -- no stale data (O-38)
+  PASS  16-bit .shared store writes two bytes, not four
+  PASS  chwidth placed on data registers only (4 emitted, incl. chwidth.multi)
+  PASS  16-bit base+offset access stays 16 bits (3 accesses, no widening)
+  PASS  zext costs no instruction beyond the width change (O-38)
+  PASS  divconst: 32 dividends x 8 constant divisors, all correct
+  PASS  44 instructions for eight constant divisors, all strength-reduced (generic expansion would be ~91)
+  PASS  vadd16: 32 16-bit elements correct
+  PASS  the element past the array is untouched (2-byte stores)
+  PASS  no width transition inside the aligned loop body (F-87)
+  PASS  no width transition inside the unaligned loop body either (F-80)
+  PASS  vadd16_loop: 256 elements over 8 iterations per thread, all correct
+  PASS  the element past the array is untouched (2-byte stores)
+  PASS  vadd16_loop: 256 elements over 8 iterations per thread, all correct
+  PASS  the element past the array is untouched (2-byte stores)
+
+  --- select lowering ---
+  PASS  select lowers to a predicated move (1 of them)
+
+  --- backend accept / reject ---
+  PASS  accepts barrier-in-loop.ll
+  PASS  accepts base-index-sext.ll
+  PASS  accepts base-index.ll
+  PASS  accepts base-offset-i16.ll
+  PASS  accepts base-offset.ll
+  PASS  accepts branch-compare.ll
+  PASS  accepts branch-relax.ll
+  PASS  accepts chwidth-i16.ll
+  PASS  accepts chwidth-multi.ll
+  PASS  accepts chwidth-sext.ll
+  PASS  accepts cmp-unsigned-float.ll
+  PASS  accepts compare-unpredicated.ll
+  PASS  accepts divide-all.ll
+  PASS  accepts fdiv-all.ll
+  PASS  accepts fp-constant.ll
+  PASS  accepts integer-divide.ll
+  PASS  accepts local-array.ll
+  PASS  accepts mask-uniform.ll
+  PASS  accepts select-predicated.ll
+  PASS  accepts select.ll
+  PASS  accepts shared-memory.ll
+  PASS  accepts window-cross-block.ll
+  PASS  diagnoses bad-addr-shape.ll
+  PASS  diagnoses ptr-compared.ll
+  PASS  diagnoses ptr-in-call.ll
+  PASS  diagnoses ptr-stored.ll
+  PASS  diagnoses store-to-const.ll
+
+  --- CUDA source to executed result ---
+  PASS  n=32: 32 lanes correct (13 issue groups)
+  PASS  n=20: 32 lanes correct (13 issue groups)
+  PASS  n= 1: 32 lanes correct (13 issue groups)
+  PASS  n= 0: 32 lanes correct (9 issue groups)
+
+  --- block reduction: shared memory, barriers, backward branch ---
+  PASS  n=32: sum = 496 (111 issue groups)
+  PASS  n=20: sum = 190 (111 issue groups)
+  PASS  n= 8: sum = 28 (111 issue groups)
+  PASS  n= 1: sum = 0 (111 issue groups)
+
+  --- integer division (expanded in IR) ---
+  PASS  udiv by a runtime value, 16 lanes
+
+  --- integer-reciprocal division ---
+  PASS  384 operand pairs x 4 operations, 0 wrong
+  today, fp32 seed + Newton + 2 corrections      21 instrs   EXACT
+
+  rcp.u32 seed -- minimum accurate bits for an exact quotient
+
+  sequence                                     instrs   min bits
+  ----------------------------------------------------------------
+  + Newton + 2 corrections                         17   16
+  no Newton, 2 corrections                         13   32
+  no Newton, 1 correction                           8   exact seed only
+  no Newton, no correction                          5   never
+
+  --- software fp32 division ---
+  result normal    : 20184/20184 correctly rounded
+  result subnormal : 54/5000 off, worst 1 ulp (known gap -- double rounding in the final scale, F-62)
+  PASS  5120 fp32 divisions, all correctly rounded where the result is normal
+        (16 subnormal results differ by 1 ulp -- F-62, known)
+
+  --- warp-uniform lane-0 masking ---
+  PASS  lane-0 masking is result-identical (7 masked, 3 broadcasts)
+
+  --- uniformity report buckets ---
+  vadd: maskable 3, F-56 blocks 0, unmodelled 0
+  saxpy: maskable 3, F-56 blocks 0, unmodelled 0
+  dot: maskable 10, F-56 blocks 0, unmodelled 0
+  reduce: maskable 10, F-56 blocks 0, unmodelled 0
+  note  transpose: 2 division site(s), none blocked by encoding --
+        expected: O-37 gave rcp.f32 a 48-bit predicated form, and
+        O-34 moved the conversions into Format A′'s reach.
+  transpose: maskable 33, F-56 blocks 0, unmodelled 0
+
+  --- branch relaxation ---
+  PASS  short branch stays 16-bit (2 bra.short)
+  PASS  out-of-range branch relaxed to 32-bit bra
+
+  --- srd destination width ---
+  PASS  srd compiles at 32 bits
+  PASS  a narrow srd destination is refused, by name
+
+  --- assembler vs generated encoder ---
+  PASS  independent encoders agree
+
+  all simulator tests pass
+
+  ================  VERIFY: PASS  ================

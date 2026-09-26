@@ -1,0 +1,174 @@
+
+  STATIC -- code size. Every column is a measurement.
+
+  kernel     |     CCV unaligned     |  CCV aligned   |     AMDGCN gfx900     |  PTX  
+             |  instr  bytes    b/i |  instr  bytes |  instr  bytes    b/i |  instr
+  --------------------------------------------------------------------------------
+  vadd       |     20     62   24.8 |     13     42 |     29    152   41.9 |     21
+  saxpy      |     19     64   26.9 |     14     48 |     25    136   43.5 |     19
+  vadd16     |     21     68   25.9 |     14     48 |     29    152   41.9 |     21
+  vadd_loop  |     24     74   24.7 |     16     50 |     35    184   42.1 |     23
+  vadd16_loop |     25     80   25.6 |     17     56 |     35    184   42.1 |     23
+  dot        |     52    162   24.9 |     43    134 |     60    300   40.0 |     46
+  reduce     |     48    150   25.0 |     41    128 |     54    268   39.7 |     41
+  transpose  |     60    210   28.0 |     52    184 |     64    308   38.5 |     43
+
+  DYNAMIC -- instructions actually issued, per thread of work.
+
+  kernel          CCV   SIMT     AMDGCN |  lane-act  of issued   how AMDGCN was obtained
+  ----------------------------------------------------------------------------------------------
+  vadd           13.0   100%         29 |       416       100%   exact: no backward branch
+  saxpy          14.0   100%         25 |       448       100%   exact: no backward branch
+  vadd16         14.0   100%         29 |       448       100%   exact: no backward branch
+  vadd_loop      65.0   100%         -- |      2080       100%   has 1 loops; not modelled
+  vadd16_loop     66.0   100%         -- |      2112       100%   has 1 loops; not modelled
+  dot            74.9    66%         -- |      2397       100%   has 3 loops; not modelled
+  reduce         72.9    66%         -- |      2333       100%   has 3 loops; not modelled
+  transpose      52.0   100%         64 |      1127        68%   exact: no backward branch
+
+  O-33 A/B -- what lane-0 masking costs and buys, measured.
+
+                             issued/thread  lane-instr  lane-act  of issued
+  -----------------------------------------------------------------------
+  vadd, masking off                   13.0         416       416       100%
+  vadd, masking on                    13.0         416       416       100%
+  saxpy, masking off                  14.0         448       448       100%
+  saxpy, masking on                   14.0         448       448       100%
+  vadd16, masking off                 14.0         448       448       100%
+  vadd16, masking on                  14.0         448       448       100%
+  vadd_loop, masking off              65.0        2080      2080       100%
+  vadd_loop, masking on               65.0        2080      2080       100%
+  vadd16_loop, masking off            66.0        2112      2112       100%
+  vadd16_loop, masking on             66.0        2112      2112       100%
+  dot, masking off                    74.9        2397      2397       100%
+  dot, masking on                     74.9        2397      2397       100%
+  reduce, masking off                 72.9        2333      2333       100%
+  reduce, masking on                  72.9        2333      2333       100%
+  transpose, masking off              45.0        1440      1344        93%
+  transpose, masking on               52.0        1664      1127        68%
+
+  Four of five kernels read identically in both rows: the pass DECLINED
+  to mask them, because every uniform value is consumed immediately by
+  divergent work and each masked op would need its own broadcast. That is
+  the cost model working, not the pass failing.
+
+  O-40 -- narrow element work, and what a 2x retire rate is worth.
+
+  kernel        issues  elem work  narrow    frac  cycles @2x   vs f32
+  --------------------------------------------------------------------
+  vadd              13         11       0   0.000        13.0   1.000x
+  saxpy             14         12       0   0.000        14.0       --
+  vadd16            14         11       4   0.364        12.0   1.083x
+  vadd_loop         65         55       0   0.000        65.0   1.000x
+  vadd16_loop       66         55      32   0.582        50.0   1.300x
+  dot              113         92       0   0.000       113.0       --
+  reduce           111         90       0   0.000       111.0       --
+  transpose         52         49       0   0.000        52.0       --
+
+  CYCLES IS A MODEL, NOT A MEASUREMENT. The simulator retires one
+  instruction per step; this column applies O-40's claimed 2x rate to
+  the narrow instructions the simulator counted. `vs f32` is filled in
+  only for vadd16, the one kernel that is another kernel at a second
+  width; comparing dot to vadd would be comparing kernels. Every other
+  column here is measured.
+
+  WORK -- what it costs to finish the kernel, per 1024 elements.
+
+                          CCV    GCN5 / Vega          RDNA2          RDNA3          RDNA4  CDNA3 / MI300
+  warp width               32             64             32             32             32             64
+  ------------------------------------------------------------------------------------------------------
+  issues / 1K elem
+    vadd                  416            464            864           1024           1024            368
+    saxpy                 448            400            736            896            896            336
+    vadd16                448            464            864           1024           1024            368
+    vadd_loop             260             --             --             --             --             --
+    vadd16_loop            264             --             --             --             --             --
+    transpose            1664           1024           1920           2432           2432            992
+  instr bytes / 1K elem
+    vadd                 1344           2432           5248           5888           6144           2240
+    saxpy                1536           2176           4352           4992           5248           1984
+    vadd16               1536           2432           5376           6016           6272           2240
+    vadd_loop             200             --             --             --             --             --
+    vadd16_loop            224             --             --             --             --             --
+    transpose            5888           4928           9856          12032          11904           4800
+
+  One thread handles one element in these four, so a machine covers
+  `warp width` elements per instruction it issues. Counts are the
+  DYNAMIC ones: measured for CCV, and equal to static for AMD only
+  where the kernel has no backward branch.
+
+  This is the comparison the per-thread instruction table cannot make.
+  A wave64 machine finishes twice the elements per issued instruction,
+  so 23 CCV instructions against gfx900's 29 is not 1.3x in CCV's
+  favour -- normalized, gfx900 issues FEWER. Bits fetched per element
+  is where the encoding pays, and it is a separate column for a reason.
+
+  PRIOR ART -- bits per instruction, NVIDIA SASS and five AMD generations.
+
+  kernel                 CCV        NV SASS    GCN5 / Vega          RDNA2          RDNA3          RDNA4  CDNA3 / MI300
+                                      sm_70           2017           2020           2022           2024           2023
+  --------------------------------------------------------------------------------------------------------------------
+  vadd                  24.8             --           41.9           48.6           46.0           48.0           48.7
+  saxpy                 26.9             --           43.5           47.3           44.6           46.9           47.2
+  vadd16                25.9             --           41.9           49.8           47.0           49.0           48.7
+  vadd_loop             24.7             --           42.1           42.9           41.8           45.9           45.2
+  vadd16_loop            25.6             --           42.1           43.6           42.4           46.8           45.2
+  dot                   24.9             --           40.0           41.5           40.9           42.3           42.1
+  reduce                25.0             --           39.7           42.9           39.2           41.4           40.2
+  transpose             28.0             --           38.5           41.1           39.6           39.2           38.7
+  --------------------------------------------------------------------------------------------------------------------
+  pooled                25.9             --           40.7           43.7           41.8           43.8           43.1
+
+  Pooled is total bytes over total instructions across every kernel above,
+  not the mean of the per-kernel ratios, so a big kernel counts for more.
+
+  Instruction counts, same sweep -- the control on the density claim:
+
+  kernel                 CCV        NV SASS    GCN5 / Vega          RDNA2          RDNA3          RDNA4  CDNA3 / MI300
+  --------------------------------------------------------------------------------------------------------------------
+  vadd                    20             --             29             27             32             32             23
+  saxpy                   19             --             25             23             28             28             21
+  vadd16                  21             --             29             27             32             32             23
+  vadd_loop               24             --             35             44             49             39             29
+  vadd16_loop              25             --             35             44             49             39             29
+  dot                     52             --             60             64             68             62             54
+  reduce                  48             --             54             50             71             58             51
+  transpose               60             --             64             60             76             76             62
+
+  A kernel's tail padding is EXCLUDED, on both vendors: gfx10+ pads with
+  s_code_end, CDNA3 with s_nop, and NVIDIA with NOPs to a 128-byte
+  boundary. Counting it reads gfx1100's vadd as 146 instructions rather
+  than 32, and sm_70's vadd as 24 rather than 17. Only a TRAILING run is
+  dropped; a NOP inside the body is a real scheduling slot.
+
+  NV SASS is sm_70 via ptxas -O3 (tools/fetch-ptxas.sh). Every kernel
+  measures 128.0 bits per instruction EXACTLY -- the figure §6 of the ISA
+  document carried as a citation for four revisions is now measured, and
+  it holds from Volta through Blackwell. Pre-Volta is excluded: it uses a
+  64-bit encoding with separate control words that a 16-byte walk would
+  silently miscount.
+
+  CCV dynamic is MEASURED on the simulator: lane-instructions divided by
+  threads, which for a fully-active warp is the issue count. AMDGCN has no
+  simulator here, so its dynamic column is filled in only where the kernel
+  provably has no loop and static and dynamic must therefore agree. The two
+  reduction kernels loop on both sides and are left blank rather than
+  modelled.
+
+  SIMT is CCV ONLY and is not comparable as printed: a CCV warp is 32 lanes
+  (§1) and a gfx900 wavefront is 64, so the same 32-thread block that fills
+  a CCV warp half-fills theirs. Comparing occupancy needs the same block
+  size expressed in each machine's own warp width, which these kernels do
+  not hold fixed.
+
+  LANE-ACT is the energy number (O-33), and it is the ONLY column that
+  moves in the right direction when lane-0 masking fires: masking adds a
+  broadcast instruction and removes 31 lane-activations, so an instruction
+  count alone reports the cost and hides the win. `of issued` is
+  lane-activations over lane-instructions -- the share of issued lane slots
+  that actually did work. It has no AMDGCN counterpart here: gfx900 gates
+  on an exec mask this project does not model, so there is nothing honest
+  to put in a comparison column.
+
+  PTX is a VIRTUAL ISA. Task complexity, NOT density -- ptxas expands,
+  schedules and re-allocates it before anything executes.

@@ -1,0 +1,538 @@
+[
+  {
+    "kernel": "vadd",
+    "ccv": {
+      "instrs": 20,
+      "bytes": 62
+    },
+    "ccv_aligned": {
+      "instrs": 13,
+      "bytes": 42
+    },
+    "amdgcn": {
+      "instrs": 29,
+      "bytes": 152,
+      "loops": 0
+    },
+    "ptx": {
+      "instrs": 21
+    },
+    "dyn": {
+      "per_thread": 13.0,
+      "simt": 100.0,
+      "lane_act": 416,
+      "lane_instr": 416,
+      "issues": 13,
+      "narrow": 0,
+      "element_work": 11
+    },
+    "arches": {
+      "gfx900": {
+        "instrs": 29,
+        "bytes": 152,
+        "loops": 0
+      },
+      "gfx1030": {
+        "instrs": 27,
+        "bytes": 164,
+        "loops": 0
+      },
+      "gfx1100": {
+        "instrs": 32,
+        "bytes": 184,
+        "loops": 0
+      },
+      "gfx1200": {
+        "instrs": 32,
+        "bytes": 192,
+        "loops": 0
+      },
+      "gfx942": {
+        "instrs": 23,
+        "bytes": 140,
+        "loops": 0
+      }
+    },
+    "mask_off": {
+      "per_thread": 13.0,
+      "simt": 100.0,
+      "lane_act": 416,
+      "lane_instr": 416,
+      "issues": 13,
+      "narrow": 0,
+      "element_work": 11
+    },
+    "sass": {
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+    }
+  },
+  {
+    "kernel": "saxpy",
+    "ccv": {
+      "instrs": 19,
+      "bytes": 64
+    },
+    "ccv_aligned": {
+      "instrs": 14,
+      "bytes": 48
+    },
+    "amdgcn": {
+      "instrs": 25,
+      "bytes": 136,
+      "loops": 0
+    },
+    "ptx": {
+      "instrs": 19
+    },
+    "dyn": {
+      "per_thread": 14.0,
+      "simt": 100.0,
+      "lane_act": 448,
+      "lane_instr": 448,
+      "issues": 14,
+      "narrow": 0,
+      "element_work": 12
+    },
+    "arches": {
+      "gfx900": {
+        "instrs": 25,
+        "bytes": 136,
+        "loops": 0
+      },
+      "gfx1030": {
+        "instrs": 23,
+        "bytes": 136,
+        "loops": 0
+      },
+      "gfx1100": {
+        "instrs": 28,
+        "bytes": 156,
+        "loops": 0
+      },
+      "gfx1200": {
+        "instrs": 28,
+        "bytes": 164,
+        "loops": 0
+      },
+      "gfx942": {
+        "instrs": 21,
+        "bytes": 124,
+        "loops": 0
+      }
+    },
+    "mask_off": {
+      "per_thread": 14.0,
+      "simt": 100.0,
+      "lane_act": 448,
+      "lane_instr": 448,
+      "issues": 14,
+      "narrow": 0,
+      "element_work": 12
+    },
+    "sass": {
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+    }
+  },
+  {
+    "kernel": "vadd16",
+    "ccv": {
+      "instrs": 21,
+      "bytes": 68
+    },
+    "ccv_aligned": {
+      "instrs": 14,
+      "bytes": 48
+    },
+    "amdgcn": {
+      "instrs": 29,
+      "bytes": 152,
+      "loops": 0
+    },
+    "ptx": {
+      "instrs": 21
+    },
+    "dyn": {
+      "per_thread": 14.0,
+      "simt": 100.0,
+      "lane_act": 448,
+      "lane_instr": 448,
+      "issues": 14,
+      "narrow": 4,
+      "element_work": 11
+    },
+    "arches": {
+      "gfx900": {
+        "instrs": 29,
+        "bytes": 152,
+        "loops": 0
+      },
+      "gfx1030": {
+        "instrs": 27,
+        "bytes": 168,
+        "loops": 0
+      },
+      "gfx1100": {
+        "instrs": 32,
+        "bytes": 188,
+        "loops": 0
+      },
+      "gfx1200": {
+        "instrs": 32,
+        "bytes": 196,
+        "loops": 0
+      },
+      "gfx942": {
+        "instrs": 23,
+        "bytes": 140,
+        "loops": 0
+      }
+    },
+    "mask_off": {
+      "per_thread": 14.0,
+      "simt": 100.0,
+      "lane_act": 448,
+      "lane_instr": 448,
+      "issues": 14,
+      "narrow": 4,
+      "element_work": 11
+    },
+    "sass": {
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+    }
+  },
+  {
+    "kernel": "vadd_loop",
+    "ccv": {
+      "instrs": 24,
+      "bytes": 74
+    },
+    "ccv_aligned": {
+      "instrs": 16,
+      "bytes": 50
+    },
+    "amdgcn": {
+      "instrs": 35,
+      "bytes": 184,
+      "loops": 1
+    },
+    "ptx": {
+      "instrs": 23
+    },
+    "dyn": {
+      "per_thread": 65.0,
+      "simt": 100.0,
+      "lane_act": 2080,
+      "lane_instr": 2080,
+      "issues": 65,
+      "narrow": 0,
+      "element_work": 55
+    },
+    "arches": {
+      "gfx900": {
+        "instrs": 35,
+        "bytes": 184,
+        "loops": 1
+      },
+      "gfx1030": {
+        "instrs": 44,
+        "bytes": 236,
+        "loops": 1
+      },
+      "gfx1100": {
+        "instrs": 49,
+        "bytes": 256,
+        "loops": 1
+      },
+      "gfx1200": {
+        "instrs": 39,
+        "bytes": 224,
+        "loops": 1
+      },
+      "gfx942": {
+        "instrs": 29,
+        "bytes": 164,
+        "loops": 1
+      }
+    },
+    "mask_off": {
+      "per_thread": 65.0,
+      "simt": 100.0,
+      "lane_act": 2080,
+      "lane_instr": 2080,
+      "issues": 65,
+      "narrow": 0,
+      "element_work": 55
+    },
+    "sass": {
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+    }
+  },
+  {
+    "kernel": "vadd16_loop",
+    "ccv": {
+      "instrs": 25,
+      "bytes": 80
+    },
+    "ccv_aligned": {
+      "instrs": 17,
+      "bytes": 56
+    },
+    "amdgcn": {
+      "instrs": 35,
+      "bytes": 184,
+      "loops": 1
+    },
+    "ptx": {
+      "instrs": 23
+    },
+    "dyn": {
+      "per_thread": 66.0,
+      "simt": 100.0,
+      "lane_act": 2112,
+      "lane_instr": 2112,
+      "issues": 66,
+      "narrow": 32,
+      "element_work": 55
+    },
+    "arches": {
+      "gfx900": {
+        "instrs": 35,
+        "bytes": 184,
+        "loops": 1
+      },
+      "gfx1030": {
+        "instrs": 44,
+        "bytes": 240,
+        "loops": 1
+      },
+      "gfx1100": {
+        "instrs": 49,
+        "bytes": 260,
+        "loops": 1
+      },
+      "gfx1200": {
+        "instrs": 39,
+        "bytes": 228,
+        "loops": 1
+      },
+      "gfx942": {
+        "instrs": 29,
+        "bytes": 164,
+        "loops": 1
+      }
+    },
+    "mask_off": {
+      "per_thread": 66.0,
+      "simt": 100.0,
+      "lane_act": 2112,
+      "lane_instr": 2112,
+      "issues": 66,
+      "narrow": 32,
+      "element_work": 55
+    },
+    "sass": {
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+    }
+  },
+  {
+    "kernel": "dot",
+    "ccv": {
+      "instrs": 52,
+      "bytes": 162
+    },
+    "ccv_aligned": {
+      "instrs": 43,
+      "bytes": 134
+    },
+    "amdgcn": {
+      "instrs": 60,
+      "bytes": 300,
+      "loops": 3
+    },
+    "ptx": {
+      "instrs": 46
+    },
+    "dyn": {
+      "per_thread": 74.9,
+      "simt": 66.3,
+      "lane_act": 2397,
+      "lane_instr": 2397,
+      "issues": 113,
+      "narrow": 0,
+      "element_work": 92
+    },
+    "arches": {
+      "gfx900": {
+        "instrs": 60,
+        "bytes": 300,
+        "loops": 3
+      },
+      "gfx1030": {
+        "instrs": 64,
+        "bytes": 332,
+        "loops": 2
+      },
+      "gfx1100": {
+        "instrs": 68,
+        "bytes": 348,
+        "loops": 2
+      },
+      "gfx1200": {
+        "instrs": 62,
+        "bytes": 328,
+        "loops": 2
+      },
+      "gfx942": {
+        "instrs": 54,
+        "bytes": 284,
+        "loops": 3
+      }
+    },
+    "mask_off": {
+      "per_thread": 74.9,
+      "simt": 66.3,
+      "lane_act": 2397,
+      "lane_instr": 2397,
+      "issues": 113,
+      "narrow": 0,
+      "element_work": 92
+    },
+    "sass": {
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+    }
+  },
+  {
+    "kernel": "reduce",
+    "ccv": {
+      "instrs": 48,
+      "bytes": 150
+    },
+    "ccv_aligned": {
+      "instrs": 41,
+      "bytes": 128
+    },
+    "amdgcn": {
+      "instrs": 54,
+      "bytes": 268,
+      "loops": 3
+    },
+    "ptx": {
+      "instrs": 41
+    },
+    "dyn": {
+      "per_thread": 72.9,
+      "simt": 65.7,
+      "lane_act": 2333,
+      "lane_instr": 2333,
+      "issues": 111,
+      "narrow": 0,
+      "element_work": 90
+    },
+    "arches": {
+      "gfx900": {
+        "instrs": 54,
+        "bytes": 268,
+        "loops": 3
+      },
+      "gfx1030": {
+        "instrs": 50,
+        "bytes": 268,
+        "loops": 2
+      },
+      "gfx1100": {
+        "instrs": 71,
+        "bytes": 348,
+        "loops": 2
+      },
+      "gfx1200": {
+        "instrs": 58,
+        "bytes": 300,
+        "loops": 2
+      },
+      "gfx942": {
+        "instrs": 51,
+        "bytes": 256,
+        "loops": 3
+      }
+    },
+    "mask_off": {
+      "per_thread": 72.9,
+      "simt": 65.7,
+      "lane_act": 2333,
+      "lane_instr": 2333,
+      "issues": 111,
+      "narrow": 0,
+      "element_work": 90
+    },
+    "sass": {
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+    }
+  },
+  {
+    "kernel": "transpose",
+    "ccv": {
+      "instrs": 60,
+      "bytes": 210
+    },
+    "ccv_aligned": {
+      "instrs": 52,
+      "bytes": 184
+    },
+    "amdgcn": {
+      "instrs": 64,
+      "bytes": 308,
+      "loops": 0
+    },
+    "ptx": {
+      "instrs": 43
+    },
+    "dyn": {
+      "per_thread": 52.0,
+      "simt": 100.0,
+      "lane_act": 1127,
+      "lane_instr": 1664,
+      "issues": 52,
+      "narrow": 0,
+      "element_work": 49
+    },
+    "arches": {
+      "gfx900": {
+        "instrs": 64,
+        "bytes": 308,
+        "loops": 0
+      },
+      "gfx1030": {
+        "instrs": 60,
+        "bytes": 308,
+        "loops": 0
+      },
+      "gfx1100": {
+        "instrs": 76,
+        "bytes": 376,
+        "loops": 0
+      },
+      "gfx1200": {
+        "instrs": 76,
+        "bytes": 372,
+        "loops": 0
+      },
+      "gfx942": {
+        "instrs": 62,
+        "bytes": 300,
+        "loops": 0
+      }
+    },
+    "mask_off": {
+      "per_thread": 45.0,
+      "simt": 100.0,
+      "lane_act": 1344,
+      "lane_instr": 1440,
+      "issues": 45,
+      "narrow": 0,
+      "element_work": 44
+    },
+    "sass": {
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+    }
+  }
+]
