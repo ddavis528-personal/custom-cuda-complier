@@ -12,3 +12,7 @@ compile_commands.json
 # clone had three .cu files and no accept/reject suite at all.
 !test/**
 vendor/
+
+# Python bytecode. It was tracked by accident, and every run of a Python tool
+# dirtied the tree with it.
+__pycache__/
