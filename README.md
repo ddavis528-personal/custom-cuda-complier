@@ -51,6 +51,21 @@ environment, and the next steps in priority order. The short version —
 `vendor/` is gitignored and does not survive a new container; nothing depends on
 it except the SASS column, which skips with an instruction rather than failing.
 
+**Snapshots.** `build/` is gitignored, including TableGen's output and the
+tools. To read them without a toolchain, or to run a built `ccv-sim` from
+another repository, use a snapshot:
+
+```
+    ./tools/make-release.sh [--push]   # gate, then a snapshot commit on `release`
+```
+
+A snapshot is one commit on the `release` branch, never merged back. It holds
+the source tree at one commit, `build/generated/` (including `CCV.json`), a
+built `release/bin/ccv-sim`, and under `release/` the benchmark outputs, every
+CUDA kernel under `test/` compiled, and the gate log. Its `SNAPSHOT.md` names
+the source commit and carries a manifest. `custom-cuda-core` pins a snapshot
+commit and runs `ccv-sim` from it.
+
 ## Checking it
 
 `tools/verify.sh` is the gate and runs everything: encoding invariants against
