@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-09-26-b00ba89
+# Snapshot snapshot-2026-10-03-e74eea7
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `claude/custom-cuda-core-infra-6msg93` at `b00ba89118ef40d62476232a8f65d6eaf4f3b99f`; this branch is rebuilt from source by
+is `claude/custom-cuda-core-infra-6msg93` at `e74eea711a49e6ba071de87ba6fc743b5e7edf4a`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -19,8 +19,8 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `claude/custom-cuda-core-infra-6msg93` @ `b00ba89118ef40d62476232a8f65d6eaf4f3b99f` |
-| Built | 2026-09-26 (UTC) |
+| Source | `claude/custom-cuda-core-infra-6msg93` @ `e74eea711a49e6ba071de87ba6fc743b5e7edf4a` |
+| Built | 2026-10-03 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
 | LLVM | 18.1.3 |
@@ -51,7 +51,7 @@ b8982bcbc886d44af54ca7d8407b2393083f08a2b34e372cbc0e1a8d377f4b74  release/bench/
 67c04af509362b1e74050abd592cdc23e8c2a0adcead73d30554c51870e0e390  release/bench/bench.txt
 a9d92b3061f26d91a6eb6b6a04443e6bd2ad7c3281f6f566810b9dda8030dfde  release/bench/sweep-decode.txt
 eb6d722fd0f11e7d58e0200733f7f4398035974d0bf74329c01ca4dcefdf1c1a  release/bench/sweep-tiles.txt
-cc1a9cc1c44c239dc74d6639b33b22dafb5dabcf60436083b54083ddc41f3212  release/bin/ccv-sim
-01ec11d5a49cdbb7dac51a193531bd1c804ad4a93dce9282ba14f498212158e1  release/bin/ccv-sim.txt
+2eeaa3fe3c8763fac77881e8e5479e07e5daf0546b38028100468efe688fe135  release/bin/ccv-sim
+a5e07b667950cf6c785387be719e3ebaaffec8a3f8016a7b5f837836c236d2fc  release/bin/ccv-sim.txt
 15781e5a289eb7aaa1da352e8b6f09eca7777994abe4eb4590d82a62ad8431d6  release/verify.log
 ```

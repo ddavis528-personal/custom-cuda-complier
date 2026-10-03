@@ -1,4 +1,4 @@
-ccv-sim built from claude/custom-cuda-core-infra-6msg93@b00ba89118ef40d62476232a8f65d6eaf4f3b99f on x86_64, ldd (Ubuntu GLIBC 2.39-0ubuntu8.7) 2.39
+ccv-sim built from claude/custom-cuda-core-infra-6msg93@e74eea711a49e6ba071de87ba6fc743b5e7edf4a on x86_64, ldd (Ubuntu GLIBC 2.39-0ubuntu8.7) 2.39
 
 Dynamic dependencies (LLVM is linked statically):
 	linux-vdso.so.1
