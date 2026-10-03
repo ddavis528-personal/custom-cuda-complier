@@ -325,8 +325,10 @@ int main(int argc, char **argv) {
       emitRegs("uses", Uses, Before);
       emitRegs("defs", Defs, W);
       // Memory: one access per executing lane, in ascending lane order -- the
-      // order forEachLane visits them. Anything else cannot be attributed and
-      // is refused rather than guessed.
+      // order forEachLane visits them. Executing means past the guard: a
+      // guarded load (ld.global.p) touches only its active lanes, so the
+      // count is checked against those, not the issue mask. Anything else
+      // cannot be attributed and is refused rather than guessed.
       // The descriptor has to agree with the traffic: F-141 was a load whose
       // descriptor said it touched no memory, which this record reported as
       // "load":0 while listing 32 reads.
@@ -340,7 +342,8 @@ int main(int argc, char **argv) {
         return 1;
       }
       std::fprintf(OF, ",\"mem\":[");
-      unsigned NLanes = llvm::popcount(Mask), Emitted = 0;
+      const uint32_t Exec = R.ActiveSet ? R.Active : Mask;
+      unsigned NLanes = llvm::popcount(Exec), Emitted = 0;
       for (int SpaceIdx = 0; SpaceIdx != 2; ++SpaceIdx) {
         const auto &Log = SpaceIdx ? ShLog : MemLog;
         if (Log.empty()) continue;
@@ -352,7 +355,7 @@ int main(int argc, char **argv) {
         }
         unsigned K = 0;
         for (unsigned L = 0; L != kLanes; ++L) {
-          if (!(Mask & (1u << L))) continue;
+          if (!(Exec & (1u << L))) continue;
           const auto &A = Log[K++];
           std::fprintf(OF, Emitted ? ",{\"lane\":%u,\"space\":\"%s\",\"w\":%d,"
                                      "\"addr\":%llu,\"bytes\":%u,\"val\":%u}"
