@@ -88,6 +88,16 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-local-array.sh || fail=1
 fi
 
+# IS-1 settled that natural element alignment is required and assigned CP the
+# obligation of proving the unaligned-ABI fold preserves it. Two of the fold's
+# three terms are the compiler's and are proved here; the third, `roffset`, is
+# the launch ABI's, and the odd-roffset rows show exactly what it costs when it
+# is not held. F-150.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  element alignment through the unaligned fold"
+  ./tools/check-align.sh || fail=1
+fi
+
 # F-147: a by-value parameter struct was classified as a pointer, so the kernel
 # read every field from whatever window the struct's first four bytes named. It
 # compiled, assembled and round-tripped. Only execution sees that, and only with

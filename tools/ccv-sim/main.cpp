@@ -289,6 +289,14 @@ int main(int argc, char **argv) {
   }
 
   outs() << "  executed " << Issued << " issue groups\n";
+
+  // IS-1: a lane's effective address must be a multiple of its element size.
+  // Reported rather than faulted -- F-ALIGN does not exist until the fault
+  // model is adopted (IS-2) -- and reported UNCONDITIONALLY when non-zero,
+  // because a count that only appears under a flag is a count nobody sees.
+  if (I.Mem.Misaligned)
+    outs() << "  misaligned lane accesses " << I.Mem.Misaligned
+           << "   (IS-1: address not a multiple of its element size)\n";
   if (Stats) {
     unsigned Threads = NumThreads >= kLanes ? kLanes : NumThreads;
     auto pct = [](uint64_t N, uint64_t D) {

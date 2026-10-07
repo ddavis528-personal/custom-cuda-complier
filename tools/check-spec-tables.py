@@ -364,6 +364,56 @@ def check_dp_points(text, fail):
     return len(spec)
 
 
+def check_block_enumeration(text, fail):
+    """Every opcode block in \u00a74 must say which point each operation gets.
+
+    O-47 was the FIFTH unenumerated range: O-28 found two, O-34's conversion
+    block was a third, O-41's Format B a fourth. The ISA side's read of that is
+    the right one -- five instances is a systematic gap in how \u00a74 is written,
+    not four accidents and a fifth -- so this stops being something review
+    catches.
+
+    The ask as put was "assert every block carries a point column". That would
+    be wrong: TWO of \u00a74's blocks are enumerated by a stated GENERATION RULE
+    rather than a table -- floating point by `32 + 8\u00d7format + op` and the
+    conversions by `64 + 16\u00d7dest + 4\u00d7src + round` -- and a rule pins the
+    numbering exactly as a table does. O-34 chose the rule deliberately, to keep
+    conversions and packed dot-product from competing for one range.
+
+    So the rule here is: a block is enumerated by a point table OR by a formula,
+    and a block with NEITHER is the defect. That is what the five instances
+    actually had in common.
+    """
+    sec = re.search(r"^## 4\..*?(?=^## 5\.)", text, re.M | re.S)
+    if not sec:
+        fail.append("\u00a74 not found -- this check cannot run")
+        return None
+    body = sec.group(0)
+    heads = list(re.finditer(r"^### (.+?) \u2014 points (\d+)(?:[\u2013-](\d+)|\+)\s*$",
+                             body, re.M))
+    if not heads:
+        fail.append("\u00a74 has no '### <name> \u2014 points <lo>\u2013<hi>' blocks -- if they "
+                    "were reformatted, reword this check with them (O-47)")
+        return None
+    for i, m in enumerate(heads):
+        name = m.group(1)
+        lo = int(m.group(2))
+        hi = int(m.group(3)) if m.group(3) else None
+        chunk = body[m.end():heads[i + 1].start() if i + 1 < len(heads) else len(body)]
+        # (a) a point table: a row whose first cell is a number inside the block.
+        enumerated = any(
+            lo <= int(pt) <= (hi if hi is not None else 1 << 30)
+            for line in chunk.splitlines() if line.startswith("|")
+            for pt in re.findall(r"\|\s*(\d+)\s*\|", line))
+        # (b) a generation rule: `<base> + <stride>\u00d7<field>` pins it just as well.
+        ruled = re.search(r"\d+\s*\+\s*\d+\s*\u00d7", chunk) is not None
+        if not (enumerated or ruled):
+            fail.append(f"\u00a74 block '{name}' (points {lo}\u2013{hi if hi else '+'}) gives "
+                        f"neither a point table nor a generation rule, so the "
+                        f"numbering of its operations is unspecified (O-47)")
+    return len(heads)
+
+
 def main():
     text = SPEC.read_text()
     fail = []
@@ -378,6 +428,7 @@ def main():
     check_self_version(text, fail)
     o = check_obligation_count(text, fail)
     d = check_dp_points(text, fail)
+    b = check_block_enumeration(text, fail)
     if fail:
         print(f"  FAIL  {len(fail)} cross-table inconsistenc"
               f"{'y' if len(fail) == 1 else 'ies'} in {SPEC.name}")
@@ -387,7 +438,8 @@ def main():
     print(f"  PASS  {n} sibling rows agree with their bit maps, "
           f"{c} 48-bit tags agree with §2/§3 prose, "
           f"{o} obligations agree with §1a, no forward version citations"
-          + (f", {d} dp points agree with the machine description" if d else ""))
+          + (f", {d} dp points agree with the machine description" if d else "")
+          + (f", {b} \u00a74 blocks each enumerated" if b else ""))
     return 0
 
 

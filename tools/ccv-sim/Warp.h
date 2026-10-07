@@ -55,16 +55,37 @@ public:
   uint8_t read8(uint64_t Addr) { return *byteAt(Addr); }
   void write8(uint64_t Addr, uint8_t V) { *byteAt(Addr) = V; }
 
+  /// IS-1: a lane's effective address must be a multiple of its element size
+  /// -- 4 for 32-bit, 2 for 16-bit, unconstrained for 8-bit. A violation will
+  /// raise F-ALIGN at execute once the fault model lands (blocked on IS-2);
+  /// until then it is COUNTED here rather than faulted, so the obligation can
+  /// be checked without pretending a fault exists that the ISA has not yet
+  /// defined.
+  ///
+  /// Counting rather than asserting is deliberate. The compiler-side claim
+  /// IS-1 asks CP to prove is about the whole corpus, not about one kernel, so
+  /// what is wanted is a number that must be zero over every kernel that
+  /// executes -- `tools/check-align.sh`. An assert would stop at the first one
+  /// and tell you nothing about the rest.
+  uint64_t Misaligned = 0;
+
+  void noteAlign(uint64_t Addr, unsigned Bytes) {
+    if (Bytes > 1 && (Addr % Bytes) != 0)
+      ++Misaligned;
+  }
+
   /// §3: "Transfer size is inherited from `rdata`'s `chwidth` -- no size
   /// field." So a load is 4, 2 or 1 bytes depending on the destination
   /// register's current width, and the 4-bit width has no byte transfer at all.
   uint32_t readN(uint64_t Addr, unsigned Bytes) {
+    noteAlign(Addr, Bytes);
     uint32_t V = 0;
     for (unsigned I = 0; I != Bytes; ++I)
       V |= uint32_t(*byteAt(Addr + I)) << (8 * I);
     return V;
   }
   void writeN(uint64_t Addr, uint32_t V, unsigned Bytes) {
+    noteAlign(Addr, Bytes);
     for (unsigned I = 0; I != Bytes; ++I)
       *byteAt(Addr + I) = uint8_t(V >> (8 * I));
   }

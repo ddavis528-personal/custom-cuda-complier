@@ -270,6 +270,14 @@ def run(name, spec, binf, layout):
     r = subprocess.run([os.path.join(ROOT, "build/ccv-sim"), binf, *pokes,
                         *peeks, "-max-steps", "2000000"],
                        capture_output=True, text=True, cwd=ROOT)
+    # IS-1: a lane's address must be a multiple of its element size. The
+    # corpus is where that claim has to hold -- eight real kernels, every
+    # addressing shape the backend emits -- so a reported misalignment fails
+    # the kernel rather than being counted and forgotten.
+    if "misaligned lane accesses" in r.stdout:
+        line = next(l.strip() for l in r.stdout.splitlines()
+                    if "misaligned" in l)
+        return None, f"IS-1 violation: {line}"
     if "step limit" in r.stderr:
         return None, ("did not terminate -- lanes were still active at the "
                       "step limit, which is what a barrier waiting for a lane "
