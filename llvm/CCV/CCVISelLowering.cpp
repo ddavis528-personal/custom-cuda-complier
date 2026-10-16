@@ -134,6 +134,15 @@ static cl::opt<uint64_t> LaunchBase("ccv-isel-launch-base", cl::Hidden,
                                     cl::init(0x20000),
                                     cl::desc("CCV launch block address"));
 static constexpr unsigned kOffArgs = 32;
+/// Bytes between one launch slot and the next. EIGHT, not four: the field
+/// gives the AGU a WINDOW INDEX, and §5.2 puts a pointer argument's window
+/// word 8 bytes from the next one's, so every odd 4-byte step named an
+/// in-window offset or a scalar and could never be a legal `rbase` -- half the
+/// slot space dead by construction. DA's response CP-4, 2026-10-08: re-scale,
+/// which doubles the reach to sixteen pointer arguments with no encoding
+/// change at all. The ABI rule that makes the reach usable (pointer arguments
+/// at the front of the argument area) is in CCVLowerKernelArgs.cpp.
+static constexpr unsigned kSlotStride = 8;
 
 static SDValue matchWindow(SDValue V) {
   if (V.getOpcode() != ISD::SHL)
@@ -156,9 +165,9 @@ static SDValue matchWindow(SDValue V) {
 static std::optional<unsigned> matchLaunchSlot(SDValue Win) {
   auto slotOf = [](uint64_t Addr) -> std::optional<unsigned> {
     uint64_t Args = LaunchBase + kOffArgs;
-    if (Addr < Args || (Addr - Args) % 4)
+    if (Addr < Args || (Addr - Args) % kSlotStride)
       return std::nullopt;
-    uint64_t Slot = (Addr - Args) / 4;
+    uint64_t Slot = (Addr - Args) / kSlotStride;
     return Slot < 16 ? std::optional<unsigned>(unsigned(Slot)) : std::nullopt;
   };
 

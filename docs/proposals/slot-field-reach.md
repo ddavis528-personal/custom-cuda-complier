@@ -1,6 +1,15 @@
 # Proposal — the launch-slot field reaches eight pointers; re-scale it rather than widen it
 
-**Status:** OPEN — for external review.
+**Status:** **APPROVED AND IMPLEMENTED.** DA's response CP-4 of 2026-10-08 agreed both asks:
+re-scale to an 8-byte stride, with the ABI rule. Implemented 2026-10-16 — the slot decode in
+`CCVISelLowering.cpp`, the argument layout in `CCVLowerKernelArgs.cpp` and the AGU in
+`tools/ccv-sim/Interp.cpp`, with `tools/check-launch-abi.sh` proving the three copies of the
+stride agree and `tools/check-slot-reach.sh` proving the reach and the ABI rule, both halves
+executed. IS's CP-4 response of the same date added one bound, carried into the
+implementation: the rule covers pointers passed **directly**, and a pointer inside a by-value
+aggregate claims no slot and keeps the host's layout inside the struct (CP-3). The
+ISA-document wording is still owed from IS; §3's slot-numbering paragraph carries the
+amendment in place meanwhile. What follows is the proposal as reviewed.
 **Touches:** O-23, O-45, F-129, F-139, F-140, F-143, and §3's Format D launch-slot map.
 **Companion:** `launch-abi.md` (the argument-area layout this depends on) and
 `ai-ml-relevance.md` §5, whose ask 2 became O-45.
@@ -102,8 +111,16 @@ the kernel. The 8-slot plateau in the left column is F-140's limit, visible dire
 The 8-byte column was produced by patching the three places that have to agree — the argument
 layout, the ISel matcher and the simulator's AGU — and running the full gate, including
 `check-fusion.py`, `check-sgemm.sh`, `check-sfu.sh` and `check-dp4.sh`, all of which execute.
-Everything passed. The patch was then reverted: the tree does not carry an unapproved change
+Everything passed. The patch was then reverted: the tree did not carry an unapproved change
 to what an encoded field means.
+
+**Confirmed on implementation, 2026-10-16.** The approved change reproduces the table above
+exactly — `loop NT=16` at 92 instructions and 0 spill transfers, 16 slot-form accesses — and
+the whole gate is green. Two rows the proposal did not predict also improved, because the
+re-scaling helps anything past eight pointers rather than only the top row: `fused NT=8`
+52 instructions against 54, `fused NT=16` 86 against 94, `loop NT=8` 58 against 60. The
+re-scaling additionally removed the **last spilling shape** in this corpus, which is a loss
+for a different argument and is recorded as such in `benchmarks.md` §2 and under F-152.
 
 **And on the real corpus it changes nothing at all.** Every row of `sweep-fusion.sh` is
 byte-identical under both scalings, because no kernel in it has more than six pointers. That

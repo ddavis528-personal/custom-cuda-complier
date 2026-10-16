@@ -135,8 +135,8 @@ _Z4vaddPfPKfS1_i:
 	ld.global r1, [r1 + 56]
 	setp.le p0, r1, r0
 	@p0 bra LBB0_2
-	ld.global r1, [#4, r0, 1, 0]
-	ld.global r2, [#2, r0, 1, 0]
+	ld.global r1, [#2, r0, 1, 0]
+	ld.global r2, [#1, r0, 1, 0]
 	fadd r2, r1
 	st.global r2, [#0, r0, 1, 0]
 LBB0_2:
@@ -152,7 +152,7 @@ Lfunc_end0:
 | `mad.lo r1, r3, r1, r2` | the three-source form takes `ctaid*ntid + tid` in one instruction |
 | `setp.le p0, r2, r1` | Format C″ (O-32), the **unpredicated** compare. Earlier revisions had no such form: Formats C/C′ carry a mandatory qualifier, so every compare had to be preceded by a `por` manufacturing a true predicate (O-24). That cost one instruction per compare — 13% of dynamically issued instructions in the reduction kernels — and is now zero |
 | `@p0 bra LBB0_2` | the guard branches *over* the body, so the fall-through path has no branch at all |
-| `[#4, r0, 1, 0]` | Format D with a **launch-block slot** where the base register would be (O-45). The window index is read by the AGU straight out of §5.2's block, so the pointer never occupies a GPR — three of this kernel's twelve instructions were loading window bases before the form existed. Scale-enable is set, so the AGU also supplies the `chwidth`-derived shift (O-7), which only fires like this for aligned pointers |
+| `[#2, r0, 1, 0]` | Format D with a **launch-block slot** where the base register would be (O-45). The window index is read by the AGU straight out of §5.2's block, so the pointer never occupies a GPR; slot 2 is pointer argument 2 under the 8-byte stride (DA's CP-4, 2026-10-08), where before the re-scaling the same access read slot 4 — three of this kernel's twelve instructions were loading window bases before the form existed. Scale-enable is set, so the AGU also supplies the `chwidth`-derived shift (O-7), which only fires like this for aligned pointers |
 | `fadd r3, r2` | the compressed destructive form, 16 bits, because `rd == rs0` fell out naturally |
 
 There is **no branch on the fall-through path** — the guard branches over the
@@ -197,10 +197,10 @@ _Z4vaddPfPKfS1_i:
 	shl r1, 2
 	ld.global r2, [r0 + 52]
 	add r2, r1
-	ld.global r2, [#4, r2, 0, 0]
+	ld.global r2, [#2, r2, 0, 0]
 	ld.global r3, [r0 + 44]
 	add r3, r1
-	ld.global r3, [#2, r3, 0, 0]
+	ld.global r3, [#1, r3, 0, 0]
 	fadd r3, r2
 	ld.global r0, [r0 + 36]
 	add r0, r1
@@ -242,8 +242,8 @@ exactly what §2 claims.
 0x000e  20 88 c0 01        32-bit             D
 0x0012  7c 88 00 00        32-bit             H
 0x0016  68 38 00 00        32-bit             E
-0x001a  20 0b 82 00        32-bit             D
-0x001e  20 13 81 00        32-bit             D
+0x001a  20 0b 81 00        32-bit             D
+0x001e  20 93 80 00        32-bit             D
 0x0022  4a 12              16-bit, Format K   K
 0x0024  60 13 80 00        32-bit             D
 0x0028  da 00              16-bit, Format K   K
@@ -302,8 +302,8 @@ set of lanes issuing together.
   000e  mask=ffffffff  	ld.global r1, [r1 + 56]
   0012  mask=ffffffff  	setp.le p0, r1, r0
   0016  mask=ffffffff  	@p0 bra 7
-  001a  mask=000fffff  	ld.global r1, [#4, r0, 1, 0]
-  001e  mask=000fffff  	ld.global r2, [#2, r0, 1, 0]
+  001a  mask=000fffff  	ld.global r1, [#2, r0, 1, 0]
+  001e  mask=000fffff  	ld.global r2, [#1, r0, 1, 0]
   0022  mask=000fffff  	fadd r2, r1
   0024  mask=000fffff  	st.global r2, [#0, r0, 1, 0]
   0028  mask=ffffffff  	exit
@@ -366,8 +366,8 @@ __global__ void vadd16_loop(short *ALIGNED c, const short *ALIGNED a,
 
 ```
 LBB0_1:
-	ld.global r14, [#2, r1, 1, 0]
-	ld.global r13, [#4, r1, 1, 0]
+	ld.global r14, [#1, r1, 1, 0]
+	ld.global r13, [#2, r1, 1, 0]
 	add r14, r13, r14
 	st.global r14, [#0, r1, 1, 0]
 	add r1, r0
@@ -379,8 +379,8 @@ Against the fp32 kernel's body, which is the control:
 
 ```
 LBB0_1:
-	ld.global r3, [#4, r1, 1, 0]
-	ld.global r4, [#2, r1, 1, 0]
+	ld.global r3, [#2, r1, 1, 0]
+	ld.global r4, [#1, r1, 1, 0]
 	fadd r4, r3
 	st.global r4, [#0, r1, 1, 0]
 	add r1, r0
@@ -420,8 +420,8 @@ Turning that placement off (`-ccv-chwidth-cross-block=false`) puts it back:
 ```
 LBB0_1:
 	chwidth.multi 24576, 1
-	ld.global r14, [#2, r1, 1, 0]
-	ld.global r13, [#4, r1, 1, 0]
+	ld.global r14, [#1, r1, 1, 0]
+	ld.global r13, [#2, r1, 1, 0]
 	add r14, r13, r14
 	st.global r14, [#0, r1, 1, 0]
 	add r1, r0
@@ -442,10 +442,10 @@ LBB0_1:
 	shl r4, 1
 	ld.global r5, [r0 + 44]
 	add r5, r4
-	ld.global r14, [#2, r5, 0, 0]
+	ld.global r14, [#1, r5, 0, 0]
 	ld.global r5, [r0 + 52]
 	add r5, r4
-	ld.global r13, [#4, r5, 0, 0]
+	ld.global r13, [#2, r5, 0, 0]
 	add r14, r13, r14
 	ld.global r5, [r0 + 36]
 	add r4, r5, r4
@@ -486,8 +486,8 @@ _Z11vadd16_loopPsPKsS1_i:
 	setp.le.u p0, r2, r1
 	@p0 bra LBB0_2
 LBB0_1:
-	ld.global r14, [#2, r1, 1, 0]
-	ld.global r13, [#4, r1, 1, 0]
+	ld.global r14, [#1, r1, 1, 0]
+	ld.global r13, [#2, r1, 1, 0]
 	add r14, r13, r14
 	st.global r14, [#0, r1, 1, 0]
 	add r1, r0

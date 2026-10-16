@@ -1092,8 +1092,8 @@ block:
   gemv8             206     6336       3       6/7       3%
   fused NT=1         24      640       0       3/5      25%
   fused NT=4         36      976       0       3/8      25%
-  fused NT=8         54     1488       0      3/12      28%
-  fused NT=16        94     2640       0      3/20      33%
+  fused NT=8         52     1424       0      3/12      25%
+  fused NT=16        86     2384       0      3/20      27%
 
   ...and the same fused chain as a grid-stride LOOP, which is how one is
   actually written. The bases become loop-invariant, so they are hoisted
@@ -1101,8 +1101,8 @@ block:
   ------------------------------------------------------------
   loop NT=1          30      800       0       4/7      20%
   loop NT=4          42     1136       0      4/10      21%
-  loop NT=8          60     1648       0      4/14      25%
-  loop NT=16        114     3168       9      4/22      28%
+  loop NT=8          58     1584       0      4/14      22%
+  loop NT=16         92     2544       0      4/22      25%
 
   For contrast, the same two columns on the GEMM this was compared against:
   ------------------------------------------------------------
@@ -1116,20 +1116,30 @@ block:
   them. In the fused kernels it is the other way round: almost everything live
   is uniform, and the divergent peak never leaves single digits.
 
-  Then read uni-ld. The straight-line fused kernels do not spill at any tensor
-  count, which is not the same as not paying: each window base is re-fetched
-  from the launch block at its one use rather than kept in a register, so the
-  cost lands in the instruction count -- around a third of it -- instead of in
-  spill traffic.
+  Then read uni-ld. No fused shape spills at any tensor count, straight-line or
+  looped, which is not the same as not paying: each window base the slot form
+  does not reach is re-fetched from the launch block at its use rather than
+  kept in a register, so the cost lands in the instruction count -- a quarter
+  of it -- instead of in spill traffic.
 
-  The grid-stride rows are the ones that decide it. Making the chain a loop
-  makes the bases loop-invariant, so they are hoisted and must stay live; the
-  divergent peak stays at 4 whatever the tensor count, while the uniform peak
-  passes the 16-entry file and the kernel starts spilling. That is a working
-  set of four divergent values spilling because twenty uniform ones are in the
-  way, and it is the one shape measured here where a warp-uniform register file
-  would remove essentially all of the traffic rather than some of it.
+  The grid-stride rows are the ones that decide it, and what they decide
+  CHANGED when the launch-slot stride was re-scaled to 8 bytes (DA's response
+  CP-4, 2026-10-08). Making the chain a loop makes the bases loop-invariant, so
+  they are hoisted and must stay live: the divergent peak stays at 4 whatever
+  the tensor count while the uniform peak passes the 16-entry file. Under the
+  4-byte stride the slot form reached only the first eight pointer arguments,
+  and loop NT=16 spilled 9 transfers on top of 114 instructions -- the one
+  shape measured here where a warp-uniform register file would have removed
+  essentially all of the traffic. At 8 bytes the form reaches all sixteen, and
+  that row is 92 instructions with NO spill traffic at all.
 
+  So the honest reading now: uniform pressure in this corpus costs INSTRUCTIONS
+  and not spills. That is a real weakening of the measured case for a
+  warp-uniform register file (F-106), whose revival condition was that O-45 be
+  adopted and then measured to leave significant uniform pressure behind. What
+  it leaves is a quarter of the instruction stream re-reading a table that is
+  already in cache, which is a smaller claim than spill traffic and has to be
+  argued on its own terms rather than on this row.
 ```
 
 **Three shapes, three different answers, and only one of them supports a uniform
@@ -1148,21 +1158,36 @@ A uniform file is beside the point.
 The **grid-strided fused chain** is the case. Its divergent working set is **four
 values at every tensor count** — the element, the index, the loop counter, the
 bound. Its uniform working set is the window bases, and it grows with the number
-of tensors fused: 7, 10, 14, 22. Spill starts exactly where that crosses the
-file and rises with it, to 79 transfers at sixteen tensors. **That is four
-divergent values spilling because twenty-two uniform ones are in the way**, and
-it is the one measured shape where a uniform register file removes essentially
-all of the traffic rather than some of it.
+of tensors fused: 7, 10, 14, 22. Before O-45 existed, spill started exactly where
+that crossed the file and rose with it, to 79 transfers at sixteen tensors: four
+divergent values spilling because twenty-two uniform ones were in the way, and
+the one measured shape where a uniform register file removed essentially all of
+the traffic rather than some of it.
 
-The straight-line version does not spill, which is not the same as not paying:
-each base is re-fetched from the launch block at its single use instead of being
-kept in a register, so the cost lands in the instruction count — about a third
-of the kernel — rather than in spill traffic. A uniform file removes that too.
+> **CORRECTION (F-152), 2026-10-16. That shape no longer spills, and this is the
+> compiler side correcting its own strongest argument.** O-45 took the 79
+> transfers to 9, and the launch-slot re-scaling approved as DA's response CP-4
+> took the 9 to **zero** — the slot form now reaches all sixteen pointer
+> arguments rather than the first eight, and `loop NT=16` is 92 instructions with
+> no spill traffic at all. Read the sweep above, not this paragraph, for what the
+> corpus does today: **nothing in it spills for uniform pressure.** The cost is
+> real and it is now entirely in instruction count — a quarter of the stream
+> re-reading a table that is already in cache — which is a smaller claim than
+> spill traffic and has to be argued on its own terms. F-106's revival condition
+> 2 asked for O-45 to be adopted and then measured to leave significant uniform
+> pressure behind; what it left is this, and it should be weighed as this.
 
-**So the case for F-106 rests on looping fused elementwise kernels**, the
-dominant non-GEMM shape in inference, and on neither of the two arguments made
-for it before this was measured: not GEMM accumulator pressure
-(`gpr-count-decision.md`'s framing), and not GEMM address pressure (F-128's).
+The straight-line version does not spill either, and did not before: each base
+the slot form does not reach is re-fetched from the launch block at its single
+use instead of being kept in a register, so the cost lands in the instruction
+count rather than in spill traffic. A uniform file removes that too.
+
+**So the case for F-106 now rests on instruction count in looping fused
+elementwise kernels**, the dominant non-GEMM shape in inference — and on none of
+the three arguments made for it before this was measured: not GEMM accumulator
+pressure (`gpr-count-decision.md`'s framing, struck under CP-5), not GEMM address
+pressure (F-128's), and no longer the spill traffic of the looping fused chain
+(F-106's own, removed by the thing F-106 was waiting on).
 
 ---
 

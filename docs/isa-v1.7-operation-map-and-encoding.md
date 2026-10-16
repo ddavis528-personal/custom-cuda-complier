@@ -54,6 +54,17 @@ so one point would cover `e4m3 × e5m2` if it is ever wanted, and four remain fr
 4-bit launch-block slot index rather than a register number, so a §5.1 window base never
 occupies a GPR. Two points, not four: `.shared` is flat 32-bit and has no window.
 
+### Amended after 1.7 was cut
+
+**The launch-slot stride is 8 bytes, not 4 (DA's response CP-4, 2026-10-08).** The field
+gives the AGU a window index, and §5.2 puts window words 8 bytes apart, so at a 4-byte stride
+half the encodable slots named something that can never be a legal `rbase` and the form
+reached pointer arguments 0–7. The re-scaling doubles the reach to sixteen with **no encoding
+change** — same 4 bits at `[18:15]`, same two opcodes — and comes with the ABI rule that
+directly-passed pointer arguments occupy the front of the argument area. §3's slot-numbering
+paragraph carries the amendment in place, with what is still owed from IS; the compiler and
+simulator carry it already, and the gate proves the three copies of the stride agree.
+
 ### Semantics the document did not state
 
 **FP reduction order and rounding are normative (O-44).** Products sum exactly and the result
@@ -988,10 +999,27 @@ shipped behaviour, and the invariant now says so explicitly rather than leaving 
 which had cost two review cycles by the time this was written.
 
 **The slot numbering.** Slot *k* is the 32-bit word at launch-block byte offset
-`OffArgs + 4k`, where `OffArgs` is 32 — so the sixteen slots cover the first 64 bytes of the
-argument area. A pointer argument's **window index** is the word at its slot; four-byte
-granularity rather than per-argument indexing, because §5.2's block mixes 8-byte pointer slots
-with 4-byte scalars and only a byte offset addresses both uniformly.
+`OffArgs + 8k`, where `OffArgs` is 32 — so the sixteen slots cover the first 128 bytes of the
+argument area and name **pointer arguments 0–15**. A pointer argument's **window index** is
+the word at its slot. The stride is 8 rather than 4 because §5.2 gives a pointer argument
+eight bytes (window index plus in-window offset, O-23) whether or not it is aligned, so an
+8-byte step is what lands on a window word every time; and the ABI puts directly-passed
+pointer arguments at the **front** of the argument area, in declaration order, so that slot
+*k* is pointer argument *k* and a scalar in the middle of a signature cannot push a pointer
+out of reach.
+
+> **Amended 2026-10-16, marked in place rather than silently rewritten.** The stride was 4
+> in 1.7 as released, which made every odd step name an in-window offset or a scalar — words
+> that can never be a legal `rbase` — so half the slot space was dead by construction and
+> the form reached only pointer arguments 0–7. Re-scaling costs no encoding change at all:
+> same 4 bits at `[18:15]`, same two opcodes, one bit of shift in the slot decode.
+> Raised by the compiler side as CP-4, approved as **DA's response CP-4 of 2026-10-08**, and
+> implemented in the backend and the simulator together with the ABI rule. **The ISA-side
+> wording is still owed from IS** (its CP-4 response of the same date), including the ABI
+> section's statement of the front-loading rule; this paragraph records the decision so the
+> document does not contradict the tree in the meantime. One bound, from IS: the rule covers
+> pointers passed **directly**. A pointer inside a by-value aggregate keeps the host's layout
+> inside the struct, claims no slot, and reaches the AGU by whatever CP-3 settles.
 
 **Unaligned pointers get less from this than aligned ones**, and that is consistent rather than
 surprising. O-23's unaligned form carries a window *and* an in-window byte offset; the slot
@@ -1962,10 +1990,10 @@ against fresh `ccv-llc` output by `tools/check-spec-vs-codegen.py`, which runs i
     shl        r1, 2                ; 16   element index -> byte offset, hoisted
     ld.global  r2, [r0 + 52]        ; 32   b.roffset -- the UNALIGNED half
     add        r2, r1               ; 16   fold; rd == rs0, so Format K
-    ld.global  r2, [#4, r2, 0, 0]   ; 32   b[i]; O-45 slot 4 = b.rbase, scale CLEAR
+    ld.global  r2, [#2, r2, 0, 0]   ; 32   b[i]; O-45 slot 2 = b.rbase, scale CLEAR
     ld.global  r3, [r0 + 44]        ; 32   a.roffset
     add        r3, r1               ; 16   fold; Format K
-    ld.global  r3, [#2, r3, 0, 0]   ; 32   a[i]; slot 2
+    ld.global  r3, [#1, r3, 0, 0]   ; 32   a[i]; slot 1
     fadd       r3, r2               ; 16   compressed destructive, rd == rs0
     ld.global  r0, [r0 + 36]        ; 32   c.roffset
     add        r0, r1               ; 16   fold
@@ -2033,8 +2061,8 @@ pointer arguments.
     ld.global  r1, [r1 + 56]        ; 32   n
     setp.le    p0, r1, r0           ; 32   Format C″
     @p0 bra    Lexit                ; 32
-    ld.global  r1, [#4, r0, 1, 0]   ; 32   b[i]; O-45 slot 4, scale-enable SET
-    ld.global  r2, [#2, r0, 1, 0]   ; 32   a[i]; slot 2
+    ld.global  r1, [#2, r0, 1, 0]   ; 32   b[i]; O-45 slot 2, scale-enable SET
+    ld.global  r2, [#1, r0, 1, 0]   ; 32   a[i]; slot 1
     fadd       r2, r1               ; 16   compressed destructive
     st.global  r2, [#0, r0, 1, 0]   ; 32   c[i]; slot 0
 Lexit:

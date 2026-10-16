@@ -266,8 +266,23 @@ constant-index optimisation that falls back to it. See `proposals/pointer-repres
 - **The launch-slot field is not too narrow, it is scaled wrong** (F-146). Half the slot
   space cannot name anything, because the field supplies a window index and pointer window
   words are 8 bytes apart while the slot stride is 4. Re-scaling doubles the reach to sixteen
-  pointer arguments with **no encoding change**. Measured, reverted pending review;
-  `proposals/slot-field-reach.md`. The widening ask F-140 raised is withdrawn.
+  pointer arguments with **no encoding change**. `proposals/slot-field-reach.md`. The widening
+  ask F-140 raised is withdrawn. **Settled and built**: approved as DA's response CP-4
+  (2026-10-08) and implemented 2026-10-16, with the ABI rule that directly-passed pointer
+  arguments occupy the front of the argument area, and IS's bound that a pointer inside a
+  by-value aggregate claims no slot. **Two things are still owed from the ISA side** — §3's
+  slot-numbering paragraph in proper normative form (this repository's copy carries the
+  amendment marked in place meanwhile), and the ABI section's statement of the front-loading
+  rule, which IS's own CP-4 response made a condition of approval.
+- **The uniform-register-file case is now measurably weaker, and this is the compiler side
+  saying so about its own argument** (F-152). F-106's revival condition 2 was that O-45 be
+  adopted and then measured to leave significant uniform pressure behind. With the 4-byte
+  stride it did, and `loop NT=16` — 9 spill transfers, four divergent values spilling because
+  twenty uniform ones were in the way — was the shape that showed it. Under the approved
+  stride that row spills **nothing**, at 92 instructions rather than 114, and no shape in the
+  decode/fused corpus spills for uniform pressure any more. What is left is instruction count:
+  a quarter of the stream re-reading a table already in cache. That is still a cost and still
+  an argument, but it is a different and smaller one, and the row it used to rest on is gone.
 - **The pointer representation in memory.** §6.
 - **16 GPRs now has a price in the density comparison.** §3. `sgemm` at 1.84× SASS on
   instruction count, against a machine that spills nothing at that tile.

@@ -12,3 +12,4 @@ compile_commands.json
 # clone had three .cu files and no accept/reject suite at all.
 !test/**
 vendor/
+__pycache__/

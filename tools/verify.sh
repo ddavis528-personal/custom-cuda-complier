@@ -107,6 +107,15 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-byval.sh || fail=1
 fi
 
+# CP-4: the launch-slot stride is 8 bytes and the ABI front-loads pointer
+# arguments, so sixteen slots reach sixteen pointers. Both halves are executed,
+# because a wrongly laid-out argument area compiles and reads the wrong memory
+# -- the F-147 shape again, from the other direction.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  launch-slot reach and the pointer-first ABI rule"
+  ./tools/check-slot-reach.sh || fail=1
+fi
+
 # F-143's fused-kernel corpus executes. F-134's lesson applies with full force
 # here: a corpus assembled to settle an architectural question has to be one
 # whose kernels are known to work, or the question is being settled from the

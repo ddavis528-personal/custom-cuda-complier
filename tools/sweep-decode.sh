@@ -77,17 +77,28 @@ cat <<'TXT'
   them. In the fused kernels it is the other way round: almost everything live
   is uniform, and the divergent peak never leaves single digits.
 
-  Then read uni-ld. The straight-line fused kernels do not spill at any tensor
-  count, which is not the same as not paying: each window base is re-fetched
-  from the launch block at its one use rather than kept in a register, so the
-  cost lands in the instruction count -- around a third of it -- instead of in
-  spill traffic.
+  Then read uni-ld. No fused shape spills at any tensor count, straight-line or
+  looped, which is not the same as not paying: each window base the slot form
+  does not reach is re-fetched from the launch block at its use rather than
+  kept in a register, so the cost lands in the instruction count -- a quarter
+  of it -- instead of in spill traffic.
 
-  The grid-stride rows are the ones that decide it. Making the chain a loop
-  makes the bases loop-invariant, so they are hoisted and must stay live; the
-  divergent peak stays at 4 whatever the tensor count, while the uniform peak
-  passes the 16-entry file and the kernel starts spilling. That is a working
-  set of four divergent values spilling because twenty uniform ones are in the
-  way, and it is the one shape measured here where a warp-uniform register file
-  would remove essentially all of the traffic rather than some of it.
+  The grid-stride rows are the ones that decide it, and what they decide
+  CHANGED when the launch-slot stride was re-scaled to 8 bytes (DA's response
+  CP-4, 2026-10-08). Making the chain a loop makes the bases loop-invariant, so
+  they are hoisted and must stay live: the divergent peak stays at 4 whatever
+  the tensor count while the uniform peak passes the 16-entry file. Under the
+  4-byte stride the slot form reached only the first eight pointer arguments,
+  and loop NT=16 spilled 9 transfers on top of 114 instructions -- the one
+  shape measured here where a warp-uniform register file would have removed
+  essentially all of the traffic. At 8 bytes the form reaches all sixteen, and
+  that row is 92 instructions with NO spill traffic at all.
+
+  So the honest reading now: uniform pressure in this corpus costs INSTRUCTIONS
+  and not spills. That is a real weakening of the measured case for a
+  warp-uniform register file (F-106), whose revival condition was that O-45 be
+  adopted and then measured to leave significant uniform pressure behind. What
+  it leaves is a quarter of the instruction stream re-reading a table that is
+  already in cache, which is a smaller claim than spill traffic and has to be
+  argued on its own terms rather than on this row.
 TXT
