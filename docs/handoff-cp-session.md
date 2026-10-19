@@ -15,6 +15,23 @@ holds the measurements, and `.claude/skills/register/SKILL.md` is the register
 protocol. This file carries what was in the **session** rather than in the tree:
 state, obligations, and the handful of things learned the expensive way.
 
+**Update, 2026-10-19 (the successor session, `session_019cSebQ45AT3pSnPU71torg`).**
+What changed since this was written:
+
+- **This session has `send_message`**, so CP sends notices. The compiler's own
+  `.claude/skills/register/SKILL.md` still says CP cannot; follow the core
+  repository's copy of the skill for the send half.
+- **The working branch is `ccr-ea1c4e17-tem30u`** (this session's), forked at `cc69326`.
+- **The sweep is `trig_01Hp4MZnx61rMQL7Dd5qjd5z`**, at the same cadence, firing into
+  this session. The old one is deleted.
+- **Writing the register needs no go from Daniel** any more (Conventions, 2026-10-19):
+  an agent updates its own tab, and DA goes in Needs only for a decision that is his.
+- **Releases are CP's to cut without asking** (Daniel, 2026-10-19):
+  `tools/make-release.sh --push` builds a snapshot and pushes it to `release`, and
+  CP says so in the register for TI, who bumps `compiler.lock` in the core.
+  `make-release.sh` arrived with the merge of `claude/custom-cuda-core-infra-6msg93`
+  (`5f989d9`); that branch's F-141 to F-146 are F-153 to F-158 here (CP-8).
+
 ---
 
 ## 1. The role, and the standing constraints
