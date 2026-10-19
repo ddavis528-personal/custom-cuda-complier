@@ -162,6 +162,28 @@ run_call() {
   done
   [ $ok -eq 1 ] && echo "  PASS  three mutated call sequences each change an answer" || return 1
 }
+# --- ld.pred / st.pred (IS-15) -----------------------------------------------
+# The backend spills predicates through these, and until IS-15 the simulator
+# could not execute them. Positional frame, whole-warp words, lane 0's base.
+run_pred_spill() {
+  python3 "$AS" "$JSON" test/pred-spill.s "$TMP/ps.bin" >/dev/null || return 1
+  local out; out=$("$SIM" "$TMP/ps.bin" -peek 0x90040 -peek 0x90044 -peek 0x90048 \
+                   -peek 0x90020 -peek 0x90038 -peek 0x90030 2>&1) ||
+    { echo "$out"; echo "  FAIL  pred-spill.s did not run"; return 1; }
+  local bad=0 pair a want got
+  for pair in 90040:255 90044:65535 90048:16777215 90020:65535 \
+              90038:4294967295 90030:65535; do
+    a=${pair%%:*}; want=${pair#*:}
+    got=$(echo "$out" | grep -oP "\[0x$a\] = \K\d+")
+    [ "$got" = "$want" ] || { echo "    [0x$a]: got $got, want $want"; bad=1; }
+  done
+  [ $bad -eq 0 ] && echo "  PASS  ld.pred/st.pred: positional frame, whole-warp words, a clobbered predicate restored" \
+                 || { echo "  FAIL  ld.pred/st.pred"; return 1; }
+}
+echo
+echo "  --- predicate spill (IS-15) ---"
+run_pred_spill || fail=1
+
 echo
 echo "  --- call and ret (F-21) ---"
 run_call || fail=1
