@@ -58,6 +58,11 @@ needs lane 0 issuing with its readers. Predication keeps lanes at one PC only if
 there together. §1a obligation 1 now gives the reach the compiler can actually use, and O-33
 records why no mechanism recovers the rest.
 
+**§1a obligation 1 is restated for a renamed machine (IS-10).** It asked that a masked lane
+not toggle its register-file write port or result bus. Under rename the merge value must
+reach the new physical register through both, so the obligation now covers the ALU and its
+operand registers, and O-33's saving is stated as the ALU's.
+
 ### A compiler contract replaced by hardware behaviour
 
 **`.const` is hardware-protected (O-51; IS-3).** 1.7 called it read-only "by compiler
@@ -246,11 +251,22 @@ They are not the same kind of obligation, and the difference matters more than t
 
 ### 1. A predicated-off lane must not switch (O-33)
 
-> A lane excluded by the predicate qualifier must not toggle its ALU operands, its
-> register-file write port, or its result bus.
+> A lane excluded by the predicate qualifier must not toggle its ALU or its ALU operand
+> registers. Its result is the merge value passed through, never computed.
+
+**What rename costs, and the obligation does not ask (IS-10).** Through 1.7 this read "its
+ALU operands, its register-file write port, or its result bus". On a renamed machine that
+cannot hold: a predicated write targets a fresh physical register, so an inactive lane's old
+value must reach it. In the core it crosses the lane both ways — in as the fourth operand on
+`ccv_rcu_lane_ops`, back as the result on `ccv_lane_rcu_res` — and the register file writes it
+(A-33, A-44, A-51). So the operand and result buses and the write port carry the merge value
+in masked lanes, and O-33's saving is the ALU's, not theirs. OA's IS-10 response rules out
+the cheaper forms under rename. A write-back merge in RCU, re-reading the old destination as
+predicates already do, would keep the merge value off both lane buses at a PRF read per write;
+that is a perf-register candidate for AR and RCU, not a first-build change.
 
 `ccv-mask-uniform` runs warp-uniform work on lane 0 and broadcasts the result, which cut
-lane-activations by 14% and 21.5% on the two kernels O-33 measures. Gating only the *write* is
+lane-activations by 14% and 21.5% on the two kernels O-33 measures. Those are ALU lane-activations; they do not count the merge traffic below. Gating only the *write* is
 not enough: the extra issued lane slots buy nothing and the whole saving collapses into a
 code-size regression.
 
@@ -3593,8 +3609,9 @@ this level and easy to lose between here and RTL. **There are two of them**, and
 compiler now generates code by default that depends on both:
 
 > **1. Lane gating is required, not optional.** A predicated-off lane must not toggle its
-> ALU operands, its register-file write port, or its result bus. Gating only the *write* is
-> not enough. Everything O-33 does rests on this.
+> ALU or its ALU operand registers. Everything O-33 does rests on this. *(Restated in 1.8 by
+> IS-10: under rename the buses and the write port carry the merge value in masked lanes,
+> so they are not part of the obligation and not part of the saving. See §1a.1.)*
 >
 > **2. Predicate-file logic must be much cheaper than warp-wide logic.** A predicate is 32
 > bits, one per lane (invariant 5), so `pand`/`por`/`pxor` are 32 gates against 32 lanes of
