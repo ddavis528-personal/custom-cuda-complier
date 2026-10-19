@@ -96,6 +96,11 @@ and the summary table around them had not been regenerated with them. The table 
 no longer in the listing. Those figures are recomputed here. §1's argument 4 and §1's
 "two consequences", which were four, are corrected with them.
 
+Six smaller statements that had stopped matching their own tables are also corrected: the dp
+block's used-point count (twelve, not eight), the 48–63 collision rule naming only `dp4`/`dp8`,
+§10 calling `01100`+ reserved after O-45 took two of those points, the free Format B count
+(12, not 13), "only CAS requires 48 bits" (`pmov` does too), and §8's item count.
+
 **Branch offsets count from the next instruction.** 1.7 gave every PC-relative field's width
 and granularity but not its base. The compiler and `ccv-sim` both use the next instruction's
 address, and §3 Format E now says so.
@@ -828,7 +833,7 @@ next wants a Format B point.
 | `sel` | 19 | B′/B″ only |
 | Unallocated in §4 | 26–31 (6) | free, but **claimed if §4 later allocates a binary operation there** |
 
-**Genuinely free for a future immediate-only operation: 13 of 32, not 28** — and shrinking
+**Genuinely free for a future immediate-only operation: 12 of 32, not 28** (1.7 said 13; the table above sums to 3 + 3 + 6) — and shrinking
 as §4 grows.
 
 **`packi` and `unpacki` — moving between narrow and wide registers.**
@@ -1633,7 +1638,7 @@ than compete for one range. The consequence is that the two rules that generate
 opcodes in this span — `32 + 8×format + op` and `64 + 16×dest + 4×src + round` —
 are adjacent with no gap, and the first one's domain is now **format ∈ {`00`,
 `01`} only**. `tools/check-encoding.py` rejects any instruction that lands in
-48–63 without being `dp4`/`dp8`, because both sides of that collision would be
+48–63 without being a packed dot product (`dp2`, `dp4`, `dp8`), because both sides of that collision would be
 well-formed Format A and the decoder would accept either silently.
 
 Per the tier allocation rule, A′'s 7-bit opcode reaches the low 128 and A″'s 5-bit opcode
@@ -1775,7 +1780,7 @@ a dot product has no status output to write.
 
 **These were at 64–127 until O-34**, which needed that range for the conversion product and
 found 48–63 free: it is what `32 + 8×format + op` generates for FP format codes `10` and
-`11`, which are reserved at every `chwidth` and hold nothing. Eight points are used of
+`11`, which are reserved at every `chwidth` and hold nothing. Twelve points are used of
 sixteen. The cost is not paid by `dp` — it keeps its predicated tier — but by the FP block,
 whose two spare format codes are now spoken for.
 
@@ -2289,7 +2294,7 @@ Three lengths: 16, 32, 48. The 16-bit forms cover the two highest-frequency shap
 — accumulate-form FMA and two-operand destructive ALU — plus the small-content operations
 (`chwidth`, `reconv.hint`, `ret`, `exit`, zero-offset load/store, short branch). Everything
 else is 32 bits by default, with the 48-bit sibling available per-instruction wherever an
-immediate does not fit. Only CAS requires 48 unconditionally.
+immediate does not fit. Only CAS and `pmov` require 48 unconditionally.
 
 A GEMM inner loop consisting mostly of accumulate-FMA and pointer arithmetic should
 encode at close to 16 bits per instruction. How close depends entirely on how often the
@@ -2419,7 +2424,7 @@ quantified on one side of it.
 
 ## 8. Open items
 
-Four items remain open. Two are blocked on the first-pass compiler, one is a check against
+Four items remain open; after them come decisions taken since 1.6 and recorded here (O-40 onward). Of the four, two are blocked on the first-pass compiler, one is a check against
 the existing barrier spec, and one is a compiler-experimentation question worth answering
 early. None blocks RTL work on the settled formats, and **none now blocks compiler work** —
 the V1.2 open list contained two items that did, both closed in this revision (see O-17
@@ -4026,7 +4031,7 @@ because it reinterprets rather than converts, and the narrow write then lands in
      Span only matters for FP32-width data.
   3. At 16 GPRs the register group is structurally awkward — see the GPR-count note in §11.
 
-  Format D opcode points `01100`+ stay reserved — re-based from `01000`+ in 1.3, since
+  Format D opcode points `01110`+ stay reserved (`01100`–`01101` went to O-45's launch-slot form) — re-based from `01000`+ in 1.3, since
   `01000`–`01011` now carry predicate transfer (O-19). Span was unspecified, so re-basing
   its reservation cost nothing. Register-group addressing is the same
   mechanism Format H needs for MMA fragment operands; if span is ever revived it should
