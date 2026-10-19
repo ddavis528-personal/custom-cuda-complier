@@ -63,8 +63,8 @@ not toggle its register-file write port or result bus. Under rename the merge va
 reach the new physical register through both, so the obligation now covers the ALU and its
 operand registers, and O-33's saving is stated as the ALU's.
 
-**`call` and `ret` are specified (CP-9).** §3 now says `call` writes the next instruction's
-32-bit offset from the image base and `ret` adds it back, and names R14 as
+**`call` and `ret` are specified (CP-9).** §3 now says `call` writes the low 32 bits of the next
+instruction's address and `ret` concatenates them under its own 4 GiB code window, and names R14 as
 `call.short`'s link register. Invariant 11 is scoped to data addresses, which is all it
 ever meant.
 
@@ -1303,21 +1303,27 @@ cost onto spill traffic. An explicit destination lets a two-deep call chain use 
 different link registers — `call R14, f` inside `call R13, g` — with **no spill at all**.
 The convention gets materially cheaper for free.
 
-**What `call` writes and what `ret` reads — normative (CP-9).** A kernel's code image has
-an **image base**, the address it was loaded at, fixed for the launch. `call rd, off` and
-`call.short off` write, to every active lane of the link register (`rd`, or R14 for
-`call.short`), the **image offset of the next instruction** as a 32-bit unsigned value: the
-call's own address plus its length, minus the image base. `ret rs` sets each active lane's PC
-to the image base plus that lane's `rs`, zero-extended. So a code address in a register is an
-offset into the image, a function pointer is a constant of the image wherever it is loaded,
-and an image is at most 4 GiB. Lanes may return to different addresses; per-thread PCs (§1)
-make that ordinary divergence, and it is what lets an indirect call be a `call` to a
-one-instruction `ret` stub. A `ret` target with bit 0 set is not a 16-bit-granular
-instruction offset; it is reserved, and raises `F-ILLEGAL` once the fault model lands (IS-2).
-The link value is a **code** offset, which invariant 11 does not cover: that invariant keeps
-48-bit *data* addresses out of the register file, and a 32-bit code offset is an ordinary
-value. Which registers a callee preserves is the ABI's choice, not the ISA's; the compiler's
-calling-convention proposal sets it by measurement.
+**What `call` writes and what `ret` reads — normative (CP-9, AR-22).** Code lives in
+**4 GiB windows**: aligned 2^32-byte regions of the code address space, and a kernel's image,
+with everything it calls, lies within one. `call rd, off` and `call.short off` write, to every
+active lane of the link register (`rd`, or R14 for `call.short`), the **low 32 bits of the
+next instruction's address** (the call's own address plus its length) as an unsigned value.
+`ret rs` sets each active lane's PC to the **`ret`'s own window with that lane's `rs` as the
+offset**: `{PC[47:32] of the ret, rs[31:0]}`. That is a concatenation, not an add, and needs
+no image-base state: every instruction already carries its PC. A function pointer is the
+offset of its target within the window, so it is a constant of the image wherever the image's
+window sits, and a loader places an image at a window-aligned base so that the offset from the
+image base and the low 32 bits are the same number. Every `rs` names a location in the
+`ret`'s own window, so no `ret` can leave it: a pointer taken in one window and returned
+through in another lands at the same offset in the second window, which is defined behaviour
+and, for code the driver keeps in one window per context, never arises. Lanes may return to
+different offsets; per-thread PCs (§1) make that ordinary divergence, and it is what lets an
+indirect call be a `call` to a one-instruction `ret` stub. A `ret` target with bit 0 set is
+not 16-bit granular; it is reserved, and raises `F-ILLEGAL` once the fault model lands
+(IS-2). The link value is a **code** offset, which invariant 11 does not cover: that invariant
+keeps 48-bit *data* addresses out of the register file, and a 32-bit code offset is an
+ordinary value. Which registers a callee preserves is the ABI's choice, not the ISA's; the
+compiler's calling-convention proposal sets it by measurement.
 
 **Predicated branch:**
 
