@@ -78,6 +78,7 @@ add_library(CCVMC STATIC
   llvm/CCV/CCVAsmPrinter.cpp
   llvm/CCV/CCVCheckIR.cpp
   llvm/CCV/CCVInternalize.cpp
+  llvm/CCV/CCVPointerPairs.cpp
   llvm/CCV/CCVExpandPseudos.cpp
   llvm/CCV/CCVWindowRemat.cpp
   llvm/CCV/CCVLowerShared.cpp

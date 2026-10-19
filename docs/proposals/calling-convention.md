@@ -77,7 +77,8 @@ module pass rewrites each pointer parameter of an internal function into the pai
 `roffset` is the unnormalized in-window offset, so the pair inherits F-23's
 one-allocation precondition. A pointer read from **memory** is CP-3's representation
 (flat 64-bit, split into a pair on load), and it becomes this pair once in registers. This
-removes `ptr-in-call.ll` from `test/reject/`, and it becomes an accept test.
+is built in `CCVPointerPairs`, which runs before `CCVCheckIR`. A pointer it cannot split is
+still diagnosed, as is a call to a function the module only declares (`ptr-in-call.ll`).
 
 ## 4. Call, return, and the link register
 
@@ -169,7 +170,10 @@ names its entry point, and `ccv-sim -entry` takes it.
    **Done**, with the static frame layout and the recursion diagnostic from step 3.
    `tools/check-calls.sh` executes it.
 3. Outgoing stack arguments (more than six).
-4. F-22: pointer parameters as pairs; `ptr-in-call.ll` moves from reject to accept.
+4. F-22: pointer parameters as pairs. **Done** (`CCVPointerPairs`), returns included:
+   pointers are read through, forwarded with an offset, and returned in `check-calls.sh`,
+   with a control that drops the offset. `ptr-in-call.ll` stays a reject, because its
+   callee is only declared, and a pointer the pass cannot split is still diagnosed.
 5. Indirect calls via the `ret` stub.
 6. The CoreMark port (AR-20), then the CSR sweep, which settles §6.
 
