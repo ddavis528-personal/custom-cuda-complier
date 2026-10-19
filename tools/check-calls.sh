@@ -12,12 +12,16 @@
 # to measurement and each must be correct before it can be measured.
 #
 # The inputs reach past 16 bits so half_step's truncation is exercised, and
-# include negatives so the arithmetic is signed.
+# include negatives so the arithmetic is signed. Pointers cross calls as
+# (rbase, roffset) pairs (F-22): read through, forwarded with an offset, and
+# returned -- the store itself goes through the returned pair.
 #
 # Controls, each of which must fail: the frames laid out at one base (the
 # callee's array lands on the kernel's), lane-0 masking let into a device
 # function (every lane gets lane 0's answer), and the call frame's width rule
-# dropped (half_step leaves a register narrow behind it).
+# dropped (half_step leaves a register narrow behind it), and a pointer split
+# without its GEP offset (sum3_via reads one element short, advance stores
+# every lane's result to out[0]).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
@@ -64,7 +68,9 @@ for i, v in enumerate(inp):
     w = narrow3(v, v >> 3, i)
     p0, p1, p2, p3, p4 = s32(v * 3), s32(v ^ i), s32(v - i * 5), s32(v + 99), s32(i * i)
     q = s32(s32(p0 * p1) + s32(p2 * p3) + s32(p4 * w) + (p0 ^ p3) + s32(p1 - p4))
-    want.append(s32(acc + scratch(v, i) * 3 + s32(v * 7 + ((i + 1) & 3)) + q))
+    j = (i & 7) + 1
+    s3 = s32(inp[j] + inp[j + 1] + inp[j + 2])
+    want.append(s32(acc + scratch(v, i) * 3 + s32(v * 7 + ((i + 1) & 3)) + q + s3))
 L = 0x20000
 args = [f"-poke {hex(L + 24)}=256",            # .local windows from 256
         f"-poke {hex(L + 32)}=3", f"-poke {hex(L + 36)}=0",   # in  -> window 3
@@ -122,7 +128,8 @@ print(f"  PASS  static frames: scratch at {min(offs[s])}..{max(offs[s])}, the ke
 PY
 
 # Controls. Each breaks one thing the passes above depend on.
-for c in "-ccv-test-flat-frames" "-ccv-test-mask-device-functions" "-ccv-test-no-call-widths"; do
+for c in "-ccv-test-flat-frames" "-ccv-test-mask-device-functions" \
+         "-ccv-test-no-call-widths" "-ccv-test-drop-pair-offset"; do
   out=$(run $c)
   # Caught means it compiled and then computed wrong or never finished. A
   # control that fails to compile proves nothing about the property.

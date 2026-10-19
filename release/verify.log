@@ -56,13 +56,14 @@ checked 258 instructions
   PASS  slot reach: 16 slot-form accesses at NT=16, past the
         4-byte stride's ceiling of 8, with 0 spill transfers
   device-function calls (F-21)
-  PASS  calls.cu, callee-saved set 'none': 32 lanes correct (206 issue groups)
-  PASS  calls.cu, callee-saved set 'six': 32 lanes correct (206 issue groups)
-  PASS  calls.cu, callee-saved set 'eight': 32 lanes correct (224 issue groups)
-  PASS  static frames: scratch at -16..-4, the kernel below it at -44..-20
-  PASS  control -ccv-test-flat-frames is caught: 32 of 32 lanes wrong; lane 0: got 2100797557, want 2100637458
-  PASS  control -ccv-test-mask-device-functions is caught: 31 of 32 lanes wrong; lane 1: got 1257155420, want 1257023839
-  PASS  control -ccv-test-no-call-widths is caught: did not run: error: C_ANDI has no semantics in the simulator yet
+  PASS  calls.cu, callee-saved set 'none': 32 lanes correct (234 issue groups)
+  PASS  calls.cu, callee-saved set 'six': 32 lanes correct (234 issue groups)
+  PASS  calls.cu, callee-saved set 'eight': 32 lanes correct (252 issue groups)
+  PASS  static frames: scratch at -16..-4, the kernel below it at -52..-20
+  PASS  control -ccv-test-flat-frames is caught: 32 of 32 lanes wrong; lane 0: got 2100693943, want 2100533844
+  PASS  control -ccv-test-mask-device-functions is caught: 31 of 32 lanes wrong; lane 1: got 1257051806, want 1256928418
+  PASS  control -ccv-test-no-call-widths is caught: did not run: error: C_ADDI has no semantics in the simulator yet
+  PASS  control -ccv-test-drop-pair-offset is caught: 32 of 32 lanes wrong; lane 0: got -639373080, want 2100533844
   the fused corpus executes and computes the right numbers
   PASS  fused corpus: 8 kernels execute and agree with a reference written from the mathematics
   each SFU intrinsic computes its own function
