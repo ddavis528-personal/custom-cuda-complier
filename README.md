@@ -18,7 +18,8 @@ generated documentation.
 
 | File | Role |
 |---|---|
-| [`docs/isa-v1.7-operation-map-and-encoding.md`](docs/isa-v1.7-operation-map-and-encoding.md) | **Current.** Ground truth for encoding. Formats, opcode maps, execution environment and launch ABI, design invariants, and **§1a, the four obligations this ISA places on the implementation** — one a security requirement, one the whole return on the element-width model. |
+| [`docs/isa-v1.8-operation-map-and-encoding.md`](docs/isa-v1.8-operation-map-and-encoding.md) | **Current.** Ground truth for encoding. Formats, opcode maps, execution environment and launch ABI, design invariants, and **§1a, the four obligations this ISA places on the implementation** — one a security requirement, one the whole return on the element-width model. |
+| [`docs/isa-v1.7-operation-map-and-encoding.md`](docs/isa-v1.7-operation-map-and-encoding.md) | Superseded by 1.8, frozen with the CP-4 amendment it carried in place. Kept for the decision trail. |
 | [`docs/isa-v1.6-operation-map-and-encoding.md`](docs/isa-v1.6-operation-map-and-encoding.md) | Superseded by 1.7, frozen before O-40. Kept for the decision trail. |
 | [`docs/isa-v1.5-operation-map-and-encoding.md`](docs/isa-v1.5-operation-map-and-encoding.md) | Superseded by 1.6. |
 | [`docs/isa-v1.4-operation-map-and-encoding.md`](docs/isa-v1.4-operation-map-and-encoding.md) | Superseded by 1.5. |
