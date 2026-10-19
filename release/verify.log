@@ -123,6 +123,9 @@ checked 258 instructions
   PASS  widening clears the exposed bits -- no stale data (O-38)
   PASS  16-bit .shared store writes two bytes, not four
 
+  --- predicate spill (IS-15) ---
+  PASS  ld.pred/st.pred: positional frame, whole-warp words, a clobbered predicate restored
+
   --- call and ret (F-21) ---
   PASS  call/ret: value return, two link registers nested, divergent indirect
         return, link = image offset of the next instruction (32 lanes)

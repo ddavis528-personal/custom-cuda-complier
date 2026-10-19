@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-10-19-6863e29
+# Snapshot snapshot-2026-10-19-90da145
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `6863e29cee145a18109bd5acaf1a418377a1c515`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `90da14565ec17caf3cb6064e13d49b64477aef31`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -19,7 +19,7 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `6863e29cee145a18109bd5acaf1a418377a1c515` |
+| Source | `ccr-ea1c4e17-tem30u` @ `90da14565ec17caf3cb6064e13d49b64477aef31` |
 | Built | 2026-10-19 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
@@ -55,7 +55,7 @@ f540a502bf7063cfb75450053c5163bc8986871d7cb0aa9bc2b8ee8cb9637a3c  release/asm/cu
 74f722d1b50b6e23f8379727243b480a810e07219cd3b8676c475bcce69a1883  release/bench/bench.txt
 b7e7adbfd99c4b2c1c2e5ea653273976d3f98fd179972597a4329938df50af80  release/bench/sweep-decode.txt
 eb6d722fd0f11e7d58e0200733f7f4398035974d0bf74329c01ca4dcefdf1c1a  release/bench/sweep-tiles.txt
-2d78e80b93771d007488bcbf0ee89f32dbf1a49466432f1a45f5a6ce42511eeb  release/bin/ccv-sim
-314c8b56a46bfd981e78de9a8205e8cc9c6e47e315bdfc17053584f7effaf131  release/bin/ccv-sim.txt
-231d4213c48ddce417e259552fc9668c216d24451f1908ba8d9bff9af867dbd0  release/verify.log
+0355dac267a81c9e3f09d044dd45a25e94d266a21674fffdae3d6091ad9b8bfc  release/bin/ccv-sim
+e09cf3b745587026ac35360643ba9992f1da4b4e19dc34335f1aa410879bbfa4  release/bin/ccv-sim.txt
+0af8dc89c04b37ba80e1419b6fe55f19f0fc8b882dddd5e1e79d975cf2ee1404  release/verify.log
 ```
