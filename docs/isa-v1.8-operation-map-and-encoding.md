@@ -64,7 +64,7 @@ reach the new physical register through both, so the obligation now covers the A
 operand registers, and O-33's saving is stated as the ALU's.
 
 **`call` and `ret` are specified (CP-9).** §3 now says `call` writes the next instruction's
-byte address as a 32-bit code address, zero-extended to the PC, and names R14 as
+32-bit offset from the image base and `ret` adds it back, and names R14 as
 `call.short`'s link register. Invariant 11 is scoped to data addresses, which is all it
 ever meant.
 
@@ -1303,19 +1303,21 @@ cost onto spill traffic. An explicit destination lets a two-deep call chain use 
 different link registers — `call R14, f` inside `call R13, g` — with **no spill at all**.
 The convention gets materially cheaper for free.
 
-**What `call` writes and what `ret` reads — normative (CP-9).** `call rd, off` and
+**What `call` writes and what `ret` reads — normative (CP-9).** A kernel's code image has
+an **image base**, the address it was loaded at, fixed for the launch. `call rd, off` and
 `call.short off` write, to every active lane of the link register (`rd`, or R14 for
-`call.short`), the **byte address of the next instruction** as a 32-bit unsigned value: the
-call's own address plus its length. `ret rs` sets each active lane's PC to that lane's `rs`.
-Code addresses are 32 bits and widen to the PC by **zero extension**, so a kernel image and
-everything it calls lie below 4 GiB of the code address space. Lanes may return to different
-addresses; per-thread PCs (§1) make that ordinary divergence, and it is what lets an indirect
-call be a `call` to a one-instruction `ret` stub. A `ret` target with bit 0 set is not a
-16-bit-granular instruction address; it is reserved, and raises `F-ILLEGAL` once the fault
-model lands (IS-2). The link value is a **code** address, which invariant 11 does not cover:
-that invariant keeps 48-bit *data* addresses out of the register file, and a 32-bit code
-address is an ordinary value. Which registers a callee preserves is the ABI's choice, not the
-ISA's; the compiler's calling-convention proposal sets it by measurement.
+`call.short`), the **image offset of the next instruction** as a 32-bit unsigned value: the
+call's own address plus its length, minus the image base. `ret rs` sets each active lane's PC
+to the image base plus that lane's `rs`, zero-extended. So a code address in a register is an
+offset into the image, a function pointer is a constant of the image wherever it is loaded,
+and an image is at most 4 GiB. Lanes may return to different addresses; per-thread PCs (§1)
+make that ordinary divergence, and it is what lets an indirect call be a `call` to a
+one-instruction `ret` stub. A `ret` target with bit 0 set is not a 16-bit-granular
+instruction offset; it is reserved, and raises `F-ILLEGAL` once the fault model lands (IS-2).
+The link value is a **code** offset, which invariant 11 does not cover: that invariant keeps
+48-bit *data* addresses out of the register file, and a 32-bit code offset is an ordinary
+value. Which registers a callee preserves is the ABI's choice, not the ISA's; the compiler's
+calling-convention proposal sets it by measurement.
 
 **Predicated branch:**
 
@@ -1883,8 +1885,12 @@ unsaturated conversion to these formats. That is forced, not preferred: E4M3 and
 infinity, so for two of the three it is the only representable answer, and PTX's `cvt` forms
 targeting `.e4m3x2`, `.e5m2x2` and `.e2m1x2` take `.satfinite` as a **required** modifier.
 **A conversion to FP16 or BF16 is IEEE: overflow gives ±Inf**, as PTX's `cvt.rn.f16.f32` and
-CUDA's `__float2half` do. (What an E2M1 destination gives for a NaN source is to be confirmed
-against PTX's text, under IS-8.)
+CUDA's `__float2half` do. Infinite sources saturate like any other overflow: ±Inf gives
+±max finite at all three narrow formats. E2M1 has no NaN, so a NaN source gives **+6.0**, the
+positive maximum, whatever its sign. That is NVIDIA's reference conversion in `cuda_fp4.hpp`
+(CP's IS-8 response, against CUDA 12.9), and `.satfinite`'s mandatory status was checked
+against `ptxas` 12.9. CUDA's `__NV_NOSAT` FP8 conversion is computed in software by NVIDIA's
+own headers, so the ISA needs no unsaturated form for it.
 
 **Rounding is meaningless on some combinations** — integer to integer has nothing to round.
 Those points are reserved rather than reclaimed: the block is a product, and carving
