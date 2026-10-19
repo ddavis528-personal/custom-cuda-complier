@@ -128,7 +128,7 @@ checked 258 instructions
 
   --- call and ret (F-21) ---
   PASS  call/ret: value return, two link registers nested, divergent indirect
-        return, link = image offset of the next instruction (32 lanes)
+        return, link = byte address of the next instruction (32 lanes)
   PASS  three mutated call sequences each change an answer
   PASS  chwidth placed on data registers only (4 emitted, incl. chwidth.multi)
   PASS  16-bit base+offset access stays 16 bits (3 accesses, no widening)

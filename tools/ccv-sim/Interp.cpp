@@ -1246,15 +1246,15 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     R.Kind = Result::Branch;
     R.Target = PC + Size + 2 * MI.getOperand(0).getImm();
     break;
-  // call writes the image offset of the instruction after it -- a code
-  // address, not a data address, so invariant 11 is untouched -- into its
-  // link register, and branches like `bra`. ret jumps each lane to its own
+  // call writes the byte address of the instruction after it, as a 32-bit
+  // code address -- not a data address, so invariant 11 is untouched -- into
+  // its link register (§3 Format E, v1.8; AR-22), and branches like `bra`. ret jumps each lane to its own
   // lane of rs: PCs are per thread (§1), so after an indirect call lanes can
   // return to different sites, and that is just a divergent branch (F-21;
   // proposals/calling-convention.md §4).
   case CCV::CALL: {
     unsigned D = regOf(MI, 0);
-    uint32_t Link = uint32_t(PC + Size - CodeBase);
+    uint32_t Link = uint32_t(PC + Size);
     forEachLane([&](unsigned L) { W.GPR[D][L] = Link; });
     R.Kind = Result::Branch;
     R.Target = PC + Size + 2 * MI.getOperand(1).getImm();
