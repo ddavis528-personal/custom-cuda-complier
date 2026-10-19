@@ -86,6 +86,20 @@ bool CCVExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
         break;
       }
 
+      case CCV::PSEUDO_CALL:
+        // F-21: the conventional link register. A call.short form of this is
+        // the compressor's to pick once it can see the distance.
+        BuildMI(MBB, MI, DL, TII->get(CCV::CALL), CCV::R14)
+            .add(MI.getOperand(0));
+        break;
+
+      case CCV::PSEUDO_RET:
+        // `ret rs`: rs is [15:12], the payload's high nibble (§3 point 53).
+        BuildMI(MBB, MI, DL, TII->get(CCV::C_RET))
+            .addImm(MF.getSubtarget().getRegisterInfo()->getEncodingValue(
+                        MI.getOperand(0).getReg()) << 4);
+        break;
+
       case CCV::PSEUDO_BRA_PRED: {
         Register Guard = MI.getOperand(0).getReg();
         bool Neg = MI.getOperand(1).getImm() != 0;

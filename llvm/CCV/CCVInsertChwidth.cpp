@@ -66,6 +66,11 @@ static cl::opt<bool> TestNarrowSrd(
     "ccv-test-narrow-srd", cl::init(false), cl::Hidden,
     cl::desc("treat srd's destination as 16-bit, to test that it is refused"));
 
+// Mutation control for tools/check-calls.sh: drop the call boundary's width
+// rule, so a callee may return with a register still narrow.
+static cl::opt<bool> TestNoCallWidths(
+    "ccv-test-no-call-widths", cl::init(false), cl::Hidden,
+    cl::desc("skip widening at calls and returns, to test that it is caught"));
 static cl::opt<bool> ReportChwidth(
     "ccv-chwidth-stats", cl::init(false),
     cl::desc("report width transitions and chwidth.multi opportunities (F-3)"));
@@ -155,6 +160,11 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
         S.fill(kUnknown);
 
       for (MachineInstr &MI : *MBB) {
+        // The calling convention (F-21): every GPR is 32 bits wide at a call
+        // and at a return, so a callee starts in the reset state like a
+        // kernel, and its caller resumes in it.
+        if (MI.isCall() && !TestNoCallWidths)
+          S.fill(0);
         // An explicit `chwidth` already in the block sets the state. Step 1b
         // puts them on edges before step 2 runs, so the dataflow has to read
         // them or it would re-derive a state the code contradicts.
@@ -362,6 +372,25 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
     ++Blocks;
 
     for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
+
+      // F-21: widen everything still narrow, or of unknown width, before a
+      // call or a device function's return. Widening a live register is a
+      // zero-extension (O-38) and a dead one does not care, so this is safe
+      // either way; it costs only where narrow registers exist.
+      if (!TestNoCallWidths &&
+          (MI.isCall() || MI.getOpcode() == CCV::PSEUDO_RET)) {
+        for (unsigned I = 0; I != kNumGPR; ++I) {
+          if (S[I] == 0)
+            continue;
+          BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(CCV::C_CHWIDTH))
+              .addReg(CCV::R0 + I)
+              .addImm(0);
+          S[I] = 0;
+          ++Widening;
+          ++Inserted;
+          Changed = true;
+        }
+      }
 
       // A use at a different width is not automatically a bug, and the two
       // directions are not symmetric.

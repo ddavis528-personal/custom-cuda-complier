@@ -808,7 +808,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     const bool Sgn = isSignedCompare(Op);
     const uint8_t WA = W.ChWidth[A], WB = Imm ? 0 : W.ChWidth[B];
     if (isFloatCompare(Op) && (WA || WB))
-      return {Result::Unimplemented, 0};   // §4 has no narrow FP
+      return {Result::Unimplemented, 0};   // narrow FP: not built yet (CP-6)
     forEachLane([&](unsigned L) {
       if (!((G >> L) & 1)) return;   // invariant 10: excluded lanes preserved
       uint32_t X = cmpOperand(W.GPR[A][L], WA, Sgn);
@@ -849,7 +849,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     const bool Sgn = isSignedCompare(Op);
     const uint8_t WA = W.ChWidth[A], WB = Imm ? 0 : W.ChWidth[B];
     if (isFloatCompare(Op) && (WA || WB))
-      return {Result::Unimplemented, 0};   // §4 has no narrow FP
+      return {Result::Unimplemented, 0};   // narrow FP: not built yet (CP-6)
     forEachLane([&](unsigned L) {
       uint32_t X = cmpOperand(W.GPR[A][L], WA, Sgn);
       uint32_t Y = Imm ? uint32_t(IV) : cmpOperand(W.GPR[B][L], WB, Sgn);
@@ -882,6 +882,26 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
               writeElem(W.GPR[Data][L], Mem.readN(A, Bytes), W.ChWidth[Data]);
       else        Mem.writeN(A, narrow(W.GPR[Data][L], W.ChWidth[Data]), Bytes);
     });
+    break;
+  }
+  // §3: ld.pred / st.pred move the predicates a 4-bit MASK names, each a
+  // whole warp's 32 bits, one instruction. The frame is positional -- word i
+  // of a 16-byte frame holds Pi whatever the mask -- and the address is taken
+  // from lane 0's rbase, since a predicate is warp-scoped state (O-19). The
+  // backend spills predicates through these; until IS-15 a kernel that did
+  // stopped here as unimplemented.
+  case CCV::LD_PRED_G:
+  case CCV::ST_PRED_G: {
+    unsigned PMask = unsigned(MI.getOperand(0).getImm()) & 0xf;
+    unsigned Base = regOf(MI, 1);
+    uint64_t A = (uint64_t(W.GPR[Base][0]) << kBaseShift) +
+                 MI.getOperand(2).getImm();
+    for (unsigned P = 0; P != kPreds; ++P) {
+      if (!(PMask & (1u << P)))
+        continue;
+      if (Op == CCV::LD_PRED_G) W.Pred[P] = Mem.read32(A + 4 * P);
+      else                      Mem.write32(A + 4 * P, W.Pred[P]);
+    }
     break;
   }
   case CCV::LD_GLOBAL_IDX:
@@ -1226,6 +1246,30 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     R.Kind = Result::Branch;
     R.Target = PC + Size + 2 * MI.getOperand(0).getImm();
     break;
+  // call writes the image offset of the instruction after it -- a code
+  // address, not a data address, so invariant 11 is untouched -- into its
+  // link register, and branches like `bra`. ret jumps each lane to its own
+  // lane of rs: PCs are per thread (§1), so after an indirect call lanes can
+  // return to different sites, and that is just a divergent branch (F-21;
+  // proposals/calling-convention.md §4).
+  case CCV::CALL: {
+    unsigned D = regOf(MI, 0);
+    uint32_t Link = uint32_t(PC + Size - CodeBase);
+    forEachLane([&](unsigned L) { W.GPR[D][L] = Link; });
+    R.Kind = Result::Branch;
+    R.Target = PC + Size + 2 * MI.getOperand(1).getImm();
+    break;
+  }
+  case CCV::C_RET: {
+    // rs is in [15:12], the high nibble of the payload. It is not a register
+    // operand to the MC layer, so the width guard above cannot see it.
+    unsigned S = unsigned(MI.getOperand(0).getImm() >> 4) & 15;
+    if (W.ChWidth[S] != 0)
+      return {Result::Unimplemented, 0};
+    R.Kind = Result::Return;
+    R.Target = S;
+    break;
+  }
   case CCV::BRA_PRED: {
     uint32_t Q = uint32_t(MI.getOperand(0).getImm());
     uint32_t P = W.Pred[Q & 3];

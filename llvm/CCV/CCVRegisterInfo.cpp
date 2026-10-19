@@ -7,6 +7,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MathExtras.h"
 
 #define GET_REGINFO_TARGET_DESC
@@ -18,9 +19,32 @@ using namespace llvm;
 // call/ret and chosen by the compiler (§3, Format E).
 CCVRegisterInfo::CCVRegisterInfo() : CCVGenRegisterInfo(/*RA=*/0) {}
 
+// The callee-saved set is CP-9's open question (proposals/calling-convention.md
+// §6): a choice for measurement to settle, so it is an option to sweep rather
+// than a constant to argue about.
+static cl::opt<std::string> CSRSet(
+    "ccv-csr", cl::init("six"),
+    cl::desc("CCV callee-saved registers: none, six (R8-R13) or eight "
+             "(R0, R7-R13)"));
+
 const MCPhysReg *
-CCVRegisterInfo::getCalleeSavedRegs(const MachineFunction *) const {
+CCVRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
+  // A kernel has no caller to preserve anything for.
+  if (MF && ccvIsKernel(MF->getFunction()))
+    return CSR_CCV_None_SaveList;
+  if (CSRSet == "none")  return CSR_CCV_None_SaveList;
+  if (CSRSet == "eight") return CSR_CCV_Eight_SaveList;
+  if (CSRSet != "six")
+    report_fatal_error("CCV: -ccv-csr takes none, six or eight");
   return CSR_CCV_SaveList;
+}
+
+const uint32_t *
+CCVRegisterInfo::getCallPreservedMask(const MachineFunction &,
+                                      CallingConv::ID) const {
+  if (CSRSet == "none")  return CSR_CCV_None_RegMask;
+  if (CSRSet == "eight") return CSR_CCV_Eight_RegMask;
+  return CSR_CCV_RegMask;
 }
 
 BitVector CCVRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
@@ -66,7 +90,11 @@ bool CCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
     DispOp = FIOperandNum + 1;
     break;
   }
-  int64_t Off = MF.getFrameInfo().getObjectOffset(FI) +
+  // Frames are laid out statically over the whole module (F-21): this
+  // function's frame sits below every frame its callees reach, so the same R15
+  // serves every function and a call moves nothing.
+  int64_t Off = MF.getFrameInfo().getObjectOffset(FI) -
+                int64_t(ccvFrameBase(MF.getFunction())) +
                 I.getOperand(DispOp).getImm();
 
   // R15 holds the window index, so the whole frame is addressed by the
@@ -82,8 +110,8 @@ bool CCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
                  "bytes into the frame, past the 8-bit displacement §3 leaves "
                  "Format D's base+index form (roadmap F-131)"
                : "CCV: stack frame exceeds the 13-bit displacement of "
-                 "§3's Format D; this kernel spills more than 4 KiB per "
-                 "thread");
+                 "§3's Format D; this kernel and the functions it calls "
+                 "spill more than 4 KiB per thread");
 
   I.getOperand(FIOperandNum).ChangeToRegister(CCV::R15, /*isDef=*/false);
   I.getOperand(DispOp).ChangeToImmediate(Off);

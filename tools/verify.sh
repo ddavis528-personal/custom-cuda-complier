@@ -116,6 +116,14 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-slot-reach.sh || fail=1
 fi
 
+# F-21: device-function calls, executed under every callee-saved set CP-9
+# leaves open, with the static frame layout checked in the code and three
+# controls that must each be caught.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  device-function calls (F-21)"
+  ./tools/check-calls.sh || fail=1
+fi
+
 # F-143's fused-kernel corpus executes. F-134's lesson applies with full force
 # here: a corpus assembled to settle an architectural question has to be one
 # whose kernels are known to work, or the question is being settled from the

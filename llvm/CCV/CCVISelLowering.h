@@ -11,7 +11,8 @@ class CCVSubtarget;
 namespace CCVISD {
 enum NodeType : unsigned {
   FIRST_NUMBER = ISD::BUILTIN_OP_END,
-  RET,       ///< kernel/function return
+  RET,       ///< kernel exit, or a device function's return (link, regs...)
+  CALL,      ///< direct call -- chain, callee, argument regs, regmask, glue
   SRD,       ///< identity / dynamic state read (§5.3)
   LD_BASEIDX, ///< load  from (rbase << 16) + idx  -- chain, rbase, idx
   ST_BASEIDX, ///< store to   (rbase << 16) + idx  -- chain, value, rbase, idx
@@ -48,6 +49,8 @@ public:
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
                       const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
                       SelectionDAG &DAG) const override;
+  SDValue LowerCall(CallLoweringInfo &CLI,
+                    SmallVectorImpl<SDValue> &InVals) const override;
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
 
   /// §4 gives FP32 a fused multiply-add at one instruction and one rounding,

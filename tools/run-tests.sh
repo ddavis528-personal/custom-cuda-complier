@@ -122,6 +122,72 @@ echo
 echo "  --- per-register element width ---"
 run_chwidth || fail=1
 
+# --- call and ret (F-21) ----------------------------------------------------
+# Hand-written, because the backend cannot emit a call yet: this pins the
+# semantics LowerCall is built against. Every lane is checked, and each
+# control mutates one thing the semantics depend on and must change an answer.
+call_results() {   # $1 = binary; prints "direct nested indirect link" per lane
+  local args=(); for i in $(seq 0 31); do for w in 5 6 7 8; do
+    args+=(-peek $((w * 0x10000 + i*4))); done; done
+  "$SIM" "$1" "${args[@]}" 2>&1
+}
+run_call() {
+  python3 "$AS" "$JSON" test/call.s "$TMP/call.bin" >/dev/null || return 1
+  local out; out=$(call_results "$TMP/call.bin") ||
+    { echo "$out"; echo "  FAIL  call.s did not run to completion"; return 1; }
+  local bad=0 i got want
+  for i in $(seq 0 31); do
+    for pair in "5:$((3*i + 1))" "6:$((3*i + 101))" \
+                "7:$(( i % 2 ? i + 7 : 3*i + 1 ))" "8:8"; do
+      local w=${pair%%:*}; want=${pair#*:}
+      got=$(echo "$out" | grep -oP "\[0x$(printf %x $((w * 0x10000 + i*4)))\] = \K\d+")
+      [ "$got" = "$want" ] || { echo "    lane $i window $w: got $got, want $want"; bad=1; }
+    done
+  done
+  [ $bad -eq 0 ] || { echo "  FAIL  call and ret"; return 1; }
+  echo "  PASS  call/ret: value return, two link registers nested, divergent indirect"
+  echo "        return, link = image offset of the next instruction (32 lanes)"
+  # Controls: outer returning through R14 (its callee's link, not its own);
+  # the indirect stub returning through R6 rather than the target register;
+  # a callee that never returns its value. Each must fail.
+  local c ok=1
+  for c in 's/C_RET      208 /C_RET      224 /' 's/^stub:   C_RET      80/stub:   C_RET      96/' \
+           's/^        ADDI       R1, R1, 100/        ADDI       R4, R1, 100/'; do
+    sed "$c" test/call.s > "$TMP/callm.s"
+    cmp -s test/call.s "$TMP/callm.s" && { echo "  FAIL  control '$c' did not apply"; ok=0; continue; }
+    python3 "$AS" "$JSON" "$TMP/callm.s" "$TMP/callm.bin" >/dev/null 2>&1 || continue
+    if [ "$(call_results "$TMP/callm.bin")" = "$out" ]; then
+      echo "  FAIL  control '$c' left every answer unchanged"; ok=0
+    fi
+  done
+  [ $ok -eq 1 ] && echo "  PASS  three mutated call sequences each change an answer" || return 1
+}
+# --- ld.pred / st.pred (IS-15) -----------------------------------------------
+# The backend spills predicates through these, and until IS-15 the simulator
+# could not execute them. Positional frame, whole-warp words, lane 0's base.
+run_pred_spill() {
+  python3 "$AS" "$JSON" test/pred-spill.s "$TMP/ps.bin" >/dev/null || return 1
+  local out; out=$("$SIM" "$TMP/ps.bin" -peek 0x90040 -peek 0x90044 -peek 0x90048 \
+                   -peek 0x90020 -peek 0x90038 -peek 0x90030 2>&1) ||
+    { echo "$out"; echo "  FAIL  pred-spill.s did not run"; return 1; }
+  local bad=0 pair a want got
+  for pair in 90040:255 90044:65535 90048:16777215 90020:65535 \
+              90038:4294967295 90030:65535; do
+    a=${pair%%:*}; want=${pair#*:}
+    got=$(echo "$out" | grep -oP "\[0x$a\] = \K\d+")
+    [ "$got" = "$want" ] || { echo "    [0x$a]: got $got, want $want"; bad=1; }
+  done
+  [ $bad -eq 0 ] && echo "  PASS  ld.pred/st.pred: positional frame, whole-warp words, a clobbered predicate restored" \
+                 || { echo "  FAIL  ld.pred/st.pred"; return 1; }
+}
+echo
+echo "  --- predicate spill (IS-15) ---"
+run_pred_spill || fail=1
+
+echo
+echo "  --- call and ret (F-21) ---"
+run_call || fail=1
+
 # The compiler side: CCVInsertChwidth places the mode switches, and the two
 # things that are easy to get wrong are both pinned here.
 chw=$(build/ccv-llc test/accept/chwidth-i16.ll -o - 2>/dev/null)

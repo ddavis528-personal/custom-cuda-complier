@@ -41,6 +41,12 @@ void CCVAsmPrinter::emitInstruction(const MachineInstr *MI) {
       Inst.addOperand(MCOperand::createExpr(
           MCSymbolRefExpr::create(MO.getMBB()->getSymbol(), OutContext)));
       break;
+    case MachineOperand::MO_GlobalAddress:   // a call's target (F-21)
+      Inst.addOperand(MCOperand::createExpr(
+          MCSymbolRefExpr::create(getSymbol(MO.getGlobal()), OutContext)));
+      break;
+    case MachineOperand::MO_RegisterMask:    // a call's clobbers: codegen only
+      continue;
     default:
       report_fatal_error("CCV: unhandled machine operand in asm printing");
     }

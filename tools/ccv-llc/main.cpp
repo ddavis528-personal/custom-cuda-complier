@@ -49,6 +49,10 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  // Pointers crossing a call become (rbase, roffset) pairs first, so the check
+  // below sees only the ones that could not be split (F-22).
+  lowerCCVPointerPairs(*M);
+
   // Before codegen: constructs the target cannot lower become diagnostics here
   // rather than crashes inside the type legalizer (F-20, F-22).
   if (!checkCCVModule(*M, errs()))

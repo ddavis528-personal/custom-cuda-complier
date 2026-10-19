@@ -16,9 +16,14 @@ public:
   /// 48-bit one, so it is a separate memory here too. CTA-private falls out:
   /// the simulator runs one CTA.
   Memory Shared;
+  /// Where the kernel image is loaded. Code addresses in registers -- the link
+  /// value `call` writes, the target `ret` reads -- are offsets from it, so a
+  /// function pointer is a constant of the image, needing no relocation.
+  uint64_t CodeBase = 0;
 
   struct Result {
-    enum Kind { Advance, Branch, BranchPred, Exit, Stall, Unimplemented } Kind;
+    /// Return: each issuing lane's PC becomes its own lane of GPR `Target`.
+    enum Kind { Advance, Branch, BranchPred, Return, Exit, Stall, Unimplemented } Kind;
     uint64_t Target = 0;
     /// Lanes that actually did work, after the predicate qualifier. Defaults
     /// to the whole issue mask; a predicated instruction narrows it. This is

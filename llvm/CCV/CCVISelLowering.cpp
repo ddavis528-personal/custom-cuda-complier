@@ -1,6 +1,7 @@
 //===-- CCVISelLowering.cpp -----------------------------------------------===//
 #include "CCVISelLowering.h"
 #include "CCVSubtarget.h"
+#include "CCVFrameLowering.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -105,6 +106,7 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
 const char *CCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   switch (Opcode) {
   case CCVISD::RET: return "CCVISD::RET";
+  case CCVISD::CALL: return "CCVISD::CALL";
   case CCVISD::SRD: return "CCVISD::SRD";
   case CCVISD::LD_BASEIDX: return "CCVISD::LD_BASEIDX";
   case CCVISD::ST_BASEIDX: return "CCVISD::ST_BASEIDX";
@@ -753,7 +755,91 @@ SDValue CCVTargetLowering::LowerFormalArguments(
       report_fatal_error("CCV: stack arguments are not implemented");
     Register VReg = MF.getRegInfo().createVirtualRegister(&CCV::GPRRegClass);
     MF.getRegInfo().addLiveIn(VA.getLocReg(), VReg);
-    InVals.push_back(DAG.getCopyFromReg(Chain, DL, VReg, VA.getLocVT()));
+    SDValue V = DAG.getCopyFromReg(Chain, DL, VReg, VA.getLocVT());
+    if (VA.getValVT() != VA.getLocVT())       // i1/i8/i16, promoted to i32
+      V = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), V);
+    InVals.push_back(V);
+  }
+
+  // A device function returns through the link value its caller's `call` left
+  // in R14 (F-21). Taken as an ordinary live-in, so the allocator keeps it in
+  // R14 in a leaf and moves or spills it in a function that calls.
+  if (!ccvIsKernel(MF.getFunction()))
+    MF.getRegInfo().addLiveIn(
+        CCV::R14, MF.getRegInfo().createVirtualRegister(&CCV::GPRRegClass));
+  return Chain;
+}
+
+/// A direct call (F-21; proposals/calling-convention.md). Arguments go in
+/// R1-R6 per CC_CCV, the callee runs on the same R15 with its frame at a
+/// static place below its caller's, and returns in R1-R2. Stack arguments and
+/// indirect calls are the proposal's steps 3 and 5.
+SDValue CCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
+                                     SmallVectorImpl<SDValue> &InVals) const {
+  SelectionDAG &DAG = CLI.DAG;
+  const SDLoc &DL = CLI.DL;
+  SDValue Chain = CLI.Chain;
+  MachineFunction &MF = DAG.getMachineFunction();
+  CLI.IsTailCall = false;
+  if (CLI.IsVarArg)
+    report_fatal_error("CCV: variadic calls are not supported");
+
+  const auto *G = dyn_cast<GlobalAddressSDNode>(CLI.Callee);
+  if (!G)
+    report_fatal_error(
+        isa<ExternalSymbolSDNode>(CLI.Callee)
+            ? Twine("CCV: a call to the library function ") +
+                  cast<ExternalSymbolSDNode>(CLI.Callee)->getSymbol() +
+                  ", which this module does not define (F-21)"
+            : Twine("CCV: indirect calls are not implemented yet "
+                    "(proposals/calling-convention.md §4, step 5)"));
+  if (G->getGlobal()->isDeclaration())
+    report_fatal_error("CCV: a call to " + G->getGlobal()->getName() +
+                       ", which this module does not define: device code is "
+                       "one closed module (F-21)");
+
+  SmallVector<CCValAssign, 8> ArgLocs;
+  CCState CCInfo(CLI.CallConv, false, MF, ArgLocs, *DAG.getContext());
+  CCInfo.AnalyzeCallOperands(CLI.Outs, CC_CCV);
+
+  Chain = DAG.getCALLSEQ_START(Chain, 0, 0, DL);
+  SDValue Glue;
+  SmallVector<SDValue, 8> Ops = {
+      // i32, not the 64-bit pointer type: no register holds an address
+      // (invariant 11), and a code address is an image offset (F-21).
+      Chain, DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i32)};
+  for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
+    const CCValAssign &VA = ArgLocs[I];
+    if (!VA.isRegLoc())
+      report_fatal_error("CCV: more than six register arguments -- stack "
+                         "arguments are step 3 of the calling sequence");
+    SDValue V = CLI.OutVals[I];
+    if (VA.getLocVT() != VA.getValVT())
+      V = DAG.getNode(ISD::ANY_EXTEND, DL, VA.getLocVT(), V);
+    Chain = DAG.getCopyToReg(Chain, DL, VA.getLocReg(), V, Glue);
+    Glue = Chain.getValue(1);
+    Ops.push_back(DAG.getRegister(VA.getLocReg(), VA.getLocVT()));
+  }
+  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
+  Ops.push_back(DAG.getRegisterMask(TRI->getCallPreservedMask(MF, CLI.CallConv)));
+  Ops[0] = Chain;
+  if (Glue.getNode())
+    Ops.push_back(Glue);
+  Chain = DAG.getNode(CCVISD::CALL, DL, {MVT::Other, MVT::Glue}, Ops);
+  Glue = Chain.getValue(1);
+  Chain = DAG.getCALLSEQ_END(Chain, 0, 0, Glue, DL);
+  Glue = Chain.getValue(1);
+
+  SmallVector<CCValAssign, 2> RVLocs;
+  CCState RetInfo(CLI.CallConv, false, MF, RVLocs, *DAG.getContext());
+  RetInfo.AnalyzeCallResult(CLI.Ins, RetCC_CCV);
+  for (const CCValAssign &VA : RVLocs) {
+    SDValue V = DAG.getCopyFromReg(Chain, DL, VA.getLocReg(), VA.getLocVT(), Glue);
+    Chain = V.getValue(1);
+    Glue = V.getValue(2);
+    if (VA.getValVT() != VA.getLocVT())
+      V = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), V);
+    InVals.push_back(V);
   }
   return Chain;
 }
@@ -770,8 +856,31 @@ SDValue CCVTargetLowering::LowerReturn(
 
   SDValue Glue;
   SmallVector<SDValue, 4> Ops(1, Chain);
+  // Operand 1 of a device function's RET is the link value (F-21); a kernel's
+  // RET has none and becomes `exit`.
+  //
+  // The link value goes back into R14 for the `ret`, rather than being returned
+  // through whatever register held it. The epilogue restores callee-saved
+  // registers immediately before the return, so a link value the allocator had
+  // kept in one of them would be overwritten by the caller's value first --
+  // which is what -ccv-csr=eight did, returning through R0. R14 is in no
+  // callee-saved set. A leaf keeps it in R14 throughout and pays nothing; a
+  // function that calls pays at most one `mov`.
+  if (!ccvIsKernel(MF.getFunction())) {
+    Register Link = MF.getRegInfo().getLiveInVirtReg(CCV::R14);
+    assert(Link && "LowerFormalArguments took R14 as a live-in");
+    SDValue L = DAG.getCopyFromReg(Chain, DL, Link, MVT::i32);
+    Chain = DAG.getCopyToReg(L.getValue(1), DL, CCV::R14, L, Glue);
+    Glue = Chain.getValue(1);
+    Ops.push_back(DAG.getRegister(CCV::R14, MVT::i32));
+  } else if (!RVLocs.empty()) {
+    report_fatal_error("CCV: a kernel cannot return a value");
+  }
   for (unsigned I = 0, E = RVLocs.size(); I != E; ++I) {
-    Chain = DAG.getCopyToReg(Chain, DL, RVLocs[I].getLocReg(), OutVals[I], Glue);
+    SDValue V = OutVals[I];
+    if (RVLocs[I].getLocVT() != RVLocs[I].getValVT())
+      V = DAG.getNode(ISD::ANY_EXTEND, DL, RVLocs[I].getLocVT(), V);
+    Chain = DAG.getCopyToReg(Chain, DL, RVLocs[I].getLocReg(), V, Glue);
     Glue = Chain.getValue(1);
     Ops.push_back(DAG.getRegister(RVLocs[I].getLocReg(), RVLocs[I].getLocVT()));
   }

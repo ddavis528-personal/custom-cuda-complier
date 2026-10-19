@@ -1,5 +1,6 @@
 //===-- CCVTargetTransformInfo.cpp ----------------------------------------===//
 #include "CCVTargetTransformInfo.h"
+#include "CCVFrameLowering.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 
@@ -10,12 +11,15 @@ bool CCVTTIImpl::isSourceOfDivergence(const Value *V) const {
   // launch block (§5.2), which is CTA-wide and therefore warp-uniform. By the
   // time this runs they are `.const` loads, but an unlowered argument is
   // uniform too.
-  if (isa<Argument>(V))
-    return false;
+  //
+  // A device function's arguments are another matter (F-21): they are its
+  // caller's per-lane values, and so is what a call returns.
+  if (const auto *A = dyn_cast<Argument>(V))
+    return !ccvIsKernel(*A->getParent());
 
   const auto *II = dyn_cast<IntrinsicInst>(V);
   if (!II)
-    return false;
+    return isa<CallBase>(V);
 
   switch (II->getIntrinsicID()) {
   // The thread index is the ONLY architectural source of divergence: it is

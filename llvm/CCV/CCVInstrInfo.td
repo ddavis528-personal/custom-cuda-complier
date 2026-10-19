@@ -55,6 +55,12 @@ def brtarget21 : Operand<OtherVT> {
   let EncoderMethod = "getBranch21OpValue";
   let DecoderMethod = "decodeSImm<21>";
 }
+// A call's target: a function symbol, resolved by fixup_ccv_call17 as a
+// halfword offset from the instruction after the call, like a branch (F-21).
+def calltarget17 : Operand<i32> {
+  let EncoderMethod = "getCall17OpValue";
+  let DecoderMethod = "decodeSImm<17>";
+}
 def brtarget18 : Operand<OtherVT> {
   let EncoderMethod = "getBranch18OpValue";
   let DecoderMethod = "decodeSImm<18>";
@@ -710,7 +716,7 @@ def BRA_PRED : FormatEbrap<0b00001, (outs), (ins pqual:$pq, brtarget18:$off),
                            "@$pq bra $off">;
 
 let isCall = 1 in
-def CALL : FormatEcall<0b00010, (outs GPR:$rd), (ins simm17:$off), "call $rd, $off">;
+def CALL : FormatEcall<0b00010, (outs GPR:$rd), (ins calltarget17:$off), "call $rd, $off">;
 
 def BAR_INIT : FormatEbarinit<0b00011, (outs), (ins uimm6:$barid, uimm10:$count),
                               "bar.init $barid, $count">;
@@ -933,6 +939,26 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
   def PSEUDO_PMOV : CCVInst<0, (outs GPR:$rd),
                             (ins GPR:$false, PR:$cond, GPR:$a),
                             "# @$cond mov $rd, $a">;
+
+  // The calling sequence (F-21; proposals/calling-convention.md). The call
+  // frame is static (§2 of the proposal), so the call-sequence markers adjust
+  // nothing and are erased; they exist because the DAG brackets every call.
+  def ADJCALLSTACKDOWN : CCVInst<0, (outs), (ins i32imm:$amt1, i32imm:$amt2),
+                                 "# adjcallstackdown $amt1">;
+  def ADJCALLSTACKUP   : CCVInst<0, (outs), (ins i32imm:$amt1, i32imm:$amt2),
+                                 "# adjcallstackup $amt1">;
+  // A direct call on the conventional link register, R14 -- the register
+  // §3's call.short uses implicitly. Expanded to `call R14, f`.
+  let isCall = 1, Defs = [R14] in
+  def PSEUDO_CALL : CCVInst<0, (outs), (ins calltarget17:$func, variable_ops),
+                            "# call $func">;
+  // A device function's return, through R14. In between, the link value is an
+  // ordinary live-in the allocator keeps wherever suits, which is how §3's
+  // two-link-register nesting needs no spill; it is copied back to R14 for the
+  // return, out of reach of the epilogue's callee-saved restores.
+  let isReturn = 1, isTerminator = 1, isBarrier = 1 in
+  def PSEUDO_RET : CCVInst<0, (outs), (ins GPR:$link, variable_ops),
+                           "# ret $link">;
 
   let isBranch = 1, isTerminator = 1 in
   def PSEUDO_BRA_PRED : CCVInst<0, (outs),

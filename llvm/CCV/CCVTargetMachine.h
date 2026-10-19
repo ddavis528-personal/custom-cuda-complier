@@ -23,6 +23,10 @@ public:
     return &ST;
   }
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
+  /// The module is closed (no -rdc), so a direct call can use its callee's
+  /// real clobbers, and IPRA's bottom-up codegen order is what the static
+  /// frame layout relies on (F-21).
+  bool useIPRA() const override { return true; }
   TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
