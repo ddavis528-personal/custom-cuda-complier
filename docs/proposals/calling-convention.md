@@ -90,13 +90,16 @@ removes `ptr-in-call.ll` from `test/reject/`, and it becomes an accept test.
   (§3's "`call R14, f` inside `call R13, g`, with no spill at all" falls out by itself) or
   a spill when pressure says so. R14 is otherwise an ordinary caller-saved register.
 - **What `call` writes, and what `ret` reads.** §3 says `call` writes a link register, but
-  not what value it holds. CP builds it as **the byte address of the instruction after
-  the `call`, in the code address space, as a 32-bit value**, and `ret rs` sets the
-  lane's PC to `rs`. A kernel image is far below 4 GiB, and code addresses are not data
-  addresses, so invariant 11 is untouched. *The ISA text should say this; it is IS's to
-  word.*
-- **Indirect calls need no new instruction.** A function pointer is a code address (a
-  `movi` with a relocation). An indirect call is a `call R14, stub` to a one-instruction
+  not what value it holds, and nothing in the ISA defines a code address at all. CP builds
+  it as **the byte offset of the instruction after the `call` from the start of the kernel
+  image, as a 32-bit value**, and `ret rs` sets the lane's PC to the image base plus
+  `rs`. An image offset, rather than an absolute PC, makes code position-independent:
+  a function pointer is a constant of the image, needing no load-time relocation, and
+  the hardware already knows each warp's image base, since it started there. Code
+  addresses are not data addresses, so invariant 11 is untouched. *The ISA text should
+  say this; it is IS's to word.*
+- **Indirect calls need no new instruction.** A function pointer is an image offset, a
+  `movi` of a constant the assembler knows. An indirect call is a `call R14, stub` to a one-instruction
   local stub `ret rF`, where rF holds the target: `call` sets the link register and `ret`
   jumps to the target. The cost is one extra redirect per indirect call. AR-20 already
   expects that, and flags the missing return-address predictor as the likely perf
@@ -107,8 +110,10 @@ removes `ptr-in-call.ll` from `test/reject/`, and it becomes an accept test.
 
 ## 5. ccv-sim
 
-`call` writes `PC + Size` to `rd` in every active lane and branches. `ret rs` sets each
-active lane's PC to its own `rs`. The executed checks run a value-returning call, a
+**Built** (`test/call.s`, `run-tests.sh`). `call` writes `PC + Size − base` to `rd` in
+every active lane and branches; `ret rs` sets each active lane's PC to `base + rs`, its
+own lane's. ccv-as gained `@label`, a label's image offset, so the test can hand-write an
+indirect call. What remains of this section is for when the backend emits calls: The executed checks run a value-returning call, a
 two-deep chain, an indirect call, a pointer argument and a callee-saved value across a
 call against references. Each check is proved by mutation, per the gate's practice:
 a wrong link value, a clobbered callee-saved register, or crossed pointer halves must
@@ -135,7 +140,7 @@ measurement decides the set; B is what is built until it does.**
 
 ## 7. Order of work
 
-1. `ccv-sim`: `call` and `ret`, with the executed check and its mutations.
+1. `ccv-sim`: `call` and `ret`, with the executed check and its mutations. **Done.**
 2. `LowerCall`, the value-returning `RET`, R14 as a live-in, IPRA on, and `CSR_CCV` = B.
 3. The static frame layout, the recursion diagnostic, and outgoing stack arguments.
 4. F-22: pointer parameters as pairs; `ptr-in-call.ll` moves from reject to accept.
