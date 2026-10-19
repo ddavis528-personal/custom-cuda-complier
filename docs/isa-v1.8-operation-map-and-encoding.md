@@ -1224,9 +1224,11 @@ with loads to different addresses. See O-52.
 
 ### Formats M / M′ — Atomics
 
-**Properties, not a mechanism.** An atomic is one instruction with one ROB entry. Its
-read-modify-write is atomic and full-width at the memory location, and it returns the old
-value where it has a destination. Every operation allocated here is integer and order-independent, so
+**Properties, not a mechanism.** An atomic is one instruction with one ROB entry. **Each
+active lane's read-modify-write is individually atomic** and full-width at its memory
+location, and each lane returns the old value it saw where the instruction has a
+destination. Atomicity is per lane, as in CUDA, not per instruction: another instruction's
+lanes, from any warp, may land between two lanes of this one. Every operation allocated here is integer and order-independent, so
 same-address lanes within one instruction may apply in any order; a non-associative form,
 such as the FP add IS-14 proposes, arrives with its own ordering rule. Where the operation executes is the
 implementation's choice. *(1.7 and the first cut of 1.8 said "normal ALU execution on the
