@@ -249,7 +249,8 @@ int main(int argc, char **argv) {
                    // lowest issuing lane's, and the register it came from is
                    // in the instruction bytes.
                    (unsigned long long)(R.Kind == Interp::Result::Return
-                       ? uint64_t(W.GPR[R.Target][llvm::countr_zero(Mask)])
+                       ? ((Target & ~uint64_t(0xffffffff)) |
+                          W.GPR[R.Target][llvm::countr_zero(Mask)])
                        : R.Target),
                    R.TakenMask,
                    int(D.mayLoad()), int(D.mayStore()));
@@ -460,8 +461,11 @@ int main(int argc, char **argv) {
       break;
     case Interp::Result::Return:
       for (unsigned L = 0; L != kLanes; ++L)
-        // §3: the 32-bit code address widens to the PC by zero extension.
-        if (Mask & (1u << L)) W.PC[L] = uint64_t(W.GPR[R.Target][L]);
+        // §3 Format E (v1.8, 3013036): the PC is {PC[47:32] of the ret,
+        // rs[31:0]} -- a concatenation under the ret's own 4 GiB code window,
+        // not an add, so no image base reaches the redirect.
+        if (Mask & (1u << L))
+          W.PC[L] = (Target & ~uint64_t(0xffffffff)) | W.GPR[R.Target][L];
       break;
     case Interp::Result::BranchPred:
       // Lanes split here. No bracket, no mask stack -- they simply hold

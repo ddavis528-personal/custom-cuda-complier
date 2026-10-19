@@ -129,7 +129,7 @@ run_chwidth || fail=1
 call_results() {   # $1 = binary; prints "direct nested indirect link" per lane
   local args=(); for i in $(seq 0 31); do for w in 5 6 7 8; do
     args+=(-peek $((w * 0x10000 + i*4))); done; done
-  "$SIM" "$1" "${args[@]}" 2>&1
+  "$SIM" "$@" "${args[@]}" 2>&1
 }
 run_call() {
   python3 "$AS" "$JSON" test/call.s "$TMP/call.bin" >/dev/null || return 1
@@ -161,6 +161,12 @@ run_call() {
     fi
   done
   [ $ok -eq 1 ] && echo "  PASS  three mutated call sequences each change an answer" || return 1
+  # §3 (v1.8, 3013036): ret is {PC[47:32], rs}, a concatenation under its own
+  # 4 GiB window. Loaded above 4 GiB, a zero-extending ret leaves the image.
+  local hi; hi=$(call_results "$TMP/call.bin" -code-base 0x100001000) ||
+    { echo "$hi"; echo "  FAIL  call.s loaded at 0x1_0000_1000 did not run"; return 1; }
+  [ "$hi" = "$out" ] && echo "  PASS  the same answers loaded at 0x1_0000_1000: ret keeps its 4 GiB window" \
+                     || { echo "  FAIL  call.s gives different answers loaded above 4 GiB"; return 1; }
 }
 # --- ld.pred / st.pred (IS-15) -----------------------------------------------
 # The backend spills predicates through these, and until IS-15 the simulator
