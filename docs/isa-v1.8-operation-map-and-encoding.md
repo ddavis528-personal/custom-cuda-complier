@@ -68,6 +68,9 @@ instruction's address and `ret` concatenates them under its own 4 GiB code windo
 `call.short`'s link register. Invariant 11 is scoped to data addresses, which is all it
 ever meant.
 
+**Format M states properties, not a site (AR-21).** Its preamble named lane-ALU execution
+on the buffered old value; that is struck, and the properties it implied stay.
+
 ### A compiler contract replaced by hardware behaviour
 
 **`.const` is hardware-protected (O-51; IS-3).** 1.7 called it read-only "by compiler
@@ -1221,8 +1224,16 @@ with loads to different addresses. See O-52.
 
 ### Formats M / M′ — Atomics
 
-Single ROB entry. Normal ALU execution on the buffered old value; existing load buffer
-(with exclusive-ownership request) and store buffer handle the memory side.
+**Properties, not a mechanism.** An atomic is one instruction with one ROB entry. Its
+read-modify-write is atomic and full-width at the memory location, and it returns the old
+value where it has a destination. Every operation allocated here is integer and order-independent, so
+same-address lanes within one instruction may apply in any order; a non-associative form,
+such as the FP add IS-14 proposes, arrives with its own ordering rule. Where the operation executes is the
+implementation's choice. *(1.7 and the first cut of 1.8 said "normal ALU execution on the
+buffered old value; existing load buffer and store buffer handle the memory side", which
+named the lane ALU as the site. That site cannot apply a same-address lane chain in one pass,
+and holds the line exclusive across a round trip to the lanes. Struck under AR-21, as
+invariant 2's mechanism clause was under OA-16; the site is AR's and DA's.)*
 
 **Simple RMW (32-bit):**
 
