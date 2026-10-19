@@ -63,6 +63,11 @@ not toggle its register-file write port or result bus. Under rename the merge va
 reach the new physical register through both, so the obligation now covers the ALU and its
 operand registers, and O-33's saving is stated as the ALU's.
 
+**`call` and `ret` are specified (CP-9).** §3 now says `call` writes the next instruction's
+byte address as a 32-bit code address, zero-extended to the PC, and names R14 as
+`call.short`'s link register. Invariant 11 is scoped to data addresses, which is all it
+ever meant.
+
 ### A compiler contract replaced by hardware behaviour
 
 **`.const` is hardware-protected (O-51; IS-3).** 1.7 called it read-only "by compiler
@@ -669,7 +674,7 @@ Spending 32 bits on it was pure waste.
 
 **`call` and `ret` compress asymmetrically.** Compressed `ret` has room for an explicit
 link-register source; compressed `call` does not, because all eight remaining bits go to
-the offset. So `call.short` uses the ABI-conventional link register implicitly, and any
+the offset. So `call.short` uses **R14**, the ABI's link register, implicitly, and any
 call needing a different one takes the 32-bit form. The offset range is the real limiter
 anyway: ±256 bytes reaches a nearby leaf helper and little else, so `call.short` will hit
 far less often than `ret`. That is still a net win — a 32-bit `call` paired with a 16-bit
@@ -1297,6 +1302,20 @@ hardware call stack specifically to keep resident warp state small, which pushed
 cost onto spill traffic. An explicit destination lets a two-deep call chain use two
 different link registers — `call R14, f` inside `call R13, g` — with **no spill at all**.
 The convention gets materially cheaper for free.
+
+**What `call` writes and what `ret` reads — normative (CP-9).** `call rd, off` and
+`call.short off` write, to every active lane of the link register (`rd`, or R14 for
+`call.short`), the **byte address of the next instruction** as a 32-bit unsigned value: the
+call's own address plus its length. `ret rs` sets each active lane's PC to that lane's `rs`.
+Code addresses are 32 bits and widen to the PC by **zero extension**, so a kernel image and
+everything it calls lie below 4 GiB of the code address space. Lanes may return to different
+addresses; per-thread PCs (§1) make that ordinary divergence, and it is what lets an indirect
+call be a `call` to a one-instruction `ret` stub. A `ret` target with bit 0 set is not a
+16-bit-granular instruction address; it is reserved, and raises `F-ILLEGAL` once the fault
+model lands (IS-2). The link value is a **code** address, which invariant 11 does not cover:
+that invariant keeps 48-bit *data* addresses out of the register file, and a 32-bit code
+address is an ordinary value. Which registers a callee preserves is the ABI's choice, not the
+ISA's; the compiler's calling-convention proposal sets it by measurement.
 
 **Predicated branch:**
 
@@ -2431,8 +2450,8 @@ quantified on one side of it.
     `packi.z` (§3, Format B) is the only one, and `pand pd, ps, !ps` clears a predicate in
     16 bits.
 
-11. **No register holds an address.** Addresses are 48 bits and exist only as the output of
-    address generation; the registers feeding it hold at most 32 bits each. This is what
+11. **No register holds a data address.** Data addresses are 48 bits and exist only as the
+    output of address generation; the registers feeding it hold at most 32 bits each. This is what
     keeps invariant 1 intact under 64-bit addressing — there is no 64-bit width code, no
     register pair, and no address register file. See §5.1.
 
