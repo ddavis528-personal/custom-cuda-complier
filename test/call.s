@@ -2,7 +2,8 @@
 # registers, and an indirect call whose lanes return from different callees.
 # Results land at 0x50000 (direct), 0x60000 (nested), 0x70000 (indirect),
 # one word per lane, and at 0x80000 the link value itself, which must be the
-# byte address of the instruction after the call.
+# byte address of the instruction after the call: 0x1000 + 8, since the image
+# loads at 0x1000 (§3 Format E, v1.8).
         SRD        R2, 0                # lane
         C_MOV      R1, R2
         CALL       R14, triple1         # R1 = 3*lane + 1

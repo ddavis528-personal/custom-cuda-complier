@@ -806,7 +806,7 @@ SDValue CCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
   SDValue Glue;
   SmallVector<SDValue, 8> Ops = {
       // i32, not the 64-bit pointer type: no register holds an address
-      // (invariant 11), and a code address is an image offset (F-21).
+      // (invariant 11), and a code address is 32-bit (§3 Format E).
       Chain, DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i32)};
   for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
     const CCValAssign &VA = ArgLocs[I];

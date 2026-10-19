@@ -56,6 +56,9 @@ def encode(inst, values):
             raise AsmError(f"unassigned bit {i}")
     return word.to_bytes(inst["size"], "little")
 
+# The image's load address, as ccv-sim's -code-base defaults it.
+CODE_BASE = 0x1000
+
 REG = re.compile(r'^[Rr](\d+)$')
 PREG = re.compile(r'^[Pp](\d+)$')
 
@@ -72,12 +75,16 @@ def parse_operand(tok, symbols, pc, size):
         return int(m.group(1))
     if tok in symbols:                       # label -> halfword-relative offset
         return (symbols[tok] - (pc + size)) // 2
-    # @label is the label's absolute byte address: a code address, which is what
-    # `call` leaves in its link register and `ret` jumps to (F-21). @a-@b is the
-    # distance between two, for a hand-written indirect call.
+    # @label is the label's code address: what `call` leaves in its link
+    # register and `ret` jumps to, absolute and 32-bit (§3 Format E, v1.8). The
+    # image's load address is CODE_BASE, which must match ccv-sim's -code-base:
+    # a code address is fixed at link time, which is this (AR-22). @a-@b is
+    # the distance between two, which needs no base.
     m = re.match(r'^@(\w+)(?:-@(\w+))?$', tok)
     if m and m.group(1) in symbols and (m.group(2) is None or m.group(2) in symbols):
-        return symbols[m.group(1)] - (symbols[m.group(2)] if m.group(2) else 0)
+        if m.group(2):
+            return symbols[m.group(1)] - symbols[m.group(2)]
+        return CODE_BASE + symbols[m.group(1)]
     try:
         return int(tok, 0)
     except ValueError:

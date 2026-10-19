@@ -138,7 +138,7 @@ run_call() {
   local bad=0 i got want
   for i in $(seq 0 31); do
     for pair in "5:$((3*i + 1))" "6:$((3*i + 101))" \
-                "7:$(( i % 2 ? i + 7 : 3*i + 1 ))" "8:8"; do
+                "7:$(( i % 2 ? i + 7 : 3*i + 1 ))" "8:$((0x1000 + 8))"; do
       local w=${pair%%:*}; want=${pair#*:}
       got=$(echo "$out" | grep -oP "\[0x$(printf %x $((w * 0x10000 + i*4)))\] = \K\d+")
       [ "$got" = "$want" ] || { echo "    lane $i window $w: got $got, want $want"; bad=1; }
@@ -146,7 +146,7 @@ run_call() {
   done
   [ $bad -eq 0 ] || { echo "  FAIL  call and ret"; return 1; }
   echo "  PASS  call/ret: value return, two link registers nested, divergent indirect"
-  echo "        return, link = image offset of the next instruction (32 lanes)"
+  echo "        return, link = byte address of the next instruction (32 lanes)"
   # Controls: outer returning through R14 (its callee's link, not its own);
   # the indirect stub returning through R6 rather than the target register;
   # a callee that never returns its value. Each must fail.

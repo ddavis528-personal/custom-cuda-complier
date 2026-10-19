@@ -16,10 +16,6 @@ public:
   /// 48-bit one, so it is a separate memory here too. CTA-private falls out:
   /// the simulator runs one CTA.
   Memory Shared;
-  /// Where the kernel image is loaded. Code addresses in registers -- the link
-  /// value `call` writes, the target `ret` reads -- are offsets from it, so a
-  /// function pointer is a constant of the image, needing no relocation.
-  uint64_t CodeBase = 0;
 
   struct Result {
     /// Return: each issuing lane's PC becomes its own lane of GPR `Target`.

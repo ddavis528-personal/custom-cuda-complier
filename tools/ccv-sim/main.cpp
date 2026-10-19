@@ -115,7 +115,6 @@ int main(int argc, char **argv) {
   StringRef Code = (*Buf)->getBuffer();
 
   Interp I;
-  I.CodeBase = CodeBase;
   Warp W;
   W.CtaId = CtaId;
   for (unsigned L = 0; L != kLanes; ++L) {
@@ -250,7 +249,7 @@ int main(int argc, char **argv) {
                    // lowest issuing lane's, and the register it came from is
                    // in the instruction bytes.
                    (unsigned long long)(R.Kind == Interp::Result::Return
-                       ? CodeBase + W.GPR[R.Target][llvm::countr_zero(Mask)]
+                       ? uint64_t(W.GPR[R.Target][llvm::countr_zero(Mask)])
                        : R.Target),
                    R.TakenMask,
                    int(D.mayLoad()), int(D.mayStore()));
@@ -461,7 +460,8 @@ int main(int argc, char **argv) {
       break;
     case Interp::Result::Return:
       for (unsigned L = 0; L != kLanes; ++L)
-        if (Mask & (1u << L)) W.PC[L] = CodeBase + W.GPR[R.Target][L];
+        // §3: the 32-bit code address widens to the PC by zero extension.
+        if (Mask & (1u << L)) W.PC[L] = uint64_t(W.GPR[R.Target][L]);
       break;
     case Interp::Result::BranchPred:
       // Lanes split here. No bracket, no mask stack -- they simply hold
