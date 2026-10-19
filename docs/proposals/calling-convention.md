@@ -93,16 +93,15 @@ still diagnosed, as is a call to a function the module only declares (`ptr-in-ca
   callee-saved registers just before the return, so a link value left in one of them would
   be overwritten by the caller's value first. A leaf pays nothing for this; a function that
   calls pays at most one `mov`. R14 is otherwise an ordinary caller-saved register.
-- **What `call` writes, and what `ret` reads: decided in ISA v1.8 §3 Format E (36bafca).**
-  `call` writes **the byte address of the next instruction, as a 32-bit code address**, and
-  `ret rs` sets each lane's PC to its `rs`, zero-extended; code lies below 4 GiB. Code
-  addresses are not data addresses, so invariant 11, now scoped to data addresses, is
-  untouched. CP first built an image offset instead, for position-independent function
-  pointers. AR-22 showed what that costs: the image base would have to reach RCU and OOE,
-  modules can be co-resident, and it puts an adder on the link write and the redirect.
-  The absolute form costs a zero-extend, and CUDA resolves device function pointers at
-  load time anyway. So ccv-sim follows the ISA, and a function pointer is a relocation
-  that the link step resolves.
+- **What `call` writes, and what `ret` reads: ruled in ISA v1.8 §3 Format E (3013036).**
+  `call` writes **the low 32 bits of the next instruction's address**, and `ret rs` sets
+  each lane's PC to `{PC[47:32] of the ret, rs}`, a concatenation under the ret's own
+  aligned 4 GiB code window, which holds a kernel's image and everything it calls. No
+  image base reaches RCU or OOE and no adder is needed (AR-22), and a function pointer
+  is its low 32 bits, fixed at link time. Code addresses are not data addresses, so
+  invariant 11, now scoped to data addresses, is untouched. The row history: CP first
+  built an image offset, IS first wrote a zero-extended absolute address, and AR's
+  concatenation is the form under which both coincide.
 - **Indirect calls need no new instruction.** A function pointer is a code address, a
   `movi` of a relocated constant. An indirect call is a `call R14, stub` to a one-instruction
   local stub `ret rF`, where rF holds the target: `call` sets the link register and `ret`
@@ -115,8 +114,9 @@ still diagnosed, as is a call to a function the module only declares (`ptr-in-ca
 
 ## 5. ccv-sim
 
-**Built** (`test/call.s`, `run-tests.sh`). `call` writes `PC + Size` to `rd` in every
-active lane and branches; `ret rs` sets each active lane's PC to its own `rs`. ccv-as
+**Built** (`test/call.s`, `run-tests.sh`). `call` writes the low 32 bits of `PC + Size`
+to `rd` in every active lane and branches; `ret rs` sets each active lane's PC to
+`{PC[47:32], rs}`, its own lane's. ccv-as
 gained `@label`, a label's code address at the image's load address (0x1000, ccv-sim's
 default), so the test can hand-write an indirect call. What remains of this section is for when the backend emits calls: The executed checks run a value-returning call, a
 two-deep chain, an indirect call, a pointer argument and a callee-saved value across a

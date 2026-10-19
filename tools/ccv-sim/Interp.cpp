@@ -1246,9 +1246,9 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     R.Kind = Result::Branch;
     R.Target = PC + Size + 2 * MI.getOperand(0).getImm();
     break;
-  // call writes the byte address of the instruction after it, as a 32-bit
-  // code address -- not a data address, so invariant 11 is untouched -- into
-  // its link register (§3 Format E, v1.8; AR-22), and branches like `bra`. ret jumps each lane to its own
+  // call writes the low 32 bits of the next instruction's address -- a code
+  // address, not a data address, so invariant 11 is untouched -- into its
+  // link register (§3 Format E, v1.8, 3013036), and branches like `bra`. ret jumps each lane to its own
   // lane of rs: PCs are per thread (§1), so after an indirect call lanes can
   // return to different sites, and that is just a divergent branch (F-21;
   // proposals/calling-convention.md §4).
