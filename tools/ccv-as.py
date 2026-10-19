@@ -72,6 +72,12 @@ def parse_operand(tok, symbols, pc, size):
         return int(m.group(1))
     if tok in symbols:                       # label -> halfword-relative offset
         return (symbols[tok] - (pc + size)) // 2
+    # @label is the label's absolute byte address: a code address, which is what
+    # `call` leaves in its link register and `ret` jumps to (F-21). @a-@b is the
+    # distance between two, for a hand-written indirect call.
+    m = re.match(r'^@(\w+)(?:-@(\w+))?$', tok)
+    if m and m.group(1) in symbols and (m.group(2) is None or m.group(2) in symbols):
+        return symbols[m.group(1)] - (symbols[m.group(2)] if m.group(2) else 0)
     try:
         return int(tok, 0)
     except ValueError:

@@ -534,13 +534,19 @@ CCVGenRegisterInfo(unsigned RA, unsigned DwarfFlavour, unsigned EHFlavour,
 
 }
 
-static const MCPhysReg CSR_CCV_SaveList[] = { 0 };
-static const uint32_t CSR_CCV_RegMask[] = { 0x00000000, };
+static const MCPhysReg CSR_CCV_SaveList[] = { CCV::R8, CCV::R9, CCV::R10, CCV::R11, CCV::R12, CCV::R13, 0 };
+static const uint32_t CSR_CCV_RegMask[] = { 0x0007e000, };
+static const MCPhysReg CSR_CCV_Eight_SaveList[] = { CCV::R0, CCV::R7, CCV::R8, CCV::R9, CCV::R10, CCV::R11, CCV::R12, CCV::R13, 0 };
+static const uint32_t CSR_CCV_Eight_RegMask[] = { 0x0007f020, };
+static const MCPhysReg CSR_CCV_None_SaveList[] = { 0 };
+static const uint32_t CSR_CCV_None_RegMask[] = { 0x00000000, };
 
 
 ArrayRef<const uint32_t *> CCVGenRegisterInfo::getRegMasks() const {
   static const uint32_t *const Masks[] = {
     CSR_CCV_RegMask,
+    CSR_CCV_Eight_RegMask,
+    CSR_CCV_None_RegMask,
   };
   return ArrayRef(Masks);
 }
@@ -572,6 +578,8 @@ isConstantPhysReg(MCRegister PhysReg) const {
 ArrayRef<const char *> CCVGenRegisterInfo::getRegMaskNames() const {
   static const char *Names[] = {
     "CSR_CCV",
+    "CSR_CCV_Eight",
+    "CSR_CCV_None",
   };
   return ArrayRef(Names);
 }

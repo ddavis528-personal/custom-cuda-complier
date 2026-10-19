@@ -40,6 +40,10 @@ static cl::opt<unsigned> NumThreads("threads", cl::init(32),
 static cl::opt<unsigned> CtaId("ctaid", cl::init(0), cl::desc("CTA index"));
 static cl::opt<uint64_t> CodeBase("code-base", cl::init(0x1000),
                                   cl::desc("load address for the kernel"));
+static cl::opt<uint64_t> Entry(
+    "entry", cl::init(0),
+    cl::desc("the kernel's offset in the image: device functions come before "
+             "it once calls exist (F-21)"));
 static cl::opt<bool> Trace("trace", cl::desc("print each issue group"));
 static cl::opt<bool> Stats("counters", cl::desc("print execution counters"));
 static cl::opt<unsigned> MaxSteps("max-steps", cl::init(100000),
@@ -111,10 +115,11 @@ int main(int argc, char **argv) {
   StringRef Code = (*Buf)->getBuffer();
 
   Interp I;
+  I.CodeBase = CodeBase;
   Warp W;
   W.CtaId = CtaId;
   for (unsigned L = 0; L != kLanes; ++L) {
-    W.PC[L] = CodeBase;
+    W.PC[L] = CodeBase + Entry;
     W.CtaTid[L] = L;                       // one warp, lane L is thread L
   }
   W.Active = NumThreads >= kLanes ? ~0u : ((1u << NumThreads) - 1);
@@ -236,11 +241,18 @@ int main(int argc, char **argv) {
       const char *Kind = R.Kind == Interp::Result::Advance ? "advance"
                          : R.Kind == Interp::Result::Branch ? "branch"
                          : R.Kind == Interp::Result::BranchPred ? "branchpred"
+                         : R.Kind == Interp::Result::Return ? "return"
                          : R.Kind == Interp::Result::Exit ? "exit" : "stall";
       std::fprintf(OF, "\",\"mask\":%u,\"op\":\"%s\",\"kind\":\"%s\","
                        "\"target\":%llu,\"taken\":%u,\"load\":%d,\"store\":%d",
                    Mask, MII->getName(MI.getOpcode()).str().c_str(), Kind,
-                   (unsigned long long)R.Target, R.TakenMask,
+                   // A return's targets are per lane; the record carries the
+                   // lowest issuing lane's, and the register it came from is
+                   // in the instruction bytes.
+                   (unsigned long long)(R.Kind == Interp::Result::Return
+                       ? CodeBase + W.GPR[R.Target][llvm::countr_zero(Mask)]
+                       : R.Target),
+                   R.TakenMask,
                    int(D.mayLoad()), int(D.mayStore()));
       // Register operands in operand order: uses read BEFORE the step, defs
       // -- the descriptor's defs plus any register that actually changed --
@@ -424,7 +436,7 @@ int main(int argc, char **argv) {
       // model exists to pay for.
       if (Op != CCV::C_CHWIDTH && Op != CCV::CHWIDTH_MULTI) {
         if (D.mayLoad() || D.mayStore()) ++C.WidthMem[R.WidthCode & 3];
-        else if (!IsBar && !IsPred && !D.isBranch() && !D.isReturn() &&
+        else if (!IsBar && !IsPred && !D.isBranch() && !D.isReturn() && !D.isCall() &&
                  Op != CCV::C_EXIT)      ++C.WidthALU[R.WidthCode & 3];
       }
     }
@@ -446,6 +458,10 @@ int main(int argc, char **argv) {
     case Interp::Result::Branch:
       for (unsigned L = 0; L != kLanes; ++L)
         if (Mask & (1u << L)) W.PC[L] = R.Target;
+      break;
+    case Interp::Result::Return:
+      for (unsigned L = 0; L != kLanes; ++L)
+        if (Mask & (1u << L)) W.PC[L] = CodeBase + W.GPR[R.Target][L];
       break;
     case Interp::Result::BranchPred:
       // Lanes split here. No bracket, no mask stack -- they simply hold

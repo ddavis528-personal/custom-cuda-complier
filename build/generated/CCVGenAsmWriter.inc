@@ -80,61 +80,63 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
   /* 583 */ "ld.global \0"
   /* 594 */ "st.global \0"
   /* 605 */ "shl \0"
-  /* 610 */ "call \0"
-  /* 616 */ "fmul \0"
-  /* 622 */ "andn \0"
-  /* 628 */ "fmin \0"
-  /* 634 */ "mad.lo \0"
-  /* 642 */ "mul.lo \0"
-  /* 650 */ "setp.eq \0"
-  /* 659 */ "shr \0"
-  /* 664 */ "por \0"
-  /* 669 */ "pxor \0"
-  /* 675 */ "mul.hi.s \0"
-  /* 685 */ "min.s \0"
-  /* 692 */ "max.s \0"
-  /* 699 */ "abs \0"
-  /* 704 */ "dp4.ss \0"
-  /* 712 */ "ret \0"
-  /* 717 */ "setp.gt \0"
-  /* 726 */ "bar.wait \0"
-  /* 736 */ "bar.init \0"
-  /* 746 */ "setp.lt \0"
-  /* 755 */ "reconv.hint \0"
-  /* 768 */ "cvt.sint.sint \0"
-  /* 783 */ "not \0"
-  /* 788 */ "bra.short \0"
-  /* 799 */ "# broadcast \0"
-  /* 812 */ "setp.ge.u \0"
-  /* 823 */ "setp.le.u \0"
-  /* 834 */ "mul.hi.u \0"
-  /* 844 */ "min.u \0"
-  /* 851 */ "setp.gt.u \0"
-  /* 862 */ "setp.lt.u \0"
-  /* 873 */ "max.u \0"
-  /* 880 */ "brev \0"
-  /* 886 */ "pmov \0"
-  /* 892 */ "fmax \0"
-  /* 898 */ "packi.z \0"
-  /* 907 */ "clz \0"
-  /* 912 */ "# XRay Function Patchable RET.\0"
-  /* 943 */ "# XRay Typed Event Log.\0"
-  /* 967 */ "# XRay Custom Event Log.\0"
-  /* 992 */ "# XRay Function Enter.\0"
-  /* 1015 */ "# XRay Tail Call Exit.\0"
-  /* 1038 */ "# XRay Function Exit.\0"
-  /* 1060 */ "# @\0"
-  /* 1064 */ "LIFETIME_END\0"
-  /* 1077 */ "PSEUDO_PROBE\0"
-  /* 1090 */ "BUNDLE\0"
-  /* 1097 */ "DBG_VALUE\0"
-  /* 1107 */ "DBG_INSTR_REF\0"
-  /* 1121 */ "DBG_PHI\0"
-  /* 1129 */ "DBG_LABEL\0"
-  /* 1139 */ "LIFETIME_START\0"
-  /* 1154 */ "DBG_VALUE_LIST\0"
-  /* 1169 */ "# FEntry call\0"
-  /* 1183 */ "exit\0"
+  /* 610 */ "# call \0"
+  /* 618 */ "fmul \0"
+  /* 624 */ "andn \0"
+  /* 630 */ "fmin \0"
+  /* 636 */ "# adjcallstackdown \0"
+  /* 656 */ "mad.lo \0"
+  /* 664 */ "mul.lo \0"
+  /* 672 */ "# adjcallstackup \0"
+  /* 690 */ "setp.eq \0"
+  /* 699 */ "shr \0"
+  /* 704 */ "por \0"
+  /* 709 */ "pxor \0"
+  /* 715 */ "mul.hi.s \0"
+  /* 725 */ "min.s \0"
+  /* 732 */ "max.s \0"
+  /* 739 */ "abs \0"
+  /* 744 */ "dp4.ss \0"
+  /* 752 */ "# ret \0"
+  /* 759 */ "setp.gt \0"
+  /* 768 */ "bar.wait \0"
+  /* 778 */ "bar.init \0"
+  /* 788 */ "setp.lt \0"
+  /* 797 */ "reconv.hint \0"
+  /* 810 */ "cvt.sint.sint \0"
+  /* 825 */ "not \0"
+  /* 830 */ "bra.short \0"
+  /* 841 */ "# broadcast \0"
+  /* 854 */ "setp.ge.u \0"
+  /* 865 */ "setp.le.u \0"
+  /* 876 */ "mul.hi.u \0"
+  /* 886 */ "min.u \0"
+  /* 893 */ "setp.gt.u \0"
+  /* 904 */ "setp.lt.u \0"
+  /* 915 */ "max.u \0"
+  /* 922 */ "brev \0"
+  /* 928 */ "pmov \0"
+  /* 934 */ "fmax \0"
+  /* 940 */ "packi.z \0"
+  /* 949 */ "clz \0"
+  /* 954 */ "# XRay Function Patchable RET.\0"
+  /* 985 */ "# XRay Typed Event Log.\0"
+  /* 1009 */ "# XRay Custom Event Log.\0"
+  /* 1034 */ "# XRay Function Enter.\0"
+  /* 1057 */ "# XRay Tail Call Exit.\0"
+  /* 1080 */ "# XRay Function Exit.\0"
+  /* 1102 */ "# @\0"
+  /* 1106 */ "LIFETIME_END\0"
+  /* 1119 */ "PSEUDO_PROBE\0"
+  /* 1132 */ "BUNDLE\0"
+  /* 1139 */ "DBG_VALUE\0"
+  /* 1149 */ "DBG_INSTR_REF\0"
+  /* 1163 */ "DBG_PHI\0"
+  /* 1171 */ "DBG_LABEL\0"
+  /* 1181 */ "LIFETIME_START\0"
+  /* 1196 */ "DBG_VALUE_LIST\0"
+  /* 1211 */ "# FEntry call\0"
+  /* 1225 */ "exit\0"
 };
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -154,20 +156,20 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     0U,	// IMPLICIT_DEF
     0U,	// SUBREG_TO_REG
     0U,	// COPY_TO_REGCLASS
-    1098U,	// DBG_VALUE
-    1155U,	// DBG_VALUE_LIST
-    1108U,	// DBG_INSTR_REF
-    1122U,	// DBG_PHI
-    1130U,	// DBG_LABEL
+    1140U,	// DBG_VALUE
+    1197U,	// DBG_VALUE_LIST
+    1150U,	// DBG_INSTR_REF
+    1164U,	// DBG_PHI
+    1172U,	// DBG_LABEL
     0U,	// REG_SEQUENCE
     0U,	// COPY
-    1091U,	// BUNDLE
-    1140U,	// LIFETIME_START
-    1065U,	// LIFETIME_END
-    1078U,	// PSEUDO_PROBE
+    1133U,	// BUNDLE
+    1182U,	// LIFETIME_START
+    1107U,	// LIFETIME_END
+    1120U,	// PSEUDO_PROBE
     0U,	// ARITH_FENCE
     0U,	// STACKMAP
-    1170U,	// FENTRY_CALL
+    1212U,	// FENTRY_CALL
     0U,	// PATCHPOINT
     0U,	// LOAD_STACK_GUARD
     0U,	// PREALLOCATED_SETUP
@@ -176,12 +178,12 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     0U,	// LOCAL_ESCAPE
     0U,	// FAULTING_OP
     0U,	// PATCHABLE_OP
-    993U,	// PATCHABLE_FUNCTION_ENTER
-    913U,	// PATCHABLE_RET
-    1039U,	// PATCHABLE_FUNCTION_EXIT
-    1016U,	// PATCHABLE_TAIL_CALL
-    968U,	// PATCHABLE_EVENT_CALL
-    944U,	// PATCHABLE_TYPED_EVENT_CALL
+    1035U,	// PATCHABLE_FUNCTION_ENTER
+    955U,	// PATCHABLE_RET
+    1081U,	// PATCHABLE_FUNCTION_EXIT
+    1058U,	// PATCHABLE_TAIL_CALL
+    1010U,	// PATCHABLE_EVENT_CALL
+    986U,	// PATCHABLE_TYPED_EVENT_CALL
     0U,	// ICALL_BRANCH_FUNNEL
     0U,	// MEMBARRIER
     0U,	// JUMP_TABLE_DEBUG_INFO
@@ -412,270 +414,274 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     0U,	// G_VECREDUCE_UMIN
     0U,	// G_SBFX
     0U,	// G_UBFX
-    2848U,	// PSEUDO_BCAST
-    19493U,	// PSEUDO_BRA_PRED
-    35076U,	// PSEUDO_PAND
-    5157U,	// PSEUDO_PMOV
-    35092U,	// PSEUDO_POR
-    35084U,	// PSEUDO_PXOR
-    8424124U,	// ABS
-    35139U,	// ADD
-    35139U,	// ADDI
-    35139U,	// ADDI48
-    34659367U,	// ADDI_P
-    2155559U,	// ADDI_PP
-    35139U,	// ADDI_W16
-    34659367U,	// ADD_P
-    2155559U,	// ADD_PP
-    35139U,	// ADD_W16
-    35217U,	// AND
-    35217U,	// ANDI
-    72743U,	// ANDI_P
-    35439U,	// ANDN
-    35439U,	// ANDNI
-    89127U,	// ANDNI_P
-    72743U,	// AND_P
-    35217U,	// AND_W16
-    20023863U,	// ATOM_ADD_G
-    121895U,	// BALLOT
-    8424161U,	// BAR_INIT
-    142375U,	// BAR_WAIT_PHASE
-    149787U,	// BRA
-    175143U,	// BRA_PRED
-    8424305U,	// BREV
-    8424035U,	// CALL
-    189479U,	// CAS_G
-    8423970U,	// CHWIDTH_MULTI
-    8424332U,	// CLZ
-    8423585U,	// COS_F32
-    8423605U,	// CVT_F32_S32
-    203815U,	// CVT_F32_S32_P
-    8423618U,	// CVT_F32_U32
-    220199U,	// CVT_F32_U32_P
-    8423523U,	// CVT_S32_F32
-    236583U,	// CVT_S32_F32_P
-    8424193U,	// CVT_SEXT
-    8423536U,	// CVT_U32_F32
-    252967U,	// CVT_U32_F32_P
-    8424124U,	// C_ABS
-    9472323U,	// C_ADD
-    9472323U,	// C_ADDI
-    9472401U,	// C_AND
-    9472401U,	// C_ANDI
-    9472623U,	// C_ANDN
-    149949U,	// C_BAR_ARRIVE
-    150231U,	// C_BAR_WAIT
-    150293U,	// C_BRA
-    8423952U,	// C_CHWIDTH
-    1184U,	// C_EXIT
-    9472322U,	// C_FADD
-    149915U,	// C_FENCE
-    9472893U,	// C_FMAX
-    9472629U,	// C_FMIN
-    9472617U,	// C_FMUL
-    4295240U,	// C_LD_GLOBAL
-    9472693U,	// C_MAX_S
-    9472874U,	// C_MAX_U
-    9472686U,	// C_MIN_S
-    9472845U,	// C_MIN_U
-    8424312U,	// C_MOV
-    9472643U,	// C_MUL_LO
-    8423947U,	// C_NEG
-    8424208U,	// C_NOT
-    9472666U,	// C_OR
-    9472666U,	// C_ORI
-    150260U,	// C_RECONV
-    150217U,	// C_RET
-    9472606U,	// C_SHL
-    9472606U,	// C_SHLI
-    9472660U,	// C_SHR
-    9472660U,	// C_SHRI
-    9472288U,	// C_SRA
-    9472288U,	// C_SRAI
-    4295251U,	// C_ST_GLOBAL
-    9472293U,	// C_SUB
-    9472293U,	// C_SUBI
-    9472671U,	// C_XOR
-    9472671U,	// C_XORI
-    67143925U,	// DP2_BF16
-    67143916U,	// DP2_F16
-    34638122U,	// DP4_ACC
-    67143906U,	// DP4_E4M3
-    67143896U,	// DP4_E5M2
-    67144385U,	// DP4_SS
-    8423558U,	// EX2_F32
-    8423492U,	// FABS_F0
-    34848U,	// FADD
-    269351U,	// FADD_P
-    34637843U,	// FFMA_ACC_F0
-    34637910U,	// FFMA_ACC_F1
-    67143681U,	// FFMA_F0
-    34893U,	// FMAX
-    34875U,	// FMIN
-    34866U,	// FMUL
-    285735U,	// FMUL_P
-    8423465U,	// FNEG_F0
-    34826U,	// FSUB
-    302119U,	// FSUB_P
-    28412488U,	// LD_GLOBAL
-    5343816U,	// LD_GLOBAL_IDX
-    5343816U,	// LD_GLOBAL_IDX_W16
-    318503U,	// LD_GLOBAL_P
+    2685U,	// ADJCALLSTACKDOWN
+    2721U,	// ADJCALLSTACKUP
+    19274U,	// PSEUDO_BCAST
+    35919U,	// PSEUDO_BRA_PRED
+    2659U,	// PSEUDO_CALL
+    51460U,	// PSEUDO_PAND
+    5199U,	// PSEUDO_PMOV
+    51476U,	// PSEUDO_POR
+    51468U,	// PSEUDO_PXOR
+    2801U,	// PSEUDO_RET
+    8440548U,	// ABS
+    51523U,	// ADD
+    51523U,	// ADDI
+    51523U,	// ADDI48
+    34675793U,	// ADDI_P
+    2171985U,	// ADDI_PP
+    51523U,	// ADDI_W16
+    34675793U,	// ADD_P
+    2171985U,	// ADD_PP
+    51523U,	// ADD_W16
+    51601U,	// AND
+    51601U,	// ANDI
+    89169U,	// ANDI_P
+    51825U,	// ANDN
+    51825U,	// ANDNI
+    105553U,	// ANDNI_P
+    89169U,	// AND_P
+    51601U,	// AND_W16
+    20040247U,	// ATOM_ADD_G
+    138321U,	// BALLOT
+    8440587U,	// BAR_INIT
+    158801U,	// BAR_WAIT_PHASE
+    2331U,	// BRA
+    175185U,	// BRA_PRED
+    8440731U,	// BREV
+    8440421U,	// CALL
+    189521U,	// CAS_G
+    8440354U,	// CHWIDTH_MULTI
+    8440758U,	// CLZ
+    8439969U,	// COS_F32
+    8439989U,	// CVT_F32_S32
+    203857U,	// CVT_F32_S32_P
+    8440002U,	// CVT_F32_U32
+    220241U,	// CVT_F32_U32_P
+    8439907U,	// CVT_S32_F32
+    236625U,	// CVT_S32_F32_P
+    8440619U,	// CVT_SEXT
+    8439920U,	// CVT_U32_F32
+    253009U,	// CVT_U32_F32_P
+    8440548U,	// C_ABS
+    9488707U,	// C_ADD
+    9488707U,	// C_ADDI
+    9488785U,	// C_AND
+    9488785U,	// C_ANDI
+    9489009U,	// C_ANDN
+    2493U,	// C_BAR_ARRIVE
+    2817U,	// C_BAR_WAIT
+    2879U,	// C_BRA
+    8440336U,	// C_CHWIDTH
+    1226U,	// C_EXIT
+    9488706U,	// C_FADD
+    2459U,	// C_FENCE
+    9489319U,	// C_FMAX
+    9489015U,	// C_FMIN
+    9489003U,	// C_FMUL
+    4311624U,	// C_LD_GLOBAL
+    9489117U,	// C_MAX_S
+    9489300U,	// C_MAX_U
+    9489110U,	// C_MIN_S
+    9489271U,	// C_MIN_U
+    8440738U,	// C_MOV
+    9489049U,	// C_MUL_LO
+    8440331U,	// C_NEG
+    8440634U,	// C_NOT
+    9489090U,	// C_OR
+    9489090U,	// C_ORI
+    2846U,	// C_RECONV
+    2803U,	// C_RET
+    9488990U,	// C_SHL
+    9488990U,	// C_SHLI
+    9489084U,	// C_SHR
+    9489084U,	// C_SHRI
+    9488672U,	// C_SRA
+    9488672U,	// C_SRAI
+    4311635U,	// C_ST_GLOBAL
+    9488677U,	// C_SUB
+    9488677U,	// C_SUBI
+    9489095U,	// C_XOR
+    9489095U,	// C_XORI
+    67160309U,	// DP2_BF16
+    67160300U,	// DP2_F16
+    34654506U,	// DP4_ACC
+    67160290U,	// DP4_E4M3
+    67160280U,	// DP4_E5M2
+    67160809U,	// DP4_SS
+    8439942U,	// EX2_F32
+    8439876U,	// FABS_F0
+    51232U,	// FADD
+    269393U,	// FADD_P
+    34654227U,	// FFMA_ACC_F0
+    34654294U,	// FFMA_ACC_F1
+    67160065U,	// FFMA_F0
+    51277U,	// FMAX
+    51259U,	// FMIN
+    51250U,	// FMUL
+    285777U,	// FMUL_P
+    8439849U,	// FNEG_F0
+    51210U,	// FSUB
+    302161U,	// FSUB_P
+    28428872U,	// LD_GLOBAL
+    5360200U,	// LD_GLOBAL_IDX
+    5360200U,	// LD_GLOBAL_IDX_W16
+    318545U,	// LD_GLOBAL_P
     330312U,	// LD_GLOBAL_SLOT
     330312U,	// LD_GLOBAL_SLOT_W16
-    28412488U,	// LD_GLOBAL_W16
-    28412286U,	// LD_PRED_G
-    28412232U,	// LD_PRED_S
-    28412264U,	// LD_SHARED
-    5343592U,	// LD_SHARED_IDX
-    28412264U,	// LD_SHARED_W16
-    8423549U,	// LG2_F32
-    67144315U,	// MADLO
-    351271U,	// MADLO_P
-    34638131U,	// MAD_ACC
-    35509U,	// MAX_S
-    367655U,	// MAX_S_P
-    35509U,	// MAX_S_W16
-    35690U,	// MAX_U
-    384039U,	// MAX_U_P
-    35502U,	// MIN_S
-    400423U,	// MIN_S_P
-    35502U,	// MIN_S_W16
-    35661U,	// MIN_U
-    416807U,	// MIN_U_P
-    8423985U,	// MOVI
-    8423679U,	// MOVI48
-    435239U,	// MOV_P
-    35459U,	// MULI
-    449575U,	// MULI_P
-    35492U,	// MUL_HI_S
-    465959U,	// MUL_HI_S_P
-    35651U,	// MUL_HI_U
-    482343U,	// MUL_HI_U_P
-    35459U,	// MUL_LO
-    8423947U,	// NEG
-    35482U,	// OR
-    35482U,	// ORI
-    498727U,	// ORI_P
-    498727U,	// OR_P
-    35482U,	// OR_W16
-    34638363U,	// PACKI
-    35715U,	// PACKI_Z
-    35216U,	// PAND
-    8424311U,	// PMOV
-    8424311U,	// PMOV_IMM
-    8423740U,	// POPC
-    35481U,	// POR
-    35486U,	// PXOR
-    8423576U,	// RCP_F32
-    515111U,	// RCP_F32_P
-    8423631U,	// RCP_U32
-    8423594U,	// RSQRT_F32
-    531495U,	// SEL
-    549927U,	// SETP_EQ
-    566311U,	// SETP_EQ_F
-    566311U,	// SETP_EQ_F_I
-    34638314U,	// SETP_EQ_F_NP
-    34638314U,	// SETP_EQ_F_NPI
-    549927U,	// SETP_EQ_I
-    34638475U,	// SETP_EQ_NP
-    34638475U,	// SETP_EQ_NPI
-    582695U,	// SETP_GE
-    599079U,	// SETP_GE_F
-    599079U,	// SETP_GE_F_I
-    34638281U,	// SETP_GE_F_NP
-    34638281U,	// SETP_GE_F_NPI
-    582695U,	// SETP_GE_I
-    34638242U,	// SETP_GE_NP
-    34638242U,	// SETP_GE_NPI
-    615463U,	// SETP_GE_U
-    615463U,	// SETP_GE_U_I
-    34638637U,	// SETP_GE_U_NP
-    34638637U,	// SETP_GE_U_NPI
-    631847U,	// SETP_GT
-    648231U,	// SETP_GT_F
-    648231U,	// SETP_GT_F_I
-    34638325U,	// SETP_GT_F_NP
-    34638325U,	// SETP_GT_F_NPI
-    631847U,	// SETP_GT_I
-    34638542U,	// SETP_GT_NP
-    34638542U,	// SETP_GT_NPI
-    664615U,	// SETP_GT_U
-    664615U,	// SETP_GT_U_I
-    34638676U,	// SETP_GT_U_NP
-    34638676U,	// SETP_GT_U_NPI
-    680999U,	// SETP_LE
-    697383U,	// SETP_LE_F
-    697383U,	// SETP_LE_F_I
-    34638292U,	// SETP_LE_F_NP
-    34638292U,	// SETP_LE_F_NPI
-    680999U,	// SETP_LE_I
-    34638251U,	// SETP_LE_NP
-    34638251U,	// SETP_LE_NPI
-    713767U,	// SETP_LE_U
-    713767U,	// SETP_LE_U_I
-    34638648U,	// SETP_LE_U_NP
-    34638648U,	// SETP_LE_U_NPI
-    730151U,	// SETP_LT
-    746535U,	// SETP_LT_F
-    746535U,	// SETP_LT_F_I
-    34638336U,	// SETP_LT_F_NP
-    34638336U,	// SETP_LT_F_NPI
-    730151U,	// SETP_LT_I
-    34638571U,	// SETP_LT_NP
-    34638571U,	// SETP_LT_NPI
-    762919U,	// SETP_LT_U
-    762919U,	// SETP_LT_U_I
-    34638687U,	// SETP_LT_U_NP
-    34638687U,	// SETP_LT_U_NPI
-    779303U,	// SETP_NE
-    795687U,	// SETP_NE_F
-    795687U,	// SETP_NE_F_I
-    34638303U,	// SETP_NE_F_NP
-    34638303U,	// SETP_NE_F_NPI
-    779303U,	// SETP_NE_I
-    34638260U,	// SETP_NE_NP
-    34638260U,	// SETP_NE_NPI
-    810023U,	// SHFL_IDX
-    35422U,	// SHL
-    35422U,	// SHLI
-    826407U,	// SHLI_P
-    826407U,	// SHL_P
-    35476U,	// SHR
-    35476U,	// SHRI
-    842791U,	// SHRI_P
-    842791U,	// SHR_P
-    8423567U,	// SIN_F32
-    8423595U,	// SQRT_F32
-    35104U,	// SRA
-    35104U,	// SRAI
-    859175U,	// SRAI_P
-    859175U,	// SRA_P
-    8423830U,	// SRD
-    28412499U,	// ST_GLOBAL
-    5343827U,	// ST_GLOBAL_IDX
-    5343827U,	// ST_GLOBAL_IDX_W16
+    28428872U,	// LD_GLOBAL_W16
+    28428670U,	// LD_PRED_G
+    28428616U,	// LD_PRED_S
+    28428648U,	// LD_SHARED
+    5359976U,	// LD_SHARED_IDX
+    28428648U,	// LD_SHARED_W16
+    8439933U,	// LG2_F32
+    67160721U,	// MADLO
+    351313U,	// MADLO_P
+    34654515U,	// MAD_ACC
+    51933U,	// MAX_S
+    367697U,	// MAX_S_P
+    51933U,	// MAX_S_W16
+    52116U,	// MAX_U
+    384081U,	// MAX_U_P
+    51926U,	// MIN_S
+    400465U,	// MIN_S_P
+    51926U,	// MIN_S_W16
+    52087U,	// MIN_U
+    416849U,	// MIN_U_P
+    8440369U,	// MOVI
+    8440063U,	// MOVI48
+    435281U,	// MOV_P
+    51865U,	// MULI
+    449617U,	// MULI_P
+    51916U,	// MUL_HI_S
+    466001U,	// MUL_HI_S_P
+    52077U,	// MUL_HI_U
+    482385U,	// MUL_HI_U_P
+    51865U,	// MUL_LO
+    8440331U,	// NEG
+    51906U,	// OR
+    51906U,	// ORI
+    498769U,	// ORI_P
+    498769U,	// OR_P
+    51906U,	// OR_W16
+    34654747U,	// PACKI
+    52141U,	// PACKI_Z
+    51600U,	// PAND
+    8440737U,	// PMOV
+    8440737U,	// PMOV_IMM
+    8440124U,	// POPC
+    51905U,	// POR
+    51910U,	// PXOR
+    8439960U,	// RCP_F32
+    515153U,	// RCP_F32_P
+    8440015U,	// RCP_U32
+    8439978U,	// RSQRT_F32
+    531537U,	// SEL
+    549969U,	// SETP_EQ
+    566353U,	// SETP_EQ_F
+    566353U,	// SETP_EQ_F_I
+    34654698U,	// SETP_EQ_F_NP
+    34654698U,	// SETP_EQ_F_NPI
+    549969U,	// SETP_EQ_I
+    34654899U,	// SETP_EQ_NP
+    34654899U,	// SETP_EQ_NPI
+    582737U,	// SETP_GE
+    599121U,	// SETP_GE_F
+    599121U,	// SETP_GE_F_I
+    34654665U,	// SETP_GE_F_NP
+    34654665U,	// SETP_GE_F_NPI
+    582737U,	// SETP_GE_I
+    34654626U,	// SETP_GE_NP
+    34654626U,	// SETP_GE_NPI
+    615505U,	// SETP_GE_U
+    615505U,	// SETP_GE_U_I
+    34655063U,	// SETP_GE_U_NP
+    34655063U,	// SETP_GE_U_NPI
+    631889U,	// SETP_GT
+    648273U,	// SETP_GT_F
+    648273U,	// SETP_GT_F_I
+    34654709U,	// SETP_GT_F_NP
+    34654709U,	// SETP_GT_F_NPI
+    631889U,	// SETP_GT_I
+    34654968U,	// SETP_GT_NP
+    34654968U,	// SETP_GT_NPI
+    664657U,	// SETP_GT_U
+    664657U,	// SETP_GT_U_I
+    34655102U,	// SETP_GT_U_NP
+    34655102U,	// SETP_GT_U_NPI
+    681041U,	// SETP_LE
+    697425U,	// SETP_LE_F
+    697425U,	// SETP_LE_F_I
+    34654676U,	// SETP_LE_F_NP
+    34654676U,	// SETP_LE_F_NPI
+    681041U,	// SETP_LE_I
+    34654635U,	// SETP_LE_NP
+    34654635U,	// SETP_LE_NPI
+    713809U,	// SETP_LE_U
+    713809U,	// SETP_LE_U_I
+    34655074U,	// SETP_LE_U_NP
+    34655074U,	// SETP_LE_U_NPI
+    730193U,	// SETP_LT
+    746577U,	// SETP_LT_F
+    746577U,	// SETP_LT_F_I
+    34654720U,	// SETP_LT_F_NP
+    34654720U,	// SETP_LT_F_NPI
+    730193U,	// SETP_LT_I
+    34654997U,	// SETP_LT_NP
+    34654997U,	// SETP_LT_NPI
+    762961U,	// SETP_LT_U
+    762961U,	// SETP_LT_U_I
+    34655113U,	// SETP_LT_U_NP
+    34655113U,	// SETP_LT_U_NPI
+    779345U,	// SETP_NE
+    795729U,	// SETP_NE_F
+    795729U,	// SETP_NE_F_I
+    34654687U,	// SETP_NE_F_NP
+    34654687U,	// SETP_NE_F_NPI
+    779345U,	// SETP_NE_I
+    34654644U,	// SETP_NE_NP
+    34654644U,	// SETP_NE_NPI
+    810065U,	// SHFL_IDX
+    51806U,	// SHL
+    51806U,	// SHLI
+    826449U,	// SHLI_P
+    826449U,	// SHL_P
+    51900U,	// SHR
+    51900U,	// SHRI
+    842833U,	// SHRI_P
+    842833U,	// SHR_P
+    8439951U,	// SIN_F32
+    8439979U,	// SQRT_F32
+    51488U,	// SRA
+    51488U,	// SRAI
+    859217U,	// SRAI_P
+    859217U,	// SRA_P
+    8440214U,	// SRD
+    28428883U,	// ST_GLOBAL
+    5360211U,	// ST_GLOBAL_IDX
+    5360211U,	// ST_GLOBAL_IDX_W16
     330323U,	// ST_GLOBAL_SLOT
     330323U,	// ST_GLOBAL_SLOT_W16
-    28412499U,	// ST_GLOBAL_W16
-    28412295U,	// ST_PRED_G
-    28412248U,	// ST_PRED_S
-    28412275U,	// ST_SHARED
-    5343603U,	// ST_SHARED_IDX
-    28412275U,	// ST_SHARED_W16
-    35109U,	// SUB
-    35109U,	// SUBI
-    875559U,	// SUBI_P
-    875559U,	// SUB_P
-    35109U,	// SUB_W16
-    891943U,	// UNBALLOT
-    35353U,	// UNPACKI
-    908327U,	// VOTE_ANY
-    35487U,	// XOR
-    35487U,	// XORI
-    924711U,	// XORI_P
-    924711U,	// XOR_P
-    35487U,	// XOR_W16
+    28428883U,	// ST_GLOBAL_W16
+    28428679U,	// ST_PRED_G
+    28428632U,	// ST_PRED_S
+    28428659U,	// ST_SHARED
+    5359987U,	// ST_SHARED_IDX
+    28428659U,	// ST_SHARED_W16
+    51493U,	// SUB
+    51493U,	// SUBI
+    875601U,	// SUBI_P
+    875601U,	// SUB_P
+    51493U,	// SUB_W16
+    891985U,	// UNBALLOT
+    51737U,	// UNPACKI
+    908369U,	// VOTE_ANY
+    51911U,	// XOR
+    51911U,	// XORI
+    924753U,	// XORI_P
+    924753U,	// XOR_P
+    51911U,	// XOR_W16
   };
 
   // Emit the opcode for the instruction.
@@ -707,7 +713,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     return;
     break;
   case 1:
-    // PSEUDO_BCAST, PSEUDO_BRA_PRED, PSEUDO_PAND, PSEUDO_POR, PSEUDO_PXOR, A...
+    // ADJCALLSTACKDOWN, ADJCALLSTACKUP, PSEUDO_BCAST, PSEUDO_BRA_PRED, PSEUD...
     printOperand(MI, 0, O);
     break;
   case 2:
@@ -738,11 +744,15 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
   switch ((Bits >> 14) & 63) {
   default: llvm_unreachable("Invalid command number.");
   case 0:
+    // ADJCALLSTACKDOWN, ADJCALLSTACKUP, PSEUDO_CALL, PSEUDO_RET, BRA, C_BAR_...
+    return;
+    break;
+  case 1:
     // PSEUDO_BCAST
     O << " from lane 0";
     return;
     break;
-  case 1:
+  case 2:
     // PSEUDO_BRA_PRED
     O << '(';
     printOperand(MI, 1, O);
@@ -750,17 +760,17 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 2:
+  case 3:
     // PSEUDO_PAND, PSEUDO_POR, PSEUDO_PXOR, ABS, ADD, ADDI, ADDI48, ADDI_W16...
     O << ", ";
     break;
-  case 3:
+  case 4:
     // ADDI_P, ADDI_PP, ADD_P, ADD_PP
     O << " add ";
     printOperand(MI, 0, O);
     O << ", ";
     break;
-  case 4:
+  case 5:
     // ANDI_P, AND_P
     O << " and ";
     printOperand(MI, 0, O);
@@ -770,7 +780,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 5:
+  case 6:
     // ANDNI_P
     O << " andn ";
     printOperand(MI, 0, O);
@@ -780,12 +790,12 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 6:
+  case 7:
     // ATOM_ADD_G, C_LD_GLOBAL, C_ST_GLOBAL, LD_GLOBAL, LD_GLOBAL_IDX, LD_GLO...
     O << ", [";
     printOperand(MI, 1, O);
     break;
-  case 7:
+  case 8:
     // BALLOT
     O << " ballot ";
     printOperand(MI, 0, O);
@@ -793,16 +803,12 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 8:
+  case 9:
     // BAR_WAIT_PHASE
     O << " bar.wait.phase ";
     printOperand(MI, 1, O);
     O << ", ";
     printOperand(MI, 2, O);
-    return;
-    break;
-  case 9:
-    // BRA, C_BAR_ARRIVE, C_BAR_WAIT, C_BRA, C_FENCE, C_RECONV, C_RET
     return;
     break;
   case 10:

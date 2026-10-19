@@ -287,6 +287,10 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(0),
     UINT64_C(0),
     UINT64_C(0),
+    UINT64_C(0),
+    UINT64_C(0),
+    UINT64_C(0),
+    UINT64_C(0),
     UINT64_C(1280),	// ABS
     UINT64_C(0),	// ADD
     UINT64_C(12),	// ADDI
@@ -709,7 +713,7 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
       op <<= 11;
       Value |= op;
       // op: off
-      op = getMachineOpValue(MI, MI.getOperand(1), Fixups, STI);
+      op = getCall17OpValue(MI, 1, Fixups, STI);
       op &= UINT64_C(131071);
       op <<= 15;
       Value |= op;

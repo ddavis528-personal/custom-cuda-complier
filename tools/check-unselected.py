@@ -179,9 +179,6 @@ UNREACHABLE = {
     **{n: ("todo", "no multi-precision lowering to consume the carry "
                    "predicate; F-123")
        for n in "ADD_PP ADDI_PP".split()},
-    # Calls and the compressed return. Both wait on the calling sequence.
-    **{n: ("todo", "waiting on the calling sequence; F-21")
-       for n in "CALL C_RET".split()},
     "C_RECONV": ("todo", "reconvergence is opportunistic and the compiler emits "
                          "no hint; F-124"),
     "C_FENCE": ("todo", "no fence lowering -- the barrier path covers what the "

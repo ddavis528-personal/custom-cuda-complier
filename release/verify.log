@@ -1,9 +1,9 @@
-  gen-register-info    ok (588 lines)
-  gen-instr-info       ok (4754 lines)
-  gen-emitter          ok (2401 lines)
+  gen-register-info    ok (596 lines)
+  gen-instr-info       ok (4790 lines)
+  gen-emitter          ok (2405 lines)
   gen-disassembler     ok (1367 lines)
-  gen-asm-writer       ok (1423 lines)
-  gen-dag-isel         ok (1445 lines)
+  gen-asm-writer       ok (1429 lines)
+  gen-dag-isel         ok (1486 lines)
   gen-callingconv      ok (92 lines)
 
 checked 258 instructions
@@ -55,6 +55,14 @@ checked 258 instructions
         and argorder executes correctly from that layout
   PASS  slot reach: 16 slot-form accesses at NT=16, past the
         4-byte stride's ceiling of 8, with 0 spill transfers
+  device-function calls (F-21)
+  PASS  calls.cu, callee-saved set 'none': 32 lanes correct (206 issue groups)
+  PASS  calls.cu, callee-saved set 'six': 32 lanes correct (206 issue groups)
+  PASS  calls.cu, callee-saved set 'eight': 32 lanes correct (224 issue groups)
+  PASS  static frames: scratch at -16..-4, the kernel below it at -44..-20
+  PASS  control -ccv-test-flat-frames is caught: 32 of 32 lanes wrong; lane 0: got 2100797557, want 2100637458
+  PASS  control -ccv-test-mask-device-functions is caught: 31 of 32 lanes wrong; lane 1: got 1257155420, want 1257023839
+  PASS  control -ccv-test-no-call-widths is caught: did not run: error: C_ANDI has no semantics in the simulator yet
   the fused corpus executes and computes the right numbers
   PASS  fused corpus: 8 kernels execute and agree with a reference written from the mathematics
   each SFU intrinsic computes its own function
@@ -62,7 +70,7 @@ checked 258 instructions
   dp4 against a four-MAC reference
   PASS  dp4: 32 lanes correct against a four-MAC reference (1 dp4 instruction(s) emitted)
   every instruction has a production path
-  PASS  264 instructions, all with a production path (isel 78, pass 110, mc 1, declared 75)
+  PASS  268 instructions, all with a production path (isel 81, pass 113, mc 1, declared 73)
   the production-path gate catches its own cases
   PASS  removing the bra.short pattern (with insertBranch also removed) fails the check
   PASS  removing the immediate-compare mapping fails the check
@@ -70,7 +78,7 @@ checked 258 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  33 documents: paths resolve, 162 findings and 47 decisions all defined, no duplicate tracking rows
+  PASS  34 documents: paths resolve, 162 findings and 47 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -91,7 +99,7 @@ checked 258 instructions
 
   CCV instructions     : 258
   round trips          : 16512 (64 random operand sets each)
-  non-CCV opcodes      : 277 (LLVM pseudos and GlobalISel generics, no encoding)
+  non-CCV opcodes      : 281 (LLVM pseudos and GlobalISel generics, no encoding)
   unbuildable operands : 0
   failures             : 0
 
@@ -113,6 +121,11 @@ checked 258 instructions
   PASS  16-bit load, add and store (transfer size follows chwidth)
   PASS  widening clears the exposed bits -- no stale data (O-38)
   PASS  16-bit .shared store writes two bytes, not four
+
+  --- call and ret (F-21) ---
+  PASS  call/ret: value return, two link registers nested, divergent indirect
+        return, link = image offset of the next instruction (32 lanes)
+  PASS  three mutated call sequences each change an answer
   PASS  chwidth placed on data registers only (4 emitted, incl. chwidth.multi)
   PASS  16-bit base+offset access stays 16 bits (3 accesses, no widening)
   PASS  zext costs no instruction beyond the width change (O-38)

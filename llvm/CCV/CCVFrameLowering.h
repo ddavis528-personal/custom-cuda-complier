@@ -20,10 +20,23 @@ public:
       : TargetFrameLowering(StackGrowsDown, Align(4), /*LocalAreaOffset=*/0) {}
   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
   void emitEpilogue(MachineFunction &, MachineBasicBlock &) const override {}
+  /// The call frame is static (F-21), so the call-sequence markers adjust
+  /// nothing.
+  MachineBasicBlock::iterator
+  eliminateCallFramePseudoInstr(MachineFunction &, MachineBasicBlock &MBB,
+                                MachineBasicBlock::iterator I) const override {
+    return MBB.erase(I);
+  }
   /// A kernel has no caller to restore anything for, and nothing is dynamic --
   /// so the frame pointer is the only frame register and it never needs an
   /// epilogue.
   bool hasFP(const MachineFunction &MF) const override { return true; }
 };
+/// Where F's frame starts below R15, in bytes: the deepest extent any of its
+/// callees' frames reach. Laid out by emitPrologue, callees first.
+unsigned ccvFrameBase(const Function &F);
+/// Whether F is a kernel (!nvvm.annotations "kernel") rather than a device
+/// function. Only a kernel sets up R15 and ends in `exit`.
+bool ccvIsKernel(const Function &F);
 } // namespace llvm
 #endif
