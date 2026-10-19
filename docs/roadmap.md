@@ -25,15 +25,36 @@ with an instruction rather than failing.
 
 ### Reproducing the environment
 
-`vendor/` is gitignored and does not survive a new container. One command
-restores it:
+A fresh container has the repository and nothing else — **including no build of
+the backend, and not even LLVM's development package.** This section said for
+several revisions that one command restored the environment, which was true only
+of `vendor/`, and the gap cost an hour on 2026-10-16. The whole of it:
 
 ```
-    ./tools/fetch-ptxas.sh        # ptxas + nvdisasm, from NVIDIA's pip wheels
+    apt-get update
+    apt-get install -y --no-install-recommends llvm-18-dev libzstd-dev
+    cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+    ninja -C build
+    ./tools/fetch-ptxas.sh        # optional: ptxas + nvdisasm, from NVIDIA's wheels
+    ./tools/verify.sh
 ```
 
-Neither needs a GPU. Without them everything still builds and passes; only the
-SASS column is absent, and `check-bench-doc.py` says so.
+Neither NVIDIA tool needs a GPU, and `vendor/` is gitignored, so without them
+everything still builds and passes; only the SASS column is absent, and
+`check-bench-doc.py` says so.
+
+Two failure modes that do not say what they mean. Without `llvm-18-dev`, CMake
+reports `Could not find a package configuration file provided by "LLVM"` even
+though `llvm-config --version` answers 18.1.3 — the tools are installed and the
+CMake package is not. Without `libzstd-dev`, it fails inside
+`LLVMExports.cmake` on `zstd::libzstd_shared` not found, which is LLVM's own
+export referring to a library the dev package does not pull in. The container
+may also come back with an empty clone, `master` carrying no commits; fetch the
+working branch explicitly rather than assuming the checkout survived.
+
+`docs/handoff-cp-session.md` carries the session-level context this list cannot:
+the register's state, what is owed to CP and by it, and the work queue, which is
+**not** the "next steps" list below — that list is older than the work.
 
 ### Next steps, in the order they are worth doing
 
