@@ -3,6 +3,7 @@
 #define CCV_CCVINSTRINFO_H
 
 #include "CCVRegisterInfo.h"
+#include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 
 #define GET_INSTRINFO_HEADER
@@ -15,7 +16,8 @@ class CCVInstrInfo : public CCVGenInstrInfo {
   const CCVRegisterInfo RI;
 
 public:
-  CCVInstrInfo() = default;
+  CCVInstrInfo()
+      : CCVGenInstrInfo(CCV::ADJCALLSTACKDOWN, CCV::ADJCALLSTACKUP) {}
   const CCVRegisterInfo &getRegisterInfo() const { return RI; }
 
   /// Spilling needs somewhere to spill TO, and there is none: §5.1 mentions

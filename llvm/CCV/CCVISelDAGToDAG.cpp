@@ -1,5 +1,6 @@
 //===-- CCVISelDAGToDAG.cpp - CCV instruction selection ------------------===//
 #include "CCVISelLowering.h"
+#include "CCVFrameLowering.h"
 #include "CCVSubtarget.h"
 #include "CCVTargetMachine.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
@@ -107,13 +108,23 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
 
   switch (N->getOpcode()) {
   case CCVISD::RET: {
+    // A device function returns through its link value, operand 1, carrying
+    // the return registers as uses so they stay live to the `ret` (F-21).
+    if (!ccvIsKernel(CurDAG->getMachineFunction().getFunction())) {
+      SmallVector<SDValue, 6> Ops;
+      unsigned E = N->getNumOperands();
+      bool HasGlue = N->getOperand(E - 1).getValueType() == MVT::Glue;
+      for (unsigned I = 1, Last = HasGlue ? E - 1 : E; I != Last; ++I)
+        Ops.push_back(N->getOperand(I));
+      Ops.push_back(N->getOperand(0));             // then the chain,
+      if (HasGlue)
+        Ops.push_back(N->getOperand(E - 1));       // then the glue
+      ReplaceNode(N, CurDAG->getMachineNode(CCV::PSEUDO_RET, DL, MVT::Other,
+                                            Ops));
+      return;
+    }
     // A kernel ends with `exit` -- 16 bits, no operand content (§3,
-    // invariant 7). Kernels return void, so there are no return registers to
-    // carry through; a value-returning device function needs the calling
-    // sequence, which is Step 4 (see roadmap F-21).
-    if (N->getNumOperands() > 1)
-      report_fatal_error("CCV: value-returning functions need the calling "
-                         "sequence (roadmap F-21)");
+    // invariant 7). It returns nothing; LowerReturn refuses a value.
     ReplaceNode(N, CurDAG->getMachineNode(
                        CCV::C_EXIT, DL, MVT::Other,
                        CurDAG->getTargetConstant(0, DL, MVT::i32),

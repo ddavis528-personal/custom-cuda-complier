@@ -22,6 +22,7 @@ FunctionPass *createCCVInsertChwidth();
 FunctionPass *createCCVExpandDivision();
 FunctionPass *createCCVUniformity();
 ModulePass *createCCVLowerShared();
+ModulePass *createCCVInternalize();
 }
 
 // Pointers are 64 bits wide as clang emits them; no register holds one
@@ -63,6 +64,8 @@ public:
   /// §5.1 makes `.shared` flat 32-bit, so a shared object's address is a
   /// compile-time constant and the layout is the whole of its lowering.
   void addIRPasses() override {
+    // Before anything relies on a device function's linkage (F-21).
+    addPass(createCCVInternalize());
     addPass(createCCVLowerShared());
     // Before anything can ask for a division libcall that does not exist.
     addPass(createCCVExpandDivision());

@@ -22,8 +22,15 @@ def RetCC_CCV : CallingConv<[
   CCIfType<[i32, f32], CCAssignToReg<[R1, R2]>>
 ]>;
 
-// Nothing is callee-saved yet. Warp state is deliberately small (§3, Format E:
-// link-register-plus-convention was chosen over a hardware call stack to keep
-// it that way), so a save/restore convention is a decision to make with data,
-// not a default to inherit.
-def CSR_CCV : CalleeSavedRegs<(add)>;
+// Which registers survive a call is an ABI decision still open (CP-9;
+// proposals/calling-convention.md §6), to be settled by measurement on the
+// CoreMark port. Warp state is deliberately small (§3, Format E chose a link
+// register over a hardware call stack to keep it so), so the set is a choice
+// to make with data, not a default to inherit. -ccv-csr picks one (none, six, eight); six is
+// built until the sweep decides. R14 (the link register) and R15 (the frame
+// window, reserved) are in none of them.
+def CSR_CCV_None : CalleeSavedRegs<(add)>;
+def CSR_CCV      : CalleeSavedRegs<(sequence "R%u", 8, 13)>;
+// Every register that is neither an argument (R1-R6) nor the link: the most a
+// convention can keep without making a callee preserve its own inputs.
+def CSR_CCV_Eight : CalleeSavedRegs<(add R0, (sequence "R%u", 7, 13))>;

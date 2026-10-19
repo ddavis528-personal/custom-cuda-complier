@@ -12,6 +12,19 @@ def SDT_CCVRet : SDTypeProfile<0, 0, []>;
 def ccv_ret : SDNode<"CCVISD::RET", SDT_CCVRet,
                      [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
+def SDT_CCVCall : SDTypeProfile<0, -1, [SDTCisVT<0, i32>]>;
+def ccv_call : SDNode<"CCVISD::CALL", SDT_CCVCall,
+                      [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue, SDNPVariadic]>;
+def SDT_CCVCallSeqStart : SDCallSeqStart<[SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
+def SDT_CCVCallSeqEnd   : SDCallSeqEnd<[SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
+def callseq_start : SDNode<"ISD::CALLSEQ_START", SDT_CCVCallSeqStart,
+                           [SDNPHasChain, SDNPOutGlue]>;
+def callseq_end   : SDNode<"ISD::CALLSEQ_END", SDT_CCVCallSeqEnd,
+                           [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
+def : Pat<(callseq_start timm:$a, timm:$b), (ADJCALLSTACKDOWN timm:$a, timm:$b)>;
+def : Pat<(callseq_end timm:$a, timm:$b), (ADJCALLSTACKUP timm:$a, timm:$b)>;
+def : Pat<(ccv_call tglobaladdr:$f), (PSEUDO_CALL tglobaladdr:$f)>;
+
 // Selected in C++ (CCVISelDAGToDAG::Select): the node is variadic over the
 // return registers, which a declarative pattern cannot bind. A kernel ends
 // with `exit`; `ret rs` for device functions arrives with the calling sequence.

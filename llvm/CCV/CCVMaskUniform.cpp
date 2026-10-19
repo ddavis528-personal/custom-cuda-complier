@@ -34,6 +34,7 @@
 
 #include "CCVInstrInfo.h"
 #include "CCVSubtarget.h"
+#include "CCVFrameLowering.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -174,9 +175,21 @@ bool narrowsImmediate(const MachineInstr &MI) {
 /// §5.3: `srd` selector 0 is `%ctatid`, the one architectural source of
 /// per-lane difference. Everything else a kernel can read is CTA-wide or
 /// grid-wide, and both are uniform across a warp.
+// Mutation control for tools/check-calls.sh: masking as it was before calls
+// existed -- run in device functions, and blind to call results.
+cl::opt<bool> TestMaskDeviceFunctions(
+    "ccv-test-mask-device-functions", cl::init(false), cl::Hidden,
+    cl::desc("lane-0 mask inside device functions, to test that it is caught"));
+
 bool isDivergentSource(const MachineInstr &MI) {
-  return MI.getOpcode() == CCV::SRD && MI.getOperand(1).isImm() &&
-         MI.getOperand(1).getImm() == 0;
+  if (MI.getOpcode() == CCV::SRD && MI.getOperand(1).isImm() &&
+      MI.getOperand(1).getImm() == 0)
+    return true;
+  // A value taken from a physical register is a call's result (F-21): a kernel
+  // has no register arguments, so nothing else arrives that way. The callee
+  // computed it per lane, so it is divergent until shown otherwise.
+  return !TestMaskDeviceFunctions && MI.isCopy() && MI.getOperand(1).isReg() &&
+         MI.getOperand(1).getReg().isPhysical();
 }
 
 class CCVMaskUniform : public MachineFunctionPass {
@@ -199,6 +212,11 @@ char CCVMaskUniform::ID = 0;
 
 bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
   if (!EnableMasking)
+    return false;
+  // Never inside a device function (F-21). Its arguments are per lane, not
+  // the launch block's, and its caller may have called it from divergent
+  // code, where lane 0 need not be among the lanes running it at all.
+  if (!ccvIsKernel(MF.getFunction()) && !TestMaskDeviceFunctions)
     return false;
   MachineRegisterInfo &MRI = MF.getRegInfo();
   const auto *TII = MF.getSubtarget<CCVSubtarget>().getInstrInfo();
@@ -306,6 +324,8 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
       for (MachineInstr &MI : MBB)
         if (isBarrier(MI))
           Co = true;
+        else if (MI.isCall())
+          Co = false;
       bool Out = Co && !endsDivergent(MBB);
       if (CoIn[&MBB] != In || CoOut[&MBB] != Out) {
         CoIn[&MBB] = In;
@@ -314,13 +334,17 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
       }
     }
   }
-  // Within a block the property can only turn ON, at a barrier.
+  // Within a block the property turns ON at a barrier and OFF at a call: the
+  // callee may branch divergently, and its lanes then return one group at a
+  // time, just as after a divergent branch here (F-21).
   DenseSet<const MachineInstr *> CoIssued;
   for (MachineBasicBlock &MBB : MF) {
     bool Co = CoIn[&MBB];
     for (MachineInstr &MI : MBB) {
       if (isBarrier(MI))
         Co = true;
+      else if (MI.isCall())
+        Co = false;   // lanes leave a callee when its own branches let them
       if (Co)
         CoIssued.insert(&MI);
     }

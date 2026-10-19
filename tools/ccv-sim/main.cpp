@@ -40,6 +40,10 @@ static cl::opt<unsigned> NumThreads("threads", cl::init(32),
 static cl::opt<unsigned> CtaId("ctaid", cl::init(0), cl::desc("CTA index"));
 static cl::opt<uint64_t> CodeBase("code-base", cl::init(0x1000),
                                   cl::desc("load address for the kernel"));
+static cl::opt<uint64_t> Entry(
+    "entry", cl::init(0),
+    cl::desc("the kernel's offset in the image: device functions come before "
+             "it once calls exist (F-21)"));
 static cl::opt<bool> Trace("trace", cl::desc("print each issue group"));
 static cl::opt<bool> Stats("counters", cl::desc("print execution counters"));
 static cl::opt<unsigned> MaxSteps("max-steps", cl::init(100000),
@@ -115,7 +119,7 @@ int main(int argc, char **argv) {
   Warp W;
   W.CtaId = CtaId;
   for (unsigned L = 0; L != kLanes; ++L) {
-    W.PC[L] = CodeBase;
+    W.PC[L] = CodeBase + Entry;
     W.CtaTid[L] = L;                       // one warp, lane L is thread L
   }
   W.Active = NumThreads >= kLanes ? ~0u : ((1u << NumThreads) - 1);

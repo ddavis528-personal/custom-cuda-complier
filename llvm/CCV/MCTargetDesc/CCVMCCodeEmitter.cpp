@@ -49,6 +49,9 @@ public:
   unsigned getBranch18OpValue(const MCInst &MI, unsigned OpNo,
                               SmallVectorImpl<MCFixup> &Fixups,
                               const MCSubtargetInfo &STI) const;
+  unsigned getCall17OpValue(const MCInst &MI, unsigned OpNo,
+                            SmallVectorImpl<MCFixup> &Fixups,
+                            const MCSubtargetInfo &STI) const;
   unsigned getBranch8OpValue(const MCInst &MI, unsigned OpNo,
                              SmallVectorImpl<MCFixup> &Fixups,
                              const MCSubtargetInfo &STI) const;
@@ -96,6 +99,12 @@ unsigned CCVMCCodeEmitter::getBranch18OpValue(const MCInst &MI, unsigned OpNo,
                                               SmallVectorImpl<MCFixup> &Fixups,
                                               const MCSubtargetInfo &) const {
   return branchOpValue(MI, OpNo, Fixups, CCV::fixup_ccv_brapred18);
+}
+
+unsigned CCVMCCodeEmitter::getCall17OpValue(const MCInst &MI, unsigned OpNo,
+                                            SmallVectorImpl<MCFixup> &Fixups,
+                                            const MCSubtargetInfo &) const {
+  return branchOpValue(MI, OpNo, Fixups, CCV::fixup_ccv_call17);
 }
 
 unsigned CCVMCCodeEmitter::getBranch8OpValue(const MCInst &MI, unsigned OpNo,

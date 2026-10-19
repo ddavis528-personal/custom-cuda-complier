@@ -1,7 +1,7 @@
 # Proposal — The device-function calling sequence (F-21, F-22)
 
-**Status:** proposed 2026-10-19. The compiler-side mechanics (§2–§5) are CP's and are being
-built. Two choices are ABI decisions and wait on IS or Daniel: §6's callee-saved set and
+**Status:** proposed 2026-10-19; direct calls built the same day (§7). The compiler-side
+mechanics (§2–§5) are CP's. Two choices are ABI decisions and wait on IS or Daniel: §6's callee-saved set and
 §4's link-value definition. Each is one line to change, and is built provisionally as
 recommended here.
 **Addresses:** F-21 and F-22 in `../roadmap.md`. AR-20 (CoreMark) waits on this.
@@ -88,7 +88,10 @@ removes `ptr-in-call.ll` from `test/reject/`, and it becomes an accept test.
   R14 into a virtual register at entry and returns through it with `ret`. A leaf keeps
   it in R14 at no cost. A non-leaf gets the allocator's choice: another register
   (§3's "`call R14, f` inside `call R13, g`, with no spill at all" falls out by itself) or
-  a spill when pressure says so. R14 is otherwise an ordinary caller-saved register.
+  a spill when pressure says so. It goes back into R14 for the `ret`: the epilogue restores
+  callee-saved registers just before the return, so a link value left in one of them would
+  be overwritten by the caller's value first. A leaf pays nothing for this; a function that
+  calls pays at most one `mov`. R14 is otherwise an ordinary caller-saved register.
 - **What `call` writes, and what `ret` reads.** §3 says `call` writes a link register, but
   not what value it holds, and nothing in the ISA defines a code address at all. CP builds
   it as **the byte offset of the instruction after the `call` from the start of the kernel
@@ -127,7 +130,7 @@ With 16 GPRs and R15 reserved, the choice is how many of the remaining 15 surviv
 |---|---|---|---|---|
 | A: none (today) | — | R0–R14 | simplest; a leaf never saves | every value live across a call spills at every call site; CoreMark would measure this choice, not the machine |
 | **B: six (recommended)** | **R8–R13** | R0–R7 (args R1–R6), R14 (link) | loop counters and pointers in call-heavy loops (CoreMark's list walk, the matrix and state benchmarks) survive calls; a leaf uses R0–R7 and R14 and saves nothing | a non-leaf that needs more than 8 registers saves what it uses beyond them, into its static frame, one store per register |
-| C: nine | R6–R14 minus link | R0–R5 | fewer caller spills | leaves get 6 free registers; most CoreMark callees are small leaves, which would start saving |
+| C: eight | R0, R7–R13 | R1–R6 (args), R14 (link) | the most a convention can keep without a callee preserving its own arguments | a leaf has only the six argument registers and R14 free; most CoreMark callees are small leaves, which would start saving |
 
 **B, provisionally, plus IPRA.** RISC-V and AArch64 both settle near half the file callee-saved, and
 B is the nearest equivalent for a file of 15. More important here: the module is closed,
@@ -135,14 +138,37 @@ so LLVM's interprocedural register allocation can use each **direct** callee's a
 clobber set instead of the convention. For direct calls the convention then matters only
 at the recursion and indirect-call boundaries, and the CSR set governs mainly indirect calls
 (CoreMark's comparators). The set is a `cl::opt` in the backend, so the CoreMark port can
-sweep A, B and C and report spill transfers and instruction counts per option. **The
+sweep A, B and C (`-ccv-csr=none|six|eight`) and report spill transfers and instruction counts per option. **The
 measurement decides the set; B is what is built until it does.**
+
+## 6a. What building it found
+
+Four defects, each of which compiled, assembled and ran, and computed the wrong answer.
+Each is now a control in `tools/check-calls.sh` or a fix the check exercises.
+
+- **Device functions were global ELF symbols**, so MC left every `call` as a relocation.
+  The image is bare `.text`, so each call encoded offset 0 and fell through to the next
+  instruction. `CCVInternalize` gives device functions internal linkage. Device code is one
+  closed module, and only kernels are entry points.
+- **O-33's lane-0 masking ran inside device functions.** It treated their arguments as
+  launch-block values, so every lane got lane 0's answer. Masking is now off in device
+  functions. In a kernel, a call result counts as divergent, and a call ends co-issue,
+  because a callee's lanes return one group at a time after its own divergent branches.
+- **The link value could sit in a callee-saved register**, which the epilogue restores just
+  before `ret` (§4). It is copied back to R14 for the return.
+- **A callee could return with a register still narrow.** Every GPR is now 32 bits wide at
+  a call and at a return, and `CCVInsertChwidth` widens before each.
+
+The kernel is no longer at image offset 0, because callees are emitted first. A launch
+names its entry point, and `ccv-sim -entry` takes it.
 
 ## 7. Order of work
 
 1. `ccv-sim`: `call` and `ret`, with the executed check and its mutations. **Done.**
 2. `LowerCall`, the value-returning `RET`, R14 as a live-in, IPRA on, and `CSR_CCV` = B.
-3. The static frame layout, the recursion diagnostic, and outgoing stack arguments.
+   **Done**, with the static frame layout and the recursion diagnostic from step 3.
+   `tools/check-calls.sh` executes it.
+3. Outgoing stack arguments (more than six).
 4. F-22: pointer parameters as pairs; `ptr-in-call.ll` moves from reject to accept.
 5. Indirect calls via the `ret` stub.
 6. The CoreMark port (AR-20), then the CSR sweep, which settles §6.
