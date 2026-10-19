@@ -329,7 +329,7 @@ int main(int argc, char **argv) {
       // guarded load (ld.global.p) touches only its active lanes, so the
       // count is checked against those, not the issue mask. Anything else
       // cannot be attributed and is refused rather than guessed.
-      // The descriptor has to agree with the traffic: F-141 was a load whose
+      // The descriptor has to agree with the traffic: F-153 was a load whose
       // descriptor said it touched no memory, which this record reported as
       // "load":0 while listing 32 reads.
       bool Rd = false, Wr = false;
@@ -338,7 +338,7 @@ int main(int argc, char **argv) {
       if ((Rd && !D.mayLoad()) || (Wr && !D.mayStore())) {
         errs() << "error: -oracle: " << MII->getName(MI.getOpcode())
                << (Rd && !D.mayLoad() ? " reads" : " writes")
-               << " memory but its descriptor does not say so (F-141)\n";
+               << " memory but its descriptor does not say so (F-153)\n";
         return 1;
       }
       std::fprintf(OF, ",\"mem\":[");
@@ -484,6 +484,14 @@ int main(int argc, char **argv) {
   }
 
   outs() << "  executed " << Issued << " issue groups\n";
+
+  // IS-1: a lane's effective address must be a multiple of its element size.
+  // Reported rather than faulted -- F-ALIGN does not exist until the fault
+  // model is adopted (IS-2) -- and reported UNCONDITIONALLY when non-zero,
+  // because a count that only appears under a flag is a count nobody sees.
+  if (I.Mem.Misaligned)
+    outs() << "  misaligned lane accesses " << I.Mem.Misaligned
+           << "   (IS-1: address not a multiple of its element size)\n";
   if (OF) {
     // Final architectural state: every GPR lane, every predicate, and every
     // global word any access or poke touched -- what the skeleton's retired

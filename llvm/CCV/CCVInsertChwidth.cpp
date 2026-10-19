@@ -423,14 +423,14 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
         // aliases onto a lower one, and the kernel gives a plausible wrong
         // answer at scale while passing every small test. Defined behaviour,
         // so no hardware check can exist -- it is the compiler's, and it is a
-        // refusal, not a warning (compiler F-145). Today srd has only a 32-bit
+        // refusal, not a warning (compiler F-157). Today srd has only a 32-bit
         // form and the insertion above widens the register first, so this
         // guards against a later change making it possible. Checked on dead
         // definitions too: a refusal that depends on liveness is a warning.
         if (MI.getOpcode() == CCV::SRD && Need != 0)
           report_fatal_error("CCV: srd's destination must be 32 bits wide; a "
                              "narrow register truncates %ctaid/%ctatid silently "
-                             "(F-145)");
+                             "(F-157)");
         if (I == ~0u || S[I] == Need)
           continue;
 

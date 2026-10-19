@@ -15,10 +15,10 @@ _Z6vadd16PsPKsS1_i:
 	shl r1, 1
 	ld.global r2, [r0 + 44]
 	add r2, r1
-	ld.global r14, [#2, r2, 0, 0]
+	ld.global r14, [#1, r2, 0, 0]
 	ld.global r2, [r0 + 52]
 	add r2, r1
-	ld.global r13, [#4, r2, 0, 0]
+	ld.global r13, [#2, r2, 0, 0]
 	add r14, r13, r14
 	ld.global r0, [r0 + 36]
 	add r0, r1

@@ -323,12 +323,12 @@ if [ -x build/ccv-llc ]; then
   fi
 fi
 
-# --- srd's destination is never narrow (F-145) -----------------------------
+# --- srd's destination is never narrow (F-157) -----------------------------
 # srd truncates to its register's width (§5.3, invariant 3), so a narrow
 # destination aliases every CTA above some index onto a lower one -- no fault,
 # a plausible wrong answer at scale. The backend refuses it by name. Today no
 # narrow srd can be built, so the refusal is proven by a mutation: pretend
-# srd's destination is 16-bit, and the compile must fail naming F-145. The
+# srd's destination is 16-bit, and the compile must fail naming F-157. The
 # unmutated compile must still succeed and still emit srd.
 echo
 echo "  --- srd destination width ---"
@@ -340,7 +340,7 @@ if [ -x build/ccv-llc ]; then
   fi
   # (A subshell, so the shell's own "Aborted" notice stays out of the log.)
   if ! (build/ccv-llc test/accept/base-index.ll -o /dev/null -ccv-test-narrow-srd \
-       2>"$TMP/srd.err"; exit $?) 2>/dev/null && grep -q "srd's destination must be 32 bits wide.*F-145" "$TMP/srd.err"; then
+       2>"$TMP/srd.err"; exit $?) 2>/dev/null && grep -q "srd's destination must be 32 bits wide.*F-157" "$TMP/srd.err"; then
     echo "  PASS  a narrow srd destination is refused, by name"
   else
     echo "  FAIL  a narrow srd destination was not refused"; fail=1

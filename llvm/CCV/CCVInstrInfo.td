@@ -1,6 +1,6 @@
 //===-- CCVInstrInfo.td - CCV instruction definitions -------*- tablegen -*-===//
 //
-// Instruction set for docs/isa-v1.6-operation-map-and-encoding.md.
+// Instruction set for docs/isa-v1.7-operation-map-and-encoding.md.
 // Coverage goal for Step 1 is one instruction per format plus everything the
 // worked prologue in §5.5 needs -- not full opcode-map coverage. Opcode values
 // are taken from §3 and §4; where the spec lists a range without fixing points,
@@ -21,7 +21,7 @@ def simm13  : SImm<13>;
 def simm10  : SImm<10>;
 def simm8   : SImm<8>;
 def simm9   : SImm<9>;
-def simm16  : SImm<16>;   // cas's offset: §3 says signed (F-143)
+def simm16  : SImm<16>;   // cas's offset: §3 says signed (F-155)
 def simm21  : SImm<21>;
 def simm17  : SImm<17>;
 def simm18  : SImm<18>;
@@ -552,7 +552,7 @@ defm SETP_GE_F : Setp<setpOpc.GE_F, "ge.f">;
 // State them on each def, never as a `let` wrapping a group: the first F-50
 // fix did the latter and each `let` bound to the NEXT def or block, so
 // LD_GLOBAL, LD_GLOBAL_P, the compressed pair and the atomics were left with no
-// memory effect and three narrow stores were marked as loads (F-141). ccv-sim
+// memory effect and three narrow stores were marked as loads (F-153). ccv-sim
 // -oracle now refuses a step whose memory traffic disagrees with the flags.
 let isCodeGenOnly = 1 in {
   let mayLoad = 1 in
@@ -829,13 +829,13 @@ def C_ST_GLOBAL : FormatKmem<25, (outs), (ins GPR:$rd, GPR:$rbase), "st.global $
 
 // srd -- identity / dynamic state read (v1.3, O-18). Point 28.
 //
-// isReMaterializable here is INERT, and knowingly left so (F-146). srd is
+// isReMaterializable here is INERT, and knowingly left so (F-158). srd is
 // selected by hand, so it has no pattern, and TableGen assumes a patternless
 // instruction has unmodeled side effects, which vetoes rematerialization:
 // sgemm spills %ctatid to the frame and reloads it. Stating hasSideEffects = 0
 // makes remat real, and it is not a clean win -- sgemm 4x4 loses 13 frame
 // transfers, but igemm 1x1 gains a 14-mov register rotation inside its loop
-// body, where the allocator's eviction chain lands. F-146 has the numbers;
+// body, where the allocator's eviction chain lands. F-158 has the numbers;
 // the choice is open.
 //
 // If it is flipped: that is right for the two allocated selectors only. If

@@ -321,3 +321,30 @@ the 4×4/8×8 cliff survives Format H in a different shape.
    workload judgement the compiler has no access to.
 4. **Format H — is it the next thing?** Not an ask, but the other three are weighed against it
    and that weighing is worth confirming or correcting.
+
+
+---
+
+## CORRECTION, after review, for the record
+
+Two figures in this document have since been measured differently, and the decision it
+carries was taken partly on them. Neither is restated in place, because a proposal that was
+reviewed should stay readable as what the reviewer read.
+
+**1. "0.94× of SASS on instruction count" (§5) is wrong, and it was wrong when written.**
+The sweep it came from had no GEMM in it: for eight revisions `bench.py` carried eight
+straight-line or single-loop kernels, and `sgemm` had never been compiled for another
+target at all because it was written against clang's builtin-vars header rather than the
+portable one. With `sgemm` and `gemv` added, CCV aligned is **1.31× SASS**, and `sgemm`
+alone is 1.84×. The bytes claim is unaffected — 0.28× of SASS, 0.56× of gfx900, and the
+pooled bits-per-instruction moved only 25.9 → 27.5. Compiler-side F-148.
+
+**2. Ask 3's evidence base has been replaced, and the ask survives it in a narrower form.**
+§2 flagged that `fused.cu` was "a kernel written for this measurement, with the tensor count
+as a free knob". That objection is now closed by measurement rather than argued: a corpus of
+eight kernels written from the published shape of real inference and training kernels
+(F-143) puts real pointer counts at **two to six**, not sixteen, and shows **zero** pointer
+or index spill after O-45 in any of them. What those kernels do spill is their warp-uniform
+SCALAR arguments — a third quantity, and neither of the two this document argued from. The
+recommendation to defer ask 3 stands; the case for eventually adopting it now rests on
+something measured in kernels nobody wrote for the purpose.

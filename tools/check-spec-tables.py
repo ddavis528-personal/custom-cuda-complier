@@ -43,7 +43,7 @@ import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SPEC = (pathlib.Path(sys.argv[1]) if len(sys.argv) > 1
-        else ROOT / "docs" / "isa-v1.6-operation-map-and-encoding.md")
+        else ROOT / "docs" / "isa-v1.7-operation-map-and-encoding.md")
 
 # Fields whose bits the siblings table is summarizing. Load/store bit maps call the
 # immediate an offset or a displacement; the ALU and compare maps call it an
@@ -249,6 +249,171 @@ def check_tag_prose(text, fail):
     return count
 
 
+WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+         "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+
+
+def check_self_version(text, fail):
+    """The document must not cite a revision later than its own.
+
+    §3's Format B map read "Until v1.7 this range was described but never
+    enumerated" in a document headed Version 1.6 -- a change described in the
+    past tense against a revision that does not exist. Harmless in isolation and
+    not in aggregate: the revision number is how every other document, every
+    proposal and the roadmap refer to what is settled, and a spec that
+    mis-numbers its own changes makes the decision trail unreadable.
+    """
+    m = re.search(r"^\*\*Version (\d+)\.(\d+)\*\*", text, re.M)
+    if not m:
+        fail.append("no '**Version X.Y**' header -- this check cannot run")
+        return None
+    own = (int(m.group(1)), int(m.group(2)))
+    bad = 0
+    for cite in re.finditer(r"\bv?(\d)\.(\d)\b", text):
+        ver = (int(cite.group(1)), int(cite.group(2)))
+        # Only revisions of THIS document: 1.x, and not a measurement that
+        # happens to read like one.
+        if ver[0] != own[0] or ver <= own:
+            continue
+        line = text[:cite.start()].count("\n") + 1
+        fail.append(f"line {line}: cites revision {cite.group(0)}, but this "
+                    f"document is {own[0]}.{own[1]}")
+        bad += 1
+    return bad
+
+
+def check_obligation_count(text, fail):
+    """§1a's prose count must equal the number of obligations §1a lists.
+
+    The intro said "§1a states three obligations" for two revisions after O-40
+    added a fourth. §1a is the one section that is addressed to the hardware
+    side rather than to the compiler, and an undercount there is an obligation
+    someone does not know they have.
+    """
+    body = re.search(r"^## 1a\..*?(?=^## 2\.)", text, re.M | re.S)
+    if not body:
+        fail.append("§1a not found -- this check cannot run")
+        return None
+    listed = len(re.findall(r"^### \d+\.", body.group(0), re.M))
+    stated = re.search(r"\u00a71a states (\w+) obligations", text)
+    if not stated:
+        fail.append("no '\u00a71a states N obligations' sentence -- if it was "
+                    "reworded, reword this check with it")
+        return None
+    want = WORDS.get(stated.group(1).lower())
+    if want != listed:
+        fail.append(f"prose says \u00a71a states {stated.group(1)} obligations; "
+                    f"\u00a71a lists {listed}")
+    return listed
+
+
+def check_dp_points(text, fail):
+    """§4's packed dot-product table must agree with the machine description.
+
+    O-47. The block carried twelve operations and no point column through 1.6,
+    and O-44 added four instructions to it -- so the revision that adopted them
+    would have shipped four opcodes whose encoding the document did not state.
+    The numbering existed in TableGen, in the encoder, in the disassembler and in
+    the simulator, and those agreed with each other the whole time; only the
+    specification did not say it.
+
+    Read from the machine description itself rather than from a second copy kept
+    here, because a checker holding its own copy of the answer is the thing this
+    file exists to stop. The opcode is the first template argument of the format
+    class, which is where TableGen takes it from too: the generated JSON bakes it
+    into the instruction's bit vector, so reading it back would mean duplicating
+    the format's field placement here as well.
+    """
+    td = ROOT / "llvm/CCV/CCVInstrInfo.td"
+    if not td.exists():
+        print("  SKIP  \u00a74's dp point table: the machine description is not "
+              "present, so it cannot be checked against it")
+        return None
+    # The table is two columns wide, so a row carries two points. Scan each row
+    # for every (point, mnemonic) pair rather than anchoring on the line start,
+    # or the right-hand column -- which is where `dp8` lives -- goes unchecked.
+    spec = {}
+    for line in text.splitlines():
+        if not line.startswith("|"):
+            continue
+        for pt, op in re.findall(r"\|\s*(\d+)\s*\|\s*`([a-z0-9._]+)`", line):
+            if 48 <= int(pt) <= 63:
+                spec[int(pt)] = op
+    if not spec:
+        fail.append("\u00a74's dp table has no enumerated points -- if it was "
+                    "reformatted, reword this check with it (O-47)")
+        return None
+
+    got = {}
+    for m in re.finditer(
+            r"def\s+(DP[248]_\w+)\s*:\s*Format\w+<\s*(\d+)\s*,.*?\"([a-z0-9._]+)",
+            td.read_text(), re.S):
+        got[int(m.group(2))] = m.group(3)
+    if not got:
+        fail.append("no dp instructions found in the machine description -- if "
+                    "they were renamed, reword this check with them (O-47)")
+        return None
+
+    for pt, mnem in sorted(got.items()):
+        if pt not in spec:
+            fail.append(f"the machine description puts `{mnem}` at point {pt}, "
+                        f"which \u00a74's table does not list")
+        elif spec[pt] != mnem:
+            fail.append(f"point {pt}: \u00a74 says `{spec[pt]}`, the machine "
+                        f"description says `{mnem}`")
+    return len(spec)
+
+
+def check_block_enumeration(text, fail):
+    """Every opcode block in \u00a74 must say which point each operation gets.
+
+    O-47 was the FIFTH unenumerated range: O-28 found two, O-34's conversion
+    block was a third, O-41's Format B a fourth. The ISA side's read of that is
+    the right one -- five instances is a systematic gap in how \u00a74 is written,
+    not four accidents and a fifth -- so this stops being something review
+    catches.
+
+    The ask as put was "assert every block carries a point column". That would
+    be wrong: TWO of \u00a74's blocks are enumerated by a stated GENERATION RULE
+    rather than a table -- floating point by `32 + 8\u00d7format + op` and the
+    conversions by `64 + 16\u00d7dest + 4\u00d7src + round` -- and a rule pins the
+    numbering exactly as a table does. O-34 chose the rule deliberately, to keep
+    conversions and packed dot-product from competing for one range.
+
+    So the rule here is: a block is enumerated by a point table OR by a formula,
+    and a block with NEITHER is the defect. That is what the five instances
+    actually had in common.
+    """
+    sec = re.search(r"^## 4\..*?(?=^## 5\.)", text, re.M | re.S)
+    if not sec:
+        fail.append("\u00a74 not found -- this check cannot run")
+        return None
+    body = sec.group(0)
+    heads = list(re.finditer(r"^### (.+?) \u2014 points (\d+)(?:[\u2013-](\d+)|\+)\s*$",
+                             body, re.M))
+    if not heads:
+        fail.append("\u00a74 has no '### <name> \u2014 points <lo>\u2013<hi>' blocks -- if they "
+                    "were reformatted, reword this check with them (O-47)")
+        return None
+    for i, m in enumerate(heads):
+        name = m.group(1)
+        lo = int(m.group(2))
+        hi = int(m.group(3)) if m.group(3) else None
+        chunk = body[m.end():heads[i + 1].start() if i + 1 < len(heads) else len(body)]
+        # (a) a point table: a row whose first cell is a number inside the block.
+        enumerated = any(
+            lo <= int(pt) <= (hi if hi is not None else 1 << 30)
+            for line in chunk.splitlines() if line.startswith("|")
+            for pt in re.findall(r"\|\s*(\d+)\s*\|", line))
+        # (b) a generation rule: `<base> + <stride>\u00d7<field>` pins it just as well.
+        ruled = re.search(r"\d+\s*\+\s*\d+\s*\u00d7", chunk) is not None
+        if not (enumerated or ruled):
+            fail.append(f"\u00a74 block '{name}' (points {lo}\u2013{hi if hi else '+'}) gives "
+                        f"neither a point table nor a generation rule, so the "
+                        f"numbering of its operations is unspecified (O-47)")
+    return len(heads)
+
+
 def main():
     text = SPEC.read_text()
     fail = []
@@ -260,12 +425,21 @@ def main():
               f"document -- if it was renamed, update check-spec-tables.py rather "
               f"than letting the prose go unchecked")
         return 1
+    check_self_version(text, fail)
+    o = check_obligation_count(text, fail)
+    d = check_dp_points(text, fail)
+    b = check_block_enumeration(text, fail)
     if fail:
         print(f"  FAIL  {len(fail)} cross-table inconsistenc"
               f"{'y' if len(fail) == 1 else 'ies'} in {SPEC.name}")
+        for f in fail:
+            print(f"        {f}")
         return 1
     print(f"  PASS  {n} sibling rows agree with their bit maps, "
-          f"{c} 48-bit tags agree with §2/§3 prose")
+          f"{c} 48-bit tags agree with §2/§3 prose, "
+          f"{o} obligations agree with §1a, no forward version citations"
+          + (f", {d} dp points agree with the machine description" if d else "")
+          + (f", {b} \u00a74 blocks each enumerated" if b else ""))
     return 0
 
 

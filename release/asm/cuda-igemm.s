@@ -312,14 +312,14 @@ LBB0_3:
 	@p0 bra LBB0_5
 	ld.global r1, [r15 + -148]
 	add r1, r2
-	ld.global r1, [#2, r1, 1, 0]
+	ld.global r1, [#1, r1, 1, 0]
 	ld.global r3, [r15 + -152]
 	st.shared r1, [r3 + 0]
 	setp.lt.u p0, r12, 32
 	@!p0 bra LBB0_5
 	ld.global r1, [r15 + -160]
 	add r1, r2
-	ld.global r1, [#2, r1, 1, 0]
+	ld.global r1, [#1, r1, 1, 0]
 	ld.global r3, [r15 + -164]
 	st.shared r1, [r3 + 0]
 LBB0_5:
@@ -328,14 +328,14 @@ LBB0_5:
 	@p0 bra LBB0_7
 	ld.global r1, [r15 + -144]
 	add r1, r6
-	ld.global r1, [#4, r1, 1, 0]
+	ld.global r1, [#2, r1, 1, 0]
 	ld.global r3, [r15 + -156]
 	st.shared r1, [r3 + 0]
 	setp.lt.u p0, r12, 96
 	@!p0 bra LBB0_7
 	ld.global r1, [r15 + -144]
 	add r1, r7
-	ld.global r1, [#4, r1, 1, 0]
+	ld.global r1, [#2, r1, 1, 0]
 	ld.global r3, [r15 + -168]
 	st.shared r1, [r3 + 0]
 	movi r1, 63
@@ -343,7 +343,7 @@ LBB0_5:
 	@p0 bra LBB0_7
 	ld.global r1, [r15 + -144]
 	add r1, r8
-	ld.global r1, [#4, r1, 1, 0]
+	ld.global r1, [#2, r1, 1, 0]
 	ld.global r3, [r15 + -172]
 	st.shared r1, [r3 + 0]
 	movi r1, 31
@@ -351,7 +351,7 @@ LBB0_5:
 	@p0 bra LBB0_7
 	ld.global r1, [r15 + -144]
 	add r1, r9
-	ld.global r1, [#4, r1, 1, 0]
+	ld.global r1, [#2, r1, 1, 0]
 	ld.global r3, [r15 + -184]
 	st.shared r1, [r3 + 0]
 	bra.short LBB0_7

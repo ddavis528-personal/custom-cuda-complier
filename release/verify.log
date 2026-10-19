@@ -3,7 +3,7 @@
   gen-emitter          ok (2401 lines)
   gen-disassembler     ok (1367 lines)
   gen-asm-writer       ok (1423 lines)
-  gen-dag-isel         ok (1382 lines)
+  gen-dag-isel         ok (1445 lines)
   gen-callingconv      ok (92 lines)
 
 checked 258 instructions
@@ -37,17 +37,32 @@ checked 258 instructions
 
   spec listing matches codegen
   launch-block ABI constants agree
-  PASS  launch ABI agrees across all four copies (base 0x20000, args +32)
+  PASS  launch ABI agrees across all four copies (base 0x20000, args +32, slot stride 8)
   FP packed dot product, exact-sum reference
   PASS  dp2.bf16: 5 cases match an exactly-summed reference
   sgemm executes and computes a matrix product
   PASS  sgemm: 4x8 of C correct against a matrix-product reference
   local array addressed two ways
   PASS  local array: dynamic and constant indexing agree, including where they alias
+  element alignment through the unaligned fold
+  PASS  element alignment: the unaligned fold preserves it for every
+        aligned roffset and demonstrably loses it for an odd one, which
+        is the launch-ABI precondition CP cannot discharge (IS-1)
+  by-value struct argument reads the launch block
+  PASS  by-value struct: fields read from the launch block, and the guard uses the right one
+  launch-slot reach and the pointer-first ABI rule
+  PASS  pointer arguments front-loaded (layout p32,p40,p48,s56,s60, slots 0,1,2)
+        and argorder executes correctly from that layout
+  PASS  slot reach: 16 slot-form accesses at NT=16, past the
+        4-byte stride's ceiling of 8, with 0 spill transfers
+  the fused corpus executes and computes the right numbers
+  PASS  fused corpus: 8 kernels execute and agree with a reference written from the mathematics
+  each SFU intrinsic computes its own function
+  PASS  SFU: ex2, lg2, rsqrt, sin, cos each compute their own function over 8 inputs
   dp4 against a four-MAC reference
   PASS  dp4: 32 lanes correct against a four-MAC reference (1 dp4 instruction(s) emitted)
   every instruction has a production path
-  PASS  264 instructions, all with a production path (isel 73, pass 110, mc 1, declared 80)
+  PASS  264 instructions, all with a production path (isel 78, pass 110, mc 1, declared 75)
   the production-path gate catches its own cases
   PASS  removing the bra.short pattern (with insertBranch also removed) fails the check
   PASS  removing the immediate-compare mapping fails the check
@@ -55,9 +70,9 @@ checked 258 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  29 documents: paths resolve, 150 findings and 46 decisions all defined, no duplicate tracking rows
+  PASS  33 documents: paths resolve, 162 findings and 47 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
-  PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose
+  PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
   PASS  every instruction the walkthrough names appears in its listings
   walkthrough document vs toolchain
@@ -65,12 +80,13 @@ checked 258 instructions
   benchmark document vs tools
   PASS  static table matches the tool
   PASS  dynamic table matches the tool
-  SKIP  prior-art tables: ptxas not installed, so the SASS column
-        cannot be regenerated. Run tools/fetch-ptxas.sh to check them.
+  PASS  prior-art bits/instr table matches the tool
+  PASS  prior-art instruction-count table matches the tool
   PASS  O-40 retire-rate table matches the tool
   PASS  work-per-element table matches the tool
   PASS  GEMM sweep table matches the tool
   PASS  decode/fused sweep matches the tool
+  PASS  fused-corpus sweep matches the tool
   encode -> decode round trip
 
   CCV instructions     : 258
@@ -140,6 +156,7 @@ checked 258 instructions
   PASS  diagnoses bad-addr-shape.ll
   PASS  diagnoses ptr-compared.ll
   PASS  diagnoses ptr-in-call.ll
+  PASS  diagnoses ptr-loaded.ll
   PASS  diagnoses ptr-stored.ll
   PASS  diagnoses store-to-const.ll
 

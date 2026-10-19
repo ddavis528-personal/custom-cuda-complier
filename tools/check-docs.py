@@ -24,7 +24,7 @@ import sys
 import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-CURRENT_SPEC = "isa-v1.6-operation-map-and-encoding.md"
+CURRENT_SPEC = "isa-v1.7-operation-map-and-encoding.md"
 
 DOCS = sorted(
     list(ROOT.glob("docs/*.md"))

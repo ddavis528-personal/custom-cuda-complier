@@ -47,7 +47,7 @@ _Z9transposePfPKfi:
 	@p3 ld.global r7, [r0 + 44]
 	@!p3 shfl.idx r7, r7, 0
 	add r6, r7, r6
-	ld.global r6, [#2, r6, 0, 0]
+	ld.global r6, [#1, r6, 0, 0]
 	mul.lo r7, r3, 68
 	st.shared r6, [r7, r5, 1, 0]
 	or r2, r5

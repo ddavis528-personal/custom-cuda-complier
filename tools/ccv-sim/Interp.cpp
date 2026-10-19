@@ -41,6 +41,12 @@ static constexpr unsigned kBaseShift = 16;
 // like a compile error.
 static constexpr uint64_t kLaunchBase = 0x20000;
 static constexpr unsigned kOffArgs    = 32;
+// Eight, matching the compiler: a slot names a window word and §5.2 puts those
+// 8 bytes apart (DA's response CP-4, 2026-10-08). If this disagrees with the
+// ISel matcher the oracle reads a different argument than the hardware would,
+// which is the one disagreement no kernel test can catch -- hence the fourth
+// constant in check-launch-abi.sh.
+static constexpr unsigned kSlotStride = 8;
 
 static uint32_t regOf(const MCInst &MI, unsigned I) {
   unsigned R = MI.getOperand(I).getReg();
@@ -907,7 +913,9 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
 
   // ---- Format D: launch-slot + index (O-45) ------------------------------
   // The window base is the 32-bit word at launch-block byte offset
-  // `kOffArgs + 4*slot`, which is where a pointer argument's window index sits.
+  // `kOffArgs + kSlotStride*slot`, which is where a pointer argument's window
+  // index sits -- the ABI puts the pointers at the front of the argument area
+  // so that slot k is pointer argument k.
   // Everything downstream is the base+index case: same scale rule, same
   // transfer size from `rdata`'s chwidth, same displacement.
   //
@@ -923,7 +931,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     unsigned Slot = unsigned(MI.getOperand(1).getImm());
     unsigned ScaleEn = unsigned(MI.getOperand(3).getImm());
     int64_t Disp = MI.getOperand(4).getImm();
-    uint32_t Window = Mem.read32(kLaunchBase + kOffArgs + 4 * Slot);
+    uint32_t Window = Mem.read32(kLaunchBase + kOffArgs + kSlotStride * Slot);
     unsigned Sh = ScaleEn ? (2 - W.ChWidth[Data]) : 0;
     unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
     forEachLane([&](unsigned L) {

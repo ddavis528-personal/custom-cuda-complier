@@ -12,7 +12,7 @@ _Z6reducePfPKfi:
 	ld.global r5, [r5 + 48]
 	setp.le.u p0, r5, r3
 	@p0 bra LBB0_2
-	ld.global r4, [#2, r3, 1, 0]
+	ld.global r4, [#1, r3, 1, 0]
 LBB0_2:
 	mov r3, r1
 	shl r3, 2

@@ -33,6 +33,25 @@
 //                  worth its own column rather than being folded into either:
 //                  it scales with TM+TN where accumulator spill scales with
 //                  TM*TN, so mixing them is what makes a total uninformative.
+//   warp-uniform   the value is the same in all 32 lanes, established
+//                  structurally rather than inferred. Three shapes qualify: a
+//                  read of the launch block (§5.2), which is CTA-wide and
+//                  read-only for the kernel's lifetime; `srd %ctaid`, which is
+//                  the CTA index; and O-33's broadcast pseudo, which exists
+//                  precisely to distribute a value the masking pass has already
+//                  proved uniform. Nothing else is counted here, so the column
+//                  is a floor on uniform spill and not an estimate of it.
+//
+//                  This column was added when the real fused-kernel corpus
+//                  (F-143) put every one of its spills in `unclassified`.
+//                  `unclassified` is where a measurement goes to stop being
+//                  evidence, and the residual turned out to be the most
+//                  decisive quantity in the register-file question: after O-45
+//                  removed the window bases from the register file, what real
+//                  fused kernels spill is warp-uniform SCALARS. Neither of the
+//                  two previous arguments for a warp-uniform register file --
+//                  GEMM accumulators (divergent) and GEMM window bases (O-45,
+//                  now gone) -- named that.
 //
 // Classification is by USE where a use exists, because a use names the role
 // exactly, and by defining opcode otherwise. Address wins over accumulator:
@@ -43,6 +62,7 @@
 #include "CCVSubtarget.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
@@ -55,14 +75,16 @@ static cl::opt<bool> ReportSpills(
 
 namespace {
 
-enum Cause { Unclassified = 0, Staged, Accumulator, Address, NumCauses };
+enum Cause { Unclassified = 0, Staged, Uniform, Accumulator, Address,
+             NumCauses };
 
 const char *causeName(unsigned C) {
   switch (C) {
-  case Address:     return "pointer/index";
-  case Accumulator: return "accumulator";
-  case Staged:      return "staged operand";
-  default:          return "unclassified";
+  case Address:      return "pointer/index";
+  case Accumulator:  return "accumulator";
+  case Uniform:      return "warp-uniform";
+  case Staged:       return "staged operand";
+  default:           return "unclassified";
   }
 }
 
@@ -113,6 +135,54 @@ bool isStagedDef(const MachineInstr &MI) {
   }
 }
 
+/// The window index of the launch block: §5.2 puts it at a fixed architectural
+/// address, and the prologue materialises that address as `movi rN, <window>`.
+/// This is a FIFTH copy of a constant the other four already have to agree on,
+/// and tools/check-launch-abi.sh checks this one with them.
+static constexpr unsigned kLaunchWindow = 0x20000 >> 16;
+
+/// True when this instruction defines a value that is the same in all 32 lanes.
+///
+/// Each of the three cases is structural, not inferred:
+///
+///   - a Format D base+displacement load whose base register was materialised
+///     by `movi` with the launch-block window. §5.2 makes the whole block
+///     read-only and CTA-wide, so anything read from it is warp-uniform. The
+///     base is checked rather than assumed, because `[rN + imm]` is also how a
+///     DATA pointer's element zero is reached, and that is not uniform at all.
+///   - `srd %ctaid` (selector 1). Selector 0 is `%ctatid`, which is per-lane;
+///     confusing the two would report the thread index as uniform.
+///   - O-33's broadcast pseudo. The masking pass emits it only for a value it
+///     has proved warp-uniform -- that is the pass's entire contract -- so the
+///     broadcast is the strongest evidence available, not the weakest.
+bool isUniformDef(const MachineInstr &MI, const MachineBasicBlock &MBB) {
+  switch (MI.getOpcode()) {
+  case CCV::PSEUDO_BCAST:
+    return true;
+  case CCV::SRD:
+    return MI.getOperand(1).getImm() == 1;              // %ctaid, not %ctatid
+  case CCV::LD_GLOBAL: case CCV::LD_GLOBAL_W16: case CCV::C_LD_GLOBAL:
+  case CCV::LD_GLOBAL_P:
+    break;
+  default:
+    return false;
+  }
+  // Find the base operand and walk back to whatever defined it.
+  unsigned BaseOp = MI.getOpcode() == CCV::LD_GLOBAL_P ? 2 : 1;
+  if (BaseOp >= MI.getNumOperands() || !MI.getOperand(BaseOp).isReg())
+    return false;
+  Register B = MI.getOperand(BaseOp).getReg();
+  for (auto It = MI.getIterator(); It != MBB.begin();) {
+    --It;
+    for (const MachineOperand &MO : It->operands())
+      if (MO.isReg() && MO.isDef() && MO.getReg() == B)
+        return It->getOpcode() == CCV::MOVI &&
+               It->getOperand(1).isImm() &&
+               It->getOperand(1).getImm() == kLaunchWindow;
+  }
+  return false;
+}
+
 bool isAccumulatorDef(const MachineInstr &MI) {
   switch (MI.getOpcode()) {
   case CCV::FFMA_ACC_F0: case CCV::FFMA_ACC_F1:
@@ -123,6 +193,34 @@ bool isAccumulatorDef(const MachineInstr &MI) {
   default:
     return false;
   }
+}
+
+/// Every definition of physical register `R` that can reach `At` in `MBB`.
+///
+/// Backwards within the block first; on reaching the top without a definition,
+/// on through the predecessors, with a visited set so a loop back edge is
+/// followed once. Bounded by the block count, which is what makes it safe to
+/// run on every spill store.
+void reachingDefs(const MachineBasicBlock &MBB,
+                  MachineBasicBlock::const_iterator At, Register R,
+                  const TargetRegisterInfo *TRI,
+                  SmallVectorImpl<const MachineInstr *> &Out,
+                  SmallPtrSetImpl<const MachineBasicBlock *> *Seen = nullptr) {
+  SmallPtrSet<const MachineBasicBlock *, 8> Local;
+  if (!Seen)
+    Seen = &Local;
+  for (auto It = At; It != MBB.begin();) {
+    --It;
+    for (const MachineOperand &MO : It->operands())
+      if (MO.isReg() && MO.isDef() && MO.getReg().isPhysical() &&
+          TRI->regsOverlap(MO.getReg(), R)) {
+        Out.push_back(&*It);
+        return;
+      }
+  }
+  for (const MachineBasicBlock *P : MBB.predecessors())
+    if (Seen->insert(P).second)
+      reachingDefs(*P, P->end(), R, TRI, Out, Seen);
 }
 
 class CCVSpillStats : public MachineFunctionPass {
@@ -161,7 +259,7 @@ bool CCVSpillStats::runOnMachineFunction(MachineFunction &MF) {
   auto raise = [&](int FI, unsigned C) {
     unsigned &Cur = SlotCause[FI];
     if (C > Cur)
-      Cur = C;                           // Address > Accumulator > Staged
+      Cur = C;                 // Address > Accumulator > Uniform > Staged
   };
 
   for (MachineBasicBlock &MBB : MF) {
@@ -215,21 +313,31 @@ bool CCVSpillStats::runOnMachineFunction(MachineFunction &MF) {
       }
 
       // A spill store: classify by what produced the value.
-      for (auto It = MI.getIterator(); It != MBB.begin();) {
-        --It;
-        bool Defines = false;
-        for (const MachineOperand &MO : It->operands())
-          if (MO.isReg() && MO.isDef() && MO.getReg().isPhysical() &&
-              TRI->regsOverlap(MO.getReg(), R))
-            Defines = true;
-        if (!Defines)
-          continue;
-        if (isAccumulatorDef(*It))
-          raise(*FI, Accumulator);
-        else if (isStagedDef(*It))
-          raise(*FI, Staged);
-        break;
-      }
+      //
+      // The def is not always in this block. A value spilled inside a loop was
+      // very often computed in the preheader and arrives as a live-in, and the
+      // first version of this walk stopped at the block boundary and gave up --
+      // which put four of `attn_combine`'s five spill slots in `unclassified`
+      // and two of `rope`'s seven. So the search follows predecessors, and
+      // classifies only when EVERY reaching definition agrees. Disagreement
+      // stays unclassified rather than being resolved by a rule, because a slot
+      // reached by an accumulator on one path and a uniform scalar on another
+      // is not evidence about either.
+      SmallVector<const MachineInstr *, 4> Defs;
+      reachingDefs(MBB, MachineBasicBlock::const_iterator(&MI), R, TRI, Defs);
+      if (Defs.empty())
+        continue;
+      auto all = [&](bool (*P)(const MachineInstr &)) {
+        return llvm::all_of(Defs, [&](const MachineInstr *D) { return P(*D); });
+      };
+      if (all(isAccumulatorDef))
+        raise(*FI, Accumulator);
+      else if (llvm::all_of(Defs, [&](const MachineInstr *D) {
+                 return isUniformDef(*D, *D->getParent());
+               }))
+        raise(*FI, Uniform);
+      else if (all(isStagedDef))
+        raise(*FI, Staged);
     }
   }
 

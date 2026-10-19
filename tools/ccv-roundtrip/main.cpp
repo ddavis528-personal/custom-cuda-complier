@@ -154,7 +154,7 @@ int main(int argc, char **argv) {
                    // source and mask) are encoded fields like any immediate.
                    // Typing them for ccv-sim -oracle made all 85 instructions
                    // carrying one "unbuildable", and they silently left this
-                   // check while it still printed clean (F-144).
+                   // check while it still printed clean (F-156).
                    OI.OperandType >= MCOI::OPERAND_FIRST_TARGET) {
           const CCVOperandInfo *OpI = operandInfo(Name, I);
           unsigned Bits = OpI ? OpI->Bits : 0;

@@ -20,7 +20,7 @@ printf '  %s\n' "---------------------------------------------------------------
 for t in 1x1 2x2; do
   tm=${t%x*}; tn=${t#*x}
   for u in 1 2 4 8; do
-    CCV_CFLAGS="-DTM=$tm -DTN=$tn -DKUNROLL=$u" ./tools/cuda-to-asm.sh \
+    CCV_CFLAGS="-Itest/bench -DCCV_ALIGNED -DTM=$tm -DTN=$tn -DKUNROLL=$u" ./tools/cuda-to-asm.sh \
         test/cuda/sgemm.cu "$TMP/s.s" "$TMP/s" >/dev/null 2>&1
     if [ ! -s "$TMP/s.s" ]; then
       printf '  %-5s %-8s %8s %8s %8s %9s %9s\n' "$t" "$u" — — — — —

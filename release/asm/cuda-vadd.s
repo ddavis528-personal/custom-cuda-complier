@@ -14,10 +14,10 @@ _Z4vaddPfPKfS1_i:
 	shl r1, 2
 	ld.global r2, [r0 + 52]
 	add r2, r1
-	ld.global r2, [#4, r2, 0, 0]
+	ld.global r2, [#2, r2, 0, 0]
 	ld.global r3, [r0 + 44]
 	add r3, r1
-	ld.global r3, [#2, r3, 0, 0]
+	ld.global r3, [#1, r3, 0, 0]
 	fadd r3, r2
 	ld.global r0, [r0 + 36]
 	add r0, r1

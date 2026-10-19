@@ -8,8 +8,8 @@
 0x000e  20 88 c0 01        32-bit             D
 0x0012  7c 88 00 00        32-bit             H
 0x0016  68 38 00 00        32-bit             E
-0x001a  20 0b 82 00        32-bit             D
-0x001e  20 13 81 00        32-bit             D
+0x001a  20 0b 81 00        32-bit             D
+0x001e  20 93 80 00        32-bit             D
 0x0022  4a 12              16-bit, Format K   K
 0x0024  60 13 80 00        32-bit             D
 0x0028  da 00              16-bit, Format K   K

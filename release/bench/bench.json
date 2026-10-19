@@ -63,7 +63,9 @@
       "element_work": 11
     },
     "sass": {
-      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+      "instrs": 17,
+      "bytes": 272,
+      "pad": 7
     }
   },
   {
@@ -130,7 +132,9 @@
       "element_work": 12
     },
     "sass": {
-      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+      "instrs": 16,
+      "bytes": 256,
+      "pad": 0
     }
   },
   {
@@ -197,7 +201,9 @@
       "element_work": 11
     },
     "sass": {
-      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+      "instrs": 17,
+      "bytes": 272,
+      "pad": 7
     }
   },
   {
@@ -264,7 +270,9 @@
       "element_work": 55
     },
     "sass": {
-      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+      "instrs": 20,
+      "bytes": 320,
+      "pad": 4
     }
   },
   {
@@ -331,7 +339,9 @@
       "element_work": 55
     },
     "sass": {
-      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+      "instrs": 20,
+      "bytes": 320,
+      "pad": 4
     }
   },
   {
@@ -398,7 +408,9 @@
       "element_work": 92
     },
     "sass": {
-      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+      "instrs": 42,
+      "bytes": 672,
+      "pad": 6
     }
   },
   {
@@ -465,7 +477,9 @@
       "element_work": 90
     },
     "sass": {
-      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+      "instrs": 39,
+      "bytes": 624,
+      "pad": 1
     }
   },
   {
@@ -532,7 +546,147 @@
       "element_work": 44
     },
     "sass": {
-      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
+      "instrs": 53,
+      "bytes": 848,
+      "pad": 3
+    }
+  },
+  {
+    "kernel": "gemv",
+    "ccv": {
+      "instrs": 206,
+      "bytes": 728
+    },
+    "ccv_aligned": {
+      "instrs": 197,
+      "bytes": 698
+    },
+    "amdgcn": {
+      "instrs": 306,
+      "bytes": 1688,
+      "loops": 2
+    },
+    "ptx": {
+      "instrs": 228
+    },
+    "dyn": {
+      "per_thread": 196.0,
+      "simt": 100.0,
+      "lane_act": 6272,
+      "lane_instr": 6272,
+      "issues": 196,
+      "narrow": 0,
+      "element_work": 190
+    },
+    "arches": {
+      "gfx900": {
+        "instrs": 306,
+        "bytes": 1688,
+        "loops": 2
+      },
+      "gfx1030": {
+        "instrs": 305,
+        "bytes": 1832,
+        "loops": 2
+      },
+      "gfx1100": {
+        "instrs": 312,
+        "bytes": 1960,
+        "loops": 2
+      },
+      "gfx1200": {
+        "instrs": 323,
+        "bytes": 1996,
+        "loops": 2
+      },
+      "gfx942": {
+        "instrs": 238,
+        "bytes": 1292,
+        "loops": 2
+      }
+    },
+    "mask_off": {
+      "per_thread": 196.0,
+      "simt": 100.0,
+      "lane_act": 6272,
+      "lane_instr": 6272,
+      "issues": 196,
+      "narrow": 0,
+      "element_work": 190
+    },
+    "sass": {
+      "instrs": 166,
+      "bytes": 2656,
+      "pad": 2
+    }
+  },
+  {
+    "kernel": "sgemm",
+    "ccv": {
+      "instrs": 384,
+      "bytes": 1352
+    },
+    "ccv_aligned": {
+      "instrs": 360,
+      "bytes": 1268
+    },
+    "amdgcn": {
+      "instrs": 238,
+      "bytes": 1376,
+      "loops": 5
+    },
+    "ptx": {
+      "instrs": 201
+    },
+    "dyn": {
+      "per_thread": 516.0,
+      "simt": 100.0,
+      "lane_act": 15973,
+      "lane_instr": 16512,
+      "issues": 516,
+      "narrow": 0,
+      "element_work": 495
+    },
+    "arches": {
+      "gfx900": {
+        "instrs": 238,
+        "bytes": 1376,
+        "loops": 5
+      },
+      "gfx1030": {
+        "instrs": 222,
+        "bytes": 1204,
+        "loops": 5
+      },
+      "gfx1100": {
+        "instrs": 245,
+        "bytes": 1336,
+        "loops": 5
+      },
+      "gfx1200": {
+        "instrs": 247,
+        "bytes": 1340,
+        "loops": 5
+      },
+      "gfx942": {
+        "instrs": 205,
+        "bytes": 1100,
+        "loops": 5
+      }
+    },
+    "mask_off": {
+      "per_thread": 501.0,
+      "simt": 100.0,
+      "lane_act": 15936,
+      "lane_instr": 16032,
+      "issues": 501,
+      "narrow": 0,
+      "element_work": 482
+    },
+    "sass": {
+      "instrs": 196,
+      "bytes": 3136,
+      "pad": 4
     }
   }
 ]

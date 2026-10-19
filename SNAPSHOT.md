@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-10-03-e74eea7
+# Snapshot snapshot-2026-10-19-94dce99
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `claude/custom-cuda-core-infra-6msg93` at `e74eea711a49e6ba071de87ba6fc743b5e7edf4a`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `94dce9980c086fb01799f4d6a4c632fb886f9cbc`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -19,39 +19,42 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `claude/custom-cuda-core-infra-6msg93` @ `e74eea711a49e6ba071de87ba6fc743b5e7edf4a` |
-| Built | 2026-10-03 (UTC) |
+| Source | `ccr-ea1c4e17-tem30u` @ `94dce9980c086fb01799f4d6a4c632fb886f9cbc` |
+| Built | 2026-10-19 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
 | LLVM | 18.1.3 |
-| Platform | x86_64, ldd (Ubuntu GLIBC 2.39-0ubuntu8.7) 2.39 |
+| Platform | x86_64, ldd (Ubuntu GLIBC 2.39-0ubuntu8.9) 2.39 |
 
 ## Manifest of release/
 
 ```
-8e92658b48ed6eec5b0bc697d75fef8a23775e44132963f9f2ab984073107e3d  release/asm/bench-dot.s
-4d46205c4b39b00af7d18b08ab09b6b9ac67b6eb64d5df4c92f3405dc7625c7a  release/asm/bench-reduce.s
-36e655edcd412253b85614a2f7374faf371b49509cd1de49b4afe4915068f3d5  release/asm/bench-saxpy.s
-07e8c88ffd575a3a159682cef503c08eeefe3243af8f10897dab3e25415a4488  release/asm/bench-transpose.s
-b4afdc71cfb622375b6759d2ad8a22c0c84d8864417344e63f0790dfb7c13c8e  release/asm/bench-vadd.s
-a415822bd284132c043f8985d643efd1595bd77945105875c7d1fddcc2bae514  release/asm/bench-vadd16.s
-91a4699ec0c21c5fc89c9bde855e0b6051ae7b8276e8dab787f1293c6ee4199d  release/asm/bench-vadd16_loop.s
-add6cfaf2b41fdd02e5f2becc79d229ee30e5e8a1a6c6a8a18110edc7ef71846  release/asm/bench-vadd_loop.s
-8aee33c8656e8617aa5db1d870bfc634990ef14e2cfec7cc3be99a7d675151ba  release/asm/cuda-divconst.s
-963680c1593fa880a49622a465ded2e4a2824c219de14cf6c85b930fe9d1dadf  release/asm/cuda-dp4.s
-0ce772ac6db2afd0005043ec9c928c9856de6996650a3476a914b4cf67357c6b  release/asm/cuda-fused.s
-3116ad343d8ce0c275face4da960970c58cfd50eb66e8be5cd7a30b1219c8d42  release/asm/cuda-gemv.s
-1d05353fa428a3e598e67d913abb129d5ef75d00c9bda8b448f9ad5acd637338  release/asm/cuda-gemv8.s
-39950f3947045f5cc22b9fd15ed5f0ab698d4fbc8eadd36fcbd387635dd93dda  release/asm/cuda-igemm.s
-151fdd1405818ffb238dee8f1f3978bd768b67e4fde3b1a75ed5bc83521d2ff3  release/asm/cuda-reduce.s
-67f1ef05aa89dcbdc01c73b795b65eeded0df43fba39af8f5085c337731806cb  release/asm/cuda-sgemm.s
-cc7a6984b354fff2133876f327b3fd2c8cfb5a3a7d51bd1f171ccb80426a4f22  release/asm/cuda-vadd-aligned.s
-3a1b81cf8a4eb4ef231d51ff187f1138dd239e1302245531cbc7923c73dbe227  release/asm/cuda-vadd.s
-b8982bcbc886d44af54ca7d8407b2393083f08a2b34e372cbc0e1a8d377f4b74  release/bench/bench.json
-67c04af509362b1e74050abd592cdc23e8c2a0adcead73d30554c51870e0e390  release/bench/bench.txt
-a9d92b3061f26d91a6eb6b6a04443e6bd2ad7c3281f6f566810b9dda8030dfde  release/bench/sweep-decode.txt
+e9f5d9c97491d89ebd839b31a183bb3faf65ef774f6e800b1582ff826200b336  release/asm/bench-dot.s
+0445f71471cdad0ad4cc8aa38acee4fd4961a4235fb25e9735c1d06314958a5f  release/asm/bench-reduce.s
+3d07bb0eae19b6cc326464e99486409c86e2743bab529ae2be3f939f120ac20c  release/asm/bench-saxpy.s
+2f1c21a785dad00d38d8877b0e99a61dd81bc0538d37250bd18f05a8cd11b934  release/asm/bench-transpose.s
+507b9a5ef42b84011aefc6d03cc2079b70f9dded4f33914747f59f11dba7e431  release/asm/bench-vadd.s
+d1825cc689f6094e35e3a24b144576c67d44e6995960739a3f95e7d9ef2162f5  release/asm/bench-vadd16.s
+dd05714aa352e4b46c5fa8aaaa531d4c219c2a44ca1fc1a83f131bb72d4df5b5  release/asm/bench-vadd16_loop.s
+1ab4360d07e9db8b92b340ce99306c8bfe7392e51ac96c61a3e69e445c895d02  release/asm/bench-vadd_loop.s
+ce633b5713036d7524e482dc2f7870435037bfaa79302180f904d5cff0fe285c  release/asm/cuda-argorder.s
+1f26d7ee153520931e5eb272ef77d1c8d75cf8fa6a33ef5ef9c790edf555d872  release/asm/cuda-byval.s
+3c19ff201a515a8e7504e94d6370f3ae3427848d217ff2e575014799970837ff  release/asm/cuda-divconst.s
+c0a3175bcf36b3b9a65b50d78fade10df23ff64e851bb2866a6a899f9900f362  release/asm/cuda-dp4.s
+8f8ea379638fe9c0c5477ca4edc59bee0e2140e845c6b581983f8d6f149f024b  release/asm/cuda-fused.s
+55a629138c527087f29f2e5eebe801112a11e3d1d389266965df78e25d58e888  release/asm/cuda-gemv.s
+62862fe008b730958a0f6a5ab763ca7f73958293cf08b5271777459a97051188  release/asm/cuda-gemv8.s
+6fd267f4e682661abf41191aca3b5a6a77ffac60c6f7cf04849c4335299a46a4  release/asm/cuda-igemm.s
+05488e7011400262be37232f57f34c5cb4448c87685fd5de62315ccd3977dc57  release/asm/cuda-reduce.s
+e4703fb1c0b5a880ab1554c695dc2dc0f81743a655255af45ad7aa0f2e054526  release/asm/cuda-sfu.s
+e80c3c2e56a19b58612c5c6fff71e62538e69251ad30dfb39cb6bb716369c08b  release/asm/cuda-sgemm.s
+56f8bc23746061159d146f248d605bdd2f430be318ba29477aa4c946533bc993  release/asm/cuda-vadd-aligned.s
+f540a502bf7063cfb75450053c5163bc8986871d7cb0aa9bc2b8ee8cb9637a3c  release/asm/cuda-vadd.s
+8e736d528d4ba7f3827683aa1ca76d6f159005c3d90af10a296040f7a88dadac  release/bench/bench.json
+74f722d1b50b6e23f8379727243b480a810e07219cd3b8676c475bcce69a1883  release/bench/bench.txt
+b7e7adbfd99c4b2c1c2e5ea653273976d3f98fd179972597a4329938df50af80  release/bench/sweep-decode.txt
 eb6d722fd0f11e7d58e0200733f7f4398035974d0bf74329c01ca4dcefdf1c1a  release/bench/sweep-tiles.txt
-2eeaa3fe3c8763fac77881e8e5479e07e5daf0546b38028100468efe688fe135  release/bin/ccv-sim
-a5e07b667950cf6c785387be719e3ebaaffec8a3f8016a7b5f837836c236d2fc  release/bin/ccv-sim.txt
-15781e5a289eb7aaa1da352e8b6f09eca7777994abe4eb4590d82a62ad8431d6  release/verify.log
+01c178917d9c3d55f3524b7d0436c96b4c205ebb8c0e993e6d606dfb0ccc0f1c  release/bin/ccv-sim
+8e781b9865cf2380c10a3c21fe697e0a5ea8e034051d883a3487ed32f6863460  release/bin/ccv-sim.txt
+8c266eb2c769afc4d9a312180a53b94c6d04789bf51a70f9987229fa180c6035  release/verify.log
 ```

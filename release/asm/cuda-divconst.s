@@ -4,7 +4,7 @@
 	.type	_Z8divconstPiPKii,@function
 _Z8divconstPiPKii:
 	srd r0, 0
-	ld.global r1, [#2, r0, 1, 0]
+	ld.global r1, [#1, r0, 1, 0]
 	sra r2, r1, 31
 	shr r2, r2, 28
 	add r2, r1, r2

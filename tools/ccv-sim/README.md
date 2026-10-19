@@ -1,7 +1,7 @@
 # ccv-sim — functional simulator
 
 Executes one warp of the ISA in
-[`../../docs/isa-v1.6-operation-map-and-encoding.md`](../../docs/isa-v1.6-operation-map-and-encoding.md).
+[`../../docs/isa-v1.7-operation-map-and-encoding.md`](../../docs/isa-v1.7-operation-map-and-encoding.md).
 
 ## What it models, and what it does not
 
@@ -108,7 +108,7 @@ after, and each memory access attributed to its lane. The file opens with an
 `init` record (code, launch geometry, seeded memory) and closes with a `final`
 one (all GPRs and predicates, and every memory word the run touched). It is
 strict rather than approximate: a step whose accesses cannot be matched one per
-active lane, or whose memory traffic its descriptor does not declare (F-141),
+active lane, or whose memory traffic its descriptor does not declare (F-153),
 stops the run.
 
 `tools/run-tests.sh` drives the whole thing and checks results; `tools/bench.py`

@@ -35,6 +35,7 @@
 #include "CCVInstrInfo.h"
 #include "CCVSubtarget.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/MachineDominators.h"
@@ -249,6 +250,82 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
           DivReached.insert(N->getBlock());
   }
 
+  // --- 2b. Which instructions every lane reaches TOGETHER -----------------
+  //
+  // Step 2's condition is that every lane reaches the block. That is necessary
+  // and it is NOT sufficient, and the gap is where `rope` hung (F-145).
+  //
+  // The broadcast is a warp-collective read of lane 0's register, so it needs
+  // lane 0 to be ISSUING WITH the lanes that read it. §1 gives this machine
+  // per-thread PCs and OPPORTUNISTIC reconvergence -- `reconv.hint` exists
+  // precisely because nothing in Phase 1 hardware guarantees a join, and the
+  // hint "does nothing in Phase 1". So after any divergent branch, lanes that
+  // all eventually arrive at a block may arrive at different times, and a group
+  // issuing there need not contain lane 0.
+  //
+  // `rope` is the smallest real kernel that shows it: an inner loop whose trip
+  // count comes from `threadIdx` leaves lanes 4..31 running ahead to the outer
+  // latch while lanes 0..3 are still inside. The latch is not control-dependent
+  // on the inner loop's exit -- it post-dominates it -- so step 2 passed it, the
+  // outer loop counter was masked to lane 0, and the group without lane 0 read
+  // lane 0's stale counter forever. It never terminated.
+  //
+  // So masking additionally requires that lanes be CO-ISSUED at the
+  // instruction: no divergent branch on any path from the entry, or a barrier
+  // since the last one. A barrier re-establishes it because every lane leaves
+  // it at the same PC. This is an AND-meet forward dataflow, initialised
+  // optimistically and iterated down.
+  DenseMap<const MachineBasicBlock *, bool> CoIn, CoOut;
+  for (MachineBasicBlock &MBB : MF) {
+    CoIn[&MBB] = true;
+    CoOut[&MBB] = true;
+  }
+  auto isBarrier = [](const MachineInstr &MI) {
+    unsigned Op = MI.getOpcode();
+    return Op == CCV::C_BAR_WAIT || Op == CCV::BAR_WAIT_PHASE;
+  };
+  auto endsDivergent = [&](MachineBasicBlock &MBB) {
+    if (MBB.succ_size() < 2)
+      return false;
+    for (MachineInstr &T : MBB.terminators())
+      for (const MachineOperand &MO : T.uses())
+        if (MO.isReg() && MO.getReg().isVirtual() && Divergent.count(MO.getReg()))
+          return true;
+    return false;
+  };
+  for (bool Moved = true; Moved;) {
+    Moved = false;
+    for (MachineBasicBlock &MBB : MF) {
+      bool In = MBB.isEntryBlock();
+      if (!In) {
+        In = !MBB.pred_empty();
+        for (MachineBasicBlock *P : MBB.predecessors())
+          In &= CoOut[P];
+      }
+      bool Co = In;
+      for (MachineInstr &MI : MBB)
+        if (isBarrier(MI))
+          Co = true;
+      bool Out = Co && !endsDivergent(MBB);
+      if (CoIn[&MBB] != In || CoOut[&MBB] != Out) {
+        CoIn[&MBB] = In;
+        CoOut[&MBB] = Out;
+        Moved = true;
+      }
+    }
+  }
+  // Within a block the property can only turn ON, at a barrier.
+  DenseSet<const MachineInstr *> CoIssued;
+  for (MachineBasicBlock &MBB : MF) {
+    bool Co = CoIn[&MBB];
+    for (MachineInstr &MI : MBB) {
+      if (isBarrier(MI))
+        Co = true;
+      if (Co)
+        CoIssued.insert(&MI);
+    }
+  }
+
   // --- 3. What can be masked, and whether it pays ------------------------
   SmallVector<MachineInstr *, 32> Maskable;
   DenseSet<MachineInstr *> InSet;
@@ -256,6 +333,8 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
     if (DivReached.count(&MBB))
       continue;
     for (MachineInstr &MI : MBB) {
+      if (!CoIssued.count(&MI))
+        continue;
       if (!predicatedForm(MI.getOpcode()) || MI.getNumDefs() != 1)
         continue;
       if (narrowsImmediate(MI))

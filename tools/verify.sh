@@ -29,7 +29,7 @@ llvm-tblgen -I "$INC" -I llvm/CCV --dump-json "$TD" -o "$OUT/ccv.json" 2>/dev/nu
 python3 tools/check-encoding.py "$OUT/ccv.json" || fail=1
 
 echo "  worked-listing arithmetic"
-python3 tools/check-listings.py docs/isa-v1.6-operation-map-and-encoding.md || fail=1
+python3 tools/check-listings.py docs/isa-v1.7-operation-map-and-encoding.md || fail=1
 
 # Spec listing against real codegen. check-listings.py only proves the spec is
 # internally consistent; it cannot notice the listing drifting from the machine,
@@ -37,7 +37,7 @@ python3 tools/check-listings.py docs/isa-v1.6-operation-map-and-encoding.md || f
 # Spec listings against real codegen, regenerated here rather than read from the
 # tree: the .s files are gitignored, so reading them would make this check skip
 # silently on a fresh clone.
-SPEC=docs/isa-v1.6-operation-map-and-encoding.md
+SPEC=docs/isa-v1.7-operation-map-and-encoding.md
 if [ -x build/ccv-llc ] && [ -f build/CCVLowerKernelArgs.so ]; then
   for pair in "5.5:test/cuda/vadd.cu" "5.6:test/cuda/vadd-aligned.cu"; do
     sec=${pair%%:*}; src=${pair#*:}
@@ -86,6 +86,55 @@ fi
 if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   echo "  local array addressed two ways"
   ./tools/check-local-array.sh || fail=1
+fi
+
+# IS-1 settled that natural element alignment is required and assigned CP the
+# obligation of proving the unaligned-ABI fold preserves it. Two of the fold's
+# three terms are the compiler's and are proved here; the third, `roffset`, is
+# the launch ABI's, and the odd-roffset rows show exactly what it costs when it
+# is not held. F-150.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  element alignment through the unaligned fold"
+  ./tools/check-align.sh || fail=1
+fi
+
+# F-147: a by-value parameter struct was classified as a pointer, so the kernel
+# read every field from whatever window the struct's first four bytes named. It
+# compiled, assembled and round-tripped. Only execution sees that, and only with
+# field values that would name a real window if they were misread as one.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  by-value struct argument reads the launch block"
+  ./tools/check-byval.sh || fail=1
+fi
+
+# CP-4: the launch-slot stride is 8 bytes and the ABI front-loads pointer
+# arguments, so sixteen slots reach sixteen pointers. Both halves are executed,
+# because a wrongly laid-out argument area compiles and reads the wrong memory
+# -- the F-147 shape again, from the other direction.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  launch-slot reach and the pointer-first ABI rule"
+  ./tools/check-slot-reach.sh || fail=1
+fi
+
+# F-143's fused-kernel corpus executes. F-134's lesson applies with full force
+# here: a corpus assembled to settle an architectural question has to be one
+# whose kernels are known to work, or the question is being settled from the
+# compiler's opinion of itself. This is also the regression test for F-145 --
+# `rope` ran forever before the co-issue condition was added to O-33's masking.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  the fused corpus executes and computes the right numbers"
+  python3 tools/check-fusion.py || fail=1
+fi
+
+# F-141 made the SFU group reachable from CUDA through the intrinsics a kernel
+# actually uses. Five patterns into one instruction family is where two entries
+# get crossed, and a crossed entry compiles, encodes, disassembles and round
+# trips perfectly. This also stands as the regression test for F-142: the kernel
+# writes `o[i*5+k]`, which is the constant-displacement shape that used to
+# segfault the compiler.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  each SFU intrinsic computes its own function"
+  ./tools/check-sfu.sh || fail=1
 fi
 
 # F-121 formed the four-byte dot product in a DAG combine, which is the

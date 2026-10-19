@@ -14,23 +14,23 @@ _Z5fusedPfPKfS1_S1_S1_S1_S1_S1_S1_S1_S1_S1_S1_S1_S1_S1_S1_S1_fi:
 	shl r1, 2
 	ld.global r2, [r0 + 52]
 	add r2, r1
-	ld.global r2, [#4, r2, 0, 0]
+	ld.global r2, [#2, r2, 0, 0]
 	ld.global r3, [r0 + 44]
 	add r3, r1
-	ld.global r3, [#2, r3, 0, 0]
+	ld.global r3, [#1, r3, 0, 0]
 	ld.global r4, [r0 + 176]
 	ffma.acc.f0 r2, r3, r4
 	ld.global r3, [r0 + 60]
 	add r3, r1
-	ld.global r3, [#6, r3, 0, 0]
+	ld.global r3, [#3, r3, 0, 0]
 	ffma.f0 r2, r2, r4, r3
 	ld.global r3, [r0 + 68]
 	add r3, r1
-	ld.global r3, [#8, r3, 0, 0]
+	ld.global r3, [#4, r3, 0, 0]
 	ffma.f0 r2, r2, r4, r3
 	ld.global r3, [r0 + 76]
 	add r3, r1
-	ld.global r3, [#10, r3, 0, 0]
+	ld.global r3, [#5, r3, 0, 0]
 	ffma.f0 r2, r2, r4, r3
 	movi r3, 0
 	setp.lt.f p0, r3, r2

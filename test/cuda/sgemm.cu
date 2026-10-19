@@ -5,10 +5,13 @@
 //
 // TM x TN is the per-thread C tile, set from the command line so O-25's sweep
 // is a recompile rather than a rewrite.
-#define __global__ __attribute__((global))
-#define __device__ __attribute__((device))
-#define __shared__ __attribute__((shared))
-#include <__clang_cuda_builtin_vars.h>
+// portable.h rather than the builtin-vars header directly, so this kernel can be
+// compiled for AMDGCN and PTX as well as CCV and therefore belongs in the
+// density sweep. It is the kernel that stresses the encoding hardest -- 48-bit
+// immediates, spill traffic, the widest register pressure here -- and for eight
+// revisions the density claim rested entirely on kernels that do none of that.
+// F-148.
+#include "portable.h"
 
 #ifndef TM
 #define TM 2
@@ -34,17 +37,15 @@
 // `bpr` (blocks per row) is a kernel argument rather than a division of N,
 // because §4 has no integer divide -- the expansion is ~30 instructions and
 // does not belong in an index computation.
-__global__ void sgemm(float *__attribute__((align_value(65536))) C,
-                      const float *__attribute__((align_value(65536))) A,
-                      const float *__attribute__((align_value(65536))) B,
-                      int N, int bpr) {
+__global__ void sgemm(float *ALIGNED C, const float *ALIGNED A,
+                      const float *ALIGNED B, int N, int bpr) {
     __shared__ float As[KT][BY * TM];
     __shared__ float Bs[KT][BX * TN];
 
-    unsigned t  = threadIdx.x;
+    unsigned t  = TID_X;
     unsigned tx = t % BX, ty = t / BX;
-    unsigned brow = (unsigned)blockIdx.x / (unsigned)bpr;
-    unsigned bcol = (unsigned)blockIdx.x - brow * (unsigned)bpr;
+    unsigned brow = (unsigned)CTAID_X / (unsigned)bpr;
+    unsigned bcol = (unsigned)CTAID_X - brow * (unsigned)bpr;
     unsigned row0 = brow * (BY * TM) + ty * TM;
     unsigned col0 = bcol * (BX * TN) + tx * TN;
 
@@ -74,7 +75,7 @@ __global__ void sgemm(float *__attribute__((align_value(65536))) C,
             unsigned kk = idx / (BX * TN), cc = idx % (BX * TN);
             Bs[kk][cc] = B[(k0 + kk) * N + (bcol * (BX * TN) + cc)];
         }
-        __syncthreads();
+        SYNC();
 
 #pragma unroll KUNROLL
         for (int k = 0; k < KT; ++k) {
@@ -89,7 +90,7 @@ __global__ void sgemm(float *__attribute__((align_value(65536))) C,
                 for (int j = 0; j < TN; ++j)
                     acc[i][j] += a[i] * b[j];
         }
-        __syncthreads();
+        SYNC();
     }
 
 #pragma unroll

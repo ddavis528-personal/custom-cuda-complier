@@ -32,7 +32,27 @@ import re, os, subprocess, sys, tempfile, json
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BENCH = os.path.join(ROOT, "test", "bench")
 KERNELS = ["vadd", "saxpy", "vadd16", "vadd_loop", "vadd16_loop",
-           "dot", "reduce", "transpose"]
+           "dot", "reduce", "transpose", "gemv", "sgemm"]
+
+# Kernels that live outside test/bench/ because other tools sweep them there.
+#
+# They are here because for eight revisions the density claim rested entirely on
+# the eight kernels above, and those are the EASY ones: straight-line or
+# single-loop, no spill, no 48-bit immediates, no lane-0 masking. The kernels
+# that stress the encoding -- `sgemm`, which spills 102 transfers at its default
+# tile, and `gemv`, which stages through shared memory -- had never been
+# compiled for AMDGCN or PTX at all, so the one claim this project makes loudest
+# was unfalsified precisely where it was most likely to fail. F-148.
+#
+# `sgemm` moved to portable.h to get here. It was written against
+# __clang_cuda_builtin_vars.h directly, which is why it could not be compiled
+# for another target, which is why nobody had noticed.
+SRC = {"gemv": "test/cuda/gemv.cu", "sgemm": "test/cuda/sgemm.cu"}
+
+
+def source(k):
+    return os.path.join(ROOT, SRC[k]) if k in SRC \
+        else os.path.join(BENCH, k + ".cu")
 
 # Warp/wavefront width, which is what makes an instruction count comparable
 # between machines. Read from the generated kernel descriptor, not assumed:
@@ -295,6 +315,22 @@ ARGS = {
     # the prologue and calls it the kernel.
     "vadd_loop":   [3, 4, 5, 256],
     "vadd16_loop": [3, 4, 5, 256],
+    # y, W, x windows; K = 32, which is one staged tile (KT defaults to 32).
+    # One CTA of 32 threads computes 32 output rows, each a 32-element dot
+    # product -- batch-1 decode at its smallest honest size.
+    "gemv":  [3, 4, 5, 32],
+    # C, A, B windows; N = 16, bpr = 1. At the default 2x2 tile the block
+    # covers BY*TM = 8 rows and BX*TN = 16 columns, so N = 16 makes the column
+    # extent exact and gives the K loop two passes over KT = 8. `bpr` is 1
+    # because one block covers a row of C at this size.
+    #
+    # These values are picked so the kernel RUNS, not so it is correct: the
+    # matrices are unpoked and read as zero. That is sound for an instruction
+    # count -- sgemm's control flow is data-independent apart from the guard --
+    # and correctness is pinned separately, by tools/check-sgemm.sh, which
+    # executes it against a matrix-product reference. F-134 is the reason both
+    # exist rather than either alone.
+    "sgemm": [3, 4, 5, 16, 1],
 }
 
 # Elements each thread processes, for the work-normalized table. One unless the
@@ -368,7 +404,7 @@ def main():
     rows = []
     with tempfile.TemporaryDirectory() as tmp:
         for k in KERNELS:
-            src = os.path.join(BENCH, k + ".cu")
+            src = source(k)
             rows.append({
                 "kernel": k,
                 "ccv": ccv(src, tmp, aligned=False),

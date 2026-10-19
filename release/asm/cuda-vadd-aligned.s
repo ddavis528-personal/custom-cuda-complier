@@ -11,8 +11,8 @@ _Z4vaddPfPKfS1_i:
 	ld.global r1, [r1 + 56]
 	setp.le p0, r1, r0
 	@p0 bra LBB0_2
-	ld.global r1, [#4, r0, 1, 0]
-	ld.global r2, [#2, r0, 1, 0]
+	ld.global r1, [#2, r0, 1, 0]
+	ld.global r2, [#1, r0, 1, 0]
 	fadd r2, r1
 	st.global r2, [#0, r0, 1, 0]
 LBB0_2:

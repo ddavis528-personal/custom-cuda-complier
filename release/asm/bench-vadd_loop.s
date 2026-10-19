@@ -16,10 +16,10 @@ LBB0_1:
 	shl r4, 2
 	ld.global r5, [r0 + 52]
 	add r5, r4
-	ld.global r5, [#4, r5, 0, 0]
+	ld.global r5, [#2, r5, 0, 0]
 	ld.global r6, [r0 + 44]
 	add r6, r4
-	ld.global r6, [#2, r6, 0, 0]
+	ld.global r6, [#1, r6, 0, 0]
 	fadd r6, r5
 	ld.global r5, [r0 + 36]
 	add r4, r5, r4

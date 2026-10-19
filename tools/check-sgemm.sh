@@ -16,7 +16,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 
-CCV_CFLAGS="-DTM=1 -DTN=1" ./tools/cuda-to-asm.sh test/cuda/sgemm.cu \
+CCV_CFLAGS="-Itest/bench -DCCV_ALIGNED -DTM=1 -DTN=1" ./tools/cuda-to-asm.sh test/cuda/sgemm.cu \
     "$TMP/s.s" "$TMP/s" >/dev/null 2>&1 || {
   echo "  FAIL  sgemm.cu did not compile"; exit 1; }
 build/ccv-llc "$TMP/s-lowered.ll" -o "$TMP/s.o" -obj 2>/dev/null || exit 1

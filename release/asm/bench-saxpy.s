@@ -16,7 +16,7 @@ _Z5saxpyPfPKffi:
 	add r2, r1
 	ld.global r3, [r0 + 44]
 	add r1, r3, r1
-	ld.global r1, [#2, r1, 0, 0]
+	ld.global r1, [#1, r1, 0, 0]
 	ld.global r0, [r0 + 48]
 	ld.global r3, [#0, r2, 0, 0]
 	ffma.f0 r0, r1, r0, r3

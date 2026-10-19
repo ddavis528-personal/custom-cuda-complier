@@ -17,8 +17,8 @@ _Z3dotPfPKfS1_i:
 	add r4, r5
 	ld.global r3, [r3 + 52]
 	add r3, r5
-	ld.global r3, [#4, r3, 0, 0]
-	ld.global r4, [#2, r4, 0, 0]
+	ld.global r3, [#2, r3, 0, 0]
+	ld.global r4, [#1, r4, 0, 0]
 	fmul r4, r3
 LBB0_2:
 	mov r3, r1

@@ -184,8 +184,14 @@ def : Pat<(i32 imm:$i), (MOVI48 (imm_bits32 $i))>;
 // register), so the bit pattern goes in through the same wide immediate and no
 // conversion instruction exists or is needed.
 def fpimm_bits : SDNodeXForm<fpimm, [{
+  // i64 for the same reason imm_bits32 gives, and it was missing here: a 32-bit
+  // target constant reaches the MachineOperand SIGN-extended, so any float whose
+  // sign bit is set arrived as a negative 64-bit value and failed MOVI48's
+  // unsigned 33-bit field check -- which is a hard compiler error, not a
+  // miscompile. **Every negative float constant was unencodable**, and nothing
+  // noticed because not one kernel in the tree had ever written one. F-144.
   return CurDAG->getTargetConstant(
-      N->getValueAPF().bitcastToAPInt().getZExtValue(), SDLoc(N), MVT::i32);
+      N->getValueAPF().bitcastToAPInt().getZExtValue(), SDLoc(N), MVT::i64);
 }]>;
 def fpimm_small : PatLeaf<(fpimm), [{
   return N->getValueAPF().bitcastToAPInt().getZExtValue() < (1u << 17);
@@ -288,7 +294,42 @@ def : Pat<(i32 (fp_to_uint GPR:$a)), (CVT_U32_F32 GPR:$a, GPR:$a, GPR:$a)>;
 def fpimm_one : PatLeaf<(fpimm), [{ return N->isExactlyValue(1.0); }]>;
 def : Pat<(fdiv fpimm_one, GPR:$a), (RCP_F32 GPR:$a, GPR:$a, GPR:$a)>;
 
+// ...and its negation, which is not a second case anyone writes but is one the
+// generic combiner MANUFACTURES: `-(1.0f/x)` -- or, as it actually arises,
+// `a - b * (1.0f/x)` reassociated -- becomes `fdiv -1.0, x`. CCVExpandDivision
+// runs on IR and is long finished by then, so without this the node reaches
+// instruction selection with nothing to match and the compile fails outright.
+// Found by the AdamW step in the fused corpus, which is the first kernel here to
+// subtract a reciprocal-scaled term. F-144.
+def fpimm_minus_one : PatLeaf<(fpimm), [{ return N->isExactlyValue(-1.0); }]>;
+def : Pat<(fdiv fpimm_minus_one, GPR:$a),
+          (FNEG_F0 (RCP_F32 GPR:$a, GPR:$a, GPR:$a),
+                   (RCP_F32 GPR:$a, GPR:$a, GPR:$a),
+                   (RCP_F32 GPR:$a, GPR:$a, GPR:$a))>;
+
 def : Pat<(fsqrt GPR:$a), (SQRT_F32 GPR:$a, GPR:$a, GPR:$a)>;
+
+// The rest of the SFU group (F-141, closing half of F-120).
+//
+// §4 allocates eight SFU points and the simulator has always implemented them,
+// but until now nothing in the compiler could emit five of them, so they sat in
+// check-unselected.py's `todo` list with the reason "clang emits a libm call
+// and there is no calling sequence yet". That reason was right about `expf` and
+// wrong about the machine: a CUDA kernel does not call `expf` on the fast path.
+// It writes `__expf`/`__sinf`/`rsqrtf`, or is compiled with fast-math, and all
+// of those reach LLVM as an INTRINSIC rather than a call -- `llvm.exp2.f32` for
+// the first, the NVVM approx intrinsics for the others. Those are what these
+// patterns select, and they are also exactly what `ptxas` turns into a single
+// `ex2.approx.f32` / `rsqrt.approx.f32`, so the correspondence is one to one.
+//
+// What stays unreachable is the accurate libm form, which genuinely does need
+// F-21's calling sequence. The gap was never "the SFU cannot be reached"; it
+// was "the SFU cannot be reached the slow way".
+def : Pat<(fexp2 GPR:$a), (EX2_F32 GPR:$a, GPR:$a, GPR:$a)>;
+def : Pat<(flog2 GPR:$a), (LG2_F32 GPR:$a, GPR:$a, GPR:$a)>;
+def : Pat<(int_nvvm_rsqrt_approx_f GPR:$a), (RSQRT_F32 GPR:$a, GPR:$a, GPR:$a)>;
+def : Pat<(int_nvvm_sin_approx_f GPR:$a),   (SIN_F32   GPR:$a, GPR:$a, GPR:$a)>;
+def : Pat<(int_nvvm_cos_approx_f GPR:$a),   (COS_F32   GPR:$a, GPR:$a, GPR:$a)>;
 
 // ---------------------------------------------------------------------------
 // 16-bit element width (§1, F-3).

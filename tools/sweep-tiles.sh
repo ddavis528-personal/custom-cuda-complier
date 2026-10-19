@@ -28,7 +28,7 @@ sweep() {                      # $1 = label, $2 = source
   printf '  %s\n' "---------------------------------------------------------------------------------"
   for t in 1x1 1x2 2x2 2x4 4x4 8x8; do
     tm=${t%x*}; tn=${t#*x}
-    CCV_CFLAGS="-DTM=$tm -DTN=$tn" ./tools/cuda-to-asm.sh "$2" \
+    CCV_CFLAGS="-Itest/bench -DCCV_ALIGNED -DTM=$tm -DTN=$tn" ./tools/cuda-to-asm.sh "$2" \
         "$TMP/s.s" "$TMP/s" >/dev/null 2>"$TMP/err"
     if [ ! -s "$TMP/s.s" ]; then
       why=$(grep -oP 'CCV: \K.*?(?= --|$)' "$TMP/err" | head -1)
@@ -50,10 +50,16 @@ sweep() {                      # $1 = label, $2 = source
     pick() { echo "$stats" | grep -oP "^\s*$1 : \K\d+ st, \d+ ld" |
              awk '{print $1 + $3}'; }
     acc=$(pick accumulator); ptr=$(pick 'pointer/index')
-    # Peak warp-uniform values live, from the analysis that already computes it.
-    # Beside ptr-sp this is the whole F-106 question in two columns: an address
-    # is warp-uniform in this kernel, so a uniform file sized like `unif` is
-    # holding exactly the values `ptr-sp` is spilling.
+    # Peak simultaneously-live values, split by divergence.
+    #
+    # This comment used to say "an address is warp-uniform in this kernel, so a
+    # uniform file sized like `unif` is holding exactly the values `ptr-sp` is
+    # spilling". That was F-128 and it is RETRACTED: `sgemm` indexes by
+    # `threadIdx`, so its row and column offsets differ per lane. They are
+    # addresses and they are DIVERGENT, and no uniform mechanism reaches them
+    # (F-129). Read the two numbers as what they are -- the divergent peak is
+    # several times the 16-entry file at every tile, and the uniform peak is 10
+    # and does not move -- which is the opposite conclusion.
     pk=$(build/ccv-llc "$TMP/s-lowered.ll" -o /dev/null -ccv-uniformity-stats 2>&1)
     unif=$(echo "$pk" | grep -oP 'peak divergent live\s*:\s*\K\d+')/$(
            echo "$pk" | grep -oP 'peak uniform live\s*:\s*\K\d+')

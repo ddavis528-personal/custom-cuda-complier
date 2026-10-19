@@ -15,7 +15,7 @@ _Z6reducePfPKfi:
 	shl r5, 2
 	ld.global r3, [r3 + 44]
 	add r3, r5
-	ld.global r4, [#2, r3, 0, 0]
+	ld.global r4, [#1, r3, 0, 0]
 LBB0_2:
 	mov r3, r1
 	shl r3, 2

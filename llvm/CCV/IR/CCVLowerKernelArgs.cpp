@@ -21,6 +21,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/IR/DataLayout.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -178,9 +180,87 @@ PreservedAnalyses LowerKernelArgs::run(Module &M, ModuleAnalysisManager &) {
     // anything else that needs it (a launch harness, a benchmark driver) would
     // otherwise be reduced to guessing, which is exactly what produced a
     // benchmark measuring a kernel whose guard failed for every lane.
+    //
+    // POINTER ARGUMENTS COME FIRST. The launch-slot index (O-45) names a
+    // launch-block word that the AGU uses as a window base, and §5.2 puts
+    // window words 8 bytes apart, so the slot stride is 8 and a slot can only
+    // ever land on a pointer argument's window word. Sixteen slots therefore
+    // reach sixteen POINTER arguments -- but only if the pointers are the
+    // first sixteen 8-byte steps of the argument area. A scalar in the middle
+    // of the signature would push later pointers past the reach for nothing,
+    // so the ABI puts every directly-passed pointer at the front, in
+    // declaration order, and everything else after them. DA's response CP-4,
+    // 2026-10-08, which also approved the 8-byte stride itself.
+    //
+    // IS's CP-4 response of the same date bounds the rule, and the bound is
+    // the reason it is stated as "passed DIRECTLY": a pointer inside a
+    // BY-VALUE AGGREGATE is not reached by any front-loading rule, because the
+    // struct's bytes keep the host compiler's layout and the pointer sits
+    // wherever inside it the host put it. Such a pointer reaches the AGU by
+    // whatever CP-3 settles, not through a slot. So a by-value aggregate is
+    // laid out with the scalars, after the pointers, and claims no slot.
     SmallVector<std::string, 8> ArgOffsets;
-    unsigned Off = OffArgs;
+    unsigned Cursor = OffArgs;
+    const DataLayout &DL = M.getDataLayout();
+
+    // Address order, which is no longer declaration order. Built first so the
+    // emission below can read each argument's offset instead of accumulating
+    // it, and so the layout attribute comes out ascending.
+    auto isSlotPointer = [](const Argument &A) {
+      return A.getType()->isPointerTy() && !A.hasByValAttr();
+    };
+    SmallVector<std::pair<Argument *, unsigned>, 8> Addressed;
+    for (Argument &A : F.args())
+      if (isSlotPointer(A)) {
+        Addressed.emplace_back(&A, Cursor);
+        Cursor += 8;
+      }
     for (Argument &A : F.args()) {
+      if (isSlotPointer(A))
+        continue;
+      if (A.hasByValAttr()) {
+        Type *VT = A.getParamByValType();
+        Align AA = A.getParamAlign().value_or(DL.getABITypeAlign(VT));
+        Cursor = alignTo(Cursor, std::max<uint64_t>(AA.value(), 4));
+        Addressed.emplace_back(&A, Cursor);
+        Cursor += alignTo(DL.getTypeAllocSize(VT), 4);
+        continue;
+      }
+      Addressed.emplace_back(&A, Cursor);
+      Cursor += 4;
+    }
+
+    for (auto &[AP, ArgOff] : Addressed) {
+      Argument &A = *AP;
+      const unsigned Off = ArgOff;
+      // A BY-VALUE AGGREGATE is a pointer at the IR level and is not a pointer
+      // argument. clang passes `__global__ void k(..., Params p)` as
+      // `ptr byval(%struct.Params)`: the struct's BYTES are in the parameter
+      // space, and the pointer is a fiction of the calling convention. Testing
+      // `isPointerTy()` classified it as a window index, consumed a launch slot
+      // for it, and then read every field from whatever window the struct's
+      // first four bytes happened to name.
+      //
+      // That compiled. It assembled, it round-tripped, and it read the wrong
+      // memory -- a silent miscompile of an idiom as ordinary as a parameter
+      // struct, and it was reachable by anything that passed one. F-147.
+      //
+      // The correct lowering is the simplest one: the object IS the launch
+      // block's bytes at its offset, so the argument becomes a pointer to
+      // there and every field access is an ordinary load from it. The address
+      // is a constant, so the backend's base+displacement matcher folds it the
+      // same way it folds the scalar slots above.
+      if (A.hasByValAttr()) {
+        ArgOffsets.push_back(
+            "a" + std::to_string(Off) + ":" +
+            std::to_string(DL.getTypeAllocSize(A.getParamByValType())));
+        Value *P = B.CreateIntToPtr(
+            ConstantInt::get(I64, LaunchBase + Off), A.getType(),
+            A.getName() + ".byval");
+        A.replaceAllUsesWith(P);
+        Changed = true;
+        continue;
+      }
       if (A.getType()->isPointerTy()) {
         // O-23: alignment is a property of the argument. Query it rather than
         // special-casing an attribute -- getParamAlign covers align_value and
@@ -200,9 +280,10 @@ PreservedAnalyses LowerKernelArgs::run(Module &M, ModuleAnalysisManager &) {
           Value *ROff = loadSlot(Off + 4, A.getName() + ".roffset");
           Addr = B.CreateAdd(Addr, B.CreateZExt(ROff, I64));
         }
-        Off += 8; // Layout is uniform whether or not the argument is aligned,
-                  // so the runtime never needs to know which kernels declared
-                  // what (O-23).
+        // The eight bytes are spent whether or not the argument is aligned, so
+        // the runtime never needs to know which kernels declared what (O-23) --
+        // and under the 8-byte slot stride that uniformity is what makes slot
+        // k name pointer argument k rather than something width-dependent.
 
         Value *P = B.CreateIntToPtr(Addr, A.getType(), A.getName() + ".ptr");
         A.replaceAllUsesWith(P);
@@ -211,7 +292,6 @@ PreservedAnalyses LowerKernelArgs::run(Module &M, ModuleAnalysisManager &) {
         Value *V = loadSlot(Off, A.getName() + ".val");
         if (A.getType() != I32)
           V = B.CreateBitOrPointerCast(V, A.getType());
-        Off += 4;
         A.replaceAllUsesWith(V);
       }
       Changed = true;

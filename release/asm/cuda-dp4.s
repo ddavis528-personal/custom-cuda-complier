@@ -12,8 +12,8 @@ _Z1kPiPKiS1_i:
 	add r3, r0
 	ld.global r1, [r1 + 44]
 	add r0, r1, r0
-	ld.global r0, [#2, r0, 0, 0]
-	ld.global r1, [#4, r3, 0, 0]
+	ld.global r0, [#1, r0, 0, 0]
+	ld.global r1, [#2, r3, 0, 0]
 	ld.global r3, [#0, r2, 0, 0]
 	dp4.ss r0, r1, r0, r3
 	st.global r0, [#0, r2, 0, 0]

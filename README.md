@@ -18,8 +18,9 @@ generated documentation.
 
 | File | Role |
 |---|---|
-| [`docs/isa-v1.6-operation-map-and-encoding.md`](docs/isa-v1.6-operation-map-and-encoding.md) | **Current.** Ground truth for encoding. Formats, opcode maps, execution environment and launch ABI, design invariants, and **§1a, the four obligations this ISA places on the implementation** — one a security requirement, one the whole return on the element-width model. |
-| [`docs/isa-v1.5-operation-map-and-encoding.md`](docs/isa-v1.5-operation-map-and-encoding.md) | Superseded by 1.6. Kept for the decision trail. |
+| [`docs/isa-v1.7-operation-map-and-encoding.md`](docs/isa-v1.7-operation-map-and-encoding.md) | **Current.** Ground truth for encoding. Formats, opcode maps, execution environment and launch ABI, design invariants, and **§1a, the four obligations this ISA places on the implementation** — one a security requirement, one the whole return on the element-width model. |
+| [`docs/isa-v1.6-operation-map-and-encoding.md`](docs/isa-v1.6-operation-map-and-encoding.md) | Superseded by 1.7, frozen before O-40. Kept for the decision trail. |
+| [`docs/isa-v1.5-operation-map-and-encoding.md`](docs/isa-v1.5-operation-map-and-encoding.md) | Superseded by 1.6. |
 | [`docs/isa-v1.4-operation-map-and-encoding.md`](docs/isa-v1.4-operation-map-and-encoding.md) | Superseded by 1.5. |
 | [`docs/isa-v1.3-operation-map-and-encoding.md`](docs/isa-v1.3-operation-map-and-encoding.md) | Superseded by 1.4. |
 | [`docs/isa-v1.2-operation-map-and-encoding.md`](docs/isa-v1.2-operation-map-and-encoding.md) | Superseded by 1.3. |
@@ -27,7 +28,8 @@ generated documentation.
 | [`docs/backend-context.md`](docs/backend-context.md) | Ground truth for *why the backend is built the way it is*. Target strategy, bring-up phasing, the open ISA items that compiler output is meant to resolve. |
 | [`docs/walkthrough.md`](docs/walkthrough.md) | **Start here.** One kernel traced from CUDA source through IR, assembly, binary, disassembly and execution, with every listing generated rather than transcribed. §8 traces the narrow-width path and where the element-width mode switches end up. |
 | [`docs/64-bit-addressing-summary.md`](docs/64-bit-addressing-summary.md) | How 64-bit addressing is specified, lowered and verified — self-contained, for the architecture track. |
-| [`docs/compiler-findings-v1.6.md`](docs/compiler-findings-v1.6.md) | **Current report for the architecture track** — what the compiler work found about the ISA, including the fourth obligation O-40 adds and two corrections to figures this project published. |
+| [`docs/compiler-findings-since-v1.6.md`](docs/compiler-findings-since-v1.6.md) | **Current report for the architecture track.** Acting on v1.6's three decisions, a corpus of real fused kernels, five compiler defects it found, and **§5 — O-33's lane-0 masking is unsound without a reconvergence guarantee**, the one item here the compiler cannot decide alone. |
+| [`docs/compiler-findings-v1.6.md`](docs/compiler-findings-v1.6.md) | The v1.6 review. Superseded as the current report; kept as the record of what that review was given. |
 | [`docs/compiler-findings-v1.5.md`](docs/compiler-findings-v1.5.md) | The previous report, kept as written at the v1.5 review. |
 | [`docs/compiler-findings-v1.4.md`](docs/compiler-findings-v1.4.md) | Kept as written at the v1.4 review. |
 | [`docs/proposals/immediate-operands.md`](docs/proposals/immediate-operands.md) | **For ISA review.** Where an immediate goes when the destination is not a source — three cases from the SASS comparison, with proposed encodings and strength of ask. One strong, one recommended for deferral, one withdrawn on inspection. |
@@ -96,8 +98,9 @@ limit for instructions that were not encoding-limited — became a checker here.
 **Steps 0–5 complete; Step 6 in progress.** CUDA kernels compile from source
 and execute correctly on the simulator (`tools/run-e2e.sh`;
 [walkthrough](docs/walkthrough.md)) — elementwise, reduction with shared memory
-and barriers, and a tiled GEMM. ISA v1.6 incorporates every finding from the
-compiler-side work so far; the proposals behind the larger ones are in
+and barriers, and a tiled GEMM. ISA v1.7 incorporates every finding from the
+compiler-side work so far bar one — §5 of the current compiler report, which 1.7
+records as open against itself. The proposals behind the larger changes are in
 `docs/proposals/` and the decision trail is §9 of the spec.
 
 Measured against **NVIDIA SASS** — the machine encoding of the compatibility
