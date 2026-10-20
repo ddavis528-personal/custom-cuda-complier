@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # A lane's address is a multiple of its element size, and what that rests on.
 #
-# IS-1 settled it: natural element alignment is REQUIRED, unaligned access is
-# rejected, and a violation raises F-ALIGN at execute. The compiler-side
+# IS-1 settled it, and ISA v1.9 adopts it as O-58: natural element alignment
+# is REQUIRED, and a violation raises F-ALIGN at execute, per lane, for lanes
+# in issue mask and predicate only (section 12). ccv-sim faults rather than
+# counting, and a fault ends the run with status 3 and a FAULT record. The compiler-side
 # obligation IS-1 assigns to CP is narrower than the whole addressing mode:
 # with scale-enable SET, `rindex << scale` is element-aligned by construction,
 # so only `disp`, an unaligned base, or a byte-offset index with scale CLEAR
@@ -20,12 +22,15 @@
 # That is what this checks, in both directions, because an argument is not a
 # proof and a detector nobody has seen fire is not a detector:
 #
-#   roffset 4-aligned  -> zero misaligned accesses       (the obligation holds)
-#   roffset odd        -> misaligned accesses, same code (the precondition is
-#                         real, and the detector works)
+#   roffset 4-aligned  -> runs to completion, no fault   (the obligation holds)
+#   roffset odd        -> F-ALIGN, same code            (the precondition is
+#                         real, and the fault fires)
 #
-# The corpus half lives in check-fusion.py, which fails any kernel whose run
-# reports a misaligned access -- eight real kernels rather than this one.
+# With n = 8 the bounds guard sends lanes 8-31 away, so the fault's lane mask
+# must lie within lanes 0-7: a fault on a lane that never executed the access
+# would be the section 12.2 error the ISA calls the likeliest.
+#
+# The corpus half lives in check-fusion.py, where any fault fails a kernel.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
@@ -56,20 +61,21 @@ if ! grep -qE '\[(#[0-9]+|r[0-9]+), r[0-9]+, 0, [0-9-]+\]' "$TMP/v.s"; then
 fi
 
 run() {                      # $1 = roffset for all three pointers
-  build/ccv-sim "$TMP/v.bin" \
+  # A fault exits 3 by design, so the simulator's status is not the signal;
+  # the FAULT record is.
+  { build/ccv-sim "$TMP/v.bin" \
       -poke 0x20000=32 \
       -poke 0x20020=3 -poke 0x20024="$1" \
       -poke 0x20028=4 -poke 0x2002c="$1" \
       -poke 0x20030=5 -poke 0x20034="$1" \
-      -poke 0x20038=8 2>&1 |
-    grep -oP 'misaligned lane accesses \K[0-9]+' || echo 0
+      -poke 0x20038=8 2>&1 || true; } | grep -oP 'FAULT \S+  pc=\S+  lanes=\S+' || echo none
 }
 
 fail=0
 for r in 0 4 8 64; do
   n=$(run "$r")
-  if [ "$n" != "0" ]; then
-    echo "  FAIL  roffset=$r is element-aligned, yet $n misaligned access(es)"
+  if [ "$n" != "none" ]; then
+    echo "  FAIL  roffset=$r is element-aligned, yet: $n"
     echo "        -- the fold does not preserve alignment even when its one"
     echo "        unconstrained term does, which is worse than IS-1 assumed"
     fail=1
@@ -77,15 +83,23 @@ for r in 0 4 8 64; do
 done
 for r in 1 2 3; do
   n=$(run "$r")
-  if [ "$n" = "0" ]; then
-    echo "  FAIL  roffset=$r is not element-aligned, yet no misaligned access"
-    echo "        was reported -- the detector is not looking, so every other"
-    echo "        row of this check is green for the wrong reason"
-    fail=1
-  fi
+  case "$n" in
+    "FAULT F-ALIGN"*)
+      lanes=$((16#${n##*lanes=}))
+      if [ $((lanes & ~0xff)) -ne 0 ] || [ $lanes -eq 0 ]; then
+        echo "  FAIL  roffset=$r faulted on lanes $(printf %08x $lanes), outside the"
+        echo "        eight that execute the access (section 12.2)"
+        fail=1
+      fi ;;
+    *)
+      echo "  FAIL  roffset=$r is not element-aligned, yet: $n -- the fault is"
+      echo "        not firing, so every other row of this check is green for"
+      echo "        the wrong reason"
+      fail=1 ;;
+  esac
 done
 [ $fail -ne 0 ] && exit 1
 
 echo "  PASS  element alignment: the unaligned fold preserves it for every"
-echo "        aligned roffset and demonstrably loses it for an odd one, which"
-echo "        is the launch-ABI precondition CP cannot discharge (IS-1)"
+echo "        aligned roffset, and an odd one raises F-ALIGN on executing lanes"
+echo "        only -- the launch-ABI precondition CP cannot discharge (O-58)"

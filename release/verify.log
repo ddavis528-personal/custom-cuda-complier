@@ -46,8 +46,8 @@ checked 258 instructions
   PASS  local array: dynamic and constant indexing agree, including where they alias
   element alignment through the unaligned fold
   PASS  element alignment: the unaligned fold preserves it for every
-        aligned roffset and demonstrably loses it for an odd one, which
-        is the launch-ABI precondition CP cannot discharge (IS-1)
+        aligned roffset, and an odd one raises F-ALIGN on executing lanes
+        only -- the launch-ABI precondition CP cannot discharge (O-58)
   by-value struct argument reads the launch block
   PASS  by-value struct: fields read from the launch block, and the guard uses the right one
   launch-slot reach and the pointer-first ABI rule
@@ -79,7 +79,7 @@ checked 258 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  35 documents: paths resolve, 162 findings and 55 decisions all defined, no duplicate tracking rows
+  PASS  36 documents: paths resolve, 162 findings and 58 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -125,6 +125,9 @@ checked 258 instructions
 
   --- predicate spill (IS-15) ---
   PASS  ld.pred/st.pred: positional frame, whole-warp words, a clobbered predicate restored
+
+  --- the fault model (ISA v1.9 section 12) ---
+  PASS  faults: F-ALIGN precise and predicate-gated, F-WIDTH ignores the predicate, F-ILLEGAL, F-FETCH
 
   --- call and ret (F-21) ---
   PASS  call/ret: value return, two link registers nested, divergent indirect

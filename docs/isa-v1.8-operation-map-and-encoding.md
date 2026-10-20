@@ -126,6 +126,11 @@ block's used-point count (twelve, not eight), the 48–63 collision rule naming 
 and granularity but not its base. The compiler and `ccv-sim` both use the next instruction's
 address, and §3 Format E now says so.
 
+**Narrow FP arithmetic saturates, and subnormals are kept everywhere (O-56; IS-8, IS-13).**
+At 8 and 4 bits every FP operation rounds to nearest even and saturates to ±max finite; at 16
+and 32 it is IEEE. No format flushes subnormals, and `fmin`/`fmax` are minNum/maxNum. FP64 is
+out of scope (§10).
+
 ### Held back, with the reason
 
 - **Invariant 12, and invariant 3's "or a defined fault"** wait on the fault model's adoption
@@ -134,7 +139,6 @@ address, and §3 Format E now says so.
   and 6.
 - **Invariant 2's restatement as a property** is deferred with OA-16 to the perf register
   (PF-15). Its current text describes the warp hold that is actually built.
-- **Narrow FP arithmetic overflow** is DA's decision under IS-8, and §4 marks it open.
 - **`rcp.u32` with a zero divisor** leaves its result unspecified, and **SFU accuracy** is
   stated two ways in this document (implementation-defined in §4, correctly rounded in O-31).
   Both break the property invariant 12 will state. Both are raised in the register rather
@@ -1785,13 +1789,25 @@ So format code `00` against `01` at `chwidth`=8 selects two special-value regime
 one layout parameterised by exponent width, and `chwidth`=4 a third with no special values at
 all. FP32, FP16 and BF16 are IEEE 754 binary32, binary16 and bfloat16.
 
-**Open — arithmetic overflow at 8 and 4 bits (IS-8, DA's decision).** What `fadd.f0`
-produces at `chwidth`=8 above 448, and at `chwidth`=4 where E2M1 has neither infinity nor
-NaN, is not yet decided. The recommendation is to round to nearest even and saturate to ±max
-finite, keeping subnormals. That is the rule under which standard CUDA FP8 code reaches these
-operations at all (§5.8). Until it is decided, no implementation may treat its own choice as
-the specification. The status quo is the one unacceptable option: identical binaries producing
-different numbers in the RTL, the model and the simulator.
+**Narrow FP arithmetic — normative (O-56; DA's response IS-8, 2026-10-20).** Every FP
+operation at `chwidth`=8 or 4 rounds to nearest even, keeps subnormals, and **saturates to
+±max finite**: a result whose magnitude exceeds the format's maximum, including one that
+would be infinite because an operand is infinite, gives ±448 for E4M3, ±57344 for E5M2 and
+±6 for E2M1. A NaN operand gives NaN where the format has one: `S.1111.111` for E4M3, a quiet
+NaN for E5M2. E2M1 has no NaN, so an invalid operation there gives +6, as its conversion
+does. E5M2 infinities therefore enter only through loads and are never produced by
+arithmetic. At 16 and 32 bits arithmetic is IEEE, with overflow to ±Inf. Daniel's criterion
+was consistency with industry: IEEE 754 defines no 8- or 4-bit format, OCP permits saturating
+and non-saturating modes, NVIDIA builds only the saturating one, and CCV has no exception
+flags for a non-saturating result to signal through. What lost: NaN on overflow at 8 bits and
+wrapping at 4.
+
+**Subnormals and NaN selection — normative (O-56; DA's response IS-13, 2026-10-20).** Every
+FP format keeps subnormals, as inputs and as results; there is no flush-to-zero mode
+(invariant 2) and no flushing instruction. A PTX `.ftz` lowers to the non-flushing operation,
+a documented divergence confined to the subnormal range. `fmin` and `fmax` are IEEE 754-2008
+minNum and maxNum: a NaN operand gives the other operand, and two NaNs give NaN. That is
+PTX's `min.f32` and `max.f32`.
 
 ---
 
@@ -2367,10 +2383,10 @@ exact. For E5M2 the FP32 sum can round, but FP32's 24 significand bits exceed 2p
 narrow format, so the second rounding is innocuous and the result is the correctly rounded
 narrow one. Negation and absolute value are exact; `fmin` and `fmax` contract once their NaN
 rule is stated. **Fused multiply-add does not contract**: `cvt(fma.f32(a, b, c))` rounds twice,
-and a fused narrow `ffma` rounds once. Whether native narrow arithmetic saturates is IS-8's
-open decision (§4), and this paragraph is the reason it matters: if overflow gave NaN
-instead, the contraction would be illegal and the 4× FP8 datapath would be reachable only
-through a CCV extension.
+and a fused narrow `ffma` rounds once. Native narrow arithmetic saturates (§4, O-56), so the
+contraction is exact for add, subtract and multiply. Had overflow given NaN instead, the
+contraction would have been illegal and the 4× FP8 datapath reachable only through a CCV
+extension; that is why the decision went the way it did.
 
 ---
 
@@ -2752,8 +2768,7 @@ makes `.satfinite` mandatory on every conversion to them, so saturation there is
 **What lost, and it was IS's own text:** the amendment set had every narrowing FP conversion
 saturating, FP16 and BF16 included, "for consistency". That would have broken
 `__float2half`, whose overflow is ±Inf, and was corrected before it landed. Arithmetic overflow
-at 8 and 4 bits needs DA: saturation is recommended, and O-55 gives the reason that makes it
-nearly forced.
+at 8 and 4 bits was decided afterwards, as saturation: O-56.
 
 ---
 
@@ -2772,6 +2787,17 @@ and the contract names CUDA source. The finding that matters more than the mappi
 FP8 types carry no arithmetic, so native narrow FP is reached from standard source only by
 contracting convert-operate-convert. That contraction is exact only if native narrow
 arithmetic rounds to nearest even, keeps subnormals and saturates. §5.8 carries it.
+
+---
+
+**O-56 — Narrow FP arithmetic saturates; subnormals are kept everywhere; `fmin`/`fmax` are
+minNum/maxNum — decided.** DA's responses IS-8 and IS-13, 2026-10-20, recorded in the DA tab.
+§4 carries the rules. The overflow rule completes O-53, which had settled only the
+conversions. It was taken on industry consistency: OCP permits both modes, NVIDIA ships the
+saturating one, and no exception flag exists to make a non-saturating result useful. It also
+makes O-55's contraction exact. The subnormal rule costs LANE a subnormal path in the FP32
+FMA and the compiler a fix to the divide's subnormal quotients (F-62); a flush mode was
+rejected as hidden mode state under invariant 2.
 
 ---
 

@@ -56,8 +56,10 @@ public:
     return V;
   }
   void write32(uint64_t Addr, uint32_t V) {
-    for (unsigned I = 0; I != 4; ++I)
+    for (unsigned I = 0; I != 4; ++I) {
+      journal(Addr + I);
       *byteAt(Addr + I) = uint8_t(V >> (8 * I));
+    }
     if (Log) Log->push_back({Addr, 4, V, true});
   }
   uint8_t read8(uint64_t Addr) {
@@ -66,36 +68,53 @@ public:
     return V;
   }
   void write8(uint64_t Addr, uint8_t V) {
+    journal(Addr);
     *byteAt(Addr) = V;
     if (Log) Log->push_back({Addr, 1, V, true});
   }
   /// A raw byte, never logged: for dumping final state.
   uint8_t peekByte(uint64_t Addr) { return *byteAt(Addr); }
 
-  /// IS-1: a lane's effective address must be a multiple of its element size
-  /// -- 4 for 32-bit, 2 for 16-bit, unconstrained for 8-bit. A violation will
-  /// raise F-ALIGN at execute once the fault model lands (blocked on IS-2);
-  /// until then it is COUNTED here rather than faulted, so the obligation can
-  /// be checked without pretending a fault exists that the ISA has not yet
-  /// defined.
-  ///
-  /// Counting rather than asserting is deliberate. The compiler-side claim
-  /// IS-1 asks CP to prove is about the whole corpus, not about one kernel, so
-  /// what is wanted is a number that must be zero over every kernel that
-  /// executes -- `tools/check-align.sh`. An assert would stop at the first one
-  /// and tell you nothing about the rest.
-  uint64_t Misaligned = 0;
+  /// O-58 (ISA v1.9, from IS-1): a lane's effective address must be a multiple
+  /// of its transfer size -- 4 at 32 bits, 2 at 16, any at 8. A violation is
+  /// F-ALIGN, an execute-stage fault, per lane (§12). The access is not made;
+  /// the lane is recorded, and Interp::step turns the record into the fault.
+  /// Only the lanes an instruction actually executes reach here, so the
+  /// predicate gating §12.2 requires is the simulator's ordinary lane loop.
+  /// The first lane recorded is the lowest, since lanes run in ascending
+  /// order, which is the address §12.6's record reports.
+  unsigned CurLane = 0;
+  uint32_t AlignLanes = 0;
+  uint64_t AlignAddr = 0;
 
-  void noteAlign(uint64_t Addr, unsigned Bytes) {
-    if (Bytes > 1 && (Addr % Bytes) != 0)
-      ++Misaligned;
+  bool alignOK(uint64_t Addr, unsigned Bytes) {
+    if (Bytes <= 1 || (Addr % Bytes) == 0)
+      return true;
+    if (!AlignLanes)
+      AlignAddr = Addr;
+    AlignLanes |= 1u << CurLane;
+    return false;
+  }
+
+  /// A fault is precise (§12.4): the faulting instruction has no architectural
+  /// effect, though other lanes of it may already have written. While a step
+  /// runs, every byte written is journalled, and a fault undoes them.
+  struct Undo { uint64_t Addr; uint8_t Old; };
+  std::vector<Undo> *Journal = nullptr;
+  void journal(uint64_t Addr) {
+    if (Journal) Journal->push_back({Addr, *byteAt(Addr)});
+  }
+  void rollBack() {
+    for (auto It = Journal->rbegin(); It != Journal->rend(); ++It)
+      *byteAt(It->Addr) = It->Old;
   }
 
   /// §3: "Transfer size is inherited from `rdata`'s `chwidth` -- no size
   /// field." So a load is 4, 2 or 1 bytes depending on the destination
   /// register's current width, and the 4-bit width has no byte transfer at all.
   uint32_t readN(uint64_t Addr, unsigned Bytes) {
-    noteAlign(Addr, Bytes);
+    if (!alignOK(Addr, Bytes))
+      return 0;
     uint32_t V = 0;
     for (unsigned I = 0; I != Bytes; ++I)
       V |= uint32_t(*byteAt(Addr + I)) << (8 * I);
@@ -103,9 +122,12 @@ public:
     return V;
   }
   void writeN(uint64_t Addr, uint32_t V, unsigned Bytes) {
-    noteAlign(Addr, Bytes);
-    for (unsigned I = 0; I != Bytes; ++I)
+    if (!alignOK(Addr, Bytes))
+      return;
+    for (unsigned I = 0; I != Bytes; ++I) {
+      journal(Addr + I);
       *byteAt(Addr + I) = uint8_t(V >> (8 * I));
+    }
     if (Log) Log->push_back({Addr, Bytes, V, true});
   }
 };

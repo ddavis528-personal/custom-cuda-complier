@@ -43,7 +43,7 @@ import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SPEC = (pathlib.Path(sys.argv[1]) if len(sys.argv) > 1
-        else ROOT / "docs" / "isa-v1.8-operation-map-and-encoding.md")
+        else ROOT / "docs" / "isa-v1.9-operation-map-and-encoding.md")
 
 # Fields whose bits the siblings table is summarizing. Load/store bit maps call the
 # immediate an offset or a displacement; the ALU and compare maps call it an
