@@ -200,7 +200,8 @@ run_faults() {
               "gated-on:FAULT F-ALIGN  pc=0x100c  lanes=ffffffff  addr=0x50001" \
               "width:FAULT F-WIDTH  pc=0x100e  lanes=ffffffff" \
               "illegal:FAULT F-ILLEGAL  pc=0x1000  lanes=ffffffff" \
-              "fetch:FAULT F-FETCH  pc=0x1001  lanes=ffffffff"; do
+              "fetch:FAULT F-FETCH  pc=0x1001  lanes=ffffffff" \
+              "barrier:FAULT F-BARRIER  pc=0x1000  lanes=ffffffff"; do
     t=${pair%%:*}; want=${pair#*:}
     python3 "$AS" "$JSON" "test/faults/$t.s" "$TMP/f.bin" >/dev/null || { bad=1; continue; }
     out=$("$SIM" "$TMP/f.bin" -poke 0x50000=57005 -peek 0x50000 2>&1); rc=$?
@@ -214,7 +215,7 @@ run_faults() {
     # included -- and nothing before it in these tests touches 0x50000.
     echo "$out" | grep -q '\[0x50000\] = 57005' || { echo "    $t: [0x50000] changed"; bad=1; }
   done
-  [ $bad -eq 0 ] && echo "  PASS  faults: F-ALIGN precise and predicate-gated, F-WIDTH ignores the predicate, F-ILLEGAL, F-FETCH" \
+  [ $bad -eq 0 ] && echo "  PASS  faults: F-ALIGN precise and predicate-gated, F-WIDTH ignores the predicate, F-ILLEGAL, F-FETCH, F-BARRIER" \
                  || { echo "  FAIL  the fault model"; return 1; }
 }
 echo

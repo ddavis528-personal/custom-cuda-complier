@@ -431,6 +431,26 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       }
   };
 
+  // ---- F-BARRIER (ISA v1.9 O-59): dispatch stage, whole instruction ------
+  // A CTA has at most 16 barriers; an ID at or above its allocated count names
+  // nothing. The ID is an immediate, so the check is exact at dispatch and
+  // independent of the predicate.
+  {
+    int IdOp = -1;
+    switch (Op) {
+    case CCV::BAR_INIT: case CCV::C_BAR_ARRIVE: case CCV::C_BAR_WAIT: IdOp = 0; break;
+    case CCV::BAR_WAIT_PHASE: IdOp = 1; break;
+    default: break;
+    }
+    if (IdOp >= 0 &&
+        (unsigned(MI.getOperand(IdOp).getImm()) & 0x3f) >= BarrierCount) {
+      Result F{Result::Fault, 0};
+      F.Cause = "F-BARRIER";
+      F.TakenMask = Mask;
+      return F;
+    }
+  }
+
   // ---- F-WIDTH (ISA v1.9 §12.3): dispatch stage, whole instruction --------
   // A memory access whose rdata is at chwidth = 4 names no transfer. Checked
   // from committed width state before anything executes, and independent of
