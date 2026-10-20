@@ -76,6 +76,9 @@ ladder stays the target. The first build is held to the measured 2.40× at 8 bit
 16, at four warps, by DA's decision, with the remedies, including the half pick (PF-31), on
 the perf register.
 
+**FP64 is out of scope for V1 (IS-13).** §10 says so, and that `double` arithmetic in device
+code is a compile-time diagnostic.
+
 ### A compiler contract replaced by hardware behaviour
 
 **`.const` is hardware-protected (O-51; IS-3).** 1.7 called it read-only "by compiler
@@ -4092,6 +4095,13 @@ because it reinterprets rather than converts, and the narrow write then lands in
   established that a packed reduction lives in Format A without touching invariant 1 — the
   packing factor is in the opcode, no register is narrow, and nothing outside the instruction
   observes the packed view. See §4's points 48–63.
+- **FP64** — out of scope for V1 (DA's response IS-13, 2026-10-20: "yes, I don't want to
+  build FP64 in this first version"). No instruction, width code or format code names a
+  64-bit float, and none is reserved for one. `double` arithmetic in device code is a
+  compile-time diagnostic, not a silent software emulation, so nothing that relies on FP64
+  results compiles and runs with different numbers. What lost: hardware FP64, and emulating
+  it in software. 64-bit *integers* are a separate question (IS-13 item 2): they lower to
+  32-bit pairs.
 - **Texture / surface operations** — likely permanently out of scope for an AI/ML target.
 - **Instruction fetch alignment and bundle crossing** — RTL-level, deferred by prior
   agreement, but note the compressed forms make this more load-bearing: with 16-bit
