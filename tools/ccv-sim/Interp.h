@@ -16,6 +16,9 @@ public:
   /// 48-bit one, so it is a separate memory here too. CTA-private falls out:
   /// the simulator runs one CTA.
   Memory Shared;
+  /// Barriers the CTA has allocated, at most 16 (O-59); an ID at or above it
+  /// raises F-BARRIER.
+  unsigned BarrierCount = 16;
 
   struct Result {
     /// Return: each issuing lane's PC becomes its own lane of GPR `Target`.

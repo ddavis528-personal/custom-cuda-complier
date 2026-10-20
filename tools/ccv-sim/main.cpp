@@ -44,6 +44,9 @@ static cl::opt<uint64_t> Entry(
     "entry", cl::init(0),
     cl::desc("the kernel's offset in the image: device functions come before "
              "it once calls exist (F-21)"));
+static cl::opt<unsigned> Barriers(
+    "barriers", cl::init(16),
+    cl::desc("barriers the CTA has allocated, at most 16 (ISA v1.9 O-59)"));
 static cl::opt<bool> Trace("trace", cl::desc("print each issue group"));
 static cl::opt<bool> Stats("counters", cl::desc("print execution counters"));
 static cl::opt<unsigned> MaxSteps("max-steps", cl::init(100000),
@@ -115,6 +118,7 @@ int main(int argc, char **argv) {
   StringRef Code = (*Buf)->getBuffer();
 
   Interp I;
+  I.BarrierCount = std::min(unsigned(Barriers), 16u);
   Warp W;
   W.CtaId = CtaId;
   for (unsigned L = 0; L != kLanes; ++L) {
