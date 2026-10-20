@@ -309,7 +309,7 @@ and 1.59× at 16**, counted as narrow element-work operations retired per cycle 
 first build and put all other options on our future features register to evaluate later";
 and on the 16-bit figure: "Yes, 1.59/2 is an acceptable utilization ratio for a first
 implementation." (DA's responses OA-19, 2026-10-20.) An aligned-half fallback reaches 1.90×
-at 16 bits but synthesises at 26.8 NGD against the 25 stage; it is PF-31 on the perf register. The gap at 8 bits has one main
+at 16 bits but synthesises at 26.8 NGD against the 25 stage; it is PF-38 on the perf register. The gap at 8 bits has one main
 cause: one home section per warp leaves select without ready narrow work in the other three.
 The remedies are on the perf register, not in this revision: compiler-declared register
 positions (OI-35, PF-29), whose encoding has a home in `chwidth`'s spare bits, and a
