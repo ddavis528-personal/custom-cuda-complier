@@ -274,10 +274,11 @@ def run(name, spec, binf, layout):
     # corpus is where that claim has to hold -- eight real kernels, every
     # addressing shape the backend emits -- so a reported misalignment fails
     # the kernel rather than being counted and forgotten.
-    if "misaligned lane accesses" in r.stdout:
-        line = next(l.strip() for l in r.stdout.splitlines()
-                    if "misaligned" in l)
-        return None, f"IS-1 violation: {line}"
+    # ISA v1.9 (O-57, O-58): a misaligned access, like every other fault, now
+    # ends the run with a FAULT record, so any fault fails the kernel.
+    if "FAULT " in r.stdout:
+        line = next(l.strip() for l in r.stdout.splitlines() if "FAULT " in l)
+        return None, f"faulted: {line}"
     if "step limit" in r.stderr:
         return None, ("did not terminate -- lanes were still active at the "
                       "step limit, which is what a barrier waiting for a lane "

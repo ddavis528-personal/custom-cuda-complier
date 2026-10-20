@@ -224,7 +224,7 @@ leave the normative rewrite to IS. Do not silently rewrite it.
    corpus cannot evaluate it yet. OA's vehicle is a 2-bit preferred position per
    register carried in `chwidth`, landing in `CCVInsertChwidth.cpp`, which
    already knows each physical register's width at every program point.
-6. **F-ALIGN in `ccv-sim`** — blocked on IS-2 adopting the fault model. The
+6. **F-ALIGN in `ccv-sim`** — *done 2026-10-20, after ISA v1.9 (O-57, O-58); see roadmap F-150.* Originally: blocked on IS-2 adopting the fault model. The
    counter in `tools/ccv-sim/Warp.h` is deliberately a counter and says so;
    `check-align.sh` proves the compiler's two terms and demonstrates the
    detector firing on an odd `roffset`, which is the launch-ABI precondition the

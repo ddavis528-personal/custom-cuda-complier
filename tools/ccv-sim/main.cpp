@@ -158,6 +158,38 @@ int main(int argc, char **argv) {
     I.Mem.Log = &MemLog;
     I.Shared.Log = &ShLog;
   }
+
+  std::vector<Memory::Undo> Journal, ShJournal;
+  I.Mem.Journal = &Journal;
+  I.Shared.Journal = &ShJournal;
+
+  // A V1 fault terminates the context (ISA v1.9 §12.6). The record carries
+  // the cause, the PC, the lane mask, and for an execute-stage memory fault
+  // the lowest faulting lane's address; it is printed, written to the oracle
+  // file, and the run exits with status 3 -- distinct from 1, a simulator
+  // error, so a check can tell a fault the ISA defines from a tool failure.
+  // Peeks still print: the state is the faulting instruction's predecessors',
+  // which is what precision (§12.4) promises.
+  auto fault = [&](const char *Cause, uint64_t PC, uint32_t Lanes,
+                   uint64_t Addr) {
+    outs() << format("  FAULT %s  pc=%#llx  lanes=%08x  addr=%#llx  cta=%u warp=0\n",
+                     Cause, (unsigned long long)PC, Lanes,
+                     (unsigned long long)Addr, unsigned(CtaId));
+    if (OF) {
+      std::fprintf(OF, "{\"fault\":{\"cause\":\"%s\",\"pc\":%llu,\"lanes\":%u,"
+                       "\"addr\":%llu,\"cta\":%u,\"warp\":0}}\n",
+                   Cause, (unsigned long long)PC, Lanes,
+                   (unsigned long long)Addr, unsigned(CtaId));
+      std::fclose(OF);
+    }
+    I.Mem.Log = nullptr;
+    for (const auto &P : Peeks) {
+      uint64_t A;
+      if (!StringRef(P).getAsInteger(0, A))
+        outs() << format("  [%#llx] = %u\n", (unsigned long long)A, I.Mem.read32(A));
+    }
+    return 3;
+  };
   uint64_t Seq = 0;
 
   Counters C;
@@ -203,21 +235,20 @@ int main(int argc, char **argv) {
       if (((Runnable >> L) & 1) && W.PC[L] == Target)
         Mask |= 1u << L;
 
+    // F-FETCH (ISA v1.9 §12.3): the selected PC outside the kernel's image,
+    // or not 16-bit aligned -- a ret to an odd offset among them.
     uint64_t Off = Target - CodeBase;
-    if (Off >= Code.size()) {
-      errs() << "error: PC " << format_hex(Target, 10) << " outside kernel\n";
-      return 1;
-    }
+    if (Target < CodeBase || Off >= Code.size() || (Target & 1))
+      return fault("F-FETCH", Target, Mask, 0);
     ArrayRef<uint8_t> Bytes(reinterpret_cast<const uint8_t *>(Code.data()) + Off,
                             Code.size() - Off);
 
     MCInst MI;
     uint64_t Size = 0;
+    // F-ILLEGAL: an encoding that names no operation (§12.3).
     if (DisAsm->getInstruction(MI, Size, Bytes, Target, nulls()) !=
-        MCDisassembler::Success) {
-      errs() << "error: cannot decode at " << format_hex(Target, 10) << "\n";
-      return 1;
-    }
+        MCDisassembler::Success)
+      return fault("F-ILLEGAL", Target, Mask, 0);
 
     if (Trace) {
       std::string S; raw_string_ostream OS(S);
@@ -225,11 +256,21 @@ int main(int argc, char **argv) {
       outs() << format("  %04x  mask=%08x  %s\n", unsigned(Off), Mask, OS.str().c_str());
     }
 
-    Warp Before;
-    if (OF) { Before = W; MemLog.clear(); ShLog.clear(); }
+    // A fault is precise (§12.4): the faulting instruction has no
+    // architectural effect. So every step can be undone -- registers from
+    // this copy, memory from the write journals.
+    Warp Before = W;
+    if (OF) { MemLog.clear(); ShLog.clear(); }
+    Journal.clear(); ShJournal.clear();
 
     auto R = I.step(W, MI, Mask, Target, unsigned(Size));
     ++Issued;
+    if (R.Kind == Interp::Result::Fault) {
+      W = Before;
+      I.Mem.rollBack();
+      I.Shared.rollBack();
+      return fault(R.Cause, Target, R.TakenMask, R.FaultAddr);
+    }
 
     if (OF) {
       const MCInstrDesc &D = MII->get(MI.getOpcode());
@@ -241,6 +282,7 @@ int main(int argc, char **argv) {
                          : R.Kind == Interp::Result::Branch ? "branch"
                          : R.Kind == Interp::Result::BranchPred ? "branchpred"
                          : R.Kind == Interp::Result::Return ? "return"
+                         : R.Kind == Interp::Result::Fault ? "fault"
                          : R.Kind == Interp::Result::Exit ? "exit" : "stall";
       std::fprintf(OF, "\",\"mask\":%u,\"op\":\"%s\",\"kind\":\"%s\","
                        "\"target\":%llu,\"taken\":%u,\"load\":%d,\"store\":%d",
@@ -505,13 +547,6 @@ int main(int argc, char **argv) {
 
   outs() << "  executed " << Issued << " issue groups\n";
 
-  // IS-1: a lane's effective address must be a multiple of its element size.
-  // Reported rather than faulted -- F-ALIGN does not exist until the fault
-  // model is adopted (IS-2) -- and reported UNCONDITIONALLY when non-zero,
-  // because a count that only appears under a flag is a count nobody sees.
-  if (I.Mem.Misaligned)
-    outs() << "  misaligned lane accesses " << I.Mem.Misaligned
-           << "   (IS-1: address not a multiple of its element size)\n";
   if (OF) {
     // Final architectural state: every GPR lane, every predicate, and every
     // global word any access or poke touched -- what the skeleton's retired

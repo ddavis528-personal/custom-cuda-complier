@@ -421,11 +421,39 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   Result R{Result::Advance, 0};
   const unsigned Op = MI.getOpcode();
 
+  // CurLane lets the memories attribute an F-ALIGN to its lane.
+  Mem.AlignLanes = Shared.AlignLanes = 0;
   auto forEachLane = [&](auto &&Fn) {
     for (unsigned L = 0; L != kLanes; ++L)
-      if (Mask & (1u << L))
+      if (Mask & (1u << L)) {
+        Mem.CurLane = Shared.CurLane = L;
         Fn(L);
+      }
   };
+
+  // ---- F-WIDTH (ISA v1.9 §12.3): dispatch stage, whole instruction --------
+  // A memory access whose rdata is at chwidth = 4 names no transfer. Checked
+  // from committed width state before anything executes, and independent of
+  // the predicate (§12.2), so the lanes reported are the issue mask.
+  switch (Op) {
+  case CCV::LD_GLOBAL: case CCV::ST_GLOBAL: case CCV::C_LD_GLOBAL:
+  case CCV::C_ST_GLOBAL: case CCV::LD_GLOBAL_IDX: case CCV::ST_GLOBAL_IDX:
+  case CCV::LD_GLOBAL_SLOT: case CCV::ST_GLOBAL_SLOT: case CCV::LD_SHARED:
+  case CCV::ST_SHARED: case CCV::LD_SHARED_IDX: case CCV::ST_SHARED_IDX:
+  case CCV::LD_GLOBAL_P:
+    if (MI.getOperand(0).isReg()) {
+      unsigned D = regOf(MI, 0);
+      if (D < kGPRs && W.ChWidth[D] == 3) {
+        Result F{Result::Fault, 0};
+        F.Cause = "F-WIDTH";
+        F.TakenMask = Mask;
+        return F;
+      }
+    }
+    break;
+  default:
+    break;
+  }
 
   // ---- Width-awareness guard (F-3) --------------------------------------
   //
@@ -502,8 +530,14 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       forEachLane([&](unsigned L) { W.GPR[D][L] = W.CtaTid[L]; });
     else if (Sel == 1)   // %ctaid: broadcast
       forEachLane([&](unsigned L) { W.GPR[D][L] = W.CtaId; });
-    else
-      return {Result::Unimplemented, 0};
+    else {
+      // Selectors 2-15 are reserved values in a defined field: F-ILLEGAL at
+      // decode, whole instruction (ISA v1.9 §12.3).
+      Result F{Result::Fault, 0};
+      F.Cause = "F-ILLEGAL";
+      F.TakenMask = Mask;
+      return F;
+    }
     break;
   }
 
@@ -1001,8 +1035,10 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     unsigned Sh = ScaleEn ? (2 - W.ChWidth[Data]) : 0;
     forEachLane([&](unsigned L) {
       uint64_t A = uint64_t(W.GPR[Base][L]) + (uint64_t(W.GPR[Idx][L]) << Sh) + Disp;
-      if (IsLoad) W.GPR[Data][L] = Shared.read32(A);
-      else        Shared.write32(A, W.GPR[Data][L]);
+      // 32-bit only (narrow is refused by the width guard), and through the
+      // checked path so a misaligned lane raises F-ALIGN (O-58).
+      if (IsLoad) W.GPR[Data][L] = Shared.readN(A, 4);
+      else        Shared.writeN(A, W.GPR[Data][L], 4);
     });
     break;
   }
@@ -1117,7 +1153,9 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     forEachLane([&](unsigned L) {
       if (!((G >> L) & 1))
         return;                  // invariant 10: excluded lanes preserved
-      W.GPR[Data][L] = Mem.read32((uint64_t(W.GPR[Base][L]) << kBaseShift) + Off);
+      // Through the checked path: a misaligned predicated-on lane raises
+      // F-ALIGN, a predicated-off one never reaches here (O-58, §12.2).
+      W.GPR[Data][L] = Mem.readN((uint64_t(W.GPR[Base][L]) << kBaseShift) + Off, 4);
     });
     break;
   }
@@ -1361,6 +1399,17 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
 
   default:
     return {Result::Unimplemented, 0};
+  }
+
+  // ---- F-ALIGN (O-58): execute stage, per lane ----------------------------
+  // The memories refused each misaligned lane's access and recorded it. Lanes
+  // outside issue mask and predicate never got that far (§12.2).
+  if (uint32_t L = Mem.AlignLanes | Shared.AlignLanes) {
+    Result F{Result::Fault, 0};
+    F.Cause = "F-ALIGN";
+    F.TakenMask = L;
+    F.FaultAddr = Mem.AlignLanes ? Mem.AlignAddr : Shared.AlignAddr;
+    return F;
   }
   R.WidthCode = WCode;
   return R;

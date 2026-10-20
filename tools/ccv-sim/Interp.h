@@ -19,7 +19,7 @@ public:
 
   struct Result {
     /// Return: each issuing lane's PC becomes its own lane of GPR `Target`.
-    enum Kind { Advance, Branch, BranchPred, Return, Exit, Stall, Unimplemented } Kind;
+    enum Kind { Advance, Branch, BranchPred, Return, Exit, Stall, Fault, Unimplemented } Kind;
     uint64_t Target = 0;
     /// Lanes that actually did work, after the predicate qualifier. Defaults
     /// to the whole issue mask; a predicated instruction narrows it. This is
@@ -39,6 +39,13 @@ public:
     /// Lanes outside it fall through -- which is how divergence arises, with
     /// no bracket instruction and nothing forcing reconvergence (§1).
     uint32_t TakenMask = 0;
+
+    /// For Fault: the cause (ISA v1.9 §12.3), and for an execute-stage memory
+    /// fault the address of the lowest faulting lane. The faulting lanes are
+    /// TakenMask: the issue mask for decode and dispatch faults, the lanes
+    /// that faulted for execute ones (§12.6).
+    const char *Cause = nullptr;
+    uint64_t FaultAddr = 0;
   };
 
   Result step(Warp &W, const llvm::MCInst &MI, uint32_t Mask, uint64_t PC,

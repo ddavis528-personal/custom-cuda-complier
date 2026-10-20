@@ -190,6 +190,37 @@ echo
 echo "  --- predicate spill (IS-15) ---"
 run_pred_spill || fail=1
 
+# --- the fault model (ISA v1.9 section 12, O-57/O-58) ------------------------
+# Each case names the record it must produce. A fault exits 3, distinct from a
+# simulator error (1), so the status is checked too.
+run_faults() {
+  local bad=0 t want out rc
+  for pair in "precise:FAULT F-ALIGN  pc=0x1018  lanes=aaaaaaaa  addr=0x50005" \
+              "gated:" \
+              "gated-on:FAULT F-ALIGN  pc=0x100c  lanes=ffffffff  addr=0x50001" \
+              "width:FAULT F-WIDTH  pc=0x100e  lanes=ffffffff" \
+              "illegal:FAULT F-ILLEGAL  pc=0x1000  lanes=ffffffff" \
+              "fetch:FAULT F-FETCH  pc=0x1001  lanes=ffffffff"; do
+    t=${pair%%:*}; want=${pair#*:}
+    python3 "$AS" "$JSON" "test/faults/$t.s" "$TMP/f.bin" >/dev/null || { bad=1; continue; }
+    out=$("$SIM" "$TMP/f.bin" -poke 0x50000=57005 -peek 0x50000 2>&1); rc=$?
+    if [ -z "$want" ]; then
+      if [ $rc -ne 0 ] || echo "$out" | grep -q FAULT; then
+        echo "    $t: faulted or failed where nothing executes the access: $out"; bad=1; fi
+    elif [ $rc -ne 3 ] || ! echo "$out" | grep -qF "$want"; then
+      echo "    $t: want '$want' (status 3), got status $rc: $out"; bad=1
+    fi
+    # Precision: the faulting instruction leaves no trace, its aligned lanes
+    # included -- and nothing before it in these tests touches 0x50000.
+    echo "$out" | grep -q '\[0x50000\] = 57005' || { echo "    $t: [0x50000] changed"; bad=1; }
+  done
+  [ $bad -eq 0 ] && echo "  PASS  faults: F-ALIGN precise and predicate-gated, F-WIDTH ignores the predicate, F-ILLEGAL, F-FETCH" \
+                 || { echo "  FAIL  the fault model"; return 1; }
+}
+echo
+echo "  --- the fault model (ISA v1.9 section 12) ---"
+run_faults || fail=1
+
 echo
 echo "  --- call and ret (F-21) ---"
 run_call || fail=1
