@@ -106,6 +106,41 @@ int baseAddends(const Value *V) {
 bool llvm::checkCCVModule(Module &M, raw_ostream &Err) {
   SmallVector<std::string, 8> Problems;
 
+  // --- FP64 is out of scope for V1 (DA's response IS-13; ISA v1.8 §10) ----
+  // There is no FP64 instruction, width code or register, and `double` in
+  // device code is an error rather than silent emulation, so nothing that
+  // should not pass does. Before this rule a double multiply reached the type
+  // legalizer and aborted there with no diagnostic. Reported once per
+  // function, at the first value of FP64 type.
+  auto isFP64 = [](Type *T) { return T->getScalarType()->isDoubleTy(); };
+  for (Function &F : M) {
+    if (F.isDeclaration())
+      continue;
+    bool Sig = isFP64(F.getReturnType());
+    for (Argument &A : F.args())
+      Sig |= isFP64(A.getType());
+    const Instruction *First = nullptr;
+    for (BasicBlock &BB : F) {
+      for (Instruction &I : BB) {
+        bool Uses = isFP64(I.getType());
+        for (const Value *Op : I.operands())
+          Uses |= isFP64(Op->getType());
+        if (Uses) { First = &I; break; }
+      }
+      if (First) break;
+    }
+    if (First)
+      report(*First, "double-precision (FP64) arithmetic",
+             "FP64 is out of scope for V1 (ISA v1.8 §10, DA's response IS-13): "
+             "there is no FP64 instruction; use float",
+             Problems);
+    else if (Sig)
+      report(*F.getEntryBlock().getFirstNonPHIOrDbg(),
+             "a double-precision (FP64) argument or return",
+             "FP64 is out of scope for V1 (ISA v1.8 §10, DA's response IS-13)",
+             Problems);
+  }
+
   for (Function &F : M) {
     for (BasicBlock &BB : F) {
       for (Instruction &I : BB) {

@@ -172,6 +172,7 @@ checked 258 instructions
   PASS  accepts shared-memory.ll
   PASS  accepts window-cross-block.ll
   PASS  diagnoses bad-addr-shape.ll
+  PASS  diagnoses fp64.ll
   PASS  diagnoses ptr-compared.ll
   PASS  diagnoses ptr-in-call.ll
   PASS  diagnoses ptr-loaded.ll

@@ -72,8 +72,12 @@ ever meant.
 on the buffered old value; that is struck, and the properties it implied stay.
 
 **§1a obligation 4 states the rate the first build is held to (OA-19).** The 2× and 4×
-ladder stays the target. The first build is held to the measured 2.40× at 8 bits and 1.90× at
-16, at four warps, by DA's decision, with the remedies on the perf register.
+ladder stays the target. The first build is held to the measured 2.40× at 8 bits and 1.59× at
+16, at four warps, by DA's decision, with the remedies, including the half pick (PF-31), on
+the perf register.
+
+**FP64 is out of scope for V1 (IS-13).** §10 says so, and that `double` arithmetic in device
+code is a compile-time diagnostic.
 
 ### A compiler contract replaced by hardware behaviour
 
@@ -362,10 +366,13 @@ on the same device, and a compiler that has been emitting zero-extensions which 
 **The first build meets a measured rate, not the ladder (DA's response OA-19, 2026-10-20).**
 The ladder above is the obligation's target and stays the target. What the first build is
 held to is what the OOE model measured at four resident warps under the decided default,
-home section = tier-1 slot index, with select's fallback pick: **2.40× at 8 bits and 1.90× at
-16**, counted as narrow element-work operations retired per cycle against the 32-bit rate
-(OI's IS-9 run). Daniel's words: "Let's go with (a) for our first build and put all other
-options on our future features register to evaluate later." The gap at 8 bits has one main
+home section = tier-1 slot index, with select's section-only fallback pick: **2.40× at 8 bits
+and 1.59× at 16**, counted as narrow element-work operations retired per cycle against the
+32-bit rate (OI's IS-9 run). Daniel's words, accepting the rate: "Let's go with (a) for our
+first build and put all other options on our future features register to evaluate later";
+and on the 16-bit figure: "Yes, 1.59/2 is an acceptable utilization ratio for a first
+implementation." (DA's responses OA-19, 2026-10-20.) An aligned-half fallback reaches 1.90×
+at 16 bits but synthesises at 26.8 NGD against the 25 stage; it is PF-31 on the perf register. The gap at 8 bits has one main
 cause: one home section per warp leaves select without ready narrow work in the other three.
 The remedies are on the perf register, not in this revision: compiler-declared register
 positions (OI-35, PF-29), whose encoding has a home in `chwidth`'s spare bits, and a
@@ -4088,6 +4095,13 @@ because it reinterprets rather than converts, and the narrow write then lands in
   established that a packed reduction lives in Format A without touching invariant 1 — the
   packing factor is in the opcode, no register is narrow, and nothing outside the instruction
   observes the packed view. See §4's points 48–63.
+- **FP64** — out of scope for V1 (DA's response IS-13, 2026-10-20: "yes, I don't want to
+  build FP64 in this first version"). No instruction, width code or format code names a
+  64-bit float, and none is reserved for one. `double` arithmetic in device code is a
+  compile-time diagnostic, not a silent software emulation, so nothing that relies on FP64
+  results compiles and runs with different numbers. What lost: hardware FP64, and emulating
+  it in software. 64-bit *integers* are a separate question (IS-13 item 2): they lower to
+  32-bit pairs.
 - **Texture / surface operations** — likely permanently out of scope for an AI/ML target.
 - **Instruction fetch alignment and bundle crossing** — RTL-level, deferred by prior
   agreement, but note the compressed forms make this more load-bearing: with 16-bit
