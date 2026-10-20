@@ -69,8 +69,9 @@ FP operation on a code reserved at its width faults rather than computing.
 
 ### Still open
 
-Barrier references beyond a CTA's allocation (the fault model's question 3) and entry register
-state (§5.2's "undefined", which invariant 12 now forbids) are in §8 with a recommendation each.
+Barrier references beyond a CTA's allocation (the fault model's question 3) are in §8 with a
+recommendation. Entry register state, which 1.8 called undefined, is defined: every register
+reads zero at entry (§5.2), at no cost (IS-16).
 SFU accuracy is ruled under IS-12 but its PTX bound table is not yet written.
 
 ---
@@ -2038,9 +2039,13 @@ which matters at 16 GPRs. The ISA already has the right contract: `.const`, read
 `ld.global` and protected by `F-RO` on any store or atomic (§3, O-51). The launch block is
 `.const`.
 
-**No register holds an ABI value at entry**, and no hardware convention is baked in. *(1.8 said
-"entry register state is undefined", which invariant 12 forbids; what entry registers read is
-open in §8, with zero recommended.)* The block sits at a fixed architectural address and the
+**Entry register state — normative (IS-16).** At kernel entry every GPR reads zero, at every
+width and every position; every predicate reads false; and every register's `chwidth` is 32.
+No register holds an ABI value, so the launch block (below) is how a kernel finds its
+arguments. This costs nothing: launch maps every logical register to the hardwired zero
+registers, so no row is written, and it closes the O-38 exposure of a new grid reading a
+previous grid's values. *(1.8 said "entry register state is undefined", which invariant 12
+forbids.)* The block sits at a fixed architectural address and the
 prologue materializes it in one instruction:
 
 ```
@@ -2893,7 +2898,7 @@ cannot serve.
 
 ---
 
-**Opened in 1.9 by the fault model — two states invariant 12 now forbids leaving undefined.**
+**Opened in 1.9 by the fault model — states invariant 12 now forbids leaving undefined.**
 
 **Barrier references beyond a CTA's allocation.** The 6-bit barrier ID addresses all 64
 table entries. If a CTA is allocated fewer than 64, nothing yet says what a reference to an
@@ -2901,12 +2906,8 @@ unallocated entry does. The recommendation is `F-ILLEGAL`-class treatment at dis
 checked against the CTA's allocation as `F-SHARED` checks its shared-memory bound, but it
 needs a cause code and an owner for the bound: RAU holds the allocation. Open with IS.
 
-**Entry register state.** §5.2 says entry register state is undefined, which invariant 12
-forbids and which O-38 makes a security question: a physical register reused across launches
-must not show another grid's data. Teardown clears across contexts (§12.7); within a context,
-a new grid's warps would still see stale values. The recommendation is that every GPR and
-predicate reads zero at entry. Under rename that is cheap: map every logical register at entry
-to a zero physical row, so no row is written. Open with IS, for OA to confirm the cost.
+**Entry register state** — opened and closed in 1.9: every register reads zero (false for
+predicates, `chwidth` 32) at entry, §5.2, at no cost (OA's IS-16 response).
 
 
 ## 9. Decision log — resolved during specification
