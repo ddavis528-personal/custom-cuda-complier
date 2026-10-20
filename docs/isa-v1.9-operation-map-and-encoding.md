@@ -34,7 +34,7 @@ encoding meeting architectural state, now has defined behaviour.
 
 **Invariant 12 is new and invariant 3 is amended.** Every encoding, and every combination of
 an encoding with architectural state, gives a result or a defined fault; nothing is undefined.
-§12 is the fault model: four detection stages, eight causes, precise faults taken at
+§12 is the fault model: four detection stages, nine causes, precise faults taken at
 retirement, a sticky per-context record, and containment between contexts per O-38. It is
 `fault-model-spec.md` as adopted, with four corrections made since that document was written:
 
@@ -67,11 +67,15 @@ blocked only on the fault model, which this revision adopts.
 `rcp.u32` with a zero divisor returns `0xFFFFFFFF` (IS-12 (d), agreed by CP). A conversion or
 FP operation on a code reserved at its width faults rather than computing.
 
+### The fault model's remaining questions, closed (IS-16)
+
+**Entry register state is defined**: every GPR reads zero, every predicate false, every
+`chwidth` 32, at no cost (§5.2). **A CTA has at most 16 barriers** (O-59): IDs 16–63 raise
+`F-ILLEGAL`, and an ID past the CTA's allocation raises a ninth cause, `F-BARRIER`, at dispatch.
+
 ### Still open
 
-Barrier references beyond a CTA's allocation (the fault model's question 3) and entry register
-state (§5.2's "undefined", which invariant 12 now forbids) are in §8 with a recommendation each.
-SFU accuracy is ruled under IS-12 but its PTX bound table is not yet written.
+SFU accuracy is ruled under IS-12, but its PTX bound table is not yet written.
 
 ---
 
@@ -305,7 +309,7 @@ and 1.59× at 16**, counted as narrow element-work operations retired per cycle 
 first build and put all other options on our future features register to evaluate later";
 and on the 16-bit figure: "Yes, 1.59/2 is an acceptable utilization ratio for a first
 implementation." (DA's responses OA-19, 2026-10-20.) An aligned-half fallback reaches 1.90×
-at 16 bits but synthesises at 26.8 NGD against the 25 stage; it is PF-31 on the perf register. The gap at 8 bits has one main
+at 16 bits but synthesises at 26.8 NGD against the 25 stage; it is PF-38 on the perf register. The gap at 8 bits has one main
 cause: one home section per warp leaves select without ready narrow work in the other three.
 The remedies are on the perf register, not in this revision: compiler-declared register
 positions (OI-35, PF-29), whose encoding has a home in `chwidth`'s spare bits, and a
@@ -549,7 +553,7 @@ compressed.
 | 48 | `chwidth rd, width` | `[13:12]` = width code |
 | 49 | `bra.short` | `[15:8]` = 8-bit signed halfword offset |
 | 50 | `call.short` | `[15:8]` = 8-bit signed halfword offset; **implicit** link register |
-| 51 | `bar.arrive #id` | `[13:8]` = 6-bit barrier ID |
+| 51 | `bar.arrive #id` | `[13:8]` = 6-bit barrier ID; 0–15 valid, 16–63 reserved (O-59) |
 | 52 | `bar.wait #id` | `[13:8]` = barrier ID; phase is implicit (O-27), `[14:15]` reserved |
 | 53 | `ret rs` | `[15:12]` = `rs`, link-register source |
 | 54 | `exit` | unused |
@@ -1341,7 +1345,7 @@ still 18 bits (±256 KB), sign bit still at 31. Same technique as Format D′.
 | `[1:0]` | 2 | length = `00` |
 | `[5:2]` | 4 | fmt = `1010` |
 | `[10:6]` | 5 | opcode = `bar.init` |
-| `[16:11]` | 6 | barrier ID (64 entries — matches the 4×16 table) |
+| `[16:11]` | 6 | barrier ID: 0–15 valid, 16–63 reserved (O-59) |
 | `[26:17]` | 10 | expected arrival count |
 | `[31:27]` | 5 | reserved |
 
@@ -2038,9 +2042,13 @@ which matters at 16 GPRs. The ISA already has the right contract: `.const`, read
 `ld.global` and protected by `F-RO` on any store or atomic (§3, O-51). The launch block is
 `.const`.
 
-**No register holds an ABI value at entry**, and no hardware convention is baked in. *(1.8 said
-"entry register state is undefined", which invariant 12 forbids; what entry registers read is
-open in §8, with zero recommended.)* The block sits at a fixed architectural address and the
+**Entry register state — normative (IS-16).** At kernel entry every GPR reads zero, at every
+width and every position; every predicate reads false; and every register's `chwidth` is 32.
+No register holds an ABI value, so the launch block (below) is how a kernel finds its
+arguments. This costs nothing: launch maps every logical register to the hardwired zero
+registers, so no row is written, and it closes the O-38 exposure of a new grid reading a
+previous grid's values. *(1.8 said "entry register state is undefined", which invariant 12
+forbids.)* The block sits at a fixed architectural address and the
 prologue materializes it in one instruction:
 
 ```
@@ -2793,6 +2801,19 @@ remains is `ccv-sim` faulting rather than counting, so that the oracle agrees wi
 
 ---
 
+**O-59 — A CTA has at most 16 barriers; past its allocation is `F-BARRIER` — decided in 1.9.**
+IS-16 item 2, on AR's response. The 6-bit ID was annotated "64 entries — matches the 4×16
+table", reading a per-SM table as a per-CTA reach, while the interfaces carry 4 bits ("16
+barriers per CTA", `CCV_W_BAR_ID`), so an ID of 16 or more would have wrapped onto 0. Sixteen is
+PTX's named-barrier limit, so nothing the compatibility target can express is lost. IDs 16–63
+become reserved values, decidable from the encoding, and raise `F-ILLEGAL`. An ID below 16 but
+at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at dispatch, checked in
+OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
+bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
+path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
 **O-43 — A hardwired zero register — rejected.** Proposed on the strength of five
 `movi rX, 0` in the benchmark. Checking what each feeds dissolves it: **two** are `setp.eq`
 against zero and Format C′ already carries the immediate compare, so they are a selection
@@ -2893,20 +2914,14 @@ cannot serve.
 
 ---
 
-**Opened in 1.9 by the fault model — two states invariant 12 now forbids leaving undefined.**
+**Opened in 1.9 by the fault model — states invariant 12 now forbids leaving undefined.**
 
-**Barrier references beyond a CTA's allocation.** The 6-bit barrier ID addresses all 64
-table entries. If a CTA is allocated fewer than 64, nothing yet says what a reference to an
-unallocated entry does. The recommendation is `F-ILLEGAL`-class treatment at dispatch,
-checked against the CTA's allocation as `F-SHARED` checks its shared-memory bound, but it
-needs a cause code and an owner for the bound: RAU holds the allocation. Open with IS.
+**Barrier references beyond a CTA's allocation** — opened and closed in 1.9 (O-59): a CTA has
+at most 16 barriers; IDs 16–63 raise `F-ILLEGAL`, and an ID at or above the CTA's allocated
+count raises `F-BARRIER` at dispatch (§12.3).
 
-**Entry register state.** §5.2 says entry register state is undefined, which invariant 12
-forbids and which O-38 makes a security question: a physical register reused across launches
-must not show another grid's data. Teardown clears across contexts (§12.7); within a context,
-a new grid's warps would still see stale values. The recommendation is that every GPR and
-predicate reads zero at entry. Under rename that is cheap: map every logical register at entry
-to a zero physical row, so no row is written. Open with IS, for OA to confirm the cost.
+**Entry register state** — opened and closed in 1.9: every register reads zero (false for
+predicates, `chwidth` 32) at entry, §5.2, at no cost (OA's IS-16 response).
 
 
 ## 9. Decision log — resolved during specification
@@ -4263,6 +4278,7 @@ raises an execute-stage fault, whatever its operand values.
 | `F-ADDR` | Execute | Effective address not mapped, or not permitted for the context |
 | `F-SHARED` | Execute | `.shared` access outside the CTA's allocation |
 | `F-RO` | Execute | Store or atomic to read-only memory: the launch block and `.const` (§5.2, O-51) |
+| `F-BARRIER` | Dispatch | Barrier ID (`bar.arrive`, `bar.wait`, `bar.init`, `bar.wait.phase`) at or above the CTA's allocated barrier count (O-59) |
 
 **`F-ILLEGAL` covers every encoding that names no operation.** Reserved opcode points (Format K
 29–31, §4 integer 26–31, `dp` 60–63, Format D `01110`+, Format E `00101`+, any tag at a length it
@@ -4272,8 +4288,10 @@ the meaningless-rounding points of the conversion product); and non-canonical en
 with `opcode[9:7]` = `000`, O-37). Must-be-zero rather than ignored: an ignored field can never
 be given meaning, because code that happened to set it would change behaviour.
 
-**`F-WIDTH` and `F-FORMAT` are the two well-formed instructions whose operand state names
-nothing.** A memory access has no 4-bit transfer (§1). A format code that is reserved at its
+**`F-WIDTH`, `F-FORMAT` and `F-BARRIER` are the well-formed instructions whose state names
+nothing.** `F-BARRIER` checks the barrier ID, an immediate, against the CTA's allocated count,
+which OOE holds per tier-1 slot from RAU; the barrier instructions are unpredicated, so the
+dispatch check is exact, and a faulting reference never reaches SYU (AR's IS-16 response). A memory access has no 4-bit transfer (§1). A format code that is reserved at its
 register's width (codes `10`/`11` at every width in the FP block; `01` at 32 and 4 bits) means
 nothing there, and O-34 names `01` at 32 bits as TF32's home if it is ever wanted, so faulting
 keeps it open. Distinct from a format *mismatch*: a defined code against differently formatted
@@ -4299,7 +4317,7 @@ lane.
 ### 12.5 Priority
 
 **Within one lane**, earlier stages win:
-`F-FETCH` > `F-ILLEGAL` > `F-WIDTH` / `F-FORMAT` > `F-ALIGN` > `F-ADDR` / `F-SHARED` > `F-RO`.
+`F-FETCH` > `F-ILLEGAL` > `F-WIDTH` / `F-FORMAT` / `F-BARRIER` > `F-ALIGN` > `F-ADDR` / `F-SHARED` > `F-RO`.
 `F-ALIGN` precedes the address checks because it is decidable from the address alone; `F-RO`
 follows `F-ADDR` because read-only-ness is a property of a mapping.
 
