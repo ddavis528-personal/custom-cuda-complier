@@ -4342,7 +4342,7 @@ faults do not overwrite it.
 | Cause | One of §12.3's codes |
 | PC | The faulting instruction's address |
 | Lane mask | Fetch, decode, dispatch: the issue mask. Execute: issue mask ∩ predicate ∩ faulting lanes |
-| Address | Execute-stage memory causes: the address of the lowest lane raising the reported cause |
+| Address | Execute-stage memory causes: the address of the lowest lane raising the reported cause, as generated, in full — including any bits above 48 that made it non-canonical (`F-ADDR`) |
 | CTA ID, warp ID | The faulting warp's location |
 
 The record is visible only to the context's owning host process. Whether it lives in MMIO
