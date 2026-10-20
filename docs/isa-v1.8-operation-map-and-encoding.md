@@ -71,6 +71,10 @@ ever meant.
 **Format M states properties, not a site (AR-21).** Its preamble named lane-ALU execution
 on the buffered old value; that is struck, and the properties it implied stay.
 
+**§1a obligation 4 states the rate the first build is held to (OA-19).** The 2× and 4×
+ladder stays the target. The first build is held to the measured 2.40× at 8 bits and 1.90× at
+16, at four warps, by DA's decision, with the remedies on the perf register.
+
 ### A compiler contract replaced by hardware behaviour
 
 **`.const` is hardware-protected (O-51; IS-3).** 1.7 called it read-only "by compiler
@@ -354,6 +358,21 @@ on the same device, and a compiler that has been emitting zero-extensions which 
 > alike: every execution unit but the SFU has a one-section minimum footprint, so E4M3 and
 > E5M2 at `chwidth`=8, and E2M1 at `chwidth`=4, reach 4× on the same terms as INT8 (DA's
 > response IS-7, 2026-10-09). The SFU's minimum is four sections.
+
+**The first build meets a measured rate, not the ladder (DA's response OA-19, 2026-10-20).**
+The ladder above is the obligation's target and stays the target. What the first build is
+held to is what the OOE model measured at four resident warps under the decided default,
+home section = tier-1 slot index, with select's fallback pick: **2.40× at 8 bits and 1.90× at
+16**, counted as narrow element-work operations retired per cycle against the 32-bit rate
+(OI's IS-9 run). Daniel's words: "Let's go with (a) for our first build and put all other
+options on our future features register to evaluate later." The gap at 8 bits has one main
+cause: one home section per warp leaves select without ready narrow work in the other three.
+The remedies are on the perf register, not in this revision: compiler-declared register
+positions (OI-35, PF-29), whose encoding has a home in `chwidth`'s spare bits, and a
+warp-uniform register file with a loop-uniformization transform (CP-7), worth at most 1.28×.
+*(Earlier revisions stated the ladder as what the hardware delivers. IS-9 measured it, the
+default fell short, and the decision was to accept the measured rate rather than build more
+for the first silicon.)*
 
 This is the whole reason the element-width model exists. Invariant 1 makes width per-register
 state rather than an opcode field precisely so that a narrow instruction is the *same*
