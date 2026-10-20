@@ -364,7 +364,10 @@ The ladder above is the obligation's target and stays the target. What the first
 held to is what the OOE model measured at four resident warps under the decided default,
 home section = tier-1 slot index, with select's fallback pick: **2.40× at 8 bits and 1.90× at
 16**, counted as narrow element-work operations retired per cycle against the 32-bit rate
-(OI's IS-9 run). Daniel's words: "Let's go with (a) for our first build and put all other
+(OI's IS-9 run). **The 16-bit figure is conditional:** 1.90× needs select's aligned-half
+fallback, which measures 26.8 NGD against the 25 stage (OI, 2026-10-20). Without it the rate
+at 16 bits is 1.59×, and that figure goes back to DA through OA-19 unless OA finds a half pick
+that fits. Daniel's words: "Let's go with (a) for our first build and put all other
 options on our future features register to evaluate later." The gap at 8 bits has one main
 cause: one home section per warp leaves select without ready narrow work in the other three.
 The remedies are on the perf register, not in this revision: compiler-declared register
