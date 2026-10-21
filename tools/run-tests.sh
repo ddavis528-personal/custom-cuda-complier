@@ -206,14 +206,14 @@ run_faults() {
     python3 "$AS" "$JSON" "test/faults/$t.s" "$TMP/f.bin" >/dev/null || { bad=1; continue; }
     out=$("$SIM" "$TMP/f.bin" -poke 0x50000=57005 -peek 0x50000 2>&1); rc=$?
     if [ -z "$want" ]; then
-      if [ $rc -ne 0 ] || echo "$out" | grep -q FAULT; then
+      if [ $rc -ne 0 ] || grep -q FAULT <<< "$out"; then
         echo "    $t: faulted or failed where nothing executes the access: $out"; bad=1; fi
-    elif [ $rc -ne 3 ] || ! echo "$out" | grep -qF "$want"; then
+    elif [ $rc -ne 3 ] || ! grep -qF "$want" <<< "$out"; then
       echo "    $t: want '$want' (status 3), got status $rc: $out"; bad=1
     fi
     # Precision: the faulting instruction leaves no trace, its aligned lanes
     # included -- and nothing before it in these tests touches 0x50000.
-    echo "$out" | grep -q '\[0x50000\] = 57005' || { echo "    $t: [0x50000] changed"; bad=1; }
+    grep -q '\[0x50000\] = 57005' <<< "$out" || { echo "    $t: [0x50000] changed"; bad=1; }
   done
   [ $bad -eq 0 ] && echo "  PASS  faults: F-ALIGN precise and predicate-gated, F-WIDTH ignores the predicate, F-ILLEGAL, F-FETCH, F-BARRIER" \
                  || { echo "  FAIL  the fault model"; return 1; }
@@ -229,10 +229,10 @@ run_call || fail=1
 # The compiler side: CCVInsertChwidth places the mode switches, and the two
 # things that are easy to get wrong are both pinned here.
 chw=$(build/ccv-llc test/accept/chwidth-i16.ll -o - 2>/dev/null)
-if ! echo "$chw" | grep -q "chwidth r"; then
+if ! grep -q "chwidth r" <<< "$chw"; then
   echo "  FAIL  no chwidth emitted for a 16-bit kernel"
   fail=1
-elif echo "$chw" | grep -qE "^	chwidth r1,"; then
+elif grep -qE "^	chwidth r1," <<< "$chw"; then
   # r1 is the store's base address. §3 takes transfer size from rdata's
   # chwidth alone, and invariant 11 says an address is never narrow. A
   # per-instruction width tag sets the mode here; a per-operand one does not.
@@ -258,7 +258,7 @@ bo=$(build/ccv-llc test/accept/base-offset-i16.ll -o - 2>/dev/null)
 if [ -z "$bo" ]; then
   echo "  FAIL  base-offset-i16.ll did not compile"
   fail=1
-elif echo "$bo" | grep -qE "chwidth(\.multi)? [^,]+, 0$"; then
+elif grep -qE "chwidth(\.multi)? [^,]+, 0$" <<< "$bo"; then
   echo "  FAIL  16-bit base+offset access selected the 32-bit form"
   echo "        (a widening chwidth in an all-16-bit kernel means the"
   echo "         transfer is four bytes wide for a two-byte element)"
@@ -271,7 +271,7 @@ fi
 # zero-extension. If a masking instruction ever appears in that path, either
 # O-38 was reverted or the pattern stopped firing.
 zx=$(echo "$chw" | sed -n '/zext_is_free:/,/exit/p')
-if echo "$zx" | grep -qE "^	(and|f48) "; then
+if grep -qE "^	(and|f48) " <<< "$zx"; then
   echo "  FAIL  zext emitted a masking instruction; O-38 makes it free"
   echo "$zx" | sed 's/^/        /'
   fail=1
@@ -297,11 +297,11 @@ fi
 echo
 echo "  --- select lowering ---"
 sel_out=$(build/ccv-llc test/accept/select-predicated.ll -o - 2>/dev/null)
-if echo "$sel_out" | grep -qw sel; then
+if grep -qw sel <<< "$sel_out"; then
   echo "  FAIL  select lowered to \`sel\`, which activates all 32 lanes"
   echo "$sel_out" | grep -w sel | sed 's/^/        /'
   fail=1
-elif echo "$sel_out" | grep -q "@p[0-9] mov"; then
+elif grep -q "@p[0-9] mov" <<< "$sel_out"; then
   echo "  PASS  select lowers to a predicated move ($(echo "$sel_out" | grep -c "@p[0-9] mov") of them)"
 else
   echo "  FAIL  select produced neither \`sel\` nor a predicated move"
@@ -335,7 +335,7 @@ if [ -x build/ccv-llc ]; then
   done
   for f in test/reject/*.ll; do
     out=$(build/ccv-llc "$f" -o "$TMP/r.s" 2>&1); rc=$?
-    if [ $rc -eq 1 ] && echo "$out" | grep -q "cannot be lowered"; then
+    if [ $rc -eq 1 ] && grep -q "cannot be lowered" <<< "$out"; then
       echo "  PASS  diagnoses $(basename "$f")"
     elif [ $rc -eq 0 ]; then
       echo "  FAIL  $(basename "$f") compiled -- should be rejected"; fail=1
@@ -437,7 +437,7 @@ fi
 echo
 echo "  --- srd destination width ---"
 if [ -x build/ccv-llc ]; then
-  if build/ccv-llc test/accept/base-index.ll -o - 2>/dev/null | grep -q "srd "; then
+  if grep -q "srd " <<< "$(build/ccv-llc test/accept/base-index.ll -o - 2>/dev/null)"; then
     echo "  PASS  srd compiles at 32 bits"
   else
     echo "  FAIL  base-index.ll no longer compiles to an srd"; fail=1
