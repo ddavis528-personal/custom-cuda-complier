@@ -106,7 +106,7 @@ index plus negate, which `uses` cannot show), every
 register it writes with its value
 after, and each memory access attributed to its lane (a predicate transfer is
 warp-scoped, one word per predicate at lane 0's address, and is attributed to
-the lowest executing lane). The file opens with an
+lane 0, whose `rbase` forms it, whether or not lane 0 executes). The file opens with an
 `init` record (code, launch geometry, seeded memory) and closes with a `final`
 one (all GPRs and predicates, and every memory word the run touched). It is
 strict rather than approximate: a step whose accesses cannot be matched one per
