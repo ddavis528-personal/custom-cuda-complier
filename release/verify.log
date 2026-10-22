@@ -3,7 +3,7 @@
   gen-emitter          ok (2405 lines)
   gen-disassembler     ok (1367 lines)
   gen-asm-writer       ok (1429 lines)
-  gen-dag-isel         ok (1486 lines)
+  gen-dag-isel         ok (1502 lines)
   gen-callingconv      ok (92 lines)
 
 checked 258 instructions
@@ -68,9 +68,13 @@ checked 258 instructions
   PASS  control -ccv-test-ignore-indirect-frames is caught: 16 of 32 lanes wrong; lane 0: got 2099740282, want 2099937551
   PASS  control -ccv-code-base=0 is caught: did not run: FAULT F-FETCH  pc=0  lanes=aaaaaaaa  addr=0  cta=0 warp=0
   pointers in memory (CP-3)
-  PASS  ptrmem.cu: 32 pointers read from memory and 32 written, across 4 GiB (36 issue groups)
+  PASS  ptrmem.cu: 32 pointers read from memory and 32 written, across 4 GiB (39 issue groups)
   PASS  control -ccv-test-no-ptr-carry is caught: 8 wrong; first: slots[3] = 0x0, want 0x100000000
   PASS  control -ccv-test-swap-ptr-halves is caught: 63 wrong; first: slots[0] = 0x10, want 0x50010
+  pointers as values (F-22)
+  PASS  ptrlist.cu: lists built, reversed, walked and searched on 32 lanes across a window boundary (804 issue groups)
+  PASS  control -ccv-test-raw-ptr-compare is caught: 16 of 32 lanes wrong; lane 16: [1308, 8, 160, 33], want [1308, 8, 160, 35]
+  PASS  control -ccv-test-frame-window-r15 is caught: 32 of 32 lanes wrong; lane 0: [0, 0, 0, 35], want [28, 8, 0, 35]
   forward progress between diverged lanes (O-60)
   PASS  spinwait hangs under strict lowest-PC-first (the control)
   PASS  test/spinwait.s assembles to the compiled kernel's bytes
@@ -90,7 +94,7 @@ checked 258 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  36 documents: paths resolve, 162 findings and 60 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 166 findings and 60 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings

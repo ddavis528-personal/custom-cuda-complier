@@ -113,6 +113,11 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     ReplaceNode(N, CurDAG->getMachineNode(CCV::MOVI, DL, MVT::i32,
                                           N->getOperand(0)));
     return;
+  case CCVISD::FRAMEOFF:
+    // movi of a frame object; eliminateFrameIndex makes it the offset.
+    ReplaceNode(N, CurDAG->getMachineNode(CCV::MOVI, DL, MVT::i32,
+                                          N->getOperand(0)));
+    return;
   case CCVISD::CALL: {
     // An indirect call targets its function's `ret` stub, an MCSymbol, which
     // the i32-typed declarative pattern cannot match (mcsym is pointer-typed).
@@ -406,6 +411,24 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     SDNode *New = CurDAG->getMachineNode(Opc, DL, MVT::i1, MVT::i32,
                                          {LHS, RHS});
     ReplaceNode(N, SDValue(New, 0).getNode());
+    return;
+  }
+  case ISD::ZERO_EXTEND:
+  case ISD::ANY_EXTEND: {
+    // A predicate as 0 or 1. The combiner makes one of `select c, x + 1, x`,
+    // which is how a stored pointer's carry is written (§5.7), as x + zext c.
+    // It is a select of the two constants, a predicated move.
+    if (N->getValueType(0) != MVT::i32 ||
+        N->getOperand(0).getValueType() != MVT::i1)
+      break;
+    auto Imm = [&](int V) {
+      return SDValue(CurDAG->getMachineNode(
+                         CCV::MOVI, DL, MVT::i32,
+                         CurDAG->getTargetConstant(V, DL, MVT::i32)),
+                     0);
+    };
+    ReplaceNode(N, CurDAG->getMachineNode(CCV::PSEUDO_PMOV, DL, MVT::i32,
+                                          {Imm(0), N->getOperand(0), Imm(1)}));
     return;
   }
   case ISD::SELECT: {

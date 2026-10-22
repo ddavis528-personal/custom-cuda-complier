@@ -24,6 +24,7 @@ enum NodeType : unsigned {
   LD_FRAME,   ///< load  from a .local frame slot -- chain, FI, idx, scale
   ST_FRAME,   ///< store to   a .local frame slot -- chain, value, FI, idx, scale
   CODEADDR,   ///< a function's 32-bit code address -- target global (F-21)
+  FRAMEOFF,   ///< a frame object's offset in the window below R15's -- target FI
 };
 } // namespace CCVISD
 
@@ -39,6 +40,14 @@ public:
   EVT getSetCCResultType(const DataLayout &, LLVMContext &,
                          EVT VT) const override {
     return MVT::i1;
+  }
+
+  /// No access is wider than 32 bits, so adjacent stores merge no further: a
+  /// merged i64 store reached the type legalizer with its address already a
+  /// frame or window node, and splitting it again crashed.
+  bool canMergeStoresTo(unsigned, EVT MemVT,
+                        const MachineFunction &) const override {
+    return MemVT.getSizeInBits() <= 32;
   }
 
   SDValue LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv,

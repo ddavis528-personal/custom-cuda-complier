@@ -34,10 +34,12 @@
 //===----------------------------------------------------------------------===//
 #include "CCVCheckIR.h"
 #include "CCVFrameLowering.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/ValueHandle.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
@@ -61,6 +63,10 @@ static cl::opt<bool> TestDropPairOffset(
 static cl::opt<bool> TestNoPtrCarry(
     "ccv-test-no-ptr-carry", cl::init(false), cl::Hidden,
     cl::desc("store pointers without the carry, to test that it is caught"));
+static cl::opt<bool> TestRawPtrCompare(
+    "ccv-test-raw-ptr-compare", cl::init(false), cl::Hidden,
+    cl::desc("compare pointers' pairs rather than their addresses, to test "
+             "that it is caught"));
 static cl::opt<bool> TestSwapPtrHalves(
     "ccv-test-swap-ptr-halves", cl::init(false), cl::Hidden,
     cl::desc("load pointers with their words swapped, to test that it is caught"));
@@ -78,20 +84,112 @@ bool isWindowed(Type *T) {
   return PT && (PT->getAddressSpace() == 0 || PT->getAddressSpace() == 1);
 }
 
-/// An i32 for a GEP index: the operand of the sign- or zero-extension clang
-/// put there, or a truncation. Byte offsets are 32-bit by F-23.
-Value *narrow(IRBuilder<> &B, Value *Idx) {
+/// An i64 index expression rebuilt in 32 bits, or null: extensions of i32
+/// values, constants, and the arithmetic whose low 32 bits depend only on its
+/// operands' low 32 bits. Sound for a byte offset, which is 32-bit by F-23.
+Value *narrowTree(IRBuilder<> &B, Value *V, unsigned Depth = 0) {
   Value *X;
-  if ((match(Idx, m_SExt(m_Value(X))) || match(Idx, m_ZExt(m_Value(X)))) &&
+  if (V->getType()->isIntegerTy(32))
+    return V;
+  if ((match(V, m_SExt(m_Value(X))) || match(V, m_ZExt(m_Value(X)))) &&
       X->getType()->isIntegerTy(32))
     return X;
+  if (auto *C = dyn_cast<ConstantInt>(V))
+    return B.getInt32(uint32_t(C->getZExtValue()));
+  auto *BO = dyn_cast<BinaryOperator>(V);
+  if (!BO || Depth > 8)
+    return nullptr;
+  switch (BO->getOpcode()) {
+  case Instruction::Add: case Instruction::Sub: case Instruction::Mul:
+  case Instruction::And: case Instruction::Or:  case Instruction::Xor:
+  case Instruction::Shl:
+    break;
+  default:
+    return nullptr;
+  }
+  Value *L = narrowTree(B, BO->getOperand(0), Depth + 1);
+  Value *R = L ? narrowTree(B, BO->getOperand(1), Depth + 1) : nullptr;
+  return R ? B.CreateBinOp(BO->getOpcode(), L, R) : nullptr;
+}
+
+/// An i32 for a GEP index: the operand of the sign- or zero-extension clang
+/// put there, the index rebuilt in 32 bits, or a truncation. Byte offsets are
+/// 32-bit by F-23.
+Value *narrow(IRBuilder<> &B, Value *Idx) {
+  if (Value *N = narrowTree(B, Idx))
+    return N;
   return B.CreateSExtOrTrunc(Idx, B.getInt32Ty());
 }
+
+/// Is V an index the backend's address matcher takes as it is: a constant, or
+/// a 32-bit value, extended or not?
+bool simpleIndex(Value *V) {
+  Value *X;
+  return isa<ConstantInt>(V) || V->getType()->isIntegerTy(32) ||
+         ((match(V, m_SExt(m_Value(X))) || match(V, m_ZExt(m_Value(X)))) &&
+          X->getType()->isIntegerTy(32));
+}
+
+/// Do V's users read only its low 32 bits? Followed through the arithmetic
+/// whose low bits depend only on its operands' low bits, to truncations, GEP
+/// indices and masks. Anything else -- a compare, a division, a store of the
+/// whole value -- may read the high half.
+bool onlyLowBits(Value *V, unsigned Depth = 0) {
+  if (Depth > 8)
+    return false;
+  for (User *U : V->users()) {
+    if (auto *T = dyn_cast<TruncInst>(U); T && T->getType()->getIntegerBitWidth() <= 32)
+      continue;
+    if (auto *G = dyn_cast<GetElementPtrInst>(U); G && G->getPointerOperand() != V)
+      continue;
+    auto *BO = dyn_cast<BinaryOperator>(U);
+    if (!BO)
+      return false;
+    if (BO->getOpcode() == Instruction::And)
+      if (auto *C = dyn_cast<ConstantInt>(BO->getOperand(1)); C && C->getValue().isIntN(32))
+        continue;
+    switch (BO->getOpcode()) {
+    case Instruction::Add: case Instruction::Sub: case Instruction::Mul:
+    case Instruction::And: case Instruction::Or:  case Instruction::Xor:
+    case Instruction::Shl:
+      if (!onlyLowBits(BO, Depth + 1))
+        return false;
+      continue;
+    default:
+      return false;
+    }
+  }
+  return true;
+}
+
+/// Pairs already built for pointer phis and selects (step 2.5), while that
+/// step runs: a phi's pair is made before its incoming values are, so a loop
+/// can refer to itself.
+DenseMap<Value *, Pair> *Known = nullptr;
 
 /// The (rbase, roffset) a pointer was built from, materialized at B's
 /// insertion point, or nothing if it was not built from one.
 std::optional<Pair> decompose(Value *V, IRBuilder<> &B, const DataLayout &DL) {
   V = V->stripPointerCasts();
+  if (Known)
+    if (auto It = Known->find(V); It != Known->end())
+      return It->second;
+
+  // NULL is address 0: window 0, offset 0.
+  if (isa<ConstantPointerNull>(V) || isa<UndefValue>(V))
+    return Pair{B.getInt32(0), B.getInt32(0)};
+
+  // A select of pointers is a select of each half, made where the select is.
+  if (auto *S = dyn_cast<SelectInst>(V); S && Known) {
+    IRBuilder<> SB(S);
+    auto T = decompose(S->getTrueValue(), SB, DL);
+    auto F = T ? decompose(S->getFalseValue(), SB, DL) : std::nullopt;
+    if (!T || !F)
+      return std::nullopt;
+    Pair P{SB.CreateSelect(S->getCondition(), T->Base, F->Base),
+           SB.CreateSelect(S->getCondition(), T->Off, F->Off)};
+    return (*Known)[S] = P;
+  }
 
   if (auto *GEP = dyn_cast<GEPOperator>(V)) {
     auto P = decompose(GEP->getPointerOperand(), B, DL);
@@ -117,6 +215,22 @@ std::optional<Pair> decompose(Value *V, IRBuilder<> &B, const DataLayout &DL) {
       Off = B.CreateAdd(Off, B.CreateMul(narrow(B, Idx), B.getInt32(uint32_t(Size))));
     }
     return Pair{P->Base, TestDropPairOffset ? P->Off : Off};
+  }
+
+  // A pointer into the thread's frame. Frame slot d (-4096 <= d < 0) is at
+  // (R15 << 16) + d, which as a pair is (R15 - 1, 65536 + d): the window below
+  // R15's and an offset only frame layout knows. The backend recognises these
+  // two calls by name (CCVISelLowering, LowerCall).
+  if (auto *AI = dyn_cast<AllocaInst>(V)) {
+    Module *M = AI->getModule();
+    Type *I32 = B.getInt32Ty();
+    FunctionCallee W =
+        M->getOrInsertFunction("__ccv_frame_window", FunctionType::get(I32, false));
+    FunctionCallee O = M->getOrInsertFunction(
+        "__ccv_frame_offset", FunctionType::get(I32, {AI->getType()}, false));
+    for (FunctionCallee C : {W, O})
+      cast<Function>(C.getCallee())->setDoesNotAccessMemory();
+    return Pair{B.CreateCall(W), B.CreateCall(O, {AI})};
   }
 
   Value *Int = nullptr;
@@ -169,6 +283,25 @@ std::pair<Value *, Value *> halves(IRBuilder<> &B, Value *Addr) {
   return {Addr, Hi};
 }
 
+/// A pair's flat 64-bit address as two words (§5.7): lo = (rbase << 16) +
+/// roffset, hi = (rbase >> 16) plus the carry out of lo. The carry is the
+/// arithmetic carry-out of x + y = s, ((x & y) | ((x | y) & ~s)) >> 31, not a
+/// compare and a predicated add: there are three allocatable predicates, and
+/// seven pointer stores scheduled together held seven carries live at once,
+/// which ran the allocator out of predicate registers rather than spilling.
+std::pair<Value *, Value *> flat(IRBuilder<> &B, Value *RBase, Value *ROff,
+                                 bool Carry = true) {
+  Value *X = B.CreateShl(RBase, 16), *Y = ROff;
+  Value *Lo = B.CreateAdd(X, Y);
+  Value *Hi = B.CreateLShr(RBase, 16);
+  if (Carry)
+    Hi = B.CreateAdd(
+        Hi, B.CreateLShr(B.CreateOr(B.CreateAnd(X, Y),
+                                    B.CreateAnd(B.CreateOr(X, Y), B.CreateNot(Lo))),
+                         31));
+  return {Lo, Hi};
+}
+
 /// Loads of pointers, rewritten before anything else so that a pointer read
 /// from memory can then be passed, forwarded and stored like any other.
 void lowerPointerLoads(Module &M) {
@@ -209,12 +342,7 @@ void lowerPointerStores(Module &M) {
           auto P = decompose(SI->getValueOperand(), B, DL);
           if (!P)
             continue;                  // CCVCheckIR names it
-          Lo = B.CreateAdd(B.CreateShl(P->Base, 16), P->Off);
-          Hi = B.CreateLShr(P->Base, 16);
-          // A compare and a predicated add (§5.7; §4 has no add-with-carry).
-          if (!TestNoPtrCarry)
-            Hi = B.CreateSelect(B.CreateICmpULT(Lo, P->Off),
-                                B.CreateAdd(Hi, B.getInt32(1)), Hi);
+          std::tie(Lo, Hi) = flat(B, P->Base, P->Off, !TestNoPtrCarry);
         }
         Align A = std::min(SI->getAlign(), Align(4));
         auto [LoP, HiP] = halves(B, SI->getPointerOperand());
@@ -255,6 +383,43 @@ void llvm::lowerCCVPointerPairs(Module &M) {
 
   // 0. Pointers read from memory take the rebuilt shape first.
   lowerPointerLoads(M);
+
+  // 0b. A 64-bit integer access is two 32-bit ones, low word first: there is
+  //     no 64-bit load or store, and the type legalizer cannot split one whose
+  //     address has already become a frame or window node. The middle end
+  //     makes them by merging narrower stores -- four 16-bit zeroings of
+  //     CoreMark's CRC fields became one `store i64 0`.
+  for (Function &F : M)
+    for (Instruction &I : make_early_inc_range(instructions(F))) {
+      IRBuilder<> B(&I);
+      if (auto *SI = dyn_cast<StoreInst>(&I);
+          SI && SI->isSimple() && SI->getValueOperand()->getType()->isIntegerTy(64)) {
+        Value *V = SI->getValueOperand();
+        Align A = std::min(SI->getAlign(), Align(4));
+        auto [LoP, HiP] = halves(B, SI->getPointerOperand());
+        B.CreateAlignedStore(B.CreateTrunc(V, I32), LoP, A);
+        B.CreateAlignedStore(B.CreateTrunc(B.CreateLShr(V, 32), I32), HiP, A);
+        SI->eraseFromParent();
+      } else if (auto *LI = dyn_cast<LoadInst>(&I);
+                 LI && LI->isSimple() && LI->getType()->isIntegerTy(64)) {
+        Align A = std::min(LI->getAlign(), Align(4));
+        auto [LoP, HiP] = halves(B, LI->getPointerOperand());
+        Value *Lo = B.CreateZExt(B.CreateAlignedLoad(I32, LoP, A), LI->getType());
+        Value *Hi = B.CreateZExt(B.CreateAlignedLoad(I32, HiP, A), LI->getType());
+        LI->replaceAllUsesWith(B.CreateOr(Lo, B.CreateShl(Hi, 32)));
+        LI->eraseFromParent();
+      }
+    }
+
+  // Call arguments step 2 could not split until step 2.5 has given every
+  // pointer phi and select its pair: the call, the argument's first slot, and
+  // the pointer, tracked through step 2.5's replacement.
+  struct Later {
+    CallInst *NC;
+    unsigned K;
+    WeakTrackingVH A;
+  };
+  SmallVector<Later, 8> Pending;
 
   // 1. New signatures. Each windowed pointer parameter becomes two i32, and
   //    a windowed pointer return becomes {i32, i32}. The body moves across,
@@ -307,26 +472,24 @@ void llvm::lowerCCVPointerPairs(Module &M) {
         continue;                      // a code address: moved to NF below
       IRBuilder<> B(CB);
       SmallVector<Value *, 8> Args;
-      bool OK = true;
+      SmallVector<std::pair<unsigned, Value *>, 2> Later;
       for (Value *A : CB->args()) {
         if (!isWindowed(A->getType())) {
           Args.push_back(A);
           continue;
         }
         auto P = decompose(A, B, DL);
-        if (!P) {
-          OK = false;
-          break;
+        if (!P) {                      // a phi or a select: step 2.5 first
+          Later.push_back({unsigned(Args.size()), A});
+          Args.append({PoisonValue::get(I32), PoisonValue::get(I32)});
+          continue;
         }
         Args.push_back(P->Base);
         Args.push_back(P->Off);
       }
-      if (!OK)
-        report_fatal_error(
-            "CCV: a pointer passed to " + NF->getName() +
-            " is not one this compiler can split into a window and an offset "
-            "-- one read from memory, or from a phi or a select (F-22, CP-3)");
       auto *NC = B.CreateCall(NF, Args);
+      for (auto [K, A] : Later)
+        Pending.push_back({NC, K, WeakTrackingVH(A)});
       if (isWindowed(CB->getType())) {
         Value *RB = B.CreateExtractValue(NC, 0), *RO = B.CreateExtractValue(NC, 1);
         CB->replaceAllUsesWith(rebuild(B, RB, RO, CB->getType()));
@@ -355,28 +518,27 @@ void llvm::lowerCCVPointerPairs(Module &M) {
       IRBuilder<> B(CB);
       SmallVector<Type *, 8> Params;
       SmallVector<Value *, 8> Args;
-      bool OK = true;
+      SmallVector<std::pair<unsigned, Value *>, 2> Later;
       for (Value *A : CB->args()) {
         if (!isWindowed(A->getType())) {
           Params.push_back(A->getType());
           Args.push_back(A);
           continue;
         }
+        Params.append({I32, I32});
         auto P = decompose(A, B, DL);
         if (!P) {
-          OK = false;
-          break;
+          Later.push_back({unsigned(Args.size()), A});
+          Args.append({PoisonValue::get(I32), PoisonValue::get(I32)});
+          continue;
         }
-        Params.append({I32, I32});
         Args.append({P->Base, P->Off});
       }
-      if (!OK)
-        report_fatal_error("CCV: a pointer passed by an indirect call in " +
-                           Fn.getName() + " is not one this compiler can split "
-                           "into a window and an offset (F-22, CP-3)");
       Type *Ret = isWindowed(FT->getReturnType()) ? PairTy : FT->getReturnType();
       auto *NC = B.CreateCall(FunctionType::get(Ret, Params, false),
                               CB->getCalledOperand(), Args);
+      for (auto [K, A] : Later)
+        Pending.push_back({NC, K, WeakTrackingVH(A)});
       if (isWindowed(CB->getType())) {
         Value *RB = B.CreateExtractValue(NC, 0), *RO = B.CreateExtractValue(NC, 1);
         CB->replaceAllUsesWith(rebuild(B, RB, RO, CB->getType()));
@@ -386,6 +548,79 @@ void llvm::lowerCCVPointerPairs(Module &M) {
       NC->takeName(CB);
       CB->eraseFromParent();
     }
+
+  // 2.5. Pointer phis and selects become pairs: two i32 phis, made before
+  //      their incoming values so a loop's phi can refer to itself, and a
+  //      select of each half. Each original is then replaced by its rebuilt
+  //      shape, which everything after this decomposes.
+  {
+    DenseMap<Value *, Pair> Map;
+    Known = &Map;
+    SmallVector<PHINode *, 16> Phis;
+    SmallVector<SelectInst *, 16> Selects;
+    for (Function &F : M)
+      for (Instruction &I : instructions(F)) {
+        if (auto *PN = dyn_cast<PHINode>(&I); PN && isWindowed(PN->getType())) {
+          IRBuilder<> PB(PN);
+          unsigned N = PN->getNumIncomingValues();
+          Map[PN] = Pair{PB.CreatePHI(I32, N, PN->getName() + ".rbase"),
+                         PB.CreatePHI(I32, N, PN->getName() + ".roffset")};
+          Phis.push_back(PN);
+        } else if (auto *S = dyn_cast<SelectInst>(&I); S && isWindowed(S->getType())) {
+          Selects.push_back(S);
+        }
+      }
+    auto Fail = [](Instruction *I) {
+      report_fatal_error("CCV: a pointer " +
+                         Twine(isa<PHINode>(I) ? "phi" : "select") + " in " +
+                         I->getFunction()->getName() +
+                         " has a value this compiler cannot split into a "
+                         "window and an offset (F-22)");
+    };
+    for (PHINode *PN : Phis) {
+      Pair P = Map[PN];
+      for (unsigned I = 0, E = PN->getNumIncomingValues(); I != E; ++I) {
+        BasicBlock *From = PN->getIncomingBlock(I);
+        IRBuilder<> IB(From->getTerminator());
+        auto X = decompose(PN->getIncomingValue(I), IB, DL);
+        if (!X)
+          Fail(PN);
+        cast<PHINode>(P.Base)->addIncoming(X->Base, From);
+        cast<PHINode>(P.Off)->addIncoming(X->Off, From);
+      }
+    }
+    for (SelectInst *S : Selects) {
+      IRBuilder<> SB(S);
+      if (!decompose(S, SB, DL))
+        Fail(S);
+    }
+    for (PHINode *PN : Phis) {
+      IRBuilder<> B(&*PN->getParent()->getFirstInsertionPt());
+      PN->replaceAllUsesWith(rebuild(B, Map[PN].Base, Map[PN].Off, PN->getType()));
+    }
+    for (SelectInst *S : Selects) {
+      IRBuilder<> B(S);
+      S->replaceAllUsesWith(rebuild(B, Map[S].Base, Map[S].Off, S->getType()));
+    }
+    for (PHINode *PN : Phis)
+      PN->eraseFromParent();
+    for (SelectInst *S : Selects)
+      S->eraseFromParent();
+    Known = nullptr;
+  }
+
+  // 2.75. The call arguments step 2 could not split yet.
+  for (auto &[NC, K, A] : Pending) {
+    IRBuilder<> B(NC);
+    auto P = A ? decompose(A, B, DL) : std::nullopt;
+    if (!P)
+      report_fatal_error("CCV: a pointer passed to a call in " +
+                         NC->getFunction()->getName() +
+                         " is not one this compiler can split into a window "
+                         "and an offset (F-22, CP-3)");
+    NC->setArgOperand(K, P->Base);
+    NC->setArgOperand(K + 1, P->Off);
+  }
 
   // 3. Returns. A returned pointer decomposes at its `ret`, now that every
   //    pointer a callee hands back has been rebuilt in step 2.
@@ -412,4 +647,88 @@ void llvm::lowerCCVPointerPairs(Module &M) {
 
   // 4. Pointers written to memory, now that every pointer can decompose.
   lowerPointerStores(M);
+
+  // 6 (below, after 5 has turned pointer conversions into integers). An
+  //    address with an index the backend's matcher does not take -- an i64
+  //    expression, as align_mem leaves -- is rebuilt as one pair, its whole
+  //    byte offset folded into the offset in 32 bits.
+  auto FoldAddresses = [&] {
+    for (Function &F : M)
+      for (Instruction &I : instructions(F)) {
+        Value *Addr = nullptr;
+        if (auto *LI = dyn_cast<LoadInst>(&I))
+          Addr = LI->getPointerOperand();
+        else if (auto *SI = dyn_cast<StoreInst>(&I))
+          Addr = SI->getPointerOperand();
+        if (!Addr || !isWindowed(Addr->getType()))
+          continue;
+        bool Simple = true;
+        for (Value *W = Addr; auto *G = dyn_cast<GEPOperator>(W);
+             W = G->getPointerOperand())
+          for (Value *Idx : G->indices())
+            Simple &= simpleIndex(Idx);
+        if (Simple)
+          continue;
+        IRBuilder<> B(&I);
+        if (auto P = decompose(Addr, B, DL))
+          I.replaceUsesOfWith(Addr, rebuild(B, P->Base, P->Off, Addr->getType()));
+      }
+  };
+
+  // 5. Pointers compared, and a pointer's low bits read as an integer: both
+  //    take the flat address (§5.7), since two pairs can name one address
+  //    with different offsets.
+  for (Function &F : M)
+    for (Instruction &I : make_early_inc_range(instructions(F))) {
+      IRBuilder<> B(&I);
+      if (auto *C = dyn_cast<ICmpInst>(&I)) {
+        if (!isWindowed(C->getOperand(0)->getType()) || C->isSigned())
+          continue;
+        auto PA = decompose(C->getOperand(0), B, DL);
+        auto PB = PA ? decompose(C->getOperand(1), B, DL) : std::nullopt;
+        if (!PB)
+          continue;                    // CCVCheckIR names it
+        auto [LA, HA] = flat(B, PA->Base, PA->Off);
+        auto [LB, HB] = flat(B, PB->Base, PB->Off);
+        if (TestRawPtrCompare) {
+          LA = PA->Off, HA = PA->Base, LB = PB->Off, HB = PB->Base;
+        }
+        Value *R;
+        if (C->isEquality()) {          // one compare: both words' differences
+          R = B.CreateICmp(C->getPredicate(),
+                           B.CreateOr(B.CreateXor(LA, LB), B.CreateXor(HA, HB)),
+                           B.getInt32(0));
+        } else {                       // unsigned: the high words, then the low
+          R = B.CreateOr(B.CreateICmp(C->getStrictPredicate(), HA, HB),
+                         B.CreateAnd(B.CreateICmpEQ(HA, HB),
+                                     B.CreateICmp(C->getPredicate(), LA, LB)));
+        }
+        C->replaceAllUsesWith(R);
+        C->eraseFromParent();
+      } else if (auto *PI = dyn_cast<PtrToIntInst>(&I)) {
+        if (!isWindowed(PI->getPointerOperand()->getType()))
+          continue;
+        auto P = decompose(PI->getPointerOperand(), B, DL);
+        if (!P)
+          continue;
+        Value *Lo = flat(B, P->Base, P->Off, false).first;
+        // Only the low 32 bits are representable without a 64-bit register.
+        // A 64-bit conversion whose users read only those -- align_mem's
+        // `(-(intptr)p) & 3`, a truncation -- takes the low word extended.
+        if (PI->getType()->getIntegerBitWidth() <= 32 || onlyLowBits(PI)) {
+          PI->replaceAllUsesWith(B.CreateZExtOrTrunc(Lo, PI->getType()));
+          PI->eraseFromParent();
+          continue;
+        }
+        for (User *U : make_early_inc_range(PI->users()))
+          if (auto *T = dyn_cast<TruncInst>(U); T && T->getType()->getIntegerBitWidth() <= 32) {
+            IRBuilder<> TB(T);
+            T->replaceAllUsesWith(TB.CreateZExtOrTrunc(Lo, T->getType()));
+            T->eraseFromParent();
+          }
+        if (PI->use_empty())
+          PI->eraseFromParent();
+      }
+    }
+  FoldAddresses();
 }
