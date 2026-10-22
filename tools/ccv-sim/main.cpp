@@ -40,6 +40,13 @@ static cl::opt<std::string> InputFile(cl::Positional, cl::Required,
 static cl::opt<unsigned> NumThreads("threads", cl::init(32),
                                     cl::desc("active threads in the CTA"));
 static cl::opt<unsigned> CtaId("ctaid", cl::init(0), cl::desc("CTA index"));
+// TI-29: one warp of a CTA of several. Lane L is thread 32w + L, so srd's
+// %ctatid gives it, and the warp's lanes are [0, min(32, T - 32w)). A CTA's
+// warps share .shared and barriers, which a run of one warp cannot model, so
+// this is for warps that do not communicate, and a barrier in a CTA of more
+// than 32 threads stops the run.
+static cl::opt<unsigned> WarpInCta("warp", cl::init(0),
+                                   cl::desc("which warp of the CTA to run (TI-29)"));
 static cl::opt<uint64_t> CodeBase("code-base", cl::init(0x1000),
                                   cl::desc("load address for the kernel"));
 static cl::opt<uint64_t> Entry(
@@ -164,9 +171,15 @@ int main(int argc, char **argv) {
   W.CtaId = CtaId;
   for (unsigned L = 0; L != kLanes; ++L) {
     W.PC[L] = CodeBase + Entry;
-    W.CtaTid[L] = L;                       // one warp, lane L is thread L
+    W.CtaTid[L] = kLanes * WarpInCta + L;  // warp w, lane L is thread 32w + L
   }
-  W.Active = NumThreads >= kLanes ? ~0u : ((1u << NumThreads) - 1);
+  if (uint64_t(kLanes) * WarpInCta >= NumThreads) {
+    errs() << "error: -warp=" << WarpInCta << " has no threads in a CTA of "
+           << NumThreads << "\n";
+    return 1;
+  }
+  const unsigned WarpThreads = std::min(kLanes, NumThreads - kLanes * WarpInCta);
+  W.Active = WarpThreads >= kLanes ? ~0u : ((1u << WarpThreads) - 1);
 
   std::vector<std::string> AllPokes;
   if (!DataImage.empty()) {
@@ -229,6 +242,10 @@ int main(int argc, char **argv) {
                      "\"ctaid\":%u,",
                  (unsigned long long)CodeBase, unsigned(NumThreads),
                  unsigned(CtaId));
+    // The warp's index in its CTA, when it is not the first (TI-29). Absent,
+    // it is 0, so a one-warp record is exactly what it was.
+    if (WarpInCta)
+      std::fprintf(OF, "\"warp_in_cta\":%u,", unsigned(WarpInCta));
     // F-RO's .const range, when there is one, for MIU's const_base and
     // const_limit (TI-26). Absent, the range is empty.
     if (I.Mem.ConstLimit > I.Mem.ConstBase)
@@ -413,6 +430,13 @@ int main(int argc, char **argv) {
     // A fault is precise (§12.4): the faulting instruction has no
     // architectural effect. So every step can be undone -- registers from
     // this copy, memory from the write journals.
+    if (NumThreads > kLanes &&
+        (MI.getOpcode() == CCV::C_BAR_ARRIVE || MI.getOpcode() == CCV::C_BAR_WAIT ||
+         MI.getOpcode() == CCV::BAR_WAIT_PHASE)) {
+      errs() << "error: a barrier in a CTA of " << NumThreads << " threads, "
+             << "whose other warps this run does not model (TI-29)\n";
+      return 1;
+    }
     Warp Before = W;
     if (OF) { MemLog.clear(); ShLog.clear(); }
     Journal.clear(); ShJournal.clear();

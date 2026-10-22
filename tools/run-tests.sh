@@ -198,6 +198,27 @@ echo
 echo "  --- predicate spill (IS-15) ---"
 run_pred_spill || fail=1
 
+# --- one warp of a CTA of several (TI-29) ----------------------------------
+run_warp() {
+  python3 "$AS" "$JSON" test/warp.s "$TMP/w.bin" >/dev/null || return 1
+  local args="-threads 52 -poke 0x300d0=7 -peek 0x3007c -peek 0x30080 -peek 0x300cc -peek 0x300d0"
+  local out ctl want="0 32 51 7"
+  out=$("$SIM" "$TMP/w.bin" $args -warp 1 -oracle "$TMP/w.jsonl" 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  # The control: warp 0 of the same CTA stores threads 0-31, not 32-51.
+  ctl=$("$SIM" "$TMP/w.bin" $args 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  local bar; bar=$(python3 "$AS" "$JSON" test/faults/barrier.s "$TMP/b.bin" >/dev/null &&
+                   "$SIM" "$TMP/b.bin" -threads 52 2>&1)
+  if [ "${out% }" = "$want" ] && [ "${ctl% }" != "$want" ] &&
+     grep -q '"warp_in_cta":1,' "$TMP/w.jsonl" && grep -q "barrier in a CTA of 52" <<< "$bar"; then
+    echo "  PASS  -warp 1 of a 52-thread CTA: threads 32-51 on lanes 0-19, warp_in_cta in the record, a barrier refused"
+  else
+    echo "  FAIL  -warp: got '$out' (warp 0: '$ctl'), want '$want'; barrier: $bar"; return 1
+  fi
+}
+echo
+echo "  --- one warp of several (TI-29) ---"
+run_warp || fail=1
+
 # --- the fault model (ISA v1.9 section 12, O-57/O-58) ------------------------
 # Each case names the record it must produce. A fault exits 3, distinct from a
 # simulator error (1), so the status is checked too.
