@@ -76,7 +76,8 @@ module pass rewrites each pointer parameter of an internal function into the pai
 
 `roffset` is the unnormalized in-window offset, so the pair inherits F-23's
 one-allocation precondition. A pointer read from **memory** is CP-3's representation
-(flat 64-bit, split into a pair on load), and it becomes this pair once in registers. This
+(flat 64-bit, split into a pair on load), and it becomes this pair once in registers; built
+in the same pass (2026-10-22), `check-ptrmem.sh`. This
 is built in `CCVPointerPairs`, which runs before `CCVCheckIR`. A pointer it cannot split is
 still diagnosed, as is a call to a function the module only declares (`ptr-in-call.ll`).
 
