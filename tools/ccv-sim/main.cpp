@@ -51,16 +51,17 @@ static cl::opt<unsigned> Barriers(
 // waiting at a barrier eventually issues. Strict lowest-PC-first does not
 // meet that -- a lane spinning at a low PC on a flag a higher-PC lane sets
 // starves the setter forever (test/cuda/spinwait.cu) -- so the oracle needs a
-// fairness rule of its own. The ISA names the guarantee, not the mechanism;
-// this one is: after N consecutive issues that passed over another runnable
-// group, issue the group that has waited longest. N = 0 is strict min-PC,
-// kept as the spin-wait kernel's control. FET's own rule and its N are TI's
-// (AR's IS-17 response); the default here is large enough that no kernel in
-// either repository's corpus changes its issue order.
+// fairness rule. It is FET's (AR's IS-17 rows, revs 104 and 119), because a
+// kernel whose lanes talk to each other has more than one legal order and the
+// oracle must be the one the hardware takes: min-PC, except that every Nth
+// pick goes to the group holding lane r, a rotating pointer that then moves
+// to the next live lane after it. Lanes waiting at a barrier are skipped.
+// N is FET's CCV_FAIR_N and must stay equal to it; N = 0 is strict min-PC,
+// kept as the spin-wait kernel's hanging control.
 static cl::opt<unsigned> Fairness(
-    "fairness", cl::init(1024),
-    cl::desc("issues that may pass over a waiting group before it is issued "
-             "(O-60); 0 = strict lowest-PC-first"));
+    "fairness", cl::init(16),
+    cl::desc("every Nth pick goes to the rotating lane pointer's group (O-60, "
+             "FET's CCV_FAIR_N); 0 = strict lowest-PC-first"));
 static cl::opt<bool> Trace("trace", cl::desc("print each issue group"));
 static cl::opt<bool> Stats("counters", cl::desc("print execution counters"));
 static cl::opt<unsigned> MaxSteps("max-steps", cl::init(100000),
@@ -229,14 +230,15 @@ int main(int argc, char **argv) {
   unsigned PrevGroups = 1;
 
   unsigned Steps = 0, Issued = 0;
-  // O-60 fairness state: per-lane issue step of the last issue, and how many
-  // issues in a row have passed over another runnable group.
-  std::array<uint64_t, kLanes> LastIssue{};
-  unsigned PassedOver = 0;
+  // O-60 fairness state, FET's: the pick counter and the rotating lane
+  // pointer.
+  unsigned Picks = 0, FairLane = 0;
   while (W.Active && Steps++ < MaxSteps) {
     // Group by PC: pick the lowest PC among active lanes and issue for every
-    // lane sitting there. Lowest-first is a scheduling policy, not semantics --
-    // any order gives the same results.
+    // lane sitting there. Lowest-first is a scheduling policy, not semantics:
+    // for code whose lanes do not communicate, any order gives the same
+    // results. A spin-wait or an intra-warp lock has several legal outcomes,
+    // in issue count at least, and this order is FET's.
     uint32_t Runnable = W.Active & ~W.Stalled;
     if (!Runnable) {
       // Every remaining lane is blocked at a barrier that no one can now
@@ -252,31 +254,26 @@ int main(int argc, char **argv) {
       if ((Runnable >> L) & 1)
         Target = std::min(Target, W.PC[L]);
 
-    // O-60's fairness: count the issues that passed over another runnable
-    // group; at N, issue instead the group whose lanes last issued earliest.
-    bool Others = false;
-    for (unsigned L = 0; L != kLanes; ++L)
-      if (((Runnable >> L) & 1) && W.PC[L] != Target)
-        Others = true;
-    if (!Others) {
-      PassedOver = 0;
-    } else if (Fairness && ++PassedOver > Fairness) {
-      unsigned Oldest = kLanes;
-      for (unsigned L = 0; L != kLanes; ++L)
-        if (((Runnable >> L) & 1) &&
-            (Oldest == kLanes || LastIssue[L] < LastIssue[Oldest]))
-          Oldest = L;
-      Target = W.PC[Oldest];
-      PassedOver = 0;
-      ++C.FairPicks;
+    // O-60's fairness: every Nth pick goes to the group holding lane r, the
+    // first runnable lane at or after the pointer, and the pointer moves on
+    // to the next live lane after that one.
+    if (Fairness && ++Picks == Fairness) {
+      Picks = 0;
+      unsigned R = FairLane;
+      while (!((Runnable >> R) & 1))
+        R = (R + 1) % kLanes;
+      if (W.PC[R] != Target)
+        ++C.FairPicks;
+      Target = W.PC[R];
+      FairLane = (R + 1) % kLanes;
+      while (!((W.Active >> FairLane) & 1))
+        FairLane = (FairLane + 1) % kLanes;
     }
 
     uint32_t Mask = 0;
     for (unsigned L = 0; L != kLanes; ++L)
-      if (((Runnable >> L) & 1) && W.PC[L] == Target) {
+      if (((Runnable >> L) & 1) && W.PC[L] == Target)
         Mask |= 1u << L;
-        LastIssue[L] = Issued;
-      }
 
     // F-FETCH (ISA v1.9 §12.3): the selected PC outside the kernel's image,
     // or not 16-bit aligned -- a ret to an odd offset among them.
@@ -637,6 +634,8 @@ int main(int argc, char **argv) {
                      double(C.LaneInstrs) / std::max(1u, Threads), Threads)
            << format("  SIMT efficiency         %9.1f%%   (lanes active per issue, of %u)\n",
                      pct(C.LaneInstrs, C.IssueGroups * Threads), Threads)
+           << format("  fairness overrides      %10llu   (O-60 picks that left min-PC)\n",
+                     (unsigned long long)C.FairPicks)
            << format("  predicate-file ops      %10llu   (no GPR lane activates)\n",
                      (unsigned long long)C.PredOps)
            << format("  instruction bytes       %10llu\n", (unsigned long long)C.Bytes)

@@ -13,10 +13,10 @@
 #       change that put the releaser first would make (2) pass vacuously;
 #   (2) with ccv-sim's fairness off (-fairness 0, strict min-PC) it hangs:
 #       the control, without which (3) proves nothing;
-#   (3) with fairness at N = 4, 8, 16, 32 and the default, it finishes with
-#       the right values. The issue counts are printed because TI chooses
-#       FET's N from this kernel (AR's IS-17 response): a smaller N hands the
-#       flag over sooner;
+#   (3) with fairness at N = 4, 8, 16, 32 and the default (16, FET's
+#       CCV_FAIR_N), it finishes with the right values. The issue counts are
+#       printed because TI chooses FET's N from this kernel (AR's IS-17
+#       response): a smaller N hands the flag over sooner;
 #   (4) test/spinwait.s, the hand-annotated copy TI runs, assembles to the
 #       same bytes as the compiled kernel, so the two cannot drift apart.
 set -uo pipefail
