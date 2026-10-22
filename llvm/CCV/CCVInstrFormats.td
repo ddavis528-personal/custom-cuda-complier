@@ -172,11 +172,13 @@ class FormatB48<bits<5> opc, dag outs, dag ins, string asm>
 class FormatC<bits<5> opc, dag outs, dag ins, string asm>
     : CCVInst32<0b0110, outs, ins, asm> {
   bits<4> rd; bits<4> rs0; bits<4> rs1; bits<3> pq; bits<2> pd;
+  bit fmt = 0;                   // an FP compare's format code (O-65)
   let Inst{10-6}  = opc;
   let Inst{14-11} = rd;
   let Inst{18-15} = rs0;
   let Inst{22-19} = rs1;
-  let Inst{26-23} = 0;           // reserved
+  let Inst{23}    = fmt;
+  let Inst{26-24} = 0;           // reserved
   let Inst{29-27} = pq;
   let Inst{31-30} = pd;
 }
@@ -199,11 +201,13 @@ class FormatC<bits<5> opc, dag outs, dag ins, string asm>
 class FormatCu<bits<5> opc, bit isimm, dag outs, dag ins, string asm>
     : CCVInst32<0b1111, outs, ins, asm> {
   bits<4> rd; bits<4> rs0; bits<4> rs1; bits<8> imm; bits<2> pd;
+  bit fmt = 0;                   // register form: an FP compare's format (O-65)
   let Inst{10-6}  = opc;
   let Inst{14-11} = rd;
   let Inst{18-15} = rs0;
   let Inst{22-19} = !if(isimm, imm{3-0}, rs1);
-  let Inst{26-23} = !if(isimm, imm{7-4}, 0b0000);
+  let Inst{23}    = !if(isimm, imm{4}, fmt);
+  let Inst{26-24} = !if(isimm, imm{7-5}, 0b000);
   let Inst{27}    = isimm;
   let Inst{29-28} = 0;           // reserved
   let Inst{31-30} = pd;

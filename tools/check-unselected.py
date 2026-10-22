@@ -174,6 +174,7 @@ UNREACHABLE = {
                    "stage (conversions, dp4 from the x4 types, contraction)")
        for n in ("FADD_F1 FSUB_F1 FMUL_F1 FMIN_F1 FMAX_F1 FFMA_F1 FNEG_F1 "
                  "FABS_F1").split() + [
+           f"SETP_{r}_F1{p}" for r in "LT LE EQ NE GT GE".split() for p in ("", "_NP")] + [
            f"CVT_D{d}_S{s}_R{r}{p}" for d in range(4) for s in range(4)
            for r in range(4) for p in ("", "_P")
            if not ((d, s, r) in {(0, 2, 0), (0, 3, 0), (2, 0, 1), (3, 0, 1), (2, 2, 0)}

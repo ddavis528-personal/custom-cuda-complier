@@ -17,7 +17,9 @@ exact rationals. Every case must agree bit for bit, F-FORMAT included:
     into every destination width and format, at every rounding mode; sampled
     16- and 32-bit FP sources weighted to the narrow formats' range and their
     rounding midpoints; and integer sources at every width;
-  - F-FORMAT for format code 1 at 32 and 4 bits.
+  - every FP compare (O-65), both format codes, register and unpredicated
+    forms: every 8- and 4-bit pair, sampled 16- and 32-bit pairs, mixed widths;
+  - F-FORMAT for format code 1 at 32 and 4 bits, compares included.
 
 Controls, which must fail: ccv-sim -fp-cases with -ccv-test-fp-ftz (subnormal
 results flushed) and with -ccv-test-fp-no-saturate (narrow overflow wrapping
@@ -165,10 +167,37 @@ def main():
         name = rng.choice(list(BIN))
         add(BIN[name][code], (wd, wa, wb, 0), (x, y, 0), (name, code, wd, wa, wb, 0, x, y, 0))
 
+    # FP compares (O-65): Format C (predicated) and C" forms, both codes.
+    RELS = "lt le eq ne gt ge".split()
+    def setp(rel, code, np_):
+        return f"SETP_{rel.upper()}_F{'1' if code else ''}{'_NP' if np_ else ''}"
+    for (wc, code) in narrow + [(1, 0), (1, 1), (0, 0)]:
+        bits = R.WIDTH[wc]
+        if bits <= 8:
+            pairs = [(x, y) for x in range(1 << bits) for y in range(1 << bits)
+                     if not (QUICK and bits == 8 and (x * 256 + y) % 5)]
+        else:
+            pool = edge((wc, code))
+            draw = lambda: rng.choice(pool) if rng.random() < 0.3 else rng.getrandbits(bits)
+            pairs = [(draw(), draw()) for _ in range(1000 if QUICK else 10000)]
+        for i, (x, y) in enumerate(pairs):
+            rel = RELS[i % 6]
+            add(setp(rel, code, i % 2), (0, wc, wc, 0), (x, y, 0),
+                (f"setp:{rel}", code, 0, wc, wc, 0, x, y, 0))
+    for _ in range(1000 if QUICK else 10000):
+        code = rng.randrange(2)
+        ws = [w for w in range(4) if (w, code) in R.FORMATS]
+        wa, wb = rng.choice(ws), rng.choice(ws)
+        x, y = rng.getrandbits(R.WIDTH[wa]), rng.getrandbits(R.WIDTH[wb])
+        rel = rng.choice(RELS)
+        add(setp(rel, code, rng.randrange(2)), (0, wa, wb, 0), (x, y, 0),
+            (f"setp:{rel}", code, 0, wa, wb, 0, x, y, 0))
+
     # F-FORMAT: format code 1 at 32 and at 4 bits.
     for wc in (0, 3):
         add("FADD_F1", (wc, wc, wc, 0), (0, 0, 0), ("fadd", 1, wc, wc, wc, 0, 0, 0, 0))
         add("CVT_D1_S0_R0", (wc, 1, 0, 0), (0, 0, 0), ("cvt:1:0:0", 0, wc, 1, 0, 0, 0, 0, 0))
+        add("SETP_LT_F1", (0, wc, wc, 0), (0, 0, 0), ("setp:lt", 1, 0, wc, wc, 0, 0, 0, 0))
 
     # Conversions: every point, every width pairing.
     def srcs(wa, s):
@@ -246,7 +275,7 @@ def main():
                   f"{c} -> ccv-sim {g}, reference {w}")
             return 1
         print(f"  PASS  narrow FP: {len(cases)} cases agree with the reference bit for bit "
-              "(every 8- and 4-bit pair, every conversion point, F-FORMAT)")
+              "(every 8- and 4-bit pair, every conversion point, every compare, F-FORMAT)")
         fail = 0
         for ctl in ("-ccv-test-fp-ftz", "-ccv-test-fp-no-saturate"):
             g2 = sim(ctl)

@@ -7,15 +7,16 @@ Formats, by register width code (0 = 32, 1 = 16, 2 = 8, 3 = 4) and format code:
 FP32, FP16 and BF16 are IEEE 754 binary32, binary16 and bfloat16; E4M3 and E5M2
 are OCP OFP8 1.0; E2M1 is OCP MX 1.0. The arithmetic rules are §4's (O-53, O-56):
 round as asked, subnormals kept, IEEE overflow at 16 and 32 bits, saturation to
-max finite at 8 and 4, NaN as the format allows (E2M1's invalid result is +6).
+max finite at 8 and 4, and the canonical NaN, NVIDIA's (O-66; E2M1's invalid
+result is +6). An FP compare reads its format from the opcode's bit (O-65).
 """
 from fractions import Fraction as Q
 
 # (bits, exponent bits, mantissa bits, bias, specials, saturates, NaN encoding)
 FORMATS = {
-    (0, 0): (32, 8, 23, 127, "ieee", False, 0x7FC00000),
-    (1, 0): (16, 5, 10, 15, "ieee", False, 0x7E00),
-    (1, 1): (16, 8, 7, 127, "ieee", False, 0x7FC0),
+    (0, 0): (32, 8, 23, 127, "ieee", False, 0x7FFFFFFF),
+    (1, 0): (16, 5, 10, 15, "ieee", False, 0x7FFF),
+    (1, 1): (16, 8, 7, 127, "ieee", False, 0x7FFF),
     (2, 0): (8, 4, 3, 7, "e4m3", True, 0x7F),
     (2, 1): (8, 5, 2, 15, "ieee", True, 0x7F),
     (3, 0): (4, 2, 1, 1, "none", True, 0x7),
@@ -218,6 +219,10 @@ def less(a, b):
     return a.neg and not b.neg
 
 
+def iszero(a):
+    return a.k == "fin" and a.q == 0
+
+
 def from_int(x, w, signed):
     x &= (1 << w) - 1
     if signed and x >> (w - 1):
@@ -262,6 +267,19 @@ def op(name, code, wd, wa, wb, wc, x, y, z):
             return "F-FORMAT"
         v = decode((wa, s), x) if s < 2 else from_int(x, WIDTH[wa], s == 2)
         return encode((wd, d), v, ROUND[r]) if d < 2 else to_int(v, WIDTH[wd], d == 2, ROUND[r])
+    if name.startswith("setp"):
+        # An FP compare (O-65): rs0 and rs1 at their own widths, in format code.
+        rel = name.split(":")[1]
+        if (wa, code) not in FORMATS or (wb, code) not in FORMATS:
+            return "F-FORMAT"
+        a, b = decode((wa, code), x), decode((wb, code), y)
+        if a.k == NAN or b.k == NAN:
+            return int(rel == "ne")
+        lt = less(a, b) and not (iszero(a) and iszero(b))
+        gt = less(b, a) and not (iszero(a) and iszero(b))
+        eq = not lt and not gt
+        return int({"lt": lt, "le": lt or eq, "gt": gt, "ge": gt or eq,
+                    "eq": eq, "ne": not eq}[rel])
     used = [wd, wa] + ([wb] if name in ("fadd", "fsub", "fmul", "fmin", "fmax", "ffma") else []) \
         + ([wc] if name == "ffma" else [])
     if any((w, code) not in FORMATS for w in used):

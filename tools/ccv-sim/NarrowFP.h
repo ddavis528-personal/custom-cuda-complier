@@ -19,9 +19,9 @@
 // Nothing goes through a host float, so there is no double rounding to argue
 // about: the ffma at 16 bits is one rounding of the exact a*b+c.
 //
-// The NaN a computation produces, at 32 and 16 bits, is the canonical quiet NaN
-// with a clear sign. §4 does not fix a payload; the simulator fixes one so its
-// results are reproducible.
+// The NaN a computation produces is the format's canonical NaN (O-66):
+// positive, every mantissa bit set, NVIDIA's values -- FP32 0x7FFFFFFF, FP16
+// and BF16 0x7FFF, E4M3 and E5M2 0x7F -- and no operand payload propagates.
 //
 //===----------------------------------------------------------------------===//
 #ifndef CCV_SIM_NARROWFP_H
@@ -38,8 +38,10 @@ enum class Round { RN = 0, RZ = 1, RM = 2, RP = 3 };
 
 /// Mutation controls for tools/check-narrow-fp.py, set by ccv-sim's
 /// -ccv-test-fp-ftz (flush subnormal results to zero) and
-/// -ccv-test-fp-no-saturate (narrow overflow gives NaN, the rule O-56 rejected).
-inline bool TestFtz = false, TestNoSaturate = false;
+/// -ccv-test-fp-no-saturate (narrow overflow gives NaN, the rule O-56 rejected),
+/// and for run-tests.sh's fp-canon, -ccv-test-fp-host-nan (FP32 NaN results
+/// from host arithmetic, the rule O-66 replaced).
+inline bool TestFtz = false, TestNoSaturate = false, TestHostNaN = false;
 
 struct Format {
   unsigned Bits, ExpBits, ManBits;
@@ -54,9 +56,9 @@ struct Format {
 /// at that width -- F-FORMAT.
 inline std::optional<Format> format(uint8_t W, unsigned C) {
   switch (W * 2 + C) {
-  case 0: return Format{32, 8, 23, 127, Format::IEEE, false, 0x7fc00000u}; // FP32
-  case 2: return Format{16, 5, 10, 15, Format::IEEE, false, 0x7e00u};      // FP16
-  case 3: return Format{16, 8, 7, 127, Format::IEEE, false, 0x7fc0u};      // BF16
+  case 0: return Format{32, 8, 23, 127, Format::IEEE, false, 0x7fffffffu}; // FP32
+  case 2: return Format{16, 5, 10, 15, Format::IEEE, false, 0x7fffu};      // FP16
+  case 3: return Format{16, 8, 7, 127, Format::IEEE, false, 0x7fffu};      // BF16
   case 4: return Format{8, 4, 3, 7, Format::E4M3, true, 0x7fu};            // E4M3
   case 5: return Format{8, 5, 2, 15, Format::IEEE, true, 0x7fu};           // E5M2
   case 6: return Format{4, 2, 1, 1, Format::None, true, 0x7u};             // E2M1: +6
