@@ -1,7 +1,7 @@
 # Proposal — Where a module's data lives (CP-10, F-162)
 
 **Status:** agreed 2026-10-22. IS agreed with four additions (IS's response CP-10, rev 90),
-folded in below, and will write §5.2 and O-61. TI confirmed that word 28 is free and that
+folded in below, and will write §5.2 and the decision. TI confirmed that word 28 is free and that
 nothing in RTL or the skeleton decodes the launch block (TI's response CP-10, rev 108). CP
 builds once §5.2 is written; until then the compiler diagnoses a global.
 **Found by:** the CoreMark-derived workload (AR-20). `core_state.c` holds its input patterns in
