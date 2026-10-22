@@ -5,7 +5,7 @@
 _Z5sgemmPfPKfS1_ii:
 	movi r15, 2
 	ld.global r15, [r15 + 24]
-	srd r14, 0
+	srd r14, 2
 	add r15, r14
 	pmov p3, 1
 	movi r4, 2

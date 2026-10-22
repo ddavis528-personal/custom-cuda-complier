@@ -2,7 +2,7 @@
 # by tools/ccv-dis.py --check. Load at ccv-sim's -code-base; entry at offset 0.
         MOVI             R15, 2   # 0x0000
         LD_GLOBAL        R15, R15, 24   # 0x0004
-        SRD              R14, 0   # 0x0008
+        SRD              R14, 2   # 0x0008
         C_ADD            R15, R14   # 0x000a
         PMOV_IMM         P3, 1   # 0x000c
         SRD              R0, 1   # 0x0012

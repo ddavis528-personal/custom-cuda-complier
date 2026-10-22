@@ -5,7 +5,7 @@
 _Z5bytesPKaPKhPhPiPKsPs:
 	movi r15, 2
 	ld.global r15, [r15 + 24]
-	srd r14, 0
+	srd r14, 2
 	add r15, r14
 	movi r6, 2
 	ld.global r1, [r6 + 36]

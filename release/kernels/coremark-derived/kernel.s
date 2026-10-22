@@ -4375,7 +4375,7 @@ L39aa:  C_MOV            R1, R2   # 0x39aa
         C_RET            224   # 0x39c8
         MOVI             R15, 2   # 0x39ca
         LD_GLOBAL        R15, R15, 24   # 0x39ce
-        SRD              R14, 0   # 0x39d2
+        SRD              R14, 2   # 0x39d2
         C_ADD            R15, R14   # 0x39d4
         MOVI             R8, 2   # 0x39d6
         LD_GLOBAL        R0, R8, 36   # 0x39da

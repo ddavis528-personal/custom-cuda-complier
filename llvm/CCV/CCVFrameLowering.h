@@ -2,8 +2,9 @@
 //
 // The frame is a thread-private `.local` region, reached through its own window
 // (§5.1). O-30: with S=16 a window is 64 KiB, so giving each thread a whole one
-// makes the frame POINTER a window index rather than an address -- thread t
-// uses window `local_base + t`. A spill is then a single base+offset
+// makes the frame POINTER a window index rather than an address -- a lane
+// uses window `local_base + %lanectx` (O-64: srd #2, unique among the device's
+// live lanes; O-30's `local_base + t` repeated across CTAs). A spill is then a single base+offset
 // instruction with no index register, and the frame costs one reserved GPR
 // instead of two.
 //
