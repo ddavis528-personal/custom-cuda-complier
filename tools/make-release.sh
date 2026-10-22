@@ -95,6 +95,8 @@ for cu in test/bench/*.cu test/cuda/*.cu; do
   fi
 done
 
+python3 tools/export-kernels.py "$A/kernels" >/dev/null || die "export-kernels failed"
+
 big=$(find "$A" -type f -size +"$MAXFILE"c)
 [ -z "$big" ] || die "artifact over the $((MAXFILE / 1024 / 1024)) MB cap: $big"
 total=$(du -sb "$A" | cut -f1)
@@ -119,6 +121,9 @@ ver() { "$@" 2>&1 | head -1; }
   echo "- **\`release/bench/\`:** \`tools/bench.py\` and both sweeps -- the"
   echo "  numbers \`docs/benchmarks.md\` is checked against."
   echo "- **\`release/asm/\`:** every CUDA kernel under \`test/\`, compiled."
+  echo "- **\`release/kernels/\`:** kernels for a consumer without \`ccv-llc\`"
+  echo "  (TI-30): ccv-as source, the image, the launch as \`-poke\` lines, and"
+  echo "  the opcodes issued, each launch checked against a reference."
   echo "- **\`release/verify.log\`:** the gate."
   echo
   echo "| | |"

@@ -83,6 +83,9 @@ checked 266 instructions
   PASS  bytes.cu: signed and unsigned bytes, a string, .shared, the frame, and 32 packed byte stores on 32 lanes (604 issue groups)
   PASS  control -ccv-test-bytes-at-32 is caught: did not run: FAULT F-ALIGN  pc=0x1044  lanes=eeeeeeee  addr=0x30001  cta=0 warp=0
   PASS  control -ccv-test-chwidth-defs-only is caught: did not run: FAULT F-ALIGN  pc=0x1196  lanes=ffffffff  addr=0xfffff1  cta=0 warp=0
+  exported kernels (TI-30)
+  PASS  rope: 2 CTAs of 32 threads match the reference; 31 opcodes, 374 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
+  PASS  layernorm: 2 CTAs of 32 threads match the reference; 37 opcodes, 536 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
   CoreMark-derived workload (AR-20)
   PASS  CoreMark-derived: list, matrix and state on 32 lanes give CoreMark's CRCs, and the host's after 2 iterations (72be e714 1fd7 8e3a; 1564280 issue groups)
   PASS  control -ccv-test-hoist-past-calls is caught: did not run: FAULT F-ALIGN  pc=0x44dc  lanes=ffffffff  addr=0xffff26  cta=0 warp=0

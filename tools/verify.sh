@@ -153,6 +153,15 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-bytes.sh || fail=1
 fi
 
+# TI-30: kernels exported for the core's skeleton, as ccv-as source with
+# their launches, each launch checked against a reference.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  exported kernels (TI-30)"
+  EXP=$(mktemp -d)
+  python3 tools/export-kernels.py "$EXP" || fail=1
+  rm -rf "$EXP"
+fi
+
 # AR-20: CoreMark's list, matrix and state, unmodified, on 32 lanes; each lane's
 # CRCs against CoreMark's published values and the host's, with two controls.
 if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
