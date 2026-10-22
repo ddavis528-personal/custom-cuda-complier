@@ -35,6 +35,9 @@ public:
 /// Where F's frame starts below R15, in bytes: the deepest extent any of its
 /// callees' frames reach. Laid out by emitPrologue, callees first.
 unsigned ccvFrameBase(const Function &F);
+/// Whether F's frame has been laid out yet. A caller's stack arguments are
+/// written at its callee's base, so the callee must come first.
+bool ccvFrameLaidOut(const Function &F);
 /// Whether F is a kernel (!nvvm.annotations "kernel") rather than a device
 /// function. Only a kernel sets up R15 and ends in `exit`.
 bool ccvIsKernel(const Function &F);
