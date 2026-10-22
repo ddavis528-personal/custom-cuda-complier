@@ -153,6 +153,13 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-bytes.sh || fail=1
 fi
 
+# AR-20: CoreMark's list, matrix and state, unmodified, on 32 lanes; each lane's
+# CRCs against CoreMark's published values and the host's, with two controls.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  CoreMark-derived workload (AR-20)"
+  ./tools/check-coremark-derived.sh || fail=1
+fi
+
 # O-60: forward progress between diverged lanes. A spin-wait on a lane at a
 # higher PC must hang under strict min-PC (the control) and finish under the
 # oracle's fairness rule.

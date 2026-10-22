@@ -473,6 +473,30 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
                        {N->getOperand(2), N->getOperand(0), N->getOperand(1)}));
     return;
   }
+  case ISD::BR_CC: {
+    // A branch on a predicate compared with a predicate: the combiner makes
+    // `br (xor c, true)` into `br_cc setne c, true`, which a list walk's
+    // `if (!found)` reached (the CoreMark-derived port). The branch's negate
+    // bit is the comparison against a constant; two predicates are an xor.
+    SDValue LHS = N->getOperand(2), RHS = N->getOperand(3);
+    if (LHS.getValueType() != MVT::i1)
+      break;
+    ISD::CondCode CC = cast<CondCodeSDNode>(N->getOperand(1))->get();
+    if (CC != ISD::SETEQ && CC != ISD::SETNE)
+      report_fatal_error("CCV: ordered compare of two predicates");
+    bool Neg = CC == ISD::SETEQ;
+    SDValue Guard = LHS;
+    if (auto *C = dyn_cast<ConstantSDNode>(RHS))
+      Neg ^= C->isAllOnes();
+    else
+      Guard = SDValue(CurDAG->getMachineNode(CCV::PSEUDO_PXOR, DL, MVT::i1,
+                                             {LHS, RHS}), 0);
+    ReplaceNode(N, CurDAG->getMachineNode(
+                       CCV::PSEUDO_BRA_PRED, DL, MVT::Other,
+                       {Guard, CurDAG->getTargetConstant(Neg, DL, MVT::i32),
+                        N->getOperand(4), N->getOperand(0)}));
+    return;
+  }
   case ISD::BRCOND: {
     ReplaceNode(N, CurDAG->getMachineNode(
                        CCV::PSEUDO_BRA_PRED, DL, MVT::Other,

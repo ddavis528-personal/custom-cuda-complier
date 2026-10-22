@@ -159,6 +159,14 @@ static bool isWidthAware(unsigned Op) {
   case CCV::DP4_E4M3: case CCV::DP4_E5M2:
   case CCV::MOVI: case CCV::MOVI48:
   case CCV::C_MOV: case CCV::C_EXIT:
+  // Format K's destructive ALU, the points whose uncompressed forms are above:
+  // the compressor turns 16-bit `or` into C_OR once i16 code reaches it (the
+  // CoreMark-derived port), so these read and write at width the same way.
+  case CCV::C_ADD: case CCV::C_SUB: case CCV::C_MUL_LO: case CCV::C_AND:
+  case CCV::C_OR: case CCV::C_XOR: case CCV::C_MIN_S: case CCV::C_MIN_U:
+  case CCV::C_MAX_S: case CCV::C_MAX_U:
+  case CCV::C_ADDI: case CCV::C_SUBI: case CCV::C_ANDI: case CCV::C_ORI:
+  case CCV::C_XORI: case CCV::C_SHLI: case CCV::C_SHRI: case CCV::C_SRAI:
     return true;
   default:
     break;
@@ -1076,9 +1084,14 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::C_OR:    case CCV::C_XOR:   case CCV::C_ANDN:   case CCV::C_SHL:
   case CCV::C_SHR:   case CCV::C_SRA:   case CCV::C_MIN_S:  case CCV::C_MIN_U:
   case CCV::C_MAX_S: case CCV::C_MAX_U: {
+    // At each register's width, as Format A (rd is source and destination).
     unsigned D = regOf(MI, 0), Sx = regOf(MI, 2);
+    uint8_t WD = W.ChWidth[D], WS = W.ChWidth[Sx];
+    bool Signed = Op == CCV::C_MIN_S || Op == CCV::C_MAX_S || Op == CCV::C_SRA;
     forEachLane([&](unsigned L) {
-      W.GPR[D][L] = aluRR(Op, W.GPR[D][L], W.GPR[Sx][L]);
+      uint32_t X = Signed ? sextTo32(W.GPR[D][L], WD) : narrow(W.GPR[D][L], WD);
+      uint32_t Y = Signed ? sextTo32(W.GPR[Sx][L], WS) : narrow(W.GPR[Sx][L], WS);
+      W.GPR[D][L] = writeElem(W.GPR[D][L], aluRR(Op, X, Y), WD);
     });
     break;
   }
@@ -1102,7 +1115,12 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     for (auto [I, O] : Map) if (I == Op) RR = O;
     unsigned D = regOf(MI, 0);
     uint32_t Imm = uint32_t(MI.getOperand(2).getImm());
-    forEachLane([&](unsigned L) { W.GPR[D][L] = aluRR(RR, W.GPR[D][L], Imm); });
+    uint8_t WD = W.ChWidth[D];
+    forEachLane([&](unsigned L) {
+      uint32_t X = RR == CCV::C_SRA ? sextTo32(W.GPR[D][L], WD)
+                                    : narrow(W.GPR[D][L], WD);
+      W.GPR[D][L] = writeElem(W.GPR[D][L], aluRR(RR, X, Imm), WD);
+    });
     break;
   }
   case CCV::C_NEG: case CCV::C_NOT: case CCV::C_ABS: {

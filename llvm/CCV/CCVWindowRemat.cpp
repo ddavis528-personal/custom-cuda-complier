@@ -162,13 +162,28 @@ bool runOnFn(Function &F) {
   // Roots are the values that must not cross a block: pointers produced by
   // inttoptr, which is how §5.1's window arithmetic re-enters the pointer
   // domain.
-  SmallVector<IntToPtrInst *, 8> Roots;
+  //
+  // And GEPs of them. A pointer is built in one block and indexed into in
+  // another as often as not -- a list node's field, written in a branch
+  // (F-22's pointers as values, CoreMark's core_list_init) -- and the GEP is
+  // as much a cross-block i64 as the inttoptr under it. Only one that crosses,
+  // though: cloning a block-local GEP clones its index chain too, and the
+  // spin loop in spinwait.cu reloaded its in-window offset every iteration.
+  // .shared is 32-bit and crosses blocks like any value.
+  auto crosses = [](const Instruction &I) {
+    return llvm::any_of(I.users(), [&](const User *U) {
+      return cast<Instruction>(U)->getParent() != I.getParent();
+    });
+  };
+  SmallVector<Instruction *, 8> Roots;
   for (Instruction &I : instructions(F))
-    if (auto *ITP = dyn_cast<IntToPtrInst>(&I))
-      Roots.push_back(ITP);
+    if (isa<IntToPtrInst>(I) ||
+        (isa<GetElementPtrInst>(I) &&
+         cast<GetElementPtrInst>(I).getAddressSpace() != 3 && crosses(I)))
+      Roots.push_back(&I);
 
   bool Changed = false;
-  for (IntToPtrInst *Root : Roots) {
+  for (Instruction *Root : Roots) {
     SmallVector<Instruction *, 8> Chain;
     if (!collectChain(Root, Chain)) continue;
 

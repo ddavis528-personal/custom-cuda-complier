@@ -100,6 +100,23 @@ bool CCVExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
                         MI.getOperand(0).getReg()) << 4);
         break;
 
+      case CCV::PSEUDO_ST_PRED:
+      case CCV::PSEUDO_LD_PRED: {
+        // One bit of the mask: the allocator moves one predicate at a time.
+        // The frame is positional (§3): the instruction addresses word i of a
+        // 16-byte frame for Pi, so the displacement is pulled back by 4i to
+        // land Pi's word on its own slot. With a displacement of 0, P1-P3
+        // wrote 4-12 bytes past their slot into a neighbour's (IS-15).
+        const unsigned P = MI.getOperand(0).getReg() - CCV::P0;
+        BuildMI(MBB, MI, DL,
+                TII->get(MI.getOpcode() == CCV::PSEUDO_ST_PRED ? CCV::ST_PRED_G
+                                                               : CCV::LD_PRED_G))
+            .addImm(1u << P)
+            .add(MI.getOperand(1))
+            .addImm(MI.getOperand(2).getImm() - 4 * int64_t(P));
+        break;
+      }
+
       case CCV::PSEUDO_BRA_PRED: {
         Register Guard = MI.getOperand(0).getReg();
         bool Neg = MI.getOperand(1).getImm() != 0;

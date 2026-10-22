@@ -68,6 +68,12 @@ static cl::opt<bool> TestNarrowSrd(
 
 // Mutation control for tools/check-calls.sh: drop the call boundary's width
 // rule, so a callee may return with a register still narrow.
+// Mutation control for tools/check-calls.sh: let a transition hoist above a
+// call, which resets the width it set.
+static cl::opt<bool> TestHoistPastCalls(
+    "ccv-test-hoist-past-calls", cl::init(false), cl::Hidden,
+    cl::desc("hoist chwidth above calls, to test that it is caught"));
+
 static cl::opt<bool> TestNoCallWidths(
     "ccv-test-no-call-widths", cl::init(false), cl::Hidden,
     cl::desc("skip widening at calls and returns, to test that it is caught"));
@@ -550,7 +556,14 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
       MachineBasicBlock::iterator Dest = MI.getIterator();
       while (Dest != MBB.begin()) {
         MachineBasicBlock::iterator Prev = std::prev(Dest);
-        bool Touches = Prev->getOpcode() == CCV::CHWIDTH_MULTI;
+        // A call or return sets every GPR to 32 bits (F-21) without naming
+        // it: a callee's clobbers are a register mask. Hoisted above a call,
+        // the transition for a narrow load after it was undone by the callee,
+        // and the load moved four bytes to a 2-aligned address (F-ALIGN, the
+        // CoreMark-derived port).
+        bool Touches = Prev->getOpcode() == CCV::CHWIDTH_MULTI ||
+                       (!TestHoistPastCalls &&
+                        (Prev->isCall() || Prev->getOpcode() == CCV::PSEUDO_RET));
         for (const MachineOperand &MO : Prev->operands())
           if (MO.isReg() && MO.getReg() == R)
             Touches = true;

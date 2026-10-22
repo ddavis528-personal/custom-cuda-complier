@@ -239,8 +239,8 @@ public:
 /// The frame index a spill or reload names, or std::nullopt.
 std::optional<int> spillSlot(const MachineInstr &MI, bool &IsStore) {
   switch (MI.getOpcode()) {
-  case CCV::ST_GLOBAL: case CCV::ST_PRED_G: IsStore = true;  break;
-  case CCV::LD_GLOBAL: case CCV::LD_PRED_G: IsStore = false; break;
+  case CCV::ST_GLOBAL: case CCV::PSEUDO_ST_PRED: IsStore = true;  break;
+  case CCV::LD_GLOBAL: case CCV::PSEUDO_LD_PRED: IsStore = false; break;
   default: return std::nullopt;
   }
   for (const MachineOperand &MO : MI.operands())
@@ -275,7 +275,8 @@ bool CCVSpillStats::runOnMachineFunction(MachineFunction &MF) {
       // Predicate spill is neither an address nor an accumulator, and there is
       // no third thing it could be: §3's predicate file is 4 entries and they
       // hold control-flow conditions.
-      if (MI.getOpcode() == CCV::ST_PRED_G || MI.getOpcode() == CCV::LD_PRED_G)
+      if (MI.getOpcode() == CCV::PSEUDO_ST_PRED ||
+          MI.getOpcode() == CCV::PSEUDO_LD_PRED)
         continue;
 
       Register R = MI.getOperand(0).getReg();

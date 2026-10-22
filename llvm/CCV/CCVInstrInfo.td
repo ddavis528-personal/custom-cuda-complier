@@ -1002,6 +1002,21 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
   def PSEUDO_RET : CCVInst<0, (outs), (ins GPR:$link, variable_ops),
                            "# ret $link">;
 
+  // A predicate spill and reload. §3's ld.pred/st.pred name the predicate as a
+  // MASK immediate, so the instruction has no register operand: a reload built
+  // from it during allocation, when the predicate is still virtual, defined
+  // nothing, and every predicate spill failed with "ran out of registers"
+  // (the CoreMark-derived port: four predicates live across one branch, with
+  // P3 reserved). The register is an operand here and becomes the mask after
+  // allocation, like a qualifier. The frame index is operand 1 in both, the
+  // displacement straight after it.
+  let mayStore = 1 in
+  def PSEUDO_ST_PRED : CCVInst<0, (outs), (ins PR:$p, GPR:$rbase, simm13:$off),
+                               "# st.pred $p, [$rbase + $off]">;
+  let mayLoad = 1 in
+  def PSEUDO_LD_PRED : CCVInst<0, (outs PR:$p), (ins GPR:$rbase, simm13:$off),
+                               "# ld.pred $p, [$rbase + $off]">;
+
   let isBranch = 1, isTerminator = 1 in
   def PSEUDO_BRA_PRED : CCVInst<0, (outs),
                                 (ins PR:$guard, i32imm:$neg, brtarget18:$off),

@@ -144,6 +144,11 @@ static void verifyImmediatesFit(const MCInst &MI, StringRef Name) {
       continue;
     int64_t V = MO.getImm();
     bool Fits = OI->Signed ? isIntN(OI->Bits, V) : isUIntN(OI->Bits, uint64_t(V));
+    // A 32-bit field holds any i32, and selection sign-normalizes an i32
+    // immediate: `pmov p, 0xffffffff`, a predicate true in every lane, arrives
+    // as -1. Its low 32 bits are the field exactly; nothing is truncated.
+    if (OI->Bits == 32 && !OI->Signed)
+      Fits = isInt<32>(V) || isUInt<32>(V);
     if (!Fits)
       report_fatal_error(Twine("CCV: ") + Name + " operand " + Twine(I) +
                          " value " + Twine(V) + " does not fit its " +
