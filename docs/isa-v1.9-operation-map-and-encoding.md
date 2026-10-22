@@ -73,6 +73,13 @@ FP operation on a code reserved at its width faults rather than computing.
 `chwidth` 32, at no cost (§5.2). **A CTA has at most 16 barriers** (O-59): IDs 16–63 raise
 `F-ILLEGAL`, and an ID past the CTA's allocation raises a ninth cause, `F-BARRIER`, at dispatch.
 
+### Forward progress between diverged lanes is guaranteed (O-60; IS-17)
+
+§1 now states the per-thread PC model it was always citing. It also states CUDA's guarantee
+since Volta: every PC group of a live warp that is not waiting at a barrier eventually issues.
+DA decided it on 2026-10-21. It binds the implementation, not the encoding. A scheduler needs a
+fairness rule beside min-PC, and room for one PC per lane, so a split never waits on a merge.
+
 ### Still open
 
 SFU accuracy is ruled under IS-12, but its PTX bound table is not yet written.
@@ -185,6 +192,26 @@ that follow throughout this document:
   sub-lane view exists for the duration of the instruction and is invisible to allocation,
   renaming, predicates and shuffles. That is the line: **packing may live in an instruction,
   never in a register.**
+
+**Per-thread PCs, and forward progress between them — normative (O-60).** Every lane has its
+own PC. Lanes at one PC issue together as a **PC group**. A branch whose lanes disagree splits
+its group, and groups that reach one PC may merge. That is opportunistic reconvergence, never
+guaranteed (O-33 as amended, CP-2). Up to 32 groups may exist, one per lane, and the ISA sets no
+smaller limit: a `ret` with a different `rs` in each lane (§3 Format E), or five nested
+data-dependent branches, reaches 32 in ordinary code. **Forward progress is guaranteed between
+groups: every PC group of a live warp that is not waiting at a barrier (`bar.wait`,
+`bar.wait.phase`) eventually issues, whatever the warp's other groups do.** This is CUDA's
+guarantee since Volta's independent thread scheduling. Intra-warp locks, spin-waits and
+producer–consumer code depend on it.
+
+The guarantee is the ISA's; the mechanism is the implementation's. Two natural mechanisms do
+not meet it alone. Always issuing the lowest-PC group fails, because a group spinning at a lower
+PC starves the higher one it waits for. Holding a divergent branch until groups merge also
+fails, because the held lanes may be the ones the others wait for. So an implementation needs a
+fairness rule with a bound on how long a ready group can be passed over, and room for a PC per
+lane, so no split ever waits. Every lane's PC lies in the warp's one 4 GiB code window (§3
+Format E) and is 16-bit granular, so a per-lane PC needs 31 stored bits, not 48. The ISA
+promises no particular schedule. The bound need not be small or fixed, only finite.
 
 **No hardwired always-true predicate.** With only 4 logical predicates and no `PT`
 equivalent, an unpredicated instruction cannot be expressed as "predicated on true."
@@ -2814,6 +2841,22 @@ path back to OOE. No encoding changes: the field stays 6 bits, its top values re
 
 ---
 
+**O-60 — Forward progress between diverged lanes is guaranteed — decided in 1.9.** IS-17,
+raised while answering TI-24 (3). DA's words: "Yes, we must make a progress guarantee" (DA
+tab, IS-17). The ISA had per-thread PCs and no statement about whether a diverged group that
+can run must eventually run. Strict min-PC scheduling then hangs a spin-wait, and a group bound
+below 32 that holds a split until groups merge hangs the same pattern. Both are correct code on
+NVIDIA hardware since Volta. Adopted: CUDA's guarantee, normative in §1, stated as a property
+and not a mechanism. AR's pricing (IS-17) gives the first build's form: per-lane PCs in the
+window, 1,008 bits a warp against 384 for four groups; a rotating-lane fairness pointer of
+about 10 flops a warp; and min-PC kept as a reconvergence heuristic that may be a cycle stale.
+What lost: no guarantee, as before Volta. That kept four groups and strict min-PC, and would
+have hung intra-warp locks that no compiler can detect. Also withdrawn: IS's first proposal, a
+group bound with the split serialized. It deadlocks, because the held lanes may be the
+producer. No encoding changes.
+
+---
+
 **O-43 — A hardwired zero register — rejected.** Proposed on the strength of five
 `movi rX, 0` in the benchmark. Checking what each feeds dissolves it: **two** are `setp.eq`
 against zero and Format C′ already carries the immediate compare, so they are a selection
@@ -4342,7 +4385,7 @@ faults do not overwrite it.
 | Cause | One of §12.3's codes |
 | PC | The faulting instruction's address |
 | Lane mask | Fetch, decode, dispatch: the issue mask. Execute: issue mask ∩ predicate ∩ faulting lanes |
-| Address | Execute-stage memory causes: the address of the lowest lane raising the reported cause |
+| Address | Execute-stage memory causes: the address of the lowest lane raising the reported cause, as generated, in full — including any bits above 48 that made it non-canonical (`F-ADDR`) |
 | CTA ID, warp ID | The faulting warp's location |
 
 The record is visible only to the context's owning host process. Whether it lives in MMIO

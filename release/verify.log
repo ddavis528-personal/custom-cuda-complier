@@ -64,6 +64,9 @@ checked 258 instructions
   PASS  control -ccv-test-mask-device-functions is caught: 31 of 32 lanes wrong; lane 1: got 1257051806, want 1256928418
   PASS  control -ccv-test-no-call-widths is caught: did not run: error: C_ADDI has no semantics in the simulator yet
   PASS  control -ccv-test-drop-pair-offset is caught: 32 of 32 lanes wrong; lane 0: got -639373080, want 2100533844
+  forward progress between diverged lanes (O-60)
+  PASS  spinwait hangs under strict lowest-PC-first (the control)
+  PASS  spinwait finishes under O-60's fairness, issue groups at N=4:46 N=8:70 N=16:118 N=32:214 N=default:6166
   the fused corpus executes and computes the right numbers
   PASS  fused corpus: 8 kernels execute and agree with a reference written from the mathematics
   each SFU intrinsic computes its own function
@@ -79,7 +82,7 @@ checked 258 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  36 documents: paths resolve, 162 findings and 59 decisions all defined, no duplicate tracking rows
+  PASS  36 documents: paths resolve, 162 findings and 60 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings

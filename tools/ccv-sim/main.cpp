@@ -47,6 +47,20 @@ static cl::opt<uint64_t> Entry(
 static cl::opt<unsigned> Barriers(
     "barriers", cl::init(16),
     cl::desc("barriers the CTA has allocated, at most 16 (ISA v1.9 O-59)"));
+// O-60 (ISA v1.9 §1, IS-17): every diverged group of a live warp that is not
+// waiting at a barrier eventually issues. Strict lowest-PC-first does not
+// meet that -- a lane spinning at a low PC on a flag a higher-PC lane sets
+// starves the setter forever (test/cuda/spinwait.cu) -- so the oracle needs a
+// fairness rule of its own. The ISA names the guarantee, not the mechanism;
+// this one is: after N consecutive issues that passed over another runnable
+// group, issue the group that has waited longest. N = 0 is strict min-PC,
+// kept as the spin-wait kernel's control. FET's own rule and its N are TI's
+// (AR's IS-17 response); the default here is large enough that no kernel in
+// either repository's corpus changes its issue order.
+static cl::opt<unsigned> Fairness(
+    "fairness", cl::init(1024),
+    cl::desc("issues that may pass over a waiting group before it is issued "
+             "(O-60); 0 = strict lowest-PC-first"));
 static cl::opt<bool> Trace("trace", cl::desc("print each issue group"));
 static cl::opt<bool> Stats("counters", cl::desc("print execution counters"));
 static cl::opt<unsigned> MaxSteps("max-steps", cl::init(100000),
@@ -215,6 +229,10 @@ int main(int argc, char **argv) {
   unsigned PrevGroups = 1;
 
   unsigned Steps = 0, Issued = 0;
+  // O-60 fairness state: per-lane issue step of the last issue, and how many
+  // issues in a row have passed over another runnable group.
+  std::array<uint64_t, kLanes> LastIssue{};
+  unsigned PassedOver = 0;
   while (W.Active && Steps++ < MaxSteps) {
     // Group by PC: pick the lowest PC among active lanes and issue for every
     // lane sitting there. Lowest-first is a scheduling policy, not semantics --
@@ -234,10 +252,31 @@ int main(int argc, char **argv) {
       if ((Runnable >> L) & 1)
         Target = std::min(Target, W.PC[L]);
 
+    // O-60's fairness: count the issues that passed over another runnable
+    // group; at N, issue instead the group whose lanes last issued earliest.
+    bool Others = false;
+    for (unsigned L = 0; L != kLanes; ++L)
+      if (((Runnable >> L) & 1) && W.PC[L] != Target)
+        Others = true;
+    if (!Others) {
+      PassedOver = 0;
+    } else if (Fairness && ++PassedOver > Fairness) {
+      unsigned Oldest = kLanes;
+      for (unsigned L = 0; L != kLanes; ++L)
+        if (((Runnable >> L) & 1) &&
+            (Oldest == kLanes || LastIssue[L] < LastIssue[Oldest]))
+          Oldest = L;
+      Target = W.PC[Oldest];
+      PassedOver = 0;
+      ++C.FairPicks;
+    }
+
     uint32_t Mask = 0;
     for (unsigned L = 0; L != kLanes; ++L)
-      if (((Runnable >> L) & 1) && W.PC[L] == Target)
+      if (((Runnable >> L) & 1) && W.PC[L] == Target) {
         Mask |= 1u << L;
+        LastIssue[L] = Issued;
+      }
 
     // F-FETCH (ISA v1.9 §12.3): the selected PC outside the kernel's image,
     // or not 16-bit aligned -- a ret to an odd offset among them.

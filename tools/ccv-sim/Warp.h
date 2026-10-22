@@ -149,6 +149,7 @@ struct Counters {
   uint64_t Bytes = 0;         ///< dynamic instruction bytes fetched
   uint64_t Stalls = 0;        ///< issue slots spent blocked at a barrier
   uint64_t Diverged = 0;      ///< predicated branches where the mask split
+  uint64_t FairPicks = 0;     ///< issues O-60's fairness rule redirected
   uint64_t Regrouped = 0;     ///< issues that reunited lanes previously apart
 
   // By class. Taken from MCInstrDesc where possible rather than from an opcode

@@ -629,8 +629,13 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
   // become an ld.global of the shared offset.
   auto IsWindowed = [](unsigned AS) { return AS != AS_SHARED; };
 
+  // Volatile accesses take the same addressing as any other: volatility is an
+  // ordering property, carried by the memory operand onto the target node,
+  // not a different address. Excluding them (isSimple) left a volatile load's
+  // 64-bit address to the type legalizer, which aborted -- found by the IS-17
+  // spin-wait kernel, whose flag is volatile. Atomics stay excluded (F-118).
   if (auto *LD = dyn_cast<LoadSDNode>(N)) {
-    if (LD->getExtensionType() != ISD::NON_EXTLOAD || !LD->isSimple() ||
+    if (LD->getExtensionType() != ISD::NON_EXTLOAD || LD->isAtomic() ||
         !IsWindowed(LD->getAddressSpace()))
       return SDValue();
     SDVTList VTs = DAG.getVTList(LD->getValueType(0), MVT::Other);
@@ -681,7 +686,7 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
   }
 
   if (auto *ST = dyn_cast<StoreSDNode>(N)) {
-    if (ST->isTruncatingStore() || !ST->isSimple() ||
+    if (ST->isTruncatingStore() || ST->isAtomic() ||
         !IsWindowed(ST->getAddressSpace()))
       return SDValue();
     SDVTList VTs = DAG.getVTList(MVT::Other);
