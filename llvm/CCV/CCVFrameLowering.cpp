@@ -60,6 +60,11 @@ static cl::opt<bool> TestIgnoreIndirectFrames(
     cl::desc("ignore indirect-call targets in the frame layout, to test that "
              "it is caught"));
 
+// AR-23: each kernel's frame extent, its own frame and everything it calls.
+static cl::opt<bool> FrameStats(
+    "ccv-frame-stats", cl::init(false), cl::Hidden,
+    cl::desc("report each kernel's per-thread frame extent (AR-23)"));
+
 unsigned llvm::ccvFrameBase(const Function &F) {
   if (TestFlatFrames)
     return 0;
@@ -112,6 +117,9 @@ void CCVFrameLowering::emitPrologue(MachineFunction &MF,
   const unsigned Size = unsigned(MF.getFrameInfo().getStackSize());
   FrameBase[&F] = Base;
   FrameExtent[&F] = Base + Size;
+  if (FrameStats && ccvIsKernel(F))
+    errs() << "  frame " << F.getName() << ": " << Base + Size
+           << " bytes a thread (own " << Size << ")\n";
 
   // Only a kernel sets R15: a device function inherits its caller's, which is
   // the same window. A kernel sets it when anything below it has a frame.
