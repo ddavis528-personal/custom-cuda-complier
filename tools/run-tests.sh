@@ -253,7 +253,27 @@ run_ro() {
   "$SIM" "$TMP/f.bin" -const-range 0x50000:0x50006 -oracle "$TMP/ro.jsonl" >/dev/null 2>&1
   head -1 "$TMP/ro.jsonl" | grep -qF '"const":[327680,327686]' ||
     { echo "    the oracle's init record has no .const range"; bad=1; }
-  [ $bad -eq 0 ] && echo "  PASS  F-RO: .const and the launch window, any byte, per lane and gated, precise; loads and the limit itself do not fault" \
+  # TI-28: a faulting kernel's oracle ends with the faulting instruction's
+  # record (kind "fault", no defs, each executing lane's address and no
+  # value), the fault, and the state the rollback left -- in which lane 1's
+  # store to 0x50008, outside the range, did not land.
+  python3 "$AS" "$JSON" test/faults/ro-const.s "$TMP/f.bin" >/dev/null &&
+    "$SIM" "$TMP/f.bin" -const-range 0x50000:0x50006 -poke 0x50008=4660 \
+      -oracle "$TMP/ro.jsonl" >/dev/null 2>&1
+  python3 - "$TMP/ro.jsonl" <<'PY' || bad=1
+import json, sys
+r = [json.loads(l) for l in open(sys.argv[1])]
+ins, flt, fin = r[-3], r[-2], r[-1]
+ok = (ins.get("kind") == "fault" and ins.get("defs") == [] and len(ins["mem"]) == 32
+      and all("val" not in m and m["w"] == 1 for m in ins["mem"])
+      and ins["mem"][1]["addr"] == 0x50008
+      and flt.get("fault", {}).get("cause") == "F-RO"
+      and [0x50008, 4660] in fin.get("final", {}).get("mem", []))
+if not ok:
+    print("    the faulting kernel's oracle is not instruction, fault, final state (TI-28)")
+sys.exit(0 if ok else 1)
+PY
+  [ $bad -eq 0 ] && echo "  PASS  F-RO: .const and the launch window, any byte, per lane and gated, precise; loads and the limit itself do not fault; the oracle records the faulting instruction and the state after it" \
                  || { echo "  FAIL  F-RO"; return 1; }
 }
 

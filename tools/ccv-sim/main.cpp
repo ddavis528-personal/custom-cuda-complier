@@ -264,6 +264,40 @@ int main(int argc, char **argv) {
   // error, so a check can tell a fault the ISA defines from a tool failure.
   // Peeks still print: the state is the faulting instruction's predecessors',
   // which is what precision (§12.4) promises.
+  unsigned Steps = 0, Issued = 0;
+
+  // Final architectural state: every GPR lane, every predicate, and every
+  // global word any access or poke touched -- what the skeleton's retired
+  // state is compared against. After a fault it is the state the rollback
+  // left, which is what precision (§12.4) promises (TI-28).
+  auto emitFinal = [&] {
+    I.Mem.Log = nullptr;
+    I.Shared.Log = nullptr;
+    std::fprintf(OF, "{\"final\":{\"gpr\":[");
+    for (unsigned G = 0; G != kGPRs; ++G) {
+      if (G) std::fputc(',', OF);
+      jsonU32s(OF, W.GPR[G].data(), kLanes);
+    }
+    std::fprintf(OF, "],\"pred\":");
+    jsonU32s(OF, W.Pred.data(), kPreds);
+    std::sort(Touched.begin(), Touched.end());
+    std::fprintf(OF, ",\"mem\":[");
+    uint64_t LastWord = UINT64_MAX;
+    bool First = true;
+    for (uint64_t A : Touched) {
+      uint64_t Wd = A & ~uint64_t(3);
+      if (Wd == LastWord) continue;
+      LastWord = Wd;
+      uint32_t V = 0;
+      for (unsigned B = 0; B != 4; ++B)
+        V |= uint32_t(I.Mem.peekByte(Wd + B)) << (8 * B);
+      std::fprintf(OF, First ? "[%llu,%u]" : ",[%llu,%u]",
+                   (unsigned long long)Wd, V);
+      First = false;
+    }
+    std::fprintf(OF, "],\"issue_groups\":%u}}\n", Issued);
+  };
+
   auto fault = [&](const char *Cause, uint64_t PC, uint32_t Lanes,
                    uint64_t Addr) {
     outs() << format("  FAULT %s  pc=%#llx  lanes=%08x  addr=%#llx  cta=%u warp=0\n",
@@ -274,6 +308,7 @@ int main(int argc, char **argv) {
                        "\"addr\":%llu,\"cta\":%u,\"warp\":0}}\n",
                    Cause, (unsigned long long)PC, Lanes,
                    (unsigned long long)Addr, unsigned(CtaId));
+      emitFinal();
       std::fclose(OF);
     }
     I.Mem.Log = nullptr;
@@ -304,7 +339,6 @@ int main(int argc, char **argv) {
   };
   unsigned PrevGroups = 1;
 
-  unsigned Steps = 0, Issued = 0;
   // O-60 fairness state, FET's: picks since lane r's group last issued, and
   // the rotating lane pointer r.
   unsigned Picks = 0, FairLane = 0;
@@ -385,11 +419,15 @@ int main(int argc, char **argv) {
 
     auto R = I.step(W, MI, Mask, Target, unsigned(Size));
     ++Issued;
-    if (R.Kind == Interp::Result::Fault) {
+    // A fault: undo it first, then record the instruction as it was issued
+    // -- kind "fault", its uses, no defs, each executing lane's address and
+    // no written value -- so the skeleton fetches it and MIU sees it, then the
+    // fault, then the state the rollback left (TI-28).
+    const bool Faulted = R.Kind == Interp::Result::Fault;
+    if (Faulted) {
       W = Before;
       I.Mem.rollBack();
       I.Shared.rollBack();
-      return fault(R.Cause, Target, R.TakenMask, R.FaultAddr);
     }
 
     if (OF) {
@@ -462,6 +500,8 @@ int main(int argc, char **argv) {
           for (unsigned B = 0; B != 4; ++B)
             if (Op.getImm() & (1 << B)) addTo(Uses, "P" + std::to_string(B));
       }
+      if (Faulted)
+        Defs.clear();
       for (unsigned G = 0; G != kGPRs; ++G)
         if (Before.GPR[G] != W.GPR[G]) {
           std::string N = "R" + std::to_string(G);
@@ -531,18 +571,22 @@ int main(int argc, char **argv) {
         for (unsigned L = 0; L != kLanes; ++L) {
           if (!(Exec & (1u << L))) continue;
           const auto &A = Log[K++];
-          std::fprintf(OF, Emitted ? ",{\"lane\":%u,\"space\":\"%s\",\"w\":%d,"
-                                     "\"addr\":%llu,\"bytes\":%u,\"val\":%u}"
-                                   : "{\"lane\":%u,\"space\":\"%s\",\"w\":%d,"
-                                     "\"addr\":%llu,\"bytes\":%u,\"val\":%u}",
-                       L, SpaceIdx ? "shared" : "global", int(A.Write),
-                       (unsigned long long)A.Addr, A.Bytes, A.Val);
+          std::fprintf(OF, "%s{\"lane\":%u,\"space\":\"%s\",\"w\":%d,"
+                           "\"addr\":%llu,\"bytes\":%u",
+                       Emitted ? "," : "", L, SpaceIdx ? "shared" : "global",
+                       int(A.Write), (unsigned long long)A.Addr, A.Bytes);
+          // A faulting instruction writes nothing, so it has no value.
+          if (!Faulted)
+            std::fprintf(OF, ",\"val\":%u", A.Val);
+          std::fputc('}', OF);
           ++Emitted;
           if (!SpaceIdx) Touched.push_back(A.Addr);
         }
       }
       std::fprintf(OF, "]}\n");
     }
+    if (Faulted)
+      return fault(R.Cause, Target, R.TakenMask, R.FaultAddr);
 
     // --- counters -------------------------------------------------------
     ++C.IssueGroups;
@@ -668,34 +712,7 @@ int main(int argc, char **argv) {
   outs() << "  executed " << Issued << " issue groups\n";
 
   if (OF) {
-    // Final architectural state: every GPR lane, every predicate, and every
-    // global word any access or poke touched -- what the skeleton's retired
-    // state is compared against.
-    I.Mem.Log = nullptr;
-    I.Shared.Log = nullptr;
-    std::fprintf(OF, "{\"final\":{\"gpr\":[");
-    for (unsigned G = 0; G != kGPRs; ++G) {
-      if (G) std::fputc(',', OF);
-      jsonU32s(OF, W.GPR[G].data(), kLanes);
-    }
-    std::fprintf(OF, "],\"pred\":");
-    jsonU32s(OF, W.Pred.data(), kPreds);
-    std::sort(Touched.begin(), Touched.end());
-    std::fprintf(OF, ",\"mem\":[");
-    uint64_t LastWord = UINT64_MAX;
-    bool First = true;
-    for (uint64_t A : Touched) {
-      uint64_t Wd = A & ~uint64_t(3);
-      if (Wd == LastWord) continue;
-      LastWord = Wd;
-      uint32_t V = 0;
-      for (unsigned B = 0; B != 4; ++B)
-        V |= uint32_t(I.Mem.peekByte(Wd + B)) << (8 * B);
-      std::fprintf(OF, First ? "[%llu,%u]" : ",[%llu,%u]",
-                   (unsigned long long)Wd, V);
-      First = false;
-    }
-    std::fprintf(OF, "],\"issue_groups\":%u}}\n", Issued);
+    emitFinal();
     std::fclose(OF);
   }
   if (Stats) {
