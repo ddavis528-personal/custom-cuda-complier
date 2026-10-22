@@ -16,6 +16,7 @@ FunctionPass *createCCVExpandPseudos();
 FunctionPass *createCCVWindowRemat();
 FunctionPass *createCCVCompress();
 FunctionPass *createCCVSpillStats();
+FunctionPass *createCCVNarrowUses();
 FunctionPass *createCCVMaskUniform();
 FunctionPass *createCCVFuseRcpSeed();
 FunctionPass *createCCVInsertChwidth();
@@ -102,6 +103,12 @@ public:
   /// -- once PEI resolves those to `r15 + offset` the slot identity is gone
   /// and only a total is left, which is the measurement F-113 exists to
   /// replace.
+  /// F-169: a narrow use of a value also read wider gets its own copy, which
+  /// allocation then pays for, spilling if it has to.
+  void addPreRegAlloc() override {
+    addPass(createCCVNarrowUses());
+  }
+
   void addPostRegAlloc() override {
     addPass(createCCVSpillStats());
   }

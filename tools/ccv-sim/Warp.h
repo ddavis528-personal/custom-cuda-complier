@@ -197,6 +197,9 @@ struct Counters {
   // pointer, which nothing else uses because R15 is reserved (O-30).
   uint64_t LdSt[4] = {};      ///< ld.global, st.global, ld.shared, st.shared
   uint64_t Spill = 0;
+  // Calls issued, for AR-20's traffic per call. A call is control; it used to
+  // fall through to ALU, being neither a branch nor a return.
+  uint64_t Calls = 0;
 
   // Issued instructions by element width (0 = 32, 1 = 16, 2 = 8, 3 = 4), split
   // by pipe. O-40 gives narrow operations a higher retire rate by splitting the

@@ -293,6 +293,7 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(0),
     UINT64_C(0),
     UINT64_C(0),
+    UINT64_C(0),
     UINT64_C(1280),	// ABS
     UINT64_C(0),	// ADD
     UINT64_C(12),	// ADDI

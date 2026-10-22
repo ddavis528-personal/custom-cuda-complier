@@ -10,10 +10,14 @@
 #
 # It is the first workload with calls, bytes, shorts, pointers in memory,
 # module data and predicate spills all at once, which is where each of those
-# met the others. Controls, which must fail: -ccv-test-hoist-past-calls lets a
-# width transition move above a call, which resets it; and
-# -ccv-test-no-data-reloc leaves the pointers in the module's data (the state
-# benchmark's pattern tables) unrelocated.
+# met the others. `mem` starts 66000 bytes into its window, so every lane's
+# block lies past 64 KiB there: an in-window offset that does not fit 16 bits,
+# which `align_mem` reads at 16 (F-169). Controls, which must fail:
+# -ccv-test-hoist-past-calls lets a width transition move above a call, which
+# resets it; -ccv-test-no-data-reloc leaves the pointers in the module's data
+# (the state benchmark's pattern tables) unrelocated; and
+# -ccv-test-narrow-in-place narrows a register for a 16-bit read while its
+# 32-bit value is still live.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
@@ -56,7 +60,7 @@ N, MEM, OUT, ITER = 32, 3, 7, 2
 args = ["-entry", entry, "-data", f"{tmp}/ccv_data.bin", "-data-info", f"{tmp}/ccv_info.bin",
         "-max-steps", "100000000",
         "-poke", f"0x20000={N}", "-poke", "0x20018=256",
-        "-poke", f"0x20020={MEM}", "-poke", "0x20024=0",      # mem
+        "-poke", f"0x20020={MEM}", "-poke", "0x20024=66000",  # mem, past 64 KiB
         "-poke", f"0x20028={OUT}", "-poke", "0x2002c=0",      # out
         "-poke", f"0x20030={ITER}"]                           # iterations
 if os.path.getsize(f"{tmp}/ccv_reloc.bin"):
@@ -90,7 +94,7 @@ case "$out" in
   ok*) echo "  PASS  CoreMark-derived: list, matrix and state on 32 lanes give CoreMark's CRCs, and the host's after $ITER iterations ($want; ${out#ok } issue groups)" ;;
   *)   echo "  FAIL  CoreMark-derived: $out"; fail=1 ;;
 esac
-for c in -ccv-test-hoist-past-calls -ccv-test-no-data-reloc; do
+for c in -ccv-test-hoist-past-calls -ccv-test-no-data-reloc -ccv-test-narrow-in-place; do
   out=$(run $c)
   case "$out" in
     ok*) echo "  FAIL  control $c still computed every lane right"; fail=1 ;;

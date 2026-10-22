@@ -1,8 +1,8 @@
   gen-register-info    ok (639 lines)
-  gen-instr-info       ok (4876 lines)
-  gen-emitter          ok (2431 lines)
+  gen-instr-info       ok (4884 lines)
+  gen-emitter          ok (2432 lines)
   gen-disassembler     ok (1367 lines)
-  gen-asm-writer       ok (1439 lines)
+  gen-asm-writer       ok (1441 lines)
   gen-dag-isel         ok (1867 lines)
   gen-callingconv      ok (92 lines)
 
@@ -56,13 +56,13 @@ checked 266 instructions
   PASS  slot reach: 16 slot-form accesses at NT=16, past the
         4-byte stride's ceiling of 8, with 0 spill transfers
   device-function calls (F-21)
-  PASS  calls.cu, callee-saved set 'none': 32 lanes correct (410 issue groups)
-  PASS  calls.cu, callee-saved set 'six': 32 lanes correct (405 issue groups)
-  PASS  calls.cu, callee-saved set 'eight': 32 lanes correct (429 issue groups)
+  PASS  calls.cu, callee-saved set 'none': 32 lanes correct (403 issue groups)
+  PASS  calls.cu, callee-saved set 'six': 32 lanes correct (398 issue groups)
+  PASS  calls.cu, callee-saved set 'eight': 32 lanes correct (422 issue groups)
   PASS  static frames: scratch at -16..-4, the kernel below it at -84..-36; stack arguments at [-20, -16, -12, -8, -4]
   PASS  control -ccv-test-flat-frames is caught: did not run: FAULT F-ALIGN  pc=0x1032  lanes=eeeeeeee  addr=0x10001dcd9  cta=0 warp=0
   PASS  control -ccv-test-mask-device-functions is caught: 31 of 32 lanes wrong; lane 1: got 1256366469, want 1256146134
-  PASS  control -ccv-test-no-call-widths is caught: did not run: error: MADLO has no semantics in the simulator yet
+  PASS  control -ccv-test-no-call-widths is caught: did not run: error: C_RET has no semantics in the simulator yet
   PASS  control -ccv-test-drop-pair-offset is caught: 32 of 32 lanes wrong; lane 0: got -638511987, want 2099937551
   PASS  control -ccv-test-stack-args-at-zero is caught: 32 of 32 lanes wrong; lane 0: got 2099588174, want 2099937551
   PASS  control -ccv-test-ignore-indirect-frames is caught: 16 of 32 lanes wrong; lane 0: got 2099740282, want 2099937551
@@ -80,16 +80,17 @@ checked 266 instructions
   PASS  control -ccv-test-no-data-reloc is caught: 32 of 32 lanes wrong; lane 0: [-2, 0], want [-1, 0]
   PASS  control -ccv-test-data-word-24 is caught: 32 of 32 lanes wrong; lane 0: [0, 0], want [-1, 0]
   byte memory access (F-161, F-164)
-  PASS  bytes.cu: signed and unsigned bytes, a string, .shared, the frame, and 32 packed byte stores on 32 lanes (604 issue groups)
+  PASS  bytes.cu: signed and unsigned bytes, a string, .shared, the frame, and 32 packed byte stores on 32 lanes (603 issue groups)
   PASS  control -ccv-test-bytes-at-32 is caught: did not run: FAULT F-ALIGN  pc=0x1044  lanes=eeeeeeee  addr=0x30001  cta=0 warp=0
   PASS  control -ccv-test-chwidth-defs-only is caught: did not run: FAULT F-ALIGN  pc=0x1196  lanes=ffffffff  addr=0xfffff1  cta=0 warp=0
   exported kernels (TI-30)
   PASS  rope: 2 CTAs of 32 threads match the reference; 31 opcodes, 374 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
   PASS  layernorm: 2 CTAs of 32 threads match the reference; 37 opcodes, 536 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
   CoreMark-derived workload (AR-20)
-  PASS  CoreMark-derived: list, matrix and state on 32 lanes give CoreMark's CRCs, and the host's after 2 iterations (72be e714 1fd7 8e3a; 1564280 issue groups)
-  PASS  control -ccv-test-hoist-past-calls is caught: did not run: FAULT F-ALIGN  pc=0x44dc  lanes=ffffffff  addr=0xffff26  cta=0 warp=0
+  PASS  CoreMark-derived: list, matrix and state on 32 lanes give CoreMark's CRCs, and the host's after 2 iterations (72be e714 1fd7 8e3a; 1538673 issue groups)
+  PASS  control -ccv-test-hoist-past-calls is caught: did not run: error: MOV_P has no semantics in the simulator yet
   PASS  control -ccv-test-no-data-reloc is caught: 32 of 32 lanes wrong; lane 0: 0026 bd52 1fd7 6f31, want 72be e714 1fd7 8e3a
+  PASS  control -ccv-test-narrow-in-place is caught: 32 of 32 lanes wrong; lane 0: 7795 88c3 4192 9e9e, want 72be e714 1fd7 8e3a
   forward progress between diverged lanes (O-60)
   PASS  spinwait hangs under strict lowest-PC-first (the control)
   PASS  test/spinwait.s assembles to the compiled kernel's bytes
@@ -101,7 +102,7 @@ checked 266 instructions
   dp4 against a four-MAC reference
   PASS  dp4: 32 lanes correct against a four-MAC reference (1 dp4 instruction(s) emitted)
   every instruction has a production path
-  PASS  278 instructions, all with a production path (isel 83, pass 121, mc 1, declared 73)
+  PASS  279 instructions, all with a production path (isel 83, pass 122, mc 1, declared 73)
   the production-path gate catches its own cases
   PASS  removing the bra.short pattern (with insertBranch also removed) fails the check
   PASS  removing the immediate-compare mapping fails the check
@@ -109,7 +110,7 @@ checked 266 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 172 findings and 63 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 173 findings and 63 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -130,7 +131,7 @@ checked 266 instructions
 
   CCV instructions     : 266
   round trips          : 17024 (64 random operand sets each)
-  non-CCV opcodes      : 283 (LLVM pseudos and GlobalISel generics, no encoding)
+  non-CCV opcodes      : 284 (LLVM pseudos and GlobalISel generics, no encoding)
   unbuildable operands : 0
   failures             : 0
 

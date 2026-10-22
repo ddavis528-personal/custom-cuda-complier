@@ -189,11 +189,10 @@ LBB0_10:
 	add r9, r11, r9
 	st.global r10, [#5, r9, 0, 0]
 LBB0_13:
-	chwidth.multi 513, 1
-	add r9, r0, -56
-	chwidth r0, 0
-	chwidth r9, 2
-	st.shared r9, [r0 + 0]
+	chwidth r14, 1
+	add r14, r0, -56
+	chwidth r14, 2
+	st.shared r14, [r0 + 0]
 	add r1, r4
 	add r1, r3
 	add r1, r2

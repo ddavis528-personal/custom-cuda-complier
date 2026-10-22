@@ -44,9 +44,8 @@ Lfunc_end2:
 
 	.type	_Z9half_steps,@function
 _Z9half_steps:
-	chwidth.multi 130, 1
+	chwidth r7, 1
 	add r7, r1, 3
-	chwidth r1, 0
 	cvt.sint.sint r1, r7
 	chwidth r7, 0
 	ret 224
@@ -95,15 +94,12 @@ Lfunc_end5:
 
 	.type	_Z7narrow3sss,@function
 _Z7narrow3sss:
-	chwidth.multi 206, 1
+	chwidth.multi 192, 1
 	add r7, r2, r1
-	chwidth r2, 0
 	sub r6, r3, r1
-	chwidth r1, 0
 	xor r7, r6, r7
 	chwidth r6, 0
 	add r7, r7, r3
-	chwidth r3, 0
 	cvt.sint.sint r1, r7
 	chwidth r7, 0
 	ret 224

@@ -949,6 +949,13 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
 
   // $neg is the qualifier's negate bit (§1). Carrying it lets the generic
   // branch folder invert a condition rather than adding an instruction.
+  // A narrow use's own copy of a value also read wider (F-169), made before
+  // allocation by CCVNarrowUses. Not a COPY, so nothing folds it back into its
+  // source; CCVInsertChwidth makes it a move, or nothing when both landed in
+  // one register.
+  def PSEUDO_NARROW : CCVInst<0, (outs GPR:$rd), (ins GPR:$rs),
+                              "# narrow $rd, $rs">;
+
   // O-33's broadcast. Tied because the shuffle is in-place: lanes 1-31 read
   // lane 0's copy of the SAME register, and lane 0 keeps its own value because
   // the qualifier excludes it (invariant 10). That is what makes one
