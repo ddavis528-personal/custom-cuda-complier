@@ -35,6 +35,10 @@ public:
 /// Where F's frame starts below R15, in bytes: the deepest extent any of its
 /// callees' frames reach. Laid out by emitPrologue, callees first.
 unsigned ccvFrameBase(const Function &F);
+/// The launch block's address, which the kernel prologue and module data
+/// (word 28, O-61) read. One copy, checked against the others by
+/// tools/check-launch-abi.sh.
+uint64_t ccvLaunchBase();
 /// Whether F's frame has been laid out yet. A caller's stack arguments are
 /// written at its callee's base, so the callee must come first.
 bool ccvFrameLaidOut(const Function &F);

@@ -17,6 +17,9 @@ void lowerCCVPointerPairs(Module &M);
 /// calls record the functions they may reach. Runs first, so CCVPointerPairs
 /// never mistakes a code pointer for a data pointer. CCVCodePointers.cpp.
 void lowerCCVCodePointers(Module &M);
+/// O-61: every global becomes part of one data image, addressed as (word 28
+/// of the launch block, offset). Runs first. CCVModuleData.cpp.
+void lowerCCVModuleData(Module &M);
 } // namespace llvm
 
 #endif

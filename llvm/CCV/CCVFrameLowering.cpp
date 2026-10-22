@@ -19,6 +19,8 @@ static cl::opt<uint64_t> LaunchBase("ccv-frame-launch-base", cl::init(0x20000),
 static constexpr unsigned kBaseShift = 16;
 static constexpr unsigned kOffLocalBase = 24;
 
+uint64_t llvm::ccvLaunchBase() { return LaunchBase; }
+
 bool llvm::ccvIsKernel(const Function &F) {
   const NamedMDNode *Annos = F.getParent()->getNamedMetadata("nvvm.annotations");
   // Hand-written IR (test/accept) marks nothing. There, a function nothing in

@@ -3,7 +3,9 @@
 **Status:** agreed 2026-10-22. IS agreed with four additions (IS's response CP-10, rev 90),
 folded in below, and will write §5.2 and the decision. TI confirmed that word 28 is free and that
 nothing in RTL or the skeleton decodes the launch block (TI's response CP-10, rev 108). CP
-builds once §5.2 is written; until then the compiler diagnoses a global.
+built it once §5.2 was written (O-61): `CCVModuleData`, `ccv-sim -data`, and
+`tools/check-globals.sh`. A function pointer in an initializer is still diagnosed: it needs
+the code layout.
 **Found by:** the CoreMark-derived workload (AR-20). `core_state.c` holds its input patterns in
 four constant tables of string pointers, `static ee_u8 *intpat[4] = {"5012", ...}`, and
 reads them by a runtime index. Any C or CUDA source with a lookup table, a string literal

@@ -20,6 +20,8 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Endian.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/bit.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
@@ -68,6 +70,19 @@ static cl::opt<bool> Trace("trace", cl::desc("print each issue group"));
 static cl::opt<bool> Stats("counters", cl::desc("print execution counters"));
 static cl::opt<unsigned> MaxSteps("max-steps", cl::init(100000),
                                   cl::desc("issue-group limit"));
+// O-61: a module's data image, loaded at -data-window << 16 with its data
+// pointers relocated, and the window written to launch-block word 28. It
+// becomes pokes ahead of -poke's, so the oracle's initial memory has it and a
+// -poke can still override any word.
+static cl::opt<std::string> DataImage(
+    "data", cl::desc("the module's data image (.ccv_data), O-61"),
+    cl::value_desc("file"));
+static cl::opt<std::string> DataReloc(
+    "data-reloc", cl::desc("its relocation list (.ccv_reloc): u32 image "
+                           "offsets of 8-byte data-pointer slots"),
+    cl::value_desc("file"));
+static cl::opt<unsigned> DataWindow("data-window", cl::init(0x200),
+                                    cl::desc("the window the image is loaded at"));
 static cl::list<std::string> Pokes("poke", cl::desc("addr=value, before run"),
                                    cl::value_desc("hex=hex"));
 static cl::list<std::string> Peeks("peek", cl::desc("addr, after run"),
@@ -144,7 +159,32 @@ int main(int argc, char **argv) {
   }
   W.Active = NumThreads >= kLanes ? ~0u : ((1u << NumThreads) - 1);
 
-  for (const auto &P : Pokes) {
+  std::vector<std::string> AllPokes;
+  if (!DataImage.empty()) {
+    auto Img = MemoryBuffer::getFile(DataImage);
+    if (!Img) { errs() << "error: cannot read " << DataImage << "\n"; return 1; }
+    std::vector<uint8_t> D((*Img)->getBufferStart(), (*Img)->getBufferEnd());
+    D.resize((D.size() + 3) & ~size_t(3), 0);
+    const uint64_t Base = uint64_t(DataWindow) << 16;
+    if (!DataReloc.empty()) {
+      auto R = MemoryBuffer::getFile(DataReloc);
+      if (!R) { errs() << "error: cannot read " << DataReloc << "\n"; return 1; }
+      StringRef RB = (*R)->getBuffer();
+      for (size_t I = 0; I + 4 <= RB.size(); I += 4) {
+        uint32_t Off = support::endian::read32le(RB.data() + I);
+        if (Off + 8 > D.size()) { errs() << "error: relocation past the image\n"; return 1; }
+        uint64_t V = support::endian::read64le(&D[Off]) + Base;
+        support::endian::write64le(&D[Off], V);
+      }
+    }
+    for (size_t I = 0; I != D.size(); I += 4)
+      AllPokes.push_back(utostr(Base + I) + "=" +
+                         utostr(support::endian::read32le(&D[I])));
+    AllPokes.push_back(utostr(launchBlockBase() + 28) + "=" + utostr(DataWindow));
+  }
+  AllPokes.insert(AllPokes.end(), Pokes.begin(), Pokes.end());
+
+  for (const auto &P : AllPokes) {
     auto [A, V] = StringRef(P).split('=');
     uint64_t Addr; uint32_t Val;
     if (A.getAsInteger(0, Addr) || V.getAsInteger(0, Val)) {
@@ -166,7 +206,7 @@ int main(int argc, char **argv) {
     for (unsigned char Ch : Code) std::fprintf(OF, "%02x", Ch);
     std::fprintf(OF, "\",\"mem\":[");
     bool First = true;
-    for (const auto &P : Pokes) {
+    for (const auto &P : AllPokes) {
       auto [A, V] = StringRef(P).split('=');
       uint64_t Addr; uint32_t Val;
       A.getAsInteger(0, Addr); V.getAsInteger(0, Val);

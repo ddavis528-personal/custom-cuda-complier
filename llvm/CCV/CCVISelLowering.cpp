@@ -262,6 +262,20 @@ static bool matchBaseIdx(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
     return false;
   SDValue A = Addr.getOperand(0), B = Addr.getOperand(1);
 
+  // A constant inside the window term -- a global at a fixed offset in the
+  // module's data image, indexed (O-61): ((W << 16) + c) + idx. The constant
+  // is a displacement like any other.
+  for (SDValue *X : {&A, &B})
+    if ((X->getOpcode() == ISD::ADD || X->getOpcode() == ISD::OR) &&
+        matchWindow(X->getOperand(0)))
+      if (auto *K = dyn_cast<ConstantSDNode>(X->getOperand(1))) {
+        if (X->getOpcode() == ISD::OR && !isUInt<16>(K->getZExtValue()))
+          continue;
+        Disp += K->getSExtValue();
+        *X = X->getOperand(0);
+        break;
+      }
+
   SDValue Win, Other, ROff;
   if ((Win = matchWindow(A)))      Other = B;
   else if ((Win = matchWindow(B))) Other = A;
@@ -443,6 +457,26 @@ static bool matchFrame(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
 
 static bool matchBaseOff(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
                          SDValue &Base, SDValue &Off) {
+  // A window plus a constant, or a window alone: a global at a fixed offset
+  // in the module's data image (O-61), which is Format D base+offset with the
+  // window in a register.
+  SDValue W = Addr;
+  int64_t D = 0;
+  // The combiner writes the add as an `or` when the bits are disjoint, as
+  // they are below a window's 16.
+  if (Addr.getOpcode() == ISD::ADD || Addr.getOpcode() == ISD::OR)
+    if (auto *K = dyn_cast<ConstantSDNode>(Addr.getOperand(1))) {
+      W = Addr.getOperand(0);
+      D = K->getSExtValue();
+      if (Addr.getOpcode() == ISD::OR && !isUInt<16>(D))
+        W = Addr;
+    }
+  if (SDValue Win = matchWindow(W); Win && isInt<13>(D)) {
+    Base = Win;
+    Off = DAG.getTargetConstant(D, DL, MVT::i32);
+    return true;
+  }
+
   auto *C = dyn_cast<ConstantSDNode>(Addr);
   if (!C)
     return false;
@@ -673,10 +707,19 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
   // 64-bit address to the type legalizer, which aborted -- found by the IS-17
   // spin-wait kernel, whose flag is volatile. Atomics stay excluded (F-118).
   if (auto *LD = dyn_cast<LoadSDNode>(N)) {
-    if (LD->getExtensionType() != ISD::NON_EXTLOAD || LD->isAtomic() ||
-        !IsWindowed(LD->getAddressSpace()))
+    if (LD->isAtomic() || !IsWindowed(LD->getAddressSpace()))
       return SDValue();
-    SDVTList VTs = DAG.getVTList(LD->getValueType(0), MVT::Other);
+    // A 16-bit load extended to 32 is a 16-bit load at width 16, then the
+    // extension: free for zero (O-38's widening clears the bits it exposes),
+    // `cvt.sext` for sign. Left alone, its 64-bit address reached the type
+    // legalizer unmatched and aborted (a `short` field; O-61's globals.cu).
+    ISD::LoadExtType Ext = LD->getExtensionType();
+    if (Ext != ISD::NON_EXTLOAD &&
+        (LD->getMemoryVT() != MVT::i16 || LD->getValueType(0) != MVT::i32))
+      return SDValue();
+    SDVTList VTs = DAG.getVTList(Ext == ISD::NON_EXTLOAD ? LD->getValueType(0)
+                                                         : MVT::i16,
+                                 MVT::Other);
     SDValue Base, Idx, New;
     bool Scale = false;
     int64_t IdxDisp = 0;
@@ -719,7 +762,11 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     // A load has two results. Returning one SDValue would replace only the
     // value and leave the chain hanging off the dead original, which shows up
     // later as an unexpandable i64 rather than as anything recognisable.
-    DCI.CombineTo(N, New.getValue(0), New.getValue(1));
+    SDValue V = New.getValue(0);
+    if (Ext != ISD::NON_EXTLOAD)
+      V = DAG.getNode(Ext == ISD::SEXTLOAD ? ISD::SIGN_EXTEND : ISD::ZERO_EXTEND,
+                      DL, MVT::i32, V);
+    DCI.CombineTo(N, V, New.getValue(1));
     return SDValue(N, 0);
   }
 

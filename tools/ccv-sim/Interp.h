@@ -62,4 +62,7 @@ public:
 };
 
 } // namespace ccv
+/// The launch block's address (§5.2), for main's -data loading (O-61).
+uint64_t launchBlockBase();
+
 #endif

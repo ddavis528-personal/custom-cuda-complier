@@ -40,6 +40,7 @@ static constexpr unsigned kBaseShift = 16;
 // itself produces a kernel that reads the wrong argument and nothing that looks
 // like a compile error.
 static constexpr uint64_t kLaunchBase = 0x20000;
+uint64_t launchBlockBase() { return kLaunchBase; }
 static constexpr unsigned kOffArgs    = 32;
 // Eight, matching the compiler: a slot names a window word and §5.2 puts those
 // 8 bytes apart (DA's response CP-4, 2026-10-08). If this disagrees with the
