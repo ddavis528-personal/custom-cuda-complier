@@ -4,9 +4,11 @@
 #include "CCVFrameLowering.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/CodeGen/CallingConvLower.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAG.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 
@@ -756,8 +758,20 @@ SDValue CCVTargetLowering::LowerFormalArguments(
   CCInfo.AnalyzeFormalArguments(Ins, CC_CCV);
 
   for (const CCValAssign &VA : ArgLocs) {
-    if (!VA.isRegLoc())
-      report_fatal_error("CCV: stack arguments are not implemented");
+    if (VA.isMemLoc()) {
+      // A stack argument (F-21, calling-convention.md §3): the caller wrote
+      // it at the top of this function's frame, where a fixed object with a
+      // negative offset puts it -- PEI lays the locals out below.
+      int FI = MF.getFrameInfo().CreateFixedObject(
+          4, -int64_t(VA.getLocMemOffset()) - 4, /*IsImmutable=*/true);
+      SDValue V = DAG.getLoad(VA.getLocVT(), DL, Chain,
+                              DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout())),
+                              MachinePointerInfo::getFixedStack(MF, FI));
+      if (VA.getValVT() != VA.getLocVT())
+        V = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), V);
+      InVals.push_back(V);
+      continue;
+    }
     Register VReg = MF.getRegInfo().createVirtualRegister(&CCV::GPRRegClass);
     MF.getRegInfo().addLiveIn(VA.getLocReg(), VReg);
     SDValue V = DAG.getCopyFromReg(Chain, DL, VReg, VA.getLocVT());
@@ -775,10 +789,17 @@ SDValue CCVTargetLowering::LowerFormalArguments(
   return Chain;
 }
 
+// Mutation control for tools/check-calls.sh: a caller writes stack arguments
+// as if its callee's frame were at base 0, so they miss the callee's slots.
+static cl::opt<bool> TestStackArgsAtZero(
+    "ccv-test-stack-args-at-zero", cl::init(false), cl::Hidden,
+    cl::desc("write stack arguments ignoring the callee's frame base, to test "
+             "that it is caught"));
+
 /// A direct call (F-21; proposals/calling-convention.md). Arguments go in
 /// R1-R6 per CC_CCV, the callee runs on the same R15 with its frame at a
-/// static place below its caller's, and returns in R1-R2. Stack arguments and
-/// indirect calls are the proposal's steps 3 and 5.
+/// static place below its caller's, and returns in R1-R2. Arguments past the
+/// sixth go on the callee's frame. Indirect calls are the proposal's step 5.
 SDValue CCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
                                      SmallVectorImpl<SDValue> &InVals) const {
   SelectionDAG &DAG = CLI.DAG;
@@ -808,6 +829,42 @@ SDValue CCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
   CCInfo.AnalyzeCallOperands(CLI.Outs, CC_CCV);
 
   Chain = DAG.getCALLSEQ_START(Chain, 0, 0, DL);
+
+  // Stack arguments go where the callee reads them: the top of its frame,
+  // whose base is fixed module-wide and already known, since callees are laid
+  // out first. Every function runs on the same R15, so the address is a
+  // constant displacement, stored straight to [R15 + d] (§3).
+  const Function *Callee = cast<Function>(G->getGlobal());
+  SmallVector<SDValue, 4> Stores;
+  for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
+    const CCValAssign &VA = ArgLocs[I];
+    if (!VA.isMemLoc())
+      continue;
+    if (!ccvFrameLaidOut(*Callee))
+      report_fatal_error(
+          "CCV: " + MF.getName() + " passes stack arguments to " +
+          Callee->getName() + " before that function's frame is laid out -- "
+          "a recursive call, which a static frame layout cannot place (F-21)");
+    int64_t Disp = -int64_t(TestStackArgsAtZero ? 0 : ccvFrameBase(*Callee)) -
+                   int64_t(VA.getLocMemOffset()) - 4;
+    if (!isInt<13>(Disp))
+      report_fatal_error("CCV: a stack argument to " + Callee->getName() +
+                         " lies past the 13-bit displacement of §3's Format D");
+    SDValue V = CLI.OutVals[I];
+    if (VA.getLocVT() != VA.getValVT())
+      V = DAG.getNode(ISD::ANY_EXTEND, DL, VA.getLocVT(), V);
+    MachineSDNode *St = DAG.getMachineNode(
+        CCV::ST_GLOBAL, DL, MVT::Other,
+        {V, DAG.getRegister(CCV::R15, MVT::i32),
+         DAG.getTargetConstant(Disp, DL, MVT::i32), Chain});
+    DAG.setNodeMemRefs(St, {MF.getMachineMemOperand(
+                               MachinePointerInfo(), MachineMemOperand::MOStore,
+                               4, Align(4))});
+    Stores.push_back(SDValue(St, 0));
+  }
+  if (!Stores.empty())
+    Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, Stores);
+
   SDValue Glue;
   SmallVector<SDValue, 8> Ops = {
       // i32, not the 64-bit pointer type: no register holds an address
@@ -816,8 +873,7 @@ SDValue CCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
   for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
     const CCValAssign &VA = ArgLocs[I];
     if (!VA.isRegLoc())
-      report_fatal_error("CCV: more than six register arguments -- stack "
-                         "arguments are step 3 of the calling sequence");
+      continue;
     SDValue V = CLI.OutVals[I];
     if (VA.getLocVT() != VA.getValVT())
       V = DAG.getNode(ISD::ANY_EXTEND, DL, VA.getLocVT(), V);

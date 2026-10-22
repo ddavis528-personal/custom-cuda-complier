@@ -170,7 +170,13 @@ names its entry point, and `ccv-sim -entry` takes it.
 2. `LowerCall`, the value-returning `RET`, R14 as a live-in, IPRA on, and `CSR_CCV` = B.
    **Done**, with the static frame layout and the recursion diagnostic from step 3.
    `tools/check-calls.sh` executes it.
-3. Outgoing stack arguments (more than six).
+3. Outgoing stack arguments (more than six). **Done** (2026-10-22). Argument k past the
+   sixth sits at `-(base(callee) + 4k + 4)` below R15, the top of the callee's frame: the
+   callee declares it as a fixed frame object, so its locals are laid out beneath, and the
+   caller, which is compiled after the callee and so knows its base, stores to `[R15 + d]`
+   directly. `check-calls.sh` executes nine arguments with a short among them, a function
+   that passes stack arguments on while its own are live, and a pointer pair split across R6
+   and the stack, with a control that writes them ignoring the callee's base.
 4. F-22: pointer parameters as pairs. **Done** (`CCVPointerPairs`), returns included:
    pointers are read through, forwarded with an offset, and returned in `check-calls.sh`,
    with a control that drops the offset. `ptr-in-call.ll` stays a reject, because its

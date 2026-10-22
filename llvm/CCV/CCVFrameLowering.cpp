@@ -58,6 +58,10 @@ unsigned llvm::ccvFrameBase(const Function &F) {
   return It == FrameBase.end() ? 0 : It->second;
 }
 
+bool llvm::ccvFrameLaidOut(const Function &F) {
+  return FrameExtent.count(&F);
+}
+
 void CCVFrameLowering::emitPrologue(MachineFunction &MF,
                                     MachineBasicBlock &MBB) const {
   const Function &F = MF.getFunction();
