@@ -1,7 +1,9 @@
 # Proposal — Where a module's data lives (CP-10, F-162)
 
-**Status:** proposed 2026-10-22, for IS (ISA v1.9 §5.2, the launch ABI) and TI (the launch
-block). Nothing is built until they answer; the compiler diagnoses a global today.
+**Status:** agreed 2026-10-22. IS agreed with four additions (IS's response CP-10, rev 90),
+folded in below, and will write §5.2 and O-61. TI confirmed that word 28 is free and that
+nothing in RTL or the skeleton decodes the launch block (TI's response CP-10, rev 108). CP
+builds once §5.2 is written; until then the compiler diagnoses a global.
 **Found by:** the CoreMark-derived workload (AR-20). `core_state.c` holds its input patterns in
 four constant tables of string pointers, `static ee_u8 *intpat[4] = {"5012", ...}`, and
 reads them by a runtime index. Any C or CUDA source with a lookup table, a string literal
@@ -38,6 +40,25 @@ into constant data. What is not specified is how the kernel learns where that da
    image itself, which are known only once `W_d` is chosen. The image carries a list of
    8-byte slots to which the loader adds `W_d << 16`. That is the ordinary loader
    relocation, and the only kind needed, since the module is closed.
+
+### IS's additions (rev 90)
+
+6. **Function pointers in initializers need no relocation.** A code pointer is its
+   target's offset in the code window (§3 Format E), a constant of the image wherever the
+   image is loaded, so a vtable or callback table is stored as is. The relocation list
+   names only data pointers: 8-byte slots holding O-54's flat address, naturally aligned
+   (O-58).
+7. **The writable part's initial state is defined** (invariant 12, O-38). Initialized
+   globals come from the image and everything else is zero, written by the loader, never
+   whatever memory held before.
+8. **The image is per context.** Writable globals are shared by every launch of the module
+   within its context, and never across contexts.
+9. **Invariance is per launch.** §5.2's cacheable, invariant contract for `.const` holds for
+   a launch. The host may write `__constant__` data between launches, and the next launch
+   must see it; that obligation is AR's and TI's. A device store into it raises `F-RO`.
+
+IS also notes that MIU's CTA channel carries no `.const` range and no launch-block limit
+yet, so `F-RO` cannot be checked in RTL for either. That is TI's.
 
 ## 3. Costs and alternatives
 
