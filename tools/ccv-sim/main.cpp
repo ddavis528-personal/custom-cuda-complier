@@ -62,6 +62,14 @@ static cl::opt<unsigned> Fairness(
     "fairness", cl::init(16),
     cl::desc("every Nth pick goes to the rotating lane pointer's group (O-60, "
              "FET's CCV_FAIR_N); 0 = strict lowest-PC-first"));
+// AR's refinement under measurement (IS-17, rev 120): the counter counts
+// picks since lane r's group last issued, and resets whenever min-PC picks
+// that group itself, so an override fires only on a group that has really
+// waited N picks. Either way r advances once its group issues.
+static cl::opt<bool> FairnessStarved(
+    "fairness-starved",
+    cl::desc("override only when lane r's group has waited N picks (AR's "
+             "IS-17 refinement), not on every Nth pick"));
 static cl::opt<bool> Trace("trace", cl::desc("print each issue group"));
 static cl::opt<bool> Stats("counters", cl::desc("print execution counters"));
 static cl::opt<unsigned> MaxSteps("max-steps", cl::init(100000),
@@ -256,18 +264,29 @@ int main(int argc, char **argv) {
 
     // O-60's fairness: every Nth pick goes to the group holding lane r, the
     // first runnable lane at or after the pointer, and the pointer moves on
-    // to the next live lane after that one.
-    if (Fairness && ++Picks == Fairness) {
-      Picks = 0;
+    // to the next live lane after that one. With -fairness-starved, the count
+    // restarts whenever min-PC issues r's group by itself.
+    if (Fairness) {
       unsigned R = FairLane;
       while (!((Runnable >> R) & 1))
         R = (R + 1) % kLanes;
-      if (W.PC[R] != Target)
-        ++C.FairPicks;
-      Target = W.PC[R];
-      FairLane = (R + 1) % kLanes;
-      while (!((W.Active >> FairLane) & 1))
-        FairLane = (FairLane + 1) % kLanes;
+      bool Served = W.PC[R] == Target;
+      if (FairnessStarved && Served) {
+        Picks = 0;
+      } else if (++Picks == Fairness) {
+        Picks = 0;
+        if (!Served)
+          ++C.FairPicks;
+        Target = W.PC[R];
+        Served = true;
+      } else {
+        Served = false;
+      }
+      if (Served) {
+        FairLane = (R + 1) % kLanes;
+        while (!((W.Active >> FairLane) & 1))
+          FairLane = (FairLane + 1) % kLanes;
+      }
     }
 
     uint32_t Mask = 0;
