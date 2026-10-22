@@ -1,0 +1,56 @@
+  frames, per thread, every kernel in the corpus (static)
+  kernel                              words  frame st  +lane reg
+  test/bench/dot.cu                       0         0          0
+  test/bench/reduce.cu                    0         0          0
+  test/bench/saxpy.cu                     0         0          0
+  test/bench/transpose.cu                 0         0          0
+  test/bench/vadd.cu                      0         0          0
+  test/bench/vadd16.cu                    0         0          0
+  test/bench/vadd16_loop.cu               0         0          0
+  test/bench/vadd_loop.cu                 0         0          0
+  test/cuda/argorder.cu                   0         0          0
+  test/cuda/bytes.cu                      4         7          7
+  test/cuda/byval.cu                      0         0          0
+  test/cuda/calls.cu                     21        58         60
+  test/cuda/divconst.cu                   0         0          0
+  test/cuda/dp4.cu                        0         0          0
+  test/cuda/fused.cu                      0         0          0
+  test/cuda/fusion/adamw.cu               4        11         13
+  test/cuda/fusion/add_rmsnorm.cu         0         0          0
+  test/cuda/fusion/attn_combine.cu        4        11         17
+  test/cuda/fusion/dequant.cu             0         0          0
+  test/cuda/fusion/layernorm.cu           0         0          0
+  test/cuda/fusion/rmsnorm.cu             0         0          0
+  test/cuda/fusion/rope.cu                6        24         25
+  test/cuda/fusion/swiglu.cu              0         0          0
+  test/cuda/gemv.cu                       1         3          3
+  test/cuda/gemv8.cu                      1         3          3
+  test/cuda/globals.cu                    0         0          0
+  test/cuda/igemm.cu                     47       105        106
+  test/cuda/ptrlist.cu                    8        15         22
+  test/cuda/ptrmem.cu                     0         0          0
+  test/cuda/reduce.cu                     0         0          0
+  test/cuda/sfu.cu                        0         0          0
+  test/cuda/sgemm.cu                     45        97        107
+  test/cuda/spinwait.cu                   0         0          0
+  test/cuda/vadd-aligned.cu               0         0          0
+  test/cuda/vadd.cu                       0         0          0
+  test/coremark-derived                  84       509        531
+  frame words: 0: 25, 1-32: 8, 33-64: 2, >64: 1 of 36 kernels
+
+  issued, at each kernel's launch (dynamic)
+  kernel                 issue   memops   frame  +lane reg  st idx  idx/mem
+  vadd                      13        5       0          0       0     0.0%
+  saxpy                     14        6       0          0       0     0.0%
+  dot                      113       44       0          0       0     0.0%
+  reduce                   111       43       0          0       0     0.0%
+  transpose                 52        7       0          0       1    14.3%
+  vadd16                    14        5       0          0       0     0.0%
+  vadd_loop                 65       26       0          0       0     0.0%
+  vadd16_loop               66       26       0          0       0     0.0%
+  gemv                     196       76       3          3       0     0.0%
+  sgemm                    516      251     149        150       0     0.0%
+  rope                     187       60      29         30       0     0.0%
+  layernorm                268       93       0          0       1     1.1%
+  coremark-derived      783612   108170   22384      24835   18157    16.8%
+  total                 785227   108812   22565      25018   18159    16.7%

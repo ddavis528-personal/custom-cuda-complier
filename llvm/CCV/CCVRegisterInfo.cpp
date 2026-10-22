@@ -47,6 +47,11 @@ CCVRegisterInfo::getCallPreservedMask(const MachineFunction &,
   return CSR_CCV_RegMask;
 }
 
+static cl::opt<bool> ReserveLaneIndex(
+    "ccv-reserve-lane-index", cl::init(false), cl::Hidden,
+    cl::desc("reserve R0 as a lane-index register, to measure what a "
+             "lane-interleaved .local through a second register costs (AR-23)"));
+
 BitVector CCVRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
   // R15 is the frame pointer: it holds the WINDOW INDEX of this thread's
@@ -65,6 +70,11 @@ BitVector CCVRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   // the file this costs is currently unused anyway -- O-32 removing the
   // manufactured guards is most of why.
   Reserved.set(CCV::P3);
+  // AR-23 option (ii): a lane-interleaved .local through a second reserved
+  // register holding 4 x laneid. Measurement only: what the GPR costs in
+  // spills. R0 is neither an argument nor callee-saved.
+  if (ReserveLaneIndex)
+    Reserved.set(CCV::R0);
   return Reserved;
 }
 
