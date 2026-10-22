@@ -237,6 +237,7 @@ run_ro() {
               "ro-straddle:FAULT F-RO  pc=0x100a  lanes=ffffffff  addr=0x50004" \
               "ro-launch:FAULT F-RO  pc=0x1008  lanes=ffffffff  addr=0x20040" \
               "ro-gated:FAULT F-RO  pc=0x1014  lanes=ffff0000  addr=0x50000" \
+              "ro-pred:FAULT F-RO  pc=0x100e  lanes=ffff0000  addr=0x20040" \
               "ro-load:" "ro-limit:"; do
     t=${pair%%:*}; want=${pair#*:}
     python3 "$AS" "$JSON" "test/faults/$t.s" "$TMP/f.bin" >/dev/null || { bad=1; continue; }

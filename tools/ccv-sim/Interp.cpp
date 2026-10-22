@@ -960,26 +960,33 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     unsigned Base = regOf(MI, 1);
     uint64_t A = (uint64_t(W.GPR[Base][0]) << kBaseShift) +
                  MI.getOperand(2).getImm();
+    Mem.CurLane = 0;
     for (unsigned P = 0; P != kPreds; ++P) {
       if (!(PMask & (1u << P)))
         continue;
+      // Checked, so a refused word is logged for the fault record (TI-28).
+      // Mem.CurLane is lane 0, whose rbase forms the address.
       if (Op == CCV::LD_PRED_G) {
         // O-62: only the issuing group's lanes take the loaded bits; a lane
         // outside the issue mask is another thread, and keeps its own.
-        W.Pred[P] = (W.Pred[P] & ~Mask) | (Mem.read32(A + 4 * P) & Mask);
+        uint32_t V = Mem.readN(A + 4 * P, 4);
+        if (Mem.AlignLanes)
+          break;
+        W.Pred[P] = (W.Pred[P] & ~Mask) | (V & Mask);
         continue;
       }
-      // Warp-scoped, at lane 0's address (§3), so lane 0 is the lane that
-      // faults, as the oracle attributes the access.
-      Mem.CurLane = 0;
       // O-63: only the issuing group's bits, merged into memory's word, so
       // a slot shared by diverged groups is per-lane storage. The read is the
       // merge's, not a load: it is not logged.
-      if (Mem.roOK(A + 4 * P, 4)) {
-        uint32_t Old = Mem.peek32(A + 4 * P);
-        Mem.write32(A + 4 * P, (Old & ~Mask) | (W.Pred[P] & Mask));
-      }
+      uint32_t Old = Mem.peek32(A + 4 * P);
+      Mem.writeN(A + 4 * P, (Old & ~Mask) | (W.Pred[P] & Mask), 4);
+      if (Mem.AlignLanes || Mem.RoLanes)
+        break;
     }
+    // A fault is the whole group's, at the access's address (§3, §12.6):
+    // lane 0 forms the address, and the issue mask raises it.
+    if (Mem.AlignLanes) Mem.AlignLanes = Mask;
+    if (Mem.RoLanes)    Mem.RoLanes = Mask;
     break;
   }
   case CCV::LD_GLOBAL_IDX:
