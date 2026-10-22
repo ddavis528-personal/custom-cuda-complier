@@ -128,6 +128,22 @@ static SDValue narrowTo32(SDValue V) {
   return V.getValueType() == MVT::i32 ? V : SDValue();
 }
 
+/// An index term scaled by a constant the AGU cannot apply -- an element
+/// larger than the access, like either word of an 8-byte pointer in a table
+/// (CP-3), or a struct field. `(ext i) << c` and `(ext i) * c` are rebuilt in
+/// 32 bits, which is sound for the reason narrowTo32 is: the index is a 32-bit
+/// value, and byte offsets are 32-bit by F-23.
+static SDValue narrowScaledIndex(SelectionDAG &DAG, const SDLoc &DL, SDValue V) {
+  if (V.getOpcode() != ISD::SHL && V.getOpcode() != ISD::MUL)
+    return SDValue();
+  auto *C = dyn_cast<ConstantSDNode>(V.getOperand(1));
+  SDValue X = narrowTo32(V.getOperand(0));
+  if (!C || !X)
+    return SDValue();
+  return DAG.getNode(V.getOpcode(), DL, MVT::i32, X,
+                     DAG.getConstant(C->getZExtValue(), DL, MVT::i32));
+}
+
 /// Is this (zext rbase) << 16 -- the window half of an address?
 // O-45 needs the launch block's address to recognise a slot load. FOURTH copy
 // of these -- CCVLowerKernelArgs.cpp owns them, CCVFrameLowering.cpp repeats the
@@ -273,6 +289,8 @@ static bool matchBaseIdx(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
         Scaled = true;
       }
   SDValue Index = narrowTo32(Other);
+  if (!Index)
+    Index = narrowScaledIndex(DAG, DL, Other);
   if (!Index)
     return false;
 

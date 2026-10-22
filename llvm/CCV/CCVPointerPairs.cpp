@@ -17,9 +17,19 @@
 // GEPs and adding their byte offsets to roffset in 32-bit arithmetic -- the
 // unaligned ABI's fold, under the same one-allocation precondition (F-23).
 //
+// A pointer in memory (CP-3; ISA v1.9 §5.7, O-54) is the host's flat 64-bit
+// address, never the pair, so loading one is two 32-bit loads and a split:
+//
+//     rbase = (hi << 16) | (lo >> 16),  roffset = lo & 0xFFFF
+//
+// rebuilt in the same shape as a parameter. Storing one decomposes it and
+// joins the halves, with the carry §5.7 asks for, since a register roffset
+// may exceed 16 bits:
+//
+//     lo = (rbase << 16) + roffset,  hi = (rbase >> 16) + (lo <u roffset)
+//
 // What does not decompose stays as it was, and CCVCheckIR then reports it as
-// before: a pointer from a phi or a select, from memory (CP-3), or into
-// .shared or a frame.
+// before: a pointer from a phi or a select, or into .shared or a frame.
 //
 //===----------------------------------------------------------------------===//
 #include "CCVCheckIR.h"
@@ -43,6 +53,16 @@ using namespace llvm::PatternMatch;
 static cl::opt<bool> TestDropPairOffset(
     "ccv-test-drop-pair-offset", cl::init(false), cl::Hidden,
     cl::desc("drop GEP offsets when splitting a pointer, to test that it is caught"));
+
+// Mutation controls for tools/check-ptrmem.sh: drop the carry from a stored
+// pointer's low word into its high word, or read a loaded pointer's words in
+// the wrong order. Both compile cleanly, so the values must catch them.
+static cl::opt<bool> TestNoPtrCarry(
+    "ccv-test-no-ptr-carry", cl::init(false), cl::Hidden,
+    cl::desc("store pointers without the carry, to test that it is caught"));
+static cl::opt<bool> TestSwapPtrHalves(
+    "ccv-test-swap-ptr-halves", cl::init(false), cl::Hidden,
+    cl::desc("load pointers with their words swapped, to test that it is caught"));
 
 namespace {
 
@@ -130,6 +150,79 @@ Value *rebuild(IRBuilder<> &B, Value *RBase, Value *ROff, Type *PtrTy) {
   return B.CreateIntToPtr(A, PtrTy);
 }
 
+/// A load or store of a pointer the AGU reaches through a window. Volatile
+/// is kept on both halves, as any 32-bit target splits a 64-bit volatile
+/// access. An atomic one cannot be split and is diagnosed.
+bool memPointer(const Instruction &I) {
+  if (auto *LI = dyn_cast<LoadInst>(&I))
+    return !LI->isAtomic() && isWindowed(LI->getType());
+  if (auto *SI = dyn_cast<StoreInst>(&I))
+    return !SI->isAtomic() && isWindowed(SI->getValueOperand()->getType());
+  return false;
+}
+
+/// The two 32-bit halves of a pointer access at Addr: the low word, then the
+/// high word four bytes on, both little-endian (§5.7).
+std::pair<Value *, Value *> halves(IRBuilder<> &B, Value *Addr) {
+  Value *Hi = B.CreateConstInBoundsGEP1_32(B.getInt8Ty(), Addr, 4);
+  return {Addr, Hi};
+}
+
+/// Loads of pointers, rewritten before anything else so that a pointer read
+/// from memory can then be passed, forwarded and stored like any other.
+void lowerPointerLoads(Module &M) {
+  for (Function &F : M)
+    for (BasicBlock &BB : F)
+      for (Instruction &I : make_early_inc_range(BB)) {
+        auto *LI = dyn_cast<LoadInst>(&I);
+        if (!LI || !memPointer(I))
+          continue;
+        IRBuilder<> B(LI);
+        Align A = std::min(LI->getAlign(), Align(4));
+        auto [LoP, HiP] = halves(B, LI->getPointerOperand());
+        if (TestSwapPtrHalves)
+          std::swap(LoP, HiP);
+        Value *Lo = B.CreateAlignedLoad(B.getInt32Ty(), LoP, A, LI->isVolatile());
+        Value *Hi = B.CreateAlignedLoad(B.getInt32Ty(), HiP, A, LI->isVolatile());
+        Value *RBase = B.CreateOr(B.CreateShl(Hi, 16), B.CreateLShr(Lo, 16));
+        Value *ROff = B.CreateAnd(Lo, B.getInt32(0xFFFF));
+        LI->replaceAllUsesWith(rebuild(B, RBase, ROff, LI->getType()));
+        LI->eraseFromParent();
+      }
+}
+
+/// Stores of pointers, after every pointer has its rebuilt shape.
+void lowerPointerStores(Module &M) {
+  const DataLayout &DL = M.getDataLayout();
+  for (Function &F : M)
+    for (BasicBlock &BB : F)
+      for (Instruction &I : make_early_inc_range(BB)) {
+        auto *SI = dyn_cast<StoreInst>(&I);
+        if (!SI || !memPointer(I))
+          continue;
+        IRBuilder<> B(SI);
+        Value *Lo, *Hi;
+        if (isa<ConstantPointerNull>(SI->getValueOperand())) {
+          Lo = Hi = B.getInt32(0);
+        } else {
+          auto P = decompose(SI->getValueOperand(), B, DL);
+          if (!P)
+            continue;                  // CCVCheckIR names it
+          Lo = B.CreateAdd(B.CreateShl(P->Base, 16), P->Off);
+          Hi = B.CreateLShr(P->Base, 16);
+          // A compare and a predicated add (§5.7; §4 has no add-with-carry).
+          if (!TestNoPtrCarry)
+            Hi = B.CreateSelect(B.CreateICmpULT(Lo, P->Off),
+                                B.CreateAdd(Hi, B.getInt32(1)), Hi);
+        }
+        Align A = std::min(SI->getAlign(), Align(4));
+        auto [LoP, HiP] = halves(B, SI->getPointerOperand());
+        B.CreateAlignedStore(Lo, LoP, A, SI->isVolatile());
+        B.CreateAlignedStore(Hi, HiP, A, SI->isVolatile());
+        SI->eraseFromParent();
+      }
+}
+
 bool eligible(const Function &F) {
   if (F.isDeclaration() || ccvIsKernel(F) || F.isVarArg())
     return false;
@@ -155,6 +248,9 @@ void llvm::lowerCCVPointerPairs(Module &M) {
   LLVMContext &Ctx = M.getContext();
   Type *I32 = Type::getInt32Ty(Ctx);
   StructType *PairTy = StructType::get(I32, I32);
+
+  // 0. Pointers read from memory take the rebuilt shape first.
+  lowerPointerLoads(M);
 
   // 1. New signatures. Each windowed pointer parameter becomes two i32, and
   //    a windowed pointer return becomes {i32, i32}. The body moves across,
@@ -256,4 +352,7 @@ void llvm::lowerCCVPointerPairs(Module &M) {
       RI->eraseFromParent();
     }
   }
+
+  // 4. Pointers written to memory, now that every pointer can decompose.
+  lowerPointerStores(M);
 }

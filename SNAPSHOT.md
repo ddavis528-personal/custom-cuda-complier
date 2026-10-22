@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-10-22-d955222
+# Snapshot snapshot-2026-10-22-680fa15
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `d955222c501cece75e391608e5f09f81360af31e`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `680fa152f58d07e9badd78e66e04e7025a6abf7d`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -19,7 +19,7 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `d955222c501cece75e391608e5f09f81360af31e` |
+| Source | `ccr-ea1c4e17-tem30u` @ `680fa152f58d07e9badd78e66e04e7025a6abf7d` |
 | Built | 2026-10-22 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
@@ -46,6 +46,7 @@ c0a3175bcf36b3b9a65b50d78fade10df23ff64e851bb2866a6a899f9900f362  release/asm/cu
 55a629138c527087f29f2e5eebe801112a11e3d1d389266965df78e25d58e888  release/asm/cuda-gemv.s
 62862fe008b730958a0f6a5ab763ca7f73958293cf08b5271777459a97051188  release/asm/cuda-gemv8.s
 6fd267f4e682661abf41191aca3b5a6a77ffac60c6f7cf04849c4335299a46a4  release/asm/cuda-igemm.s
+dcba184f737334e5e7317f7f5cb525c6de9bafc420b4fb660b30f9d2b929c993  release/asm/cuda-ptrmem.s
 05488e7011400262be37232f57f34c5cb4448c87685fd5de62315ccd3977dc57  release/asm/cuda-reduce.s
 e4703fb1c0b5a880ab1554c695dc2dc0f81743a655255af45ad7aa0f2e054526  release/asm/cuda-sfu.s
 e80c3c2e56a19b58612c5c6fff71e62538e69251ad30dfb39cb6bb716369c08b  release/asm/cuda-sgemm.s
@@ -57,6 +58,6 @@ f540a502bf7063cfb75450053c5163bc8986871d7cb0aa9bc2b8ee8cb9637a3c  release/asm/cu
 b7e7adbfd99c4b2c1c2e5ea653273976d3f98fd179972597a4329938df50af80  release/bench/sweep-decode.txt
 eb6d722fd0f11e7d58e0200733f7f4398035974d0bf74329c01ca4dcefdf1c1a  release/bench/sweep-tiles.txt
 4a62844677b806196d6d62e2a1a524e363d668ebb78c5566101c77c5159b9ff5  release/bin/ccv-sim
-b3444794e8941f9c0ac3ede644101808713ee9405faff13f00eb3b62b2fec6a3  release/bin/ccv-sim.txt
-96473d175c49686e6542afbd75e080cc7b7b6f9be69b34b5d137acbeba3d96ce  release/verify.log
+02038626159039219de074e5683b8a32c2e03abd8a2e8374cc0fcc0e22949681  release/bin/ccv-sim.txt
+a59476bc873094293705b5f8c52c5384f9608e1fe8da465197e5224bcf096882  release/verify.log
 ```

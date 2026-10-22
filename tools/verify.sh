@@ -124,6 +124,14 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-calls.sh || fail=1
 fi
 
+# CP-3 (ISA v1.9 §5.7, O-54): pointers in memory are the host's flat 64-bit
+# address, split on load and joined with a carry on store, executed across
+# 4 GiB with two controls.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  pointers in memory (CP-3)"
+  ./tools/check-ptrmem.sh || fail=1
+fi
+
 # O-60: forward progress between diverged lanes. A spin-wait on a lane at a
 # higher PC must hang under strict min-PC (the control) and finish under the
 # oracle's fairness rule.

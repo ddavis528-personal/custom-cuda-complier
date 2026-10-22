@@ -65,6 +65,10 @@ checked 258 instructions
   PASS  control -ccv-test-no-call-widths is caught: did not run: error: C_ADDI has no semantics in the simulator yet
   PASS  control -ccv-test-drop-pair-offset is caught: 32 of 32 lanes wrong; lane 0: got -638526068, want 2099967592
   PASS  control -ccv-test-stack-args-at-zero is caught: 32 of 32 lanes wrong; lane 0: got 2099618215, want 2099967592
+  pointers in memory (CP-3)
+  PASS  ptrmem.cu: 32 pointers read from memory and 32 written, across 4 GiB (36 issue groups)
+  PASS  control -ccv-test-no-ptr-carry is caught: 8 wrong; first: slots[3] = 0x0, want 0x100000000
+  PASS  control -ccv-test-swap-ptr-halves is caught: 63 wrong; first: slots[0] = 0x10, want 0x50010
   forward progress between diverged lanes (O-60)
   PASS  spinwait hangs under strict lowest-PC-first (the control)
   PASS  test/spinwait.s assembles to the compiled kernel's bytes
