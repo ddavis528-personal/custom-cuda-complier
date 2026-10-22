@@ -5,6 +5,7 @@
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAG.h"
@@ -48,7 +49,7 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   //
   // So the address is consumed BEFORE type legalization ever sees it, in a
   // DAGCombine at BeforeLegalizeTypes. See PerformDAGCombine and F-20.
-  setTargetDAGCombine({ISD::LOAD, ISD::STORE, ISD::ADD,
+  setTargetDAGCombine({ISD::LOAD, ISD::STORE, ISD::ADD, ISD::TRUNCATE,
                        ISD::LIFETIME_START, ISD::LIFETIME_END});
   setOperationAction(ISD::GlobalAddress, MVT::i64, Custom);
 
@@ -114,6 +115,7 @@ const char *CCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case CCVISD::ST_BASEIDX: return "CCVISD::ST_BASEIDX";
   case CCVISD::LD_BASEOFF: return "CCVISD::LD_BASEOFF";
   case CCVISD::ST_BASEOFF: return "CCVISD::ST_BASEOFF";
+  case CCVISD::CODEADDR: return "CCVISD::CODEADDR";
   default:          return nullptr;
   }
 }
@@ -622,6 +624,21 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
       N->getOpcode() == ISD::LIFETIME_END)
     return N->getOperand(0);
 
+  // A function's code address as a value (F-21 step 5): CCVCodePointers
+  // leaves `ptrtoint @f to i32`, which arrives as a truncate of the 64-bit
+  // GlobalAddress the legalizer has nowhere to put. The low 32 bits are the
+  // code address, a link-time constant `movi` materialises.
+  if (N->getOpcode() == ISD::TRUNCATE) {
+    auto *G = dyn_cast<GlobalAddressSDNode>(N->getOperand(0));
+    if (!G || !isa<Function>(G->getGlobal()) || N->getValueType(0) != MVT::i32)
+      return SDValue();
+    SDLoc DL(N);
+    return DCI.DAG.getNode(
+        CCVISD::CODEADDR, DL, MVT::i32,
+        DCI.DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i32, 0,
+                                       CCVII::MO_CODEADDR));
+  }
+
   // The dot product is formed before legalization too, and for a second
   // reason: the byte extracts it consumes are `sign_extend_inreg i8` shapes
   // this target cannot select, so matching them early makes them disappear
@@ -829,15 +846,22 @@ SDValue CCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
     report_fatal_error("CCV: variadic calls are not supported");
 
   const auto *G = dyn_cast<GlobalAddressSDNode>(CLI.Callee);
-  if (!G)
-    report_fatal_error(
-        isa<ExternalSymbolSDNode>(CLI.Callee)
-            ? Twine("CCV: a call to the library function ") +
-                  cast<ExternalSymbolSDNode>(CLI.Callee)->getSymbol() +
-                  ", which this module does not define (F-21)"
-            : Twine("CCV: indirect calls are not implemented yet "
-                    "(proposals/calling-convention.md §4, step 5)"));
-  if (G->getGlobal()->isDeclaration())
+  if (auto *E = dyn_cast<ExternalSymbolSDNode>(CLI.Callee))
+    report_fatal_error(Twine("CCV: a call to the library function ") +
+                       E->getSymbol() + ", which this module does not define (F-21)");
+  // An indirect call (§4): the target's code address, an i32 CCVCodePointers
+  // put under an inttoptr, goes in R7, and `call R14` goes to a one-instruction
+  // stub, `ret r7`, that the asm printer places after this function. `call`
+  // sets the link and `ret` jumps to the target.
+  SDValue Target;
+  if (!G) {
+    Target = narrowTo32(CLI.Callee);
+    if (!Target)
+      report_fatal_error("CCV: an indirect call in " + MF.getName() +
+                         " through a pointer that is not a code address "
+                         "(F-21 step 5)");
+  }
+  if (G && G->getGlobal()->isDeclaration())
     report_fatal_error("CCV: a call to " + G->getGlobal()->getName() +
                        ", which this module does not define: device code is "
                        "one closed module (F-21)");
@@ -852,12 +876,16 @@ SDValue CCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
   // whose base is fixed module-wide and already known, since callees are laid
   // out first. Every function runs on the same R15, so the address is a
   // constant displacement, stored straight to [R15 + d] (§3).
-  const Function *Callee = cast<Function>(G->getGlobal());
+  const Function *Callee = G ? cast<Function>(G->getGlobal()) : nullptr;
   SmallVector<SDValue, 4> Stores;
   for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
     const CCValAssign &VA = ArgLocs[I];
     if (!VA.isMemLoc())
       continue;
+    if (!Callee)
+      report_fatal_error("CCV: an indirect call in " + MF.getName() +
+                         " passes more than six arguments; its targets' frames "
+                         "differ, so there is no one place to write them");
     if (!ccvFrameLaidOut(*Callee))
       report_fatal_error(
           "CCV: " + MF.getName() + " passes stack arguments to " +
@@ -887,7 +915,15 @@ SDValue CCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
   SmallVector<SDValue, 8> Ops = {
       // i32, not the 64-bit pointer type: no register holds an address
       // (invariant 11), and a code address is 32-bit (§3 Format E).
-      Chain, DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i32)};
+      Chain, G ? DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i32)
+               : DAG.getMCSymbol(MF.getContext().getOrCreateSymbol(
+                                     ".Lccv_icall_" + MF.getName()),
+                                 MVT::i32)};
+  if (!G) {
+    Chain = DAG.getCopyToReg(Chain, DL, CCV::R7, Target, Glue);
+    Glue = Chain.getValue(1);
+    Ops.push_back(DAG.getRegister(CCV::R7, MVT::i32));
+  }
   for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
     const CCValAssign &VA = ArgLocs[I];
     if (!VA.isRegLoc())

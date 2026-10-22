@@ -56,15 +56,17 @@ checked 258 instructions
   PASS  slot reach: 16 slot-form accesses at NT=16, past the
         4-byte stride's ceiling of 8, with 0 spill transfers
   device-function calls (F-21)
-  PASS  calls.cu, callee-saved set 'none': 32 lanes correct (323 issue groups)
-  PASS  calls.cu, callee-saved set 'six': 32 lanes correct (324 issue groups)
-  PASS  calls.cu, callee-saved set 'eight': 32 lanes correct (348 issue groups)
+  PASS  calls.cu, callee-saved set 'none': 32 lanes correct (410 issue groups)
+  PASS  calls.cu, callee-saved set 'six': 32 lanes correct (403 issue groups)
+  PASS  calls.cu, callee-saved set 'eight': 32 lanes correct (429 issue groups)
   PASS  static frames: scratch at -16..-4, the kernel below it at -80..-32; stack arguments at [-20, -16, -12, -8, -4]
-  PASS  control -ccv-test-flat-frames is caught: 32 of 32 lanes wrong; lane 0: got -620755350, want 2099967592
-  PASS  control -ccv-test-mask-device-functions is caught: 31 of 32 lanes wrong; lane 1: got 1256483738, want 1256356079
+  PASS  control -ccv-test-flat-frames is caught: did not run: FAULT F-ALIGN  pc=0x1032  lanes=eeeeeeee  addr=0x10001dcd9  cta=0 warp=0
+  PASS  control -ccv-test-mask-device-functions is caught: 31 of 32 lanes wrong; lane 1: got 1256366469, want 1256146134
   PASS  control -ccv-test-no-call-widths is caught: did not run: error: C_ADDI has no semantics in the simulator yet
-  PASS  control -ccv-test-drop-pair-offset is caught: 32 of 32 lanes wrong; lane 0: got -638526068, want 2099967592
-  PASS  control -ccv-test-stack-args-at-zero is caught: 32 of 32 lanes wrong; lane 0: got 2099618215, want 2099967592
+  PASS  control -ccv-test-drop-pair-offset is caught: 32 of 32 lanes wrong; lane 0: got -638511987, want 2099937551
+  PASS  control -ccv-test-stack-args-at-zero is caught: 32 of 32 lanes wrong; lane 0: got 2099588174, want 2099937551
+  PASS  control -ccv-test-ignore-indirect-frames is caught: 16 of 32 lanes wrong; lane 0: got 2099740282, want 2099937551
+  PASS  control -ccv-code-base=0 is caught: did not run: FAULT F-FETCH  pc=0  lanes=aaaaaaaa  addr=0  cta=0 warp=0
   pointers in memory (CP-3)
   PASS  ptrmem.cu: 32 pointers read from memory and 32 written, across 4 GiB (36 issue groups)
   PASS  control -ccv-test-no-ptr-carry is caught: 8 wrong; first: slots[3] = 0x0, want 0x100000000

@@ -24,7 +24,10 @@
 # without its GEP offset (sum3_via reads one element short, advance stores
 # every lane's result to out[0]), and stack arguments written as if every
 # callee's frame were at base 0 (many2 reads its seventh and eighth arguments
-# from slots nobody wrote).
+# from slots nobody wrote), a caller laid out ignoring what its indirect
+# calls reach (sub_frame's array lands on apply's frame), and function
+# pointers built for an image at 0 rather than at its load address (each
+# indirect call jumps 4 KiB short).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
@@ -61,6 +64,9 @@ def many(a, b, c, d, e, f, g, h, k):
     return s32(a - b * 2 + c * 3 - d * 4 + e * 5 - f * 6 + g * 7 - s16(h) * 8 + k * 9)
 def many2(a, b, c, d, e, f, g, h):
     return s32(many(h, g, f, e, d, c, b, a, s32(g + h)) + g * h)
+def add_at(a, b, p):    return s32(a + b + p[0])
+def sub_frame(a, b, p): return s32(s32(a * ((b & 3) + 1) - b) - p[1])
+def apply(f, a, b, p):  return s32(f(a, b, p) * 2 + a)
 def narrow3(a, b, c):
     a, b, c = s16(a), s16(b), s16(c)
     x, y = s16(a + b), s16(c - a)
@@ -79,7 +85,9 @@ for i, v in enumerate(inp):
     s3 = s32(inp[j] + inp[j + 1] + inp[j + 2])
     m = many2(v, i, v ^ i, s32(v + 1), i * 3, s32(v - 7), i + 11, v >> 2)
     pk = s32(inp[2 + (i & 3)] + v - i * 5 + 13 - (v >> 4))
-    want.append(s32(acc + scratch(v, i) * 3 + s32(v * 7 + ((i + 1) & 3)) + q + s3 + m + pk))
+    g = add_at if i & 1 else sub_frame
+    ic = s32(apply(g, v, i, inp[4:]) + g(i, v & 15, inp))
+    want.append(s32(acc + scratch(v, i) * 3 + s32(v * 7 + ((i + 1) & 3)) + q + s3 + m + pk + ic))
 L = 0x20000
 args = [f"-poke {hex(L + 24)}=256",            # .local windows from 256
         f"-poke {hex(L + 32)}=3", f"-poke {hex(L + 36)}=0",   # in  -> window 3
@@ -147,7 +155,8 @@ PY
 # Controls. Each breaks one thing the passes above depend on.
 for c in "-ccv-test-flat-frames" "-ccv-test-mask-device-functions" \
          "-ccv-test-no-call-widths" "-ccv-test-drop-pair-offset" \
-         "-ccv-test-stack-args-at-zero"; do
+         "-ccv-test-stack-args-at-zero" "-ccv-test-ignore-indirect-frames" \
+         "-ccv-code-base=0"; do
   out=$(run $c)
   # Caught means it compiled and then computed wrong or never finished. A
   # control that fails to compile proves nothing about the property.

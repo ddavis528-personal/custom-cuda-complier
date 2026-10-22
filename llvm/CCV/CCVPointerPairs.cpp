@@ -37,6 +37,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
@@ -231,11 +232,14 @@ bool eligible(const Function &F) {
     Any |= isWindowed(A.getType());
   if (!Any)
     return false;
-  // Every use a direct call: an address-taken function keeps its signature
-  // until indirect calls exist (calling-convention.md §4).
+  // Every use a direct call, or the code address CCVCodePointers made of an
+  // address-taken function. Its indirect calls are rewritten by the same rule
+  // in step 2, so they keep matching it (calling-convention.md §4).
   for (const Use &U : F.uses()) {
     auto *CB = dyn_cast<CallBase>(U.getUser());
-    if (!CB || !CB->isCallee(&U))
+    auto *CE = dyn_cast<ConstantExpr>(U.getUser());
+    if (!(CB && CB->isCallee(&U)) &&
+        !(CE && CE->getOpcode() == Instruction::PtrToInt))
       return false;
   }
   return true;
@@ -266,8 +270,11 @@ void llvm::lowerCCVPointerPairs(Module &M) {
         Params.push_back(I32);
     }
     Type *Ret = isWindowed(F.getReturnType()) ? PairTy : F.getReturnType();
+    // In F's place, not at the end: module order is codegen's order among
+    // call-graph roots, and CCVCodePointers put indirect targets first.
     Function *NF = Function::Create(FunctionType::get(Ret, Params, false),
-                                    F.getLinkage(), F.getAddressSpace(), "", &M);
+                                    F.getLinkage(), F.getAddressSpace(), "");
+    M.getFunctionList().insert(F.getIterator(), NF);
     NF->copyAttributesFrom(&F);
     NF->setAttributes(AttributeList());         // types changed; keep none
     NF->addFnAttrs(AttrBuilder(Ctx, F.getAttributes().getFnAttrs()));
@@ -295,7 +302,9 @@ void llvm::lowerCCVPointerPairs(Module &M) {
   //    own parameters included, so they decompose.
   for (auto [F, NF] : Rewritten) {
     for (User *U : make_early_inc_range(F->users())) {
-      auto *CB = cast<CallBase>(U);
+      auto *CB = dyn_cast<CallBase>(U);
+      if (!CB)
+        continue;                      // a code address: moved to NF below
       IRBuilder<> B(CB);
       SmallVector<Value *, 8> Args;
       bool OK = true;
@@ -327,8 +336,56 @@ void llvm::lowerCCVPointerPairs(Module &M) {
       NC->takeName(CB);
       CB->eraseFromParent();
     }
+    F->replaceAllUsesWith(NF);         // both are `ptr`: the code addresses
     F->eraseFromParent();
   }
+
+  // 2b. Indirect calls, by the same rule as the functions they reach.
+  for (Function &Fn : M)
+    for (Instruction &I : make_early_inc_range(instructions(Fn))) {
+      auto *CB = dyn_cast<CallBase>(&I);
+      if (!CB || CB->getCalledFunction() || CB->isInlineAsm())
+        continue;
+      FunctionType *FT = CB->getFunctionType();
+      bool Any = isWindowed(FT->getReturnType());
+      for (Type *P : FT->params())
+        Any |= isWindowed(P);
+      if (!Any)
+        continue;
+      IRBuilder<> B(CB);
+      SmallVector<Type *, 8> Params;
+      SmallVector<Value *, 8> Args;
+      bool OK = true;
+      for (Value *A : CB->args()) {
+        if (!isWindowed(A->getType())) {
+          Params.push_back(A->getType());
+          Args.push_back(A);
+          continue;
+        }
+        auto P = decompose(A, B, DL);
+        if (!P) {
+          OK = false;
+          break;
+        }
+        Params.append({I32, I32});
+        Args.append({P->Base, P->Off});
+      }
+      if (!OK)
+        report_fatal_error("CCV: a pointer passed by an indirect call in " +
+                           Fn.getName() + " is not one this compiler can split "
+                           "into a window and an offset (F-22, CP-3)");
+      Type *Ret = isWindowed(FT->getReturnType()) ? PairTy : FT->getReturnType();
+      auto *NC = B.CreateCall(FunctionType::get(Ret, Params, false),
+                              CB->getCalledOperand(), Args);
+      if (isWindowed(CB->getType())) {
+        Value *RB = B.CreateExtractValue(NC, 0), *RO = B.CreateExtractValue(NC, 1);
+        CB->replaceAllUsesWith(rebuild(B, RB, RO, CB->getType()));
+      } else if (!CB->getType()->isVoidTy()) {
+        CB->replaceAllUsesWith(NC);
+      }
+      NC->takeName(CB);
+      CB->eraseFromParent();
+    }
 
   // 3. Returns. A returned pointer decomposes at its `ret`, now that every
   //    pointer a callee hands back has been rebuilt in step 2.

@@ -51,6 +51,13 @@ static cl::opt<bool> TestFlatFrames(
     "ccv-test-flat-frames", cl::init(false), cl::Hidden,
     cl::desc("lay every frame out at base 0, to test that it is caught"));
 
+// Mutation control for tools/check-calls.sh: lay a caller out ignoring what
+// its indirect calls may reach, so a target's frame lands on the caller's.
+static cl::opt<bool> TestIgnoreIndirectFrames(
+    "ccv-test-ignore-indirect-frames", cl::init(false), cl::Hidden,
+    cl::desc("ignore indirect-call targets in the frame layout, to test that "
+             "it is caught"));
+
 unsigned llvm::ccvFrameBase(const Function &F) {
   if (TestFlatFrames)
     return 0;
@@ -83,6 +90,23 @@ void CCVFrameLowering::emitPrologue(MachineFunction &MF,
         Base = std::max(Base, It->second);
       }
     }
+  // An indirect call may reach any address-taken function of its type, which
+  // CCVCodePointers recorded and placed first in the module (§2).
+  if (F.hasFnAttribute("ccv-icall-targets")) {
+    SmallVector<StringRef, 8> Names;
+    F.getFnAttribute("ccv-icall-targets").getValueAsString().split(Names, ',');
+    for (StringRef N : Names) {
+      const Function *T = F.getParent()->getFunction(N);
+      auto It = T ? FrameExtent.find(T) : FrameExtent.end();
+      if (It == FrameExtent.end())
+        report_fatal_error("CCV: " + F.getName() + " may call " + N +
+                           " indirectly before that function's frame is laid "
+                           "out -- a recursion through a function pointer, "
+                           "which a static frame layout cannot place (F-21)");
+      if (!TestIgnoreIndirectFrames)
+        Base = std::max(Base, It->second);
+    }
+  }
   const unsigned Size = unsigned(MF.getFrameInfo().getStackSize());
   FrameBase[&F] = Base;
   FrameExtent[&F] = Base + Size;
