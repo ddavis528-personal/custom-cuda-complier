@@ -1242,7 +1242,7 @@ the slot whenever a group splits.
 **`st.pred` stores only the issuing group's bits — normative (O-63).** For each predicate in
 the mask, bit *i* of its word takes lane *i*'s bit if lane *i* is in the issue mask, and keeps
 memory's value otherwise: `new = (old & ~m) | (p & m)`, with `m` the issue mask. Each word's
-read and write are one indivisible step, as an atomic's are. So each lane's bit in a slot is
+read and write are one indivisible step: no other access sees the word between them. So each lane's bit in a slot is
 written and read only by that lane's thread. With `ld.pred`'s rule above, a spill and its reload
 are per lane under any split, merge or interleaving of groups, at one shared slot, with no
 compiler precaution. `st.pred` is a store for every other rule: `F-RO` (§12.3), `F-ALIGN`, and
@@ -2926,13 +2926,14 @@ path back to OOE. No encoding changes: the field stays 6 bits, its top values re
 then changes its own lanes of P0. Group B then spills P0 over the same slot, so the word's
 A-lane bits become A's new value, and A's reload returns that instead of what it spilled.
 With the merge, each lane's bit in the slot is written only by its own thread, so a slot is
-per-lane storage. AR priced it (AR's IS-18 response): `st.pred` goes down MIU's existing
-atomic path as a masked merge, about 32 two-input muxes and one operation code in LANE's
-atomic unit. No channel gains a field, and DCU is unchanged. OA: nothing in OOE, since the
-active mask is already on the memop. The region is warp-private (§5.4), so no other agent
-contends. What lost: (a) bit-granular write enables in DCU, which touch every write port for
-one rare op; (b) a separate read-merge-write in MIU's store drain, a second RMW path; and the
-compiler-only rule (full-word spills only in converged code, a per-lane GPR path elsewhere),
+per-lane storage. AR priced it (AR's IS-18 responses). `st.pred` stays a store, and MIU's
+post-commit drain reads the word, merges it under the store's mask, and writes it: about 32
+two-input muxes. No channel gains a field, and DCU, OOE and LANE are unchanged. AR's first
+form, the atomic path, was dropped because it would have stalled the ROB head on every spill
+(OA's IS-18 response). The region is warp-private (§5.4), so no other agent contends, and the
+warp's in-order commit makes each word's merge indivisible. What lost: (a) bit-granular write
+enables in DCU, which touch every write port for one rare op; (b) the atomic path, with its
+head-of-ROB stall; and the compiler-only rule (full-word spills only in converged code, a per-lane GPR path elsewhere),
 which needs a free GPR at the moment of pressure. A predicate spill now costs a
 read-merge-write instead of a plain store, and spills are rare on four predicates.
 
