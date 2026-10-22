@@ -8,7 +8,7 @@
 # any fairness rule it finishes, with out[0] = 1 (lane 0 really waited),
 # out[1] = 7 and the flag set.
 #
-# Three claims, each of which can fail on its own:
+# Four claims, each of which can fail on its own:
 #   (1) the PC order the test rests on holds in the emitted code -- a layout
 #       change that put the releaser first would make (2) pass vacuously;
 #   (2) with ccv-sim's fairness off (-fairness 0, strict min-PC) it hangs:
@@ -16,7 +16,9 @@
 #   (3) with fairness at N = 4, 8, 16, 32 and the default, it finishes with
 #       the right values. The issue counts are printed because TI chooses
 #       FET's N from this kernel (AR's IS-17 response): a smaller N hands the
-#       flag over sooner.
+#       flag over sooner;
+#   (4) test/spinwait.s, the hand-annotated copy TI runs, assembles to the
+#       same bytes as the compiled kernel, so the two cannot drift apart.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
@@ -64,5 +66,12 @@ for n in 4 8 16 32 default; do
     echo "  FAIL  fairness N=$n: $out"; fail=1
   fi
 done
+# (4) The annotated copy is the compiled kernel, byte for byte.
+if python3 tools/ccv-as.py build/generated/CCV.json test/spinwait.s "$TMP/hand.bin" >/dev/null 2>&1 &&
+   cmp -s "$TMP/hand.bin" "$TMP/s.bin"; then
+  echo "  PASS  test/spinwait.s assembles to the compiled kernel's bytes"
+else
+  echo "  FAIL  test/spinwait.s no longer matches the compiled spinwait.cu"; fail=1
+fi
 [ $fail -eq 0 ] && echo "  PASS  spinwait finishes under O-60's fairness, issue groups at$res"
 exit $fail

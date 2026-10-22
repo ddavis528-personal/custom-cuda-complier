@@ -1005,7 +1005,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     unsigned Slot = unsigned(MI.getOperand(1).getImm());
     unsigned ScaleEn = unsigned(MI.getOperand(3).getImm());
     int64_t Disp = MI.getOperand(4).getImm();
-    uint32_t Window = Mem.read32(kLaunchBase + kOffArgs + kSlotStride * Slot);
+    uint32_t Window = Mem.peek32(kLaunchBase + kOffArgs + kSlotStride * Slot);
     unsigned Sh = ScaleEn ? (2 - W.ChWidth[Data]) : 0;
     unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
     forEachLane([&](unsigned L) {

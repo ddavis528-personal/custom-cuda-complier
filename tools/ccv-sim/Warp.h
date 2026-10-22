@@ -74,6 +74,14 @@ public:
   }
   /// A raw byte, never logged: for dumping final state.
   uint8_t peekByte(uint64_t Addr) { return *byteAt(Addr); }
+  /// A word the AGU reads to form an address -- the launch-slot form's window
+  /// (O-45) -- which is not one of the lanes' accesses, so it is never logged.
+  uint32_t peek32(uint64_t Addr) {
+    uint32_t V = 0;
+    for (unsigned I = 0; I != 4; ++I)
+      V |= uint32_t(*byteAt(Addr + I)) << (8 * I);
+    return V;
+  }
 
   /// O-58 (ISA v1.9, from IS-1): a lane's effective address must be a multiple
   /// of its transfer size -- 4 at 32 bits, 2 at 16, any at 8. A violation is
