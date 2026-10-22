@@ -66,6 +66,7 @@ checked 258 instructions
   PASS  control -ccv-test-drop-pair-offset is caught: 32 of 32 lanes wrong; lane 0: got -639373080, want 2100533844
   forward progress between diverged lanes (O-60)
   PASS  spinwait hangs under strict lowest-PC-first (the control)
+  PASS  test/spinwait.s assembles to the compiled kernel's bytes
   PASS  spinwait finishes under O-60's fairness, issue groups at N=4:46 N=8:70 N=16:118 N=32:214 N=default:6166
   the fused corpus executes and computes the right numbers
   PASS  fused corpus: 8 kernels execute and agree with a reference written from the mathematics
