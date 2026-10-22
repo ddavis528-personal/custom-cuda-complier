@@ -967,8 +967,9 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
         W.Pred[P] = Mem.read32(A + 4 * P);
         continue;
       }
-      // Warp-scoped, so the lane that faults is the lowest executing one.
-      Mem.CurLane = unsigned(llvm::countr_zero(Mask));
+      // Warp-scoped, at lane 0's address (§3), so lane 0 is the lane that
+      // faults, as the oracle attributes the access.
+      Mem.CurLane = 0;
       if (Mem.roOK(A + 4 * P, 4))
         Mem.write32(A + 4 * P, W.Pred[P]);
     }

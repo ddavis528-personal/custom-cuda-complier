@@ -566,9 +566,10 @@ int main(int argc, char **argv) {
         if (Log.empty()) continue;
         // A predicate transfer is warp-scoped: one word per predicate in the
         // mask, at lane 0's address (§3, §12.8), not one access per lane. Its
-        // words are the lowest executing lane's, the lane its fault names.
+        // words are attributed to lane 0, the lane whose rbase forms them,
+        // whether or not lane 0 is executing (TI's rev 115).
         if (WarpScoped) {
-          unsigned L = unsigned(llvm::countr_zero(Exec));
+          unsigned L = 0;
           for (const auto &A : Log) {
             std::fprintf(OF, "%s{\"lane\":%u,\"space\":\"%s\",\"w\":%d,"
                              "\"addr\":%llu,\"bytes\":%u",
