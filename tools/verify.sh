@@ -139,6 +139,13 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-ptrlist.sh || fail=1
 fi
 
+# O-61 (CP-10): a module's globals as one data image, relocated at load and
+# reached through launch-block word 28, with two controls.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  a module's data image (O-61)"
+  ./tools/check-globals.sh || fail=1
+fi
+
 # O-60: forward progress between diverged lanes. A spin-wait on a lane at a
 # higher PC must hang under strict min-PC (the control) and finish under the
 # oracle's fairness rule.

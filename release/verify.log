@@ -75,6 +75,10 @@ checked 258 instructions
   PASS  ptrlist.cu: lists built, reversed, walked and searched on 32 lanes across a window boundary (804 issue groups)
   PASS  control -ccv-test-raw-ptr-compare is caught: 16 of 32 lanes wrong; lane 16: [1308, 8, 160, 33], want [1308, 8, 160, 35]
   PASS  control -ccv-test-frame-window-r15 is caught: 32 of 32 lanes wrong; lane 0: [0, 0, 0, 35], want [28, 8, 0, 35]
+  a module's data image (O-61)
+  PASS  globals.cu: a module's data image, relocated and read through word 28 on 32 lanes (52 issue groups)
+  PASS  control -ccv-test-no-data-reloc is caught: 32 of 32 lanes wrong; lane 0: [-2, 0], want [-1, 0]
+  PASS  control -ccv-test-data-word-24 is caught: 32 of 32 lanes wrong; lane 0: [0, 0], want [-1, 0]
   forward progress between diverged lanes (O-60)
   PASS  spinwait hangs under strict lowest-PC-first (the control)
   PASS  test/spinwait.s assembles to the compiled kernel's bytes
@@ -94,7 +98,7 @@ checked 258 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 166 findings and 60 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 166 findings and 61 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings

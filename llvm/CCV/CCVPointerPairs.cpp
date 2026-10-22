@@ -77,11 +77,12 @@ struct Pair {
   Value *Base, *Off;
 };
 
-/// A pointer the AGU can reach through a window: generic or .global. .shared
-/// is flat 32-bit (§5.1) and a frame pointer is R15's, so neither is a pair.
+/// A pointer the AGU can reach through a window: generic, .global or .const
+/// (a module's constant data, O-61). .shared is flat 32-bit (§5.1).
 bool isWindowed(Type *T) {
   auto *PT = dyn_cast<PointerType>(T);
-  return PT && (PT->getAddressSpace() == 0 || PT->getAddressSpace() == 1);
+  unsigned AS = PT ? PT->getAddressSpace() : ~0u;
+  return AS == 0 || AS == 1 || AS == 4;
 }
 
 /// An i64 index expression rebuilt in 32 bits, or null: extensions of i32

@@ -94,6 +94,10 @@ int baseAddends(const Value *V) {
       X = Se->getOperand(0);
     return X->getType()->isIntegerTy(32);
   };
+  // A window plus a constant: the displacement, no register (a global in
+  // the module's data image, O-61).
+  if ((isWindow(A) && isa<ConstantInt>(B)) || (isWindow(B) && isa<ConstantInt>(A)))
+    return 0;
   if (isWindow(A) && isIndex(B))
     return 1;
   if (isWindow(B) && isIndex(A))

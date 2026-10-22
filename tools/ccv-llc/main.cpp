@@ -54,6 +54,7 @@ int main(int argc, char **argv) {
 
   // Pointers crossing a call become (rbase, roffset) pairs first, so the check
   // below sees only the ones that could not be split (F-22).
+  lowerCCVModuleData(*M);
   lowerCCVCodePointers(*M);
   lowerCCVPointerPairs(*M);
   if (PrintLowered)

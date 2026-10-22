@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-10-22-de0b311
+# Snapshot snapshot-2026-10-22-551c1ef
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `de0b311f21c42f1f46152725573a524502c30611`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `551c1ef88ca0a1f45e14cad1f3659282a8ebf3ef`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -19,7 +19,7 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `de0b311f21c42f1f46152725573a524502c30611` |
+| Source | `ccr-ea1c4e17-tem30u` @ `551c1ef88ca0a1f45e14cad1f3659282a8ebf3ef` |
 | Built | 2026-10-22 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
@@ -45,6 +45,7 @@ c0a3175bcf36b3b9a65b50d78fade10df23ff64e851bb2866a6a899f9900f362  release/asm/cu
 8f8ea379638fe9c0c5477ca4edc59bee0e2140e845c6b581983f8d6f149f024b  release/asm/cuda-fused.s
 55a629138c527087f29f2e5eebe801112a11e3d1d389266965df78e25d58e888  release/asm/cuda-gemv.s
 62862fe008b730958a0f6a5ab763ca7f73958293cf08b5271777459a97051188  release/asm/cuda-gemv8.s
+31f41278c3ea390ceed19c5fa598f5beb880547954fae6a7122ebfc5c01a51e1  release/asm/cuda-globals.s
 6fd267f4e682661abf41191aca3b5a6a77ffac60c6f7cf04849c4335299a46a4  release/asm/cuda-igemm.s
 eb9ae9a68a0a6a8cc8b828c971c5aed37812587061b76234760c743493a0d0e7  release/asm/cuda-ptrlist.s
 a1a46d39eb75272a8d61e2ced4f9e44cf16e210700da850182c1a93b8e357329  release/asm/cuda-ptrmem.s
@@ -58,7 +59,7 @@ f540a502bf7063cfb75450053c5163bc8986871d7cb0aa9bc2b8ee8cb9637a3c  release/asm/cu
 74f722d1b50b6e23f8379727243b480a810e07219cd3b8676c475bcce69a1883  release/bench/bench.txt
 b7e7adbfd99c4b2c1c2e5ea653273976d3f98fd179972597a4329938df50af80  release/bench/sweep-decode.txt
 eb6d722fd0f11e7d58e0200733f7f4398035974d0bf74329c01ca4dcefdf1c1a  release/bench/sweep-tiles.txt
-1ed0295b9d596984b24097508b4356d01d12f36d76cb195b249ed1566423c1db  release/bin/ccv-sim
-7dfee47898dfde8170f09b2f90d89048e14d3d83c071b66d8cf09a0e0e0843ab  release/bin/ccv-sim.txt
-4fd579172fe8c23aad4c42f84e80daf4c48c6e78464e778d61fe84ec21bd79d5  release/verify.log
+a782f23dc712fab4ad48178b2bdd3c2d7b5172a5eb9fbb1e2a7fc869408661f4  release/bin/ccv-sim
+90351972379886f2681d621fa78b1df958a2abc3a03d24806874f0e60c045fd9  release/bin/ccv-sim.txt
+8e457a76bc15caf8cc700dfdc4df35e47c366ba315b377e90cb35b10226a9d86  release/verify.log
 ```
