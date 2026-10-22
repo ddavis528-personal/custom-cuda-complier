@@ -219,6 +219,11 @@ def less(a, b):
     return a.neg and not b.neg
 
 
+def raw(x, w, op):
+    """O-67: a W-wide element as a bit field at the operating width op."""
+    return x & ((1 << min(WIDTH[w], WIDTH[op])) - 1)
+
+
 def iszero(a):
     return a.k == "fin" and a.q == 0
 
@@ -272,7 +277,8 @@ def op(name, code, wd, wa, wb, wc, x, y, z):
         rel = name.split(":")[1]
         if (wa, code) not in FORMATS or (wb, code) not in FORMATS:
             return "F-FORMAT"
-        a, b = decode((wa, code), x), decode((wb, code), y)
+        # O-67: rs1's raw field at rs0's width, both read in rs0's format.
+        a, b = decode((wa, code), x), decode((wa, code), raw(y, wb, wa))
         if a.k == NAN or b.k == NAN:
             return int(rel == "ne")
         lt = less(a, b) and not (iszero(a) and iszero(b))
@@ -284,16 +290,15 @@ def op(name, code, wd, wa, wb, wc, x, y, z):
         + ([wc] if name == "ffma" else [])
     if any((w, code) not in FORMATS for w in used):
         return "F-FORMAT"
+    # O-67: each source is its raw field, zero-extended or truncated to the
+    # destination's width, and read in the destination's format.
     fd = (wd, code)
-    a = decode((wa, code), x)
+    x = raw(x, wa, wd)
+    a = decode(fd, x)
     if name in ("fneg", "fabs"):
-        if wa == wd:
-            sb = 1 << (FORMATS[fd][0] - 1)
-            return x ^ sb if name == "fneg" else x & ~sb
-        if a.k != NAN:
-            a = V(a.k, (not a.neg) if name == "fneg" else False, a.q)
-        return encode(fd, a)
-    b = decode((wb, code), y)
+        sb = 1 << (FORMATS[fd][0] - 1)
+        return x ^ sb if name == "fneg" else x & ~sb
+    b = decode(fd, raw(y, wb, wd))
     if name == "fadd":
         return encode(fd, add(a, b))
     if name == "fsub":
@@ -309,5 +314,5 @@ def op(name, code, wd, wa, wb, wc, x, y, z):
             return encode(fd, a)
         take_a = (not less(b, a)) if name == "fmin" else (not less(a, b))
         return encode(fd, a if take_a else b)
-    c = decode((wc, code), z)
+    c = decode(fd, raw(z, wc, wd))
     return encode(fd, add(mul(a, b), c))

@@ -40,8 +40,11 @@ enum class Round { RN = 0, RZ = 1, RM = 2, RP = 3 };
 /// -ccv-test-fp-ftz (flush subnormal results to zero) and
 /// -ccv-test-fp-no-saturate (narrow overflow gives NaN, the rule O-56 rejected),
 /// and for run-tests.sh's fp-canon, -ccv-test-fp-host-nan (FP32 NaN results
-/// from host arithmetic, the rule O-66 replaced).
-inline bool TestFtz = false, TestNoSaturate = false, TestHostNaN = false;
+/// from host arithmetic, the rule O-66 replaced), and for mixed-width.s,
+/// -ccv-test-mixed-by-value (integer sources extended at their own width, the
+/// reading O-67 replaced).
+inline bool TestFtz = false, TestNoSaturate = false, TestHostNaN = false,
+            TestByValue = false;
 
 struct Format {
   unsigned Bits, ExpBits, ManBits;

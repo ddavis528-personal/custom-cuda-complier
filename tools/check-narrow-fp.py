@@ -158,7 +158,7 @@ def main():
             add("FFMA_F1" if code else "FFMA_F0", (wc,) * 4, (x, y, z),
                 ("ffma", code, wc, wc, wc, wc, x, y, z))
 
-    # Mixed widths: the code reads each register at its own width.
+    # Mixed widths: each source's raw field at the destination's width (O-67).
     for _ in range(2000 if QUICK else 20000):
         code = rng.randrange(2)
         ws = [w for w in (0, 1, 2) if (w, code) in R.FORMATS]

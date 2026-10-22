@@ -58,9 +58,11 @@ show up in a result comparison.
 
 The compares were the last addition and they are the cautionary one. A compare's
 operands are read at their element width — signed relations sign-extending,
-unsigned zero-extending — and a narrow *floating-point* compare decodes each
-operand at its width in the format bit `[23]` names (O-65; an immediate is read
-at `rs0`'s width, in format `00`). Format C's materialization destination `rd` is exempt from
+unsigned zero-extending — and a narrow *floating-point* compare decodes both at
+`rs0`'s width in the format bit `[23]` names (O-65; an immediate is read in
+format `00`). **Mixed widths follow O-67:** an operation works at its operating
+width, the destination's `chwidth` or `rs0`'s for a compare, and every other
+source is its raw field zero-extended or truncated to it, never converted. Format C's materialization destination `rd` is exempt from
 the width guard, since these semantics never write it; that exemption is what
 lets the compiler leave a dead `rd` narrow instead of spending a `chwidth`
 restoring a register no one reads (F-89). **The order matters:** the semantics

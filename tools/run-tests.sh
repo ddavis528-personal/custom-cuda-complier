@@ -236,6 +236,19 @@ run_fp_canon() {
     echo "  FAIL  fp-canon: got '$got', want '$want' (host NaN: '$nan', bit ignored: '$f0'); 32-bit .f1: $ff"; return 1
   fi
 }
+# --- the mixed-width rule (O-67) --------------------------------------------
+run_mixed_width() {
+  python3 "$AS" "$JSON" test/mixed-width.s "$TMP/mw.bin" >/dev/null || return 1
+  local args="-peek 0x90000 -peek 0x90004 -peek 0x90008" want="564 5 15360" got ctl
+  got=$("$SIM" "$TMP/mw.bin" $args 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  # The control: integer sources read by value, at their own width.
+  ctl=$("$SIM" "$TMP/mw.bin" $args -ccv-test-mixed-by-value 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  if [ "${got% }" = "$want" ] && [ "${ctl% }" != "$want" ]; then
+    echo "  PASS  mixed widths read as raw fields at the operating width: shr, min.s, an FP16 add (O-67)"
+  else
+    echo "  FAIL  mixed-width: got '$got', want '$want' (by value: '$ctl')"; return 1
+  fi
+}
 # --- srd #2, %lanectx (O-64) -----------------------------------------------
 run_lanectx() {
   python3 "$AS" "$JSON" test/lanectx.s "$TMP/lc.bin" >/dev/null || return 1
@@ -283,6 +296,9 @@ run_lanectx || fail=1
 echo
 echo "  --- canonical NaN, compare format (O-66, O-65) ---"
 run_fp_canon || fail=1
+echo
+echo "  --- the mixed-width rule (O-67) ---"
+run_mixed_width || fail=1
 
 # --- the fault model (ISA v1.9 section 12, O-57/O-58) ------------------------
 # Each case names the record it must produce. A fault exits 3, distinct from a
