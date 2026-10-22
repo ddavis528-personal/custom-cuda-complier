@@ -106,7 +106,7 @@ checked 266 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 172 findings and 61 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 172 findings and 63 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -152,6 +152,7 @@ checked 266 instructions
 
   --- predicate spill (IS-15) ---
   PASS  ld.pred/st.pred: positional frame, whole-warp words, a clobbered predicate restored
+  PASS  ld.pred and st.pred move only the issuing group's lanes (O-62, O-63)
 
   --- the fault model (ISA v1.9 section 12) ---
   PASS  faults: F-ALIGN precise and predicate-gated, F-WIDTH ignores the predicate, F-ILLEGAL, F-FETCH, F-BARRIER
