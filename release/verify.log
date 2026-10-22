@@ -154,6 +154,9 @@ checked 266 instructions
   PASS  ld.pred/st.pred: positional frame, whole-warp words, a clobbered predicate restored
   PASS  ld.pred and st.pred move only the issuing group's lanes (O-62, O-63)
 
+  --- one warp of several (TI-29) ---
+  PASS  -warp 1 of a 52-thread CTA: threads 32-51 on lanes 0-19, warp_in_cta in the record, a barrier refused
+
   --- the fault model (ISA v1.9 section 12) ---
   PASS  faults: F-ALIGN precise and predicate-gated, F-WIDTH ignores the predicate, F-ILLEGAL, F-FETCH, F-BARRIER
   PASS  F-RO: .const and the launch window, any byte, per lane and gated, precise; loads and the limit itself do not fault; the oracle records the faulting instruction and the state after it

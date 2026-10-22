@@ -95,6 +95,12 @@ rather than element work, and Format C's `rd` is a register the compare never
 writes. Counting the latter made a 32-bit comparison read as narrow work once
 per loop iteration and overstated a published speedup (F-91).
 
+`-warp W` runs warp W of a CTA of `-threads` threads: lane L is thread
+32W + L, and lanes [0, min(32, T - 32W)) are live. A CTA's warps share
+`.shared` and barriers, which one warp's run cannot model, so a barrier in a
+CTA of more than 32 threads stops the run. The oracle's `init` carries
+`warp_in_cta` when W is not 0 (TI-29).
+
 `-oracle FILE` writes one JSON record per issue group for the CCV core's Stage 3
 skeleton, which takes *what* each instruction does from here and models only
 *when*. A record holds the bytes, the issue mask, every register the group reads
