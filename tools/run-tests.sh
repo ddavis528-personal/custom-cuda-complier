@@ -387,7 +387,9 @@ for d in test/accept test/reject; do
 done
 if [ -x build/ccv-llc ]; then
   for f in test/accept/*.ll; do
-    if build/ccv-llc "$f" -o "$TMP/a.s" >/dev/null 2>&1; then
+    # An object, not a listing: the encoder checks every immediate fits its
+    # field, and a listing never reaches it.
+    if build/ccv-llc "$f" -o "$TMP/a.o" -obj >/dev/null 2>&1; then
       echo "  PASS  accepts $(basename "$f")"
     else
       echo "  FAIL  rejects $(basename "$f") -- should compile"; fail=1

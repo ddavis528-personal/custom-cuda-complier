@@ -257,6 +257,13 @@ std::optional<Pair> decompose(Value *V, IRBuilder<> &B, const DataLayout &DL) {
   if (match(Int, m_Shl(m_ZExt(m_Value(RBase)), m_SpecificInt(16))) &&
       RBase->getType()->isIntegerTy(32))
     return Pair{RBase, B.getInt32(0)};
+  // A constant offset: a global in the module's data image (O-61), whose
+  // `zext` of an i32 offset constant-folded to an i64 constant.
+  const APInt *K;
+  if (match(Int, m_c_Add(m_Shl(m_ZExt(m_Value(RBase)), m_SpecificInt(16)),
+                         m_APInt(K))) &&
+      RBase->getType()->isIntegerTy(32) && K->isIntN(32))
+    return Pair{RBase, B.getInt32(uint32_t(K->getZExtValue()))};
   return std::nullopt;
 }
 
@@ -651,8 +658,9 @@ void llvm::lowerCCVPointerPairs(Module &M) {
 
   // 6 (below, after 5 has turned pointer conversions into integers). An
   //    address with an index the backend's matcher does not take -- an i64
-  //    expression, as align_mem leaves -- is rebuilt as one pair, its whole
-  //    byte offset folded into the offset in 32 bits.
+  //    expression, as align_mem leaves, or a second dynamic index -- is
+  //    rebuilt as one pair, its whole byte offset folded into the offset in
+  //    32 bits.
   auto FoldAddresses = [&] {
     for (Function &F : M)
       for (Instruction &I : instructions(F)) {
@@ -663,12 +671,18 @@ void llvm::lowerCCVPointerPairs(Module &M) {
           Addr = SI->getPointerOperand();
         if (!Addr || !isWindowed(Addr->getType()))
           continue;
+        // Also more than one dynamic index, as `p[total + i]` written as two
+        // GEPs: with the window and the offset that is more register addends
+        // than the AGU takes (§5.1).
         bool Simple = true;
+        unsigned Dynamic = 0;
         for (Value *W = Addr; auto *G = dyn_cast<GEPOperator>(W);
              W = G->getPointerOperand())
-          for (Value *Idx : G->indices())
+          for (Value *Idx : G->indices()) {
             Simple &= simpleIndex(Idx);
-        if (Simple)
+            Dynamic += !isa<ConstantInt>(Idx);
+          }
+        if (Simple && Dynamic <= 1)
           continue;
         IRBuilder<> B(&I);
         if (auto P = decompose(Addr, B, DL))

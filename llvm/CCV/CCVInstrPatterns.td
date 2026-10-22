@@ -413,6 +413,26 @@ def : Pat<(i16 imm:$i), (COPY (MOVI (imm16_bits $i)))>;
 // NOT free -- zeros do not replicate a sign -- and still has no lowering (F-66).
 def : Pat<(i32 (zext GPR16:$a)), (COPY GPR16:$a)>;
 def : Pat<(i32 (anyext GPR16:$a)), (COPY GPR16:$a)>;
+
+// 16-bit shifts, through the 32-bit instructions (F-161): no 16-bit form, and
+// LegalizeDAG does not promote shifts. `shl` widens and reads the result back
+// at 16 bits; `srl` widens, which zero-extends (O-38), so zeros shift in; `sra`
+// sign-extends first with cvt.sext.
+def : Pat<(i16 (shl GPR16:$a, (i32 uimm5_imm:$i))),
+          (COPY_TO_REGCLASS (i32 (SHLI (i32 (COPY_TO_REGCLASS GPR16:$a, GPR)), imm:$i)), GPR16)>;
+def : Pat<(i16 (srl GPR16:$a, (i32 uimm5_imm:$i))),
+          (COPY_TO_REGCLASS (i32 (SHRI (i32 (COPY_TO_REGCLASS GPR16:$a, GPR)), imm:$i)), GPR16)>;
+def : Pat<(i16 (sra GPR16:$a, (i32 uimm5_imm:$i))),
+          (COPY_TO_REGCLASS (i32 (SRAI (i32 (CVT_SEXT GPR16:$a, GPR16:$a, GPR16:$a)), imm:$i)), GPR16)>;
+def : Pat<(i16 (shl GPR16:$a, (i32 GPR:$b))),
+          (COPY_TO_REGCLASS (i32 (SHL (i32 (COPY_TO_REGCLASS GPR16:$a, GPR)), GPR:$b,
+                                      (i32 (COPY_TO_REGCLASS GPR16:$a, GPR)))), GPR16)>;
+def : Pat<(i16 (srl GPR16:$a, (i32 GPR:$b))),
+          (COPY_TO_REGCLASS (i32 (SHR (i32 (COPY_TO_REGCLASS GPR16:$a, GPR)), GPR:$b,
+                                      (i32 (COPY_TO_REGCLASS GPR16:$a, GPR)))), GPR16)>;
+def : Pat<(i16 (sra GPR16:$a, (i32 GPR:$b))),
+          (COPY_TO_REGCLASS (i32 (SRA (i32 (CVT_SEXT GPR16:$a, GPR16:$a, GPR16:$a)), GPR:$b,
+                                      (i32 (CVT_SEXT GPR16:$a, GPR16:$a, GPR16:$a)))), GPR16)>;
 def : Pat<(i32 (sext GPR16:$a)), (CVT_SEXT GPR16:$a, GPR16:$a, GPR16:$a)>;
 
 // `sext i16 to i32` on a value that is already in a 32-bit register arrives as

@@ -97,13 +97,26 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   // logic ops and signed min/max) is done at 32 bits. The middle end narrows
   // byte arithmetic to i16 because i16 is legal, so `(unsigned char)(i * 7)`
   // reached an i16 multiply nothing selects (F-161).
-  for (unsigned Op : {ISD::MUL, ISD::MULHS, ISD::MULHU, ISD::SHL, ISD::SRL,
-                      ISD::SRA, ISD::SDIV, ISD::UDIV, ISD::SREM, ISD::UREM,
+  // Shifts are not here: LegalizeDAG does not promote them, so they have
+  // patterns that do the same through the 32-bit instructions.
+  for (unsigned Op : {ISD::MUL, ISD::MULHS, ISD::MULHU,
+                      ISD::SDIV, ISD::UDIV, ISD::SREM, ISD::UREM,
                       ISD::UMIN, ISD::UMAX, ISD::ABS, ISD::CTPOP, ISD::CTLZ,
                       ISD::CTTZ, ISD::BSWAP, ISD::ROTL, ISD::ROTR}) {
     setOperationAction(Op, MVT::i16, Promote);
     AddPromotedToType(Op, MVT::i16, MVT::i32);
   }
+  // A 64-bit shift by a variable amount is split into 32-bit halves as
+  // *_PARTS, which has no instruction; expanded, it is two shifts, an or and a
+  // select on the amount. Switch lowering reaches one without any i64 in the
+  // source: a bit test is done at the pointer's width (the CoreMark-derived
+  // port's state machine).
+  // Without a library name the legalizer does it inline rather than calling
+  // __ashldi3, which nothing here defines.
+  for (unsigned Op : {ISD::SHL_PARTS, ISD::SRL_PARTS, ISD::SRA_PARTS})
+    setOperationAction(Op, MVT::i32, Expand);
+  for (RTLIB::Libcall LC : {RTLIB::SHL_I64, RTLIB::SRL_I64, RTLIB::SRA_I64})
+    setLibcallName(LC, nullptr);
   // brcond takes an i1; there is no BRCOND over a GPR bit pattern, because a
   // branch reads the predicate file directly (§3, Format E).
   setOperationAction(ISD::BRCOND, MVT::Other, Legal);

@@ -558,9 +558,30 @@ int main(int argc, char **argv) {
       std::fprintf(OF, ",\"mem\":[");
       const uint32_t Exec = R.ActiveSet ? R.Active : Mask;
       unsigned NLanes = llvm::popcount(Exec), Emitted = 0;
+      const unsigned Opc = MI.getOpcode();
+      const bool WarpScoped = Opc == CCV::LD_PRED_G || Opc == CCV::ST_PRED_G ||
+                              Opc == CCV::LD_PRED_S || Opc == CCV::ST_PRED_S;
       for (int SpaceIdx = 0; SpaceIdx != 2; ++SpaceIdx) {
         const auto &Log = SpaceIdx ? ShLog : MemLog;
         if (Log.empty()) continue;
+        // A predicate transfer is warp-scoped: one word per predicate in the
+        // mask, at lane 0's address (§3, §12.8), not one access per lane. Its
+        // words are the lowest executing lane's, the lane its fault names.
+        if (WarpScoped) {
+          unsigned L = unsigned(llvm::countr_zero(Exec));
+          for (const auto &A : Log) {
+            std::fprintf(OF, "%s{\"lane\":%u,\"space\":\"%s\",\"w\":%d,"
+                             "\"addr\":%llu,\"bytes\":%u",
+                         Emitted ? "," : "", L, SpaceIdx ? "shared" : "global",
+                         int(A.Write), (unsigned long long)A.Addr, A.Bytes);
+            if (!Faulted)
+              std::fprintf(OF, ",\"val\":%u", A.Val);
+            std::fputc('}', OF);
+            ++Emitted;
+            if (!SpaceIdx) Touched.push_back(A.Addr);
+          }
+          continue;
+        }
         if (Log.size() != NLanes) {
           errs() << "error: -oracle: " << Log.size() << " memory accesses for "
                  << NLanes << " lanes at " << format_hex(Target, 10)

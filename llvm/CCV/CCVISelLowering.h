@@ -87,6 +87,13 @@ public:
   MVT getScalarShiftAmountTy(const DataLayout &, EVT) const override {
     return MVT::i32;
   }
+
+  /// A jump table is a table of code addresses in data, indexed at the
+  /// pointer's width, then an indirect branch; none of the three exists here.
+  /// A dense switch with an unreachable default (the CoreMark-derived port's
+  /// state machine) became one, and stopped the type legalizer. Without
+  /// tables a switch is compares and bit tests.
+  bool areJTsAllowed(const Function *) const override { return false; }
 };
 } // namespace llvm
 #endif

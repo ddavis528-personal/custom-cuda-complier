@@ -998,10 +998,10 @@ void DAGISEL_CLASS_COLONCOLON SelectCode(SDNode *N)
               // Dst: (XOR_W16:{ *:[i16] } GPR16:{ *:[i16] }:$a, GPR16:{ *:[i16] }:$b, GPR16:{ *:[i16] }:$a)
 /*  1564*/   0, /*End of Scope*/
 /*  1565*/  0, /*End of Scope*/
-/*  1566*/ /*SwitchOpcode*/ 49, TARGET_VAL(ISD::SHL),// ->1618
+/*  1566*/ /*SwitchOpcode*/ 120, TARGET_VAL(ISD::SHL),// ->1689
 /*  1569*/  OPC_RecordChild0, // #0 = $a
 /*  1570*/  OPC_RecordChild1, // #1 = $i
-/*  1571*/  OPC_Scope, 33, /*->1606*/ // 2 children in Scope
+/*  1571*/  OPC_Scope, 64, /*->1637*/ // 2 children in Scope
 /*  1573*/   OPC_MoveChild1,
 /*  1574*/   OPC_CheckOpcode, TARGET_VAL(ISD::Constant),
 /*  1577*/   OPC_CheckTypeI32,
@@ -1014,490 +1014,571 @@ void DAGISEL_CLASS_COLONCOLON SelectCode(SDNode *N)
                   MVT::i32, 2/*#Ops*/, 0, 2, 
               // Src: (shl:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] })<<P:Predicate_uimm4_imm>>:$i) - Complexity = 7
               // Dst: (C_SHLI:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] }):$i)
-/*  1592*/   /*Scope*/ 12, /*->1605*/
+/*  1592*/   /*Scope*/ 43, /*->1636*/
 /*  1593*/    OPC_CheckPredicate, 14, // Predicate_uimm5_imm
 /*  1595*/    OPC_MoveParent,
-/*  1596*/    OPC_CheckTypeI32,
-/*  1597*/    OPC_EmitConvertToTarget1,
-/*  1598*/    OPC_MorphNodeTo1None, TARGET_VAL(CCV::SHLI),
-                  MVT::i32, 2/*#Ops*/, 0, 2, 
-              // Src: (shl:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] })<<P:Predicate_uimm5_imm>>:$i) - Complexity = 7
-              // Dst: (SHLI:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] }):$i)
-/*  1605*/   0, /*End of Scope*/
-/*  1606*/  /*Scope*/ 10, /*->1617*/
-/*  1607*/   OPC_CheckChild1TypeI32,
-/*  1608*/   OPC_CheckTypeI32,
-/*  1609*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::SHL),
-                 MVT::i32, 3/*#Ops*/, 0, 1, 0, 
-             // Src: (shl:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
-             // Dst: (SHL:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b, GPR:{ *:[i32] }:$a)
-/*  1617*/  0, /*End of Scope*/
-/*  1618*/ /*SwitchOpcode*/ 49, TARGET_VAL(ISD::SRL),// ->1670
-/*  1621*/  OPC_RecordChild0, // #0 = $a
-/*  1622*/  OPC_RecordChild1, // #1 = $i
-/*  1623*/  OPC_Scope, 33, /*->1658*/ // 2 children in Scope
-/*  1625*/   OPC_MoveChild1,
-/*  1626*/   OPC_CheckOpcode, TARGET_VAL(ISD::Constant),
-/*  1629*/   OPC_CheckTypeI32,
-/*  1630*/   OPC_Scope, 12, /*->1644*/ // 2 children in Scope
-/*  1632*/    OPC_CheckPredicate, 13, // Predicate_uimm4_imm
-/*  1634*/    OPC_MoveParent,
-/*  1635*/    OPC_CheckTypeI32,
-/*  1636*/    OPC_EmitConvertToTarget1,
-/*  1637*/    OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_SHRI),
+/*  1596*/    OPC_SwitchType /*2 cases */, 8, MVT::i32,// ->1607
+/*  1599*/     OPC_EmitConvertToTarget1,
+/*  1600*/     OPC_MorphNodeTo1None, TARGET_VAL(CCV::SHLI),
+                   MVT::i32, 2/*#Ops*/, 0, 2, 
+               // Src: (shl:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] })<<P:Predicate_uimm5_imm>>:$i) - Complexity = 7
+               // Dst: (SHLI:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] }):$i)
+/*  1607*/    /*SwitchType*/ 26, MVT::i16,// ->1635
+/*  1609*/     OPC_EmitStringInteger32, CCV::GPRRegClassID,
+/*  1611*/     OPC_EmitNode1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
+                   MVT::i32, 2/*#Ops*/, 0, 2,  // Results = #3
+/*  1618*/     OPC_EmitConvertToTarget1,
+/*  1619*/     OPC_EmitNode1None, TARGET_VAL(CCV::SHLI),
+                   MVT::i32, 2/*#Ops*/, 3, 4,  // Results = #5
+/*  1626*/     OPC_EmitStringInteger32, CCV::GPR16RegClassID,
+/*  1628*/     OPC_MorphNodeTo1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
+                   MVT::i16, 2/*#Ops*/, 5, 6, 
+               // Src: (shl:{ *:[i16] } GPR16:{ *:[i16] }:$a, (imm:{ *:[i32] })<<P:Predicate_uimm5_imm>>:$i) - Complexity = 7
+               // Dst: (COPY_TO_REGCLASS:{ *:[i16] } (SHLI:{ *:[i32] } (COPY_TO_REGCLASS:{ *:[i32] } GPR16:{ *:[i16] }:$a, GPR:{ *:[i32] }), (imm:{ *:[i32] }):$i), GPR16:{ *:[i32] })
+/*  1635*/    0, // EndSwitchType
+/*  1636*/   0, /*End of Scope*/
+/*  1637*/  /*Scope*/ 50, /*->1688*/
+/*  1638*/   OPC_CheckChild1TypeI32,
+/*  1639*/   OPC_SwitchType /*2 cases */, 8, MVT::i32,// ->1650
+/*  1642*/    OPC_MorphNodeTo1None, TARGET_VAL(CCV::SHL),
+                  MVT::i32, 3/*#Ops*/, 0, 1, 0, 
+              // Src: (shl:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
+              // Dst: (SHL:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b, GPR:{ *:[i32] }:$a)
+/*  1650*/   /*SwitchType*/ 35, MVT::i16,// ->1687
+/*  1652*/    OPC_EmitStringInteger32, CCV::GPRRegClassID,
+/*  1654*/    OPC_EmitNode1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
+                  MVT::i32, 2/*#Ops*/, 0, 2,  // Results = #3
+/*  1661*/    OPC_EmitStringInteger32, CCV::GPRRegClassID,
+/*  1663*/    OPC_EmitNode1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
+                  MVT::i32, 2/*#Ops*/, 0, 4,  // Results = #5
+/*  1670*/    OPC_EmitNode1None, TARGET_VAL(CCV::SHL),
+                  MVT::i32, 3/*#Ops*/, 3, 1, 5,  // Results = #6
+/*  1678*/    OPC_EmitStringInteger32, CCV::GPR16RegClassID,
+/*  1680*/    OPC_MorphNodeTo1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
+                  MVT::i16, 2/*#Ops*/, 6, 7, 
+              // Src: (shl:{ *:[i16] } GPR16:{ *:[i16] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
+              // Dst: (COPY_TO_REGCLASS:{ *:[i16] } (SHL:{ *:[i32] } (COPY_TO_REGCLASS:{ *:[i32] } GPR16:{ *:[i16] }:$a, GPR:{ *:[i32] }), GPR:{ *:[i32] }:$b, (COPY_TO_REGCLASS:{ *:[i32] } GPR16:{ *:[i16] }:$a, GPR:{ *:[i32] })), GPR16:{ *:[i32] })
+/*  1687*/   0, // EndSwitchType
+/*  1688*/  0, /*End of Scope*/
+/*  1689*/ /*SwitchOpcode*/ 120, TARGET_VAL(ISD::SRL),// ->1812
+/*  1692*/  OPC_RecordChild0, // #0 = $a
+/*  1693*/  OPC_RecordChild1, // #1 = $i
+/*  1694*/  OPC_Scope, 64, /*->1760*/ // 2 children in Scope
+/*  1696*/   OPC_MoveChild1,
+/*  1697*/   OPC_CheckOpcode, TARGET_VAL(ISD::Constant),
+/*  1700*/   OPC_CheckTypeI32,
+/*  1701*/   OPC_Scope, 12, /*->1715*/ // 2 children in Scope
+/*  1703*/    OPC_CheckPredicate, 13, // Predicate_uimm4_imm
+/*  1705*/    OPC_MoveParent,
+/*  1706*/    OPC_CheckTypeI32,
+/*  1707*/    OPC_EmitConvertToTarget1,
+/*  1708*/    OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_SHRI),
                   MVT::i32, 2/*#Ops*/, 0, 2, 
               // Src: (srl:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] })<<P:Predicate_uimm4_imm>>:$i) - Complexity = 7
               // Dst: (C_SHRI:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] }):$i)
-/*  1644*/   /*Scope*/ 12, /*->1657*/
-/*  1645*/    OPC_CheckPredicate, 14, // Predicate_uimm5_imm
-/*  1647*/    OPC_MoveParent,
-/*  1648*/    OPC_CheckTypeI32,
-/*  1649*/    OPC_EmitConvertToTarget1,
-/*  1650*/    OPC_MorphNodeTo1None, TARGET_VAL(CCV::SHRI),
-                  MVT::i32, 2/*#Ops*/, 0, 2, 
-              // Src: (srl:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] })<<P:Predicate_uimm5_imm>>:$i) - Complexity = 7
-              // Dst: (SHRI:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] }):$i)
-/*  1657*/   0, /*End of Scope*/
-/*  1658*/  /*Scope*/ 10, /*->1669*/
-/*  1659*/   OPC_CheckChild1TypeI32,
-/*  1660*/   OPC_CheckTypeI32,
-/*  1661*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::SHR),
-                 MVT::i32, 3/*#Ops*/, 0, 1, 0, 
-             // Src: (srl:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
-             // Dst: (SHR:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b, GPR:{ *:[i32] }:$a)
-/*  1669*/  0, /*End of Scope*/
-/*  1670*/ /*SwitchOpcode*/ 49, TARGET_VAL(ISD::SRA),// ->1722
-/*  1673*/  OPC_RecordChild0, // #0 = $a
-/*  1674*/  OPC_RecordChild1, // #1 = $i
-/*  1675*/  OPC_Scope, 33, /*->1710*/ // 2 children in Scope
-/*  1677*/   OPC_MoveChild1,
-/*  1678*/   OPC_CheckOpcode, TARGET_VAL(ISD::Constant),
-/*  1681*/   OPC_CheckTypeI32,
-/*  1682*/   OPC_Scope, 12, /*->1696*/ // 2 children in Scope
-/*  1684*/    OPC_CheckPredicate, 13, // Predicate_uimm4_imm
-/*  1686*/    OPC_MoveParent,
-/*  1687*/    OPC_CheckTypeI32,
-/*  1688*/    OPC_EmitConvertToTarget1,
-/*  1689*/    OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_SRAI),
+/*  1715*/   /*Scope*/ 43, /*->1759*/
+/*  1716*/    OPC_CheckPredicate, 14, // Predicate_uimm5_imm
+/*  1718*/    OPC_MoveParent,
+/*  1719*/    OPC_SwitchType /*2 cases */, 8, MVT::i32,// ->1730
+/*  1722*/     OPC_EmitConvertToTarget1,
+/*  1723*/     OPC_MorphNodeTo1None, TARGET_VAL(CCV::SHRI),
+                   MVT::i32, 2/*#Ops*/, 0, 2, 
+               // Src: (srl:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] })<<P:Predicate_uimm5_imm>>:$i) - Complexity = 7
+               // Dst: (SHRI:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] }):$i)
+/*  1730*/    /*SwitchType*/ 26, MVT::i16,// ->1758
+/*  1732*/     OPC_EmitStringInteger32, CCV::GPRRegClassID,
+/*  1734*/     OPC_EmitNode1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
+                   MVT::i32, 2/*#Ops*/, 0, 2,  // Results = #3
+/*  1741*/     OPC_EmitConvertToTarget1,
+/*  1742*/     OPC_EmitNode1None, TARGET_VAL(CCV::SHRI),
+                   MVT::i32, 2/*#Ops*/, 3, 4,  // Results = #5
+/*  1749*/     OPC_EmitStringInteger32, CCV::GPR16RegClassID,
+/*  1751*/     OPC_MorphNodeTo1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
+                   MVT::i16, 2/*#Ops*/, 5, 6, 
+               // Src: (srl:{ *:[i16] } GPR16:{ *:[i16] }:$a, (imm:{ *:[i32] })<<P:Predicate_uimm5_imm>>:$i) - Complexity = 7
+               // Dst: (COPY_TO_REGCLASS:{ *:[i16] } (SHRI:{ *:[i32] } (COPY_TO_REGCLASS:{ *:[i32] } GPR16:{ *:[i16] }:$a, GPR:{ *:[i32] }), (imm:{ *:[i32] }):$i), GPR16:{ *:[i32] })
+/*  1758*/    0, // EndSwitchType
+/*  1759*/   0, /*End of Scope*/
+/*  1760*/  /*Scope*/ 50, /*->1811*/
+/*  1761*/   OPC_CheckChild1TypeI32,
+/*  1762*/   OPC_SwitchType /*2 cases */, 8, MVT::i32,// ->1773
+/*  1765*/    OPC_MorphNodeTo1None, TARGET_VAL(CCV::SHR),
+                  MVT::i32, 3/*#Ops*/, 0, 1, 0, 
+              // Src: (srl:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
+              // Dst: (SHR:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b, GPR:{ *:[i32] }:$a)
+/*  1773*/   /*SwitchType*/ 35, MVT::i16,// ->1810
+/*  1775*/    OPC_EmitStringInteger32, CCV::GPRRegClassID,
+/*  1777*/    OPC_EmitNode1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
+                  MVT::i32, 2/*#Ops*/, 0, 2,  // Results = #3
+/*  1784*/    OPC_EmitStringInteger32, CCV::GPRRegClassID,
+/*  1786*/    OPC_EmitNode1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
+                  MVT::i32, 2/*#Ops*/, 0, 4,  // Results = #5
+/*  1793*/    OPC_EmitNode1None, TARGET_VAL(CCV::SHR),
+                  MVT::i32, 3/*#Ops*/, 3, 1, 5,  // Results = #6
+/*  1801*/    OPC_EmitStringInteger32, CCV::GPR16RegClassID,
+/*  1803*/    OPC_MorphNodeTo1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
+                  MVT::i16, 2/*#Ops*/, 6, 7, 
+              // Src: (srl:{ *:[i16] } GPR16:{ *:[i16] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
+              // Dst: (COPY_TO_REGCLASS:{ *:[i16] } (SHR:{ *:[i32] } (COPY_TO_REGCLASS:{ *:[i32] } GPR16:{ *:[i16] }:$a, GPR:{ *:[i32] }), GPR:{ *:[i32] }:$b, (COPY_TO_REGCLASS:{ *:[i32] } GPR16:{ *:[i16] }:$a, GPR:{ *:[i32] })), GPR16:{ *:[i32] })
+/*  1810*/   0, // EndSwitchType
+/*  1811*/  0, /*End of Scope*/
+/*  1812*/ /*SwitchOpcode*/ 117, TARGET_VAL(ISD::SRA),// ->1932
+/*  1815*/  OPC_RecordChild0, // #0 = $a
+/*  1816*/  OPC_RecordChild1, // #1 = $i
+/*  1817*/  OPC_Scope, 63, /*->1882*/ // 2 children in Scope
+/*  1819*/   OPC_MoveChild1,
+/*  1820*/   OPC_CheckOpcode, TARGET_VAL(ISD::Constant),
+/*  1823*/   OPC_CheckTypeI32,
+/*  1824*/   OPC_Scope, 12, /*->1838*/ // 2 children in Scope
+/*  1826*/    OPC_CheckPredicate, 13, // Predicate_uimm4_imm
+/*  1828*/    OPC_MoveParent,
+/*  1829*/    OPC_CheckTypeI32,
+/*  1830*/    OPC_EmitConvertToTarget1,
+/*  1831*/    OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_SRAI),
                   MVT::i32, 2/*#Ops*/, 0, 2, 
               // Src: (sra:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] })<<P:Predicate_uimm4_imm>>:$i) - Complexity = 7
               // Dst: (C_SRAI:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] }):$i)
-/*  1696*/   /*Scope*/ 12, /*->1709*/
-/*  1697*/    OPC_CheckPredicate, 14, // Predicate_uimm5_imm
-/*  1699*/    OPC_MoveParent,
-/*  1700*/    OPC_CheckTypeI32,
-/*  1701*/    OPC_EmitConvertToTarget1,
-/*  1702*/    OPC_MorphNodeTo1None, TARGET_VAL(CCV::SRAI),
-                  MVT::i32, 2/*#Ops*/, 0, 2, 
-              // Src: (sra:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] })<<P:Predicate_uimm5_imm>>:$i) - Complexity = 7
-              // Dst: (SRAI:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] }):$i)
-/*  1709*/   0, /*End of Scope*/
-/*  1710*/  /*Scope*/ 10, /*->1721*/
-/*  1711*/   OPC_CheckChild1TypeI32,
-/*  1712*/   OPC_CheckTypeI32,
-/*  1713*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::SRA),
-                 MVT::i32, 3/*#Ops*/, 0, 1, 0, 
-             // Src: (sra:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
-             // Dst: (SRA:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b, GPR:{ *:[i32] }:$a)
-/*  1721*/  0, /*End of Scope*/
-/*  1722*/ /*SwitchOpcode*/ 30, TARGET_VAL(ISD::MUL),// ->1755
-/*  1725*/  OPC_RecordChild0, // #0 = $a
-/*  1726*/  OPC_RecordChild1, // #1 = $i
-/*  1727*/  OPC_Scope, 15, /*->1744*/ // 2 children in Scope
-/*  1729*/   OPC_MoveChild1,
-/*  1730*/   OPC_CheckOpcode, TARGET_VAL(ISD::Constant),
-/*  1733*/   OPC_CheckPredicate7,  // Predicate_simm13_imm
-/*  1734*/   OPC_MoveParent,
-/*  1735*/   OPC_CheckTypeI32,
-/*  1736*/   OPC_EmitConvertToTarget1,
-/*  1737*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MULI),
+/*  1838*/   /*Scope*/ 42, /*->1881*/
+/*  1839*/    OPC_CheckPredicate, 14, // Predicate_uimm5_imm
+/*  1841*/    OPC_MoveParent,
+/*  1842*/    OPC_SwitchType /*2 cases */, 8, MVT::i32,// ->1853
+/*  1845*/     OPC_EmitConvertToTarget1,
+/*  1846*/     OPC_MorphNodeTo1None, TARGET_VAL(CCV::SRAI),
+                   MVT::i32, 2/*#Ops*/, 0, 2, 
+               // Src: (sra:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] })<<P:Predicate_uimm5_imm>>:$i) - Complexity = 7
+               // Dst: (SRAI:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] }):$i)
+/*  1853*/    /*SwitchType*/ 25, MVT::i16,// ->1880
+/*  1855*/     OPC_EmitNode1None, TARGET_VAL(CCV::CVT_SEXT),
+                   MVT::i32, 3/*#Ops*/, 0, 0, 0,  // Results = #2
+/*  1863*/     OPC_EmitConvertToTarget1,
+/*  1864*/     OPC_EmitNode1None, TARGET_VAL(CCV::SRAI),
+                   MVT::i32, 2/*#Ops*/, 2, 3,  // Results = #4
+/*  1871*/     OPC_EmitStringInteger32, CCV::GPR16RegClassID,
+/*  1873*/     OPC_MorphNodeTo1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
+                   MVT::i16, 2/*#Ops*/, 4, 5, 
+               // Src: (sra:{ *:[i16] } GPR16:{ *:[i16] }:$a, (imm:{ *:[i32] })<<P:Predicate_uimm5_imm>>:$i) - Complexity = 7
+               // Dst: (COPY_TO_REGCLASS:{ *:[i16] } (SRAI:{ *:[i32] } (CVT_SEXT:{ *:[i32] } GPR16:{ *:[i16] }:$a, GPR16:{ *:[i16] }:$a, GPR16:{ *:[i16] }:$a), (imm:{ *:[i32] }):$i), GPR16:{ *:[i32] })
+/*  1880*/    0, // EndSwitchType
+/*  1881*/   0, /*End of Scope*/
+/*  1882*/  /*Scope*/ 48, /*->1931*/
+/*  1883*/   OPC_CheckChild1TypeI32,
+/*  1884*/   OPC_SwitchType /*2 cases */, 8, MVT::i32,// ->1895
+/*  1887*/    OPC_MorphNodeTo1None, TARGET_VAL(CCV::SRA),
+                  MVT::i32, 3/*#Ops*/, 0, 1, 0, 
+              // Src: (sra:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
+              // Dst: (SRA:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b, GPR:{ *:[i32] }:$a)
+/*  1895*/   /*SwitchType*/ 33, MVT::i16,// ->1930
+/*  1897*/    OPC_EmitNode1None, TARGET_VAL(CCV::CVT_SEXT),
+                  MVT::i32, 3/*#Ops*/, 0, 0, 0,  // Results = #2
+/*  1905*/    OPC_EmitNode1None, TARGET_VAL(CCV::CVT_SEXT),
+                  MVT::i32, 3/*#Ops*/, 0, 0, 0,  // Results = #3
+/*  1913*/    OPC_EmitNode1None, TARGET_VAL(CCV::SRA),
+                  MVT::i32, 3/*#Ops*/, 2, 1, 3,  // Results = #4
+/*  1921*/    OPC_EmitStringInteger32, CCV::GPR16RegClassID,
+/*  1923*/    OPC_MorphNodeTo1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
+                  MVT::i16, 2/*#Ops*/, 4, 5, 
+              // Src: (sra:{ *:[i16] } GPR16:{ *:[i16] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
+              // Dst: (COPY_TO_REGCLASS:{ *:[i16] } (SRA:{ *:[i32] } (CVT_SEXT:{ *:[i32] } GPR16:{ *:[i16] }:$a, GPR16:{ *:[i16] }:$a, GPR16:{ *:[i16] }:$a), GPR:{ *:[i32] }:$b, (CVT_SEXT:{ *:[i32] } GPR16:{ *:[i16] }:$a, GPR16:{ *:[i16] }:$a, GPR16:{ *:[i16] }:$a)), GPR16:{ *:[i32] })
+/*  1930*/   0, // EndSwitchType
+/*  1931*/  0, /*End of Scope*/
+/*  1932*/ /*SwitchOpcode*/ 30, TARGET_VAL(ISD::MUL),// ->1965
+/*  1935*/  OPC_RecordChild0, // #0 = $a
+/*  1936*/  OPC_RecordChild1, // #1 = $i
+/*  1937*/  OPC_Scope, 15, /*->1954*/ // 2 children in Scope
+/*  1939*/   OPC_MoveChild1,
+/*  1940*/   OPC_CheckOpcode, TARGET_VAL(ISD::Constant),
+/*  1943*/   OPC_CheckPredicate7,  // Predicate_simm13_imm
+/*  1944*/   OPC_MoveParent,
+/*  1945*/   OPC_CheckTypeI32,
+/*  1946*/   OPC_EmitConvertToTarget1,
+/*  1947*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MULI),
                  MVT::i32, 2/*#Ops*/, 0, 2, 
              // Src: (mul:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] })<<P:Predicate_simm13_imm>>:$i) - Complexity = 7
              // Dst: (MULI:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] }):$i)
-/*  1744*/  /*Scope*/ 9, /*->1754*/
-/*  1745*/   OPC_CheckTypeI32,
-/*  1746*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MUL_LO),
+/*  1954*/  /*Scope*/ 9, /*->1964*/
+/*  1955*/   OPC_CheckTypeI32,
+/*  1956*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MUL_LO),
                  MVT::i32, 3/*#Ops*/, 0, 1, 1, 
              // Src: (mul:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
              // Dst: (MUL_LO:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b, GPR:{ *:[i32] }:$b)
-/*  1754*/  0, /*End of Scope*/
-/*  1755*/ /*SwitchOpcode*/ 51, TARGET_VAL(ISD::OR),// ->1809
-/*  1758*/  OPC_RecordChild0, // #0 = $a
-/*  1759*/  OPC_RecordChild1, // #1 = $i
-/*  1760*/  OPC_Scope, 15, /*->1777*/ // 4 children in Scope
-/*  1762*/   OPC_MoveChild1,
-/*  1763*/   OPC_CheckOpcode, TARGET_VAL(ISD::Constant),
-/*  1766*/   OPC_CheckPredicate7,  // Predicate_simm13_imm
-/*  1767*/   OPC_MoveParent,
-/*  1768*/   OPC_CheckTypeI32,
-/*  1769*/   OPC_EmitConvertToTarget1,
-/*  1770*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::ORI),
+/*  1964*/  0, /*End of Scope*/
+/*  1965*/ /*SwitchOpcode*/ 51, TARGET_VAL(ISD::OR),// ->2019
+/*  1968*/  OPC_RecordChild0, // #0 = $a
+/*  1969*/  OPC_RecordChild1, // #1 = $i
+/*  1970*/  OPC_Scope, 15, /*->1987*/ // 4 children in Scope
+/*  1972*/   OPC_MoveChild1,
+/*  1973*/   OPC_CheckOpcode, TARGET_VAL(ISD::Constant),
+/*  1976*/   OPC_CheckPredicate7,  // Predicate_simm13_imm
+/*  1977*/   OPC_MoveParent,
+/*  1978*/   OPC_CheckTypeI32,
+/*  1979*/   OPC_EmitConvertToTarget1,
+/*  1980*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::ORI),
                  MVT::i32, 2/*#Ops*/, 0, 2, 
              // Src: (or:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] })<<P:Predicate_simm13_imm>>:$i) - Complexity = 7
              // Dst: (ORI:{ *:[i32] } GPR:{ *:[i32] }:$a, (imm:{ *:[i32] }):$i)
-/*  1777*/  /*Scope*/ 9, /*->1787*/
-/*  1778*/   OPC_CheckTypeI32,
-/*  1779*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::OR),
+/*  1987*/  /*Scope*/ 9, /*->1997*/
+/*  1988*/   OPC_CheckTypeI32,
+/*  1989*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::OR),
                  MVT::i32, 3/*#Ops*/, 0, 1, 0, 
              // Src: (or:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
              // Dst: (OR:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b, GPR:{ *:[i32] }:$a)
-/*  1787*/  /*Scope*/ 9, /*->1797*/
-/*  1788*/   OPC_CheckType, MVT::i1,
-/*  1790*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::PSEUDO_POR),
+/*  1997*/  /*Scope*/ 9, /*->2007*/
+/*  1998*/   OPC_CheckType, MVT::i1,
+/*  2000*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::PSEUDO_POR),
                  MVT::i1, 2/*#Ops*/, 0, 1, 
              // Src: (or:{ *:[i1] } PR:{ *:[i1] }:$a, PR:{ *:[i1] }:$b) - Complexity = 3
              // Dst: (PSEUDO_POR:{ *:[i1] } PR:{ *:[i1] }:$a, PR:{ *:[i1] }:$b)
-/*  1797*/  /*Scope*/ 10, /*->1808*/
-/*  1798*/   OPC_CheckType, MVT::i16,
-/*  1800*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::OR_W16),
+/*  2007*/  /*Scope*/ 10, /*->2018*/
+/*  2008*/   OPC_CheckType, MVT::i16,
+/*  2010*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::OR_W16),
                  MVT::i16, 3/*#Ops*/, 0, 1, 0, 
              // Src: (or:{ *:[i16] } GPR16:{ *:[i16] }:$a, GPR16:{ *:[i16] }:$b) - Complexity = 3
              // Dst: (OR_W16:{ *:[i16] } GPR16:{ *:[i16] }:$a, GPR16:{ *:[i16] }:$b, GPR16:{ *:[i16] }:$a)
-/*  1808*/  0, /*End of Scope*/
-/*  1809*/ /*SwitchOpcode*/ 15, TARGET_VAL(CCVISD::CALL),// ->1827
-/*  1812*/  OPC_RecordNode, // #0 = 'ccv_call' chained node
-/*  1813*/  OPC_CaptureGlueInput,
-/*  1814*/  OPC_RecordChild1, // #1 = $f
-/*  1815*/  OPC_MoveChild1,
-/*  1816*/  OPC_CheckOpcode, TARGET_VAL(ISD::TargetGlobalAddress),
-/*  1819*/  OPC_MoveParent,
-/*  1820*/  OPC_EmitMergeInputChains1_0,
-/*  1821*/  OPC_MorphNodeTo0, TARGET_VAL(CCV::PSEUDO_CALL), 0|OPFL_Chain|OPFL_GlueInput|OPFL_GlueOutput|OPFL_Variadic1,
+/*  2018*/  0, /*End of Scope*/
+/*  2019*/ /*SwitchOpcode*/ 15, TARGET_VAL(CCVISD::CALL),// ->2037
+/*  2022*/  OPC_RecordNode, // #0 = 'ccv_call' chained node
+/*  2023*/  OPC_CaptureGlueInput,
+/*  2024*/  OPC_RecordChild1, // #1 = $f
+/*  2025*/  OPC_MoveChild1,
+/*  2026*/  OPC_CheckOpcode, TARGET_VAL(ISD::TargetGlobalAddress),
+/*  2029*/  OPC_MoveParent,
+/*  2030*/  OPC_EmitMergeInputChains1_0,
+/*  2031*/  OPC_MorphNodeTo0, TARGET_VAL(CCV::PSEUDO_CALL), 0|OPFL_Chain|OPFL_GlueInput|OPFL_GlueOutput|OPFL_Variadic1,
                 1/*#Ops*/, 1, 
             // Src: (ccv_call (tglobaladdr:{ *:[i32] }):$f) - Complexity = 6
             // Dst: (PSEUDO_CALL (tglobaladdr:{ *:[i32] }):$f)
-/*  1827*/ /*SwitchOpcode*/ 16, TARGET_VAL(ISD::BITCAST),// ->1846
-/*  1830*/  OPC_RecordChild0, // #0 = $a
-/*  1831*/  OPC_SwitchType /*2 cases */, 5, MVT::i32,// ->1839
-/*  1834*/   OPC_CheckChild0Type, MVT::f32,
-/*  1836*/   OPC_CompleteMatch, 1, 0, 
+/*  2037*/ /*SwitchOpcode*/ 16, TARGET_VAL(ISD::BITCAST),// ->2056
+/*  2040*/  OPC_RecordChild0, // #0 = $a
+/*  2041*/  OPC_SwitchType /*2 cases */, 5, MVT::i32,// ->2049
+/*  2044*/   OPC_CheckChild0Type, MVT::f32,
+/*  2046*/   OPC_CompleteMatch, 1, 0, 
               // Src: (bitconvert:{ *:[i32] } GPR:{ *:[f32] }:$a) - Complexity = 3
               // Dst: GPR:{ *:[i32] }:$a
-/*  1839*/  /*SwitchType*/ 4, MVT::f32,// ->1845
-/*  1841*/   OPC_CheckChild0TypeI32,
-/*  1842*/   OPC_CompleteMatch, 1, 0, 
+/*  2049*/  /*SwitchType*/ 4, MVT::f32,// ->2055
+/*  2051*/   OPC_CheckChild0TypeI32,
+/*  2052*/   OPC_CompleteMatch, 1, 0, 
               // Src: (bitconvert:{ *:[f32] } GPR:{ *:[i32] }:$a) - Complexity = 3
               // Dst: GPR:{ *:[f32] }:$a
-/*  1845*/  0, // EndSwitchType
-/*  1846*/ /*SwitchOpcode*/ 13, TARGET_VAL(ISD::BR),// ->1862
-/*  1849*/  OPC_RecordNode, // #0 = 'br' chained node
-/*  1850*/  OPC_RecordChild1, // #1 = $t
-/*  1851*/  OPC_MoveChild1,
-/*  1852*/  OPC_CheckOpcode, TARGET_VAL(ISD::BasicBlock),
-/*  1855*/  OPC_MoveParent,
-/*  1856*/  OPC_EmitMergeInputChains1_0,
-/*  1857*/  OPC_MorphNodeTo0Chain, TARGET_VAL(CCV::C_BRA),
+/*  2055*/  0, // EndSwitchType
+/*  2056*/ /*SwitchOpcode*/ 13, TARGET_VAL(ISD::BR),// ->2072
+/*  2059*/  OPC_RecordNode, // #0 = 'br' chained node
+/*  2060*/  OPC_RecordChild1, // #1 = $t
+/*  2061*/  OPC_MoveChild1,
+/*  2062*/  OPC_CheckOpcode, TARGET_VAL(ISD::BasicBlock),
+/*  2065*/  OPC_MoveParent,
+/*  2066*/  OPC_EmitMergeInputChains1_0,
+/*  2067*/  OPC_MorphNodeTo0Chain, TARGET_VAL(CCV::C_BRA),
                 1/*#Ops*/, 1, 
             // Src: (br (bb:{ *:[Other] }):$t) - Complexity = 3
             // Dst: (C_BRA (bb:{ *:[Other] }):$t)
-/*  1862*/ /*SwitchOpcode*/ 24, TARGET_VAL(ISD::SMIN),// ->1889
-/*  1865*/  OPC_RecordChild0, // #0 = $a
-/*  1866*/  OPC_RecordChild1, // #1 = $b
-/*  1867*/  OPC_SwitchType /*2 cases */, 8, MVT::i32,// ->1878
-/*  1870*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MIN_S),
+/*  2072*/ /*SwitchOpcode*/ 24, TARGET_VAL(ISD::SMIN),// ->2099
+/*  2075*/  OPC_RecordChild0, // #0 = $a
+/*  2076*/  OPC_RecordChild1, // #1 = $b
+/*  2077*/  OPC_SwitchType /*2 cases */, 8, MVT::i32,// ->2088
+/*  2080*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MIN_S),
                  MVT::i32, 3/*#Ops*/, 0, 1, 0, 
              // Src: (smin:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
              // Dst: (MIN_S:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b, GPR:{ *:[i32] }:$a)
-/*  1878*/  /*SwitchType*/ 8, MVT::i16,// ->1888
-/*  1880*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MIN_S_W16),
+/*  2088*/  /*SwitchType*/ 8, MVT::i16,// ->2098
+/*  2090*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MIN_S_W16),
                  MVT::i16, 3/*#Ops*/, 0, 1, 0, 
              // Src: (smin:{ *:[i16] } GPR16:{ *:[i16] }:$a, GPR16:{ *:[i16] }:$b) - Complexity = 3
              // Dst: (MIN_S_W16:{ *:[i16] } GPR16:{ *:[i16] }:$a, GPR16:{ *:[i16] }:$b, GPR16:{ *:[i16] }:$a)
-/*  1888*/  0, // EndSwitchType
-/*  1889*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::UMIN),// ->1903
-/*  1892*/  OPC_RecordChild0, // #0 = $a
-/*  1893*/  OPC_RecordChild1, // #1 = $b
-/*  1894*/  OPC_CheckTypeI32,
-/*  1895*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::MIN_U),
+/*  2098*/  0, // EndSwitchType
+/*  2099*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::UMIN),// ->2113
+/*  2102*/  OPC_RecordChild0, // #0 = $a
+/*  2103*/  OPC_RecordChild1, // #1 = $b
+/*  2104*/  OPC_CheckTypeI32,
+/*  2105*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::MIN_U),
                 MVT::i32, 3/*#Ops*/, 0, 1, 0, 
             // Src: (umin:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
             // Dst: (MIN_U:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b, GPR:{ *:[i32] }:$a)
-/*  1903*/ /*SwitchOpcode*/ 24, TARGET_VAL(ISD::SMAX),// ->1930
-/*  1906*/  OPC_RecordChild0, // #0 = $a
-/*  1907*/  OPC_RecordChild1, // #1 = $b
-/*  1908*/  OPC_SwitchType /*2 cases */, 8, MVT::i32,// ->1919
-/*  1911*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MAX_S),
+/*  2113*/ /*SwitchOpcode*/ 24, TARGET_VAL(ISD::SMAX),// ->2140
+/*  2116*/  OPC_RecordChild0, // #0 = $a
+/*  2117*/  OPC_RecordChild1, // #1 = $b
+/*  2118*/  OPC_SwitchType /*2 cases */, 8, MVT::i32,// ->2129
+/*  2121*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MAX_S),
                  MVT::i32, 3/*#Ops*/, 0, 1, 0, 
              // Src: (smax:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
              // Dst: (MAX_S:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b, GPR:{ *:[i32] }:$a)
-/*  1919*/  /*SwitchType*/ 8, MVT::i16,// ->1929
-/*  1921*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MAX_S_W16),
+/*  2129*/  /*SwitchType*/ 8, MVT::i16,// ->2139
+/*  2131*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MAX_S_W16),
                  MVT::i16, 3/*#Ops*/, 0, 1, 0, 
              // Src: (smax:{ *:[i16] } GPR16:{ *:[i16] }:$a, GPR16:{ *:[i16] }:$b) - Complexity = 3
              // Dst: (MAX_S_W16:{ *:[i16] } GPR16:{ *:[i16] }:$a, GPR16:{ *:[i16] }:$b, GPR16:{ *:[i16] }:$a)
-/*  1929*/  0, // EndSwitchType
-/*  1930*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::UMAX),// ->1944
-/*  1933*/  OPC_RecordChild0, // #0 = $a
-/*  1934*/  OPC_RecordChild1, // #1 = $b
-/*  1935*/  OPC_CheckTypeI32,
-/*  1936*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::MAX_U),
+/*  2139*/  0, // EndSwitchType
+/*  2140*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::UMAX),// ->2154
+/*  2143*/  OPC_RecordChild0, // #0 = $a
+/*  2144*/  OPC_RecordChild1, // #1 = $b
+/*  2145*/  OPC_CheckTypeI32,
+/*  2146*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::MAX_U),
                 MVT::i32, 3/*#Ops*/, 0, 1, 0, 
             // Src: (umax:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
             // Dst: (MAX_U:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b, GPR:{ *:[i32] }:$a)
-/*  1944*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::MULHS),// ->1958
-/*  1947*/  OPC_RecordChild0, // #0 = $a
-/*  1948*/  OPC_RecordChild1, // #1 = $b
-/*  1949*/  OPC_CheckTypeI32,
-/*  1950*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::MUL_HI_S),
+/*  2154*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::MULHS),// ->2168
+/*  2157*/  OPC_RecordChild0, // #0 = $a
+/*  2158*/  OPC_RecordChild1, // #1 = $b
+/*  2159*/  OPC_CheckTypeI32,
+/*  2160*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::MUL_HI_S),
                 MVT::i32, 3/*#Ops*/, 0, 1, 0, 
             // Src: (mulhs:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
             // Dst: (MUL_HI_S:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b, GPR:{ *:[i32] }:$a)
-/*  1958*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::MULHU),// ->1972
-/*  1961*/  OPC_RecordChild0, // #0 = $a
-/*  1962*/  OPC_RecordChild1, // #1 = $b
-/*  1963*/  OPC_CheckTypeI32,
-/*  1964*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::MUL_HI_U),
+/*  2168*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::MULHU),// ->2182
+/*  2171*/  OPC_RecordChild0, // #0 = $a
+/*  2172*/  OPC_RecordChild1, // #1 = $b
+/*  2173*/  OPC_CheckTypeI32,
+/*  2174*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::MUL_HI_U),
                 MVT::i32, 3/*#Ops*/, 0, 1, 0, 
             // Src: (mulhu:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b) - Complexity = 3
             // Dst: (MUL_HI_U:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$b, GPR:{ *:[i32] }:$a)
-/*  1972*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::CTPOP),// ->1986
-/*  1975*/  OPC_RecordChild0, // #0 = $a
-/*  1976*/  OPC_CheckChild0TypeI32,
-/*  1977*/  OPC_CheckTypeI32,
-/*  1978*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::POPC),
+/*  2182*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::CTPOP),// ->2196
+/*  2185*/  OPC_RecordChild0, // #0 = $a
+/*  2186*/  OPC_CheckChild0TypeI32,
+/*  2187*/  OPC_CheckTypeI32,
+/*  2188*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::POPC),
                 MVT::i32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (ctpop:{ *:[i32] } GPR:{ *:[i32] }:$a) - Complexity = 3
             // Dst: (POPC:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a)
-/*  1986*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::CTLZ),// ->2000
-/*  1989*/  OPC_RecordChild0, // #0 = $a
-/*  1990*/  OPC_CheckChild0TypeI32,
-/*  1991*/  OPC_CheckTypeI32,
-/*  1992*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CLZ),
+/*  2196*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::CTLZ),// ->2210
+/*  2199*/  OPC_RecordChild0, // #0 = $a
+/*  2200*/  OPC_CheckChild0TypeI32,
+/*  2201*/  OPC_CheckTypeI32,
+/*  2202*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CLZ),
                 MVT::i32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (ctlz:{ *:[i32] } GPR:{ *:[i32] }:$a) - Complexity = 3
             // Dst: (CLZ:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a)
-/*  2000*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::BITREVERSE),// ->2013
-/*  2003*/  OPC_RecordChild0, // #0 = $a
-/*  2004*/  OPC_CheckTypeI32,
-/*  2005*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::BREV),
+/*  2210*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::BITREVERSE),// ->2223
+/*  2213*/  OPC_RecordChild0, // #0 = $a
+/*  2214*/  OPC_CheckTypeI32,
+/*  2215*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::BREV),
                 MVT::i32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (bitreverse:{ *:[i32] } GPR:{ *:[i32] }:$a) - Complexity = 3
             // Dst: (BREV:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a)
-/*  2013*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::ABS),// ->2026
-/*  2016*/  OPC_RecordChild0, // #0 = $a
-/*  2017*/  OPC_CheckTypeI32,
-/*  2018*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::ABS),
+/*  2223*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::ABS),// ->2236
+/*  2226*/  OPC_RecordChild0, // #0 = $a
+/*  2227*/  OPC_CheckTypeI32,
+/*  2228*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::ABS),
                 MVT::i32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (abs:{ *:[i32] } GPR:{ *:[i32] }:$a) - Complexity = 3
             // Dst: (ABS:{ *:[i32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a)
-/*  2026*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::FP_TO_SINT),// ->2039
-/*  2029*/  OPC_RecordChild0, // #0 = $a
-/*  2030*/  OPC_CheckTypeI32,
-/*  2031*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_S32_F32),
+/*  2236*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::FP_TO_SINT),// ->2249
+/*  2239*/  OPC_RecordChild0, // #0 = $a
+/*  2240*/  OPC_CheckTypeI32,
+/*  2241*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_S32_F32),
                 MVT::i32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (fp_to_sint:{ *:[i32] } GPR:{ *:[f32] }:$a) - Complexity = 3
             // Dst: (CVT_S32_F32:{ *:[i32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2039*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::FP_TO_UINT),// ->2052
-/*  2042*/  OPC_RecordChild0, // #0 = $a
-/*  2043*/  OPC_CheckTypeI32,
-/*  2044*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_U32_F32),
+/*  2249*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::FP_TO_UINT),// ->2262
+/*  2252*/  OPC_RecordChild0, // #0 = $a
+/*  2253*/  OPC_CheckTypeI32,
+/*  2254*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_U32_F32),
                 MVT::i32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (fp_to_uint:{ *:[i32] } GPR:{ *:[f32] }:$a) - Complexity = 3
             // Dst: (CVT_U32_F32:{ *:[i32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2052*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::TRUNCATE),// ->2064
-/*  2055*/  OPC_RecordChild0, // #0 = $a
-/*  2056*/  OPC_CheckType, MVT::i16,
-/*  2058*/  OPC_MorphNodeTo1None, TARGET_VAL(TargetOpcode::COPY),
+/*  2262*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::TRUNCATE),// ->2274
+/*  2265*/  OPC_RecordChild0, // #0 = $a
+/*  2266*/  OPC_CheckType, MVT::i16,
+/*  2268*/  OPC_MorphNodeTo1None, TARGET_VAL(TargetOpcode::COPY),
                 MVT::i16, 1/*#Ops*/, 0, 
             // Src: (trunc:{ *:[i16] } GPR:{ *:[i32] }:$a) - Complexity = 3
             // Dst: (COPY:{ *:[i16] } GPR:{ *:[i32] }:$a)
-/*  2064*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::ZERO_EXTEND),// ->2077
-/*  2067*/  OPC_RecordChild0, // #0 = $a
-/*  2068*/  OPC_CheckChild0Type, MVT::i16,
-/*  2070*/  OPC_CheckTypeI32,
-/*  2071*/  OPC_MorphNodeTo1None, TARGET_VAL(TargetOpcode::COPY),
+/*  2274*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::ZERO_EXTEND),// ->2287
+/*  2277*/  OPC_RecordChild0, // #0 = $a
+/*  2278*/  OPC_CheckChild0Type, MVT::i16,
+/*  2280*/  OPC_CheckTypeI32,
+/*  2281*/  OPC_MorphNodeTo1None, TARGET_VAL(TargetOpcode::COPY),
                 MVT::i32, 1/*#Ops*/, 0, 
             // Src: (zext:{ *:[i32] } GPR16:{ *:[i16] }:$a) - Complexity = 3
             // Dst: (COPY:{ *:[i32] } GPR16:{ *:[i16] }:$a)
-/*  2077*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::ANY_EXTEND),// ->2090
-/*  2080*/  OPC_RecordChild0, // #0 = $a
-/*  2081*/  OPC_CheckChild0Type, MVT::i16,
-/*  2083*/  OPC_CheckTypeI32,
-/*  2084*/  OPC_MorphNodeTo1None, TARGET_VAL(TargetOpcode::COPY),
+/*  2287*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::ANY_EXTEND),// ->2300
+/*  2290*/  OPC_RecordChild0, // #0 = $a
+/*  2291*/  OPC_CheckChild0Type, MVT::i16,
+/*  2293*/  OPC_CheckTypeI32,
+/*  2294*/  OPC_MorphNodeTo1None, TARGET_VAL(TargetOpcode::COPY),
                 MVT::i32, 1/*#Ops*/, 0, 
             // Src: (anyext:{ *:[i32] } GPR16:{ *:[i16] }:$a) - Complexity = 3
             // Dst: (COPY:{ *:[i32] } GPR16:{ *:[i16] }:$a)
-/*  2090*/ /*SwitchOpcode*/ 12, TARGET_VAL(ISD::SIGN_EXTEND),// ->2105
-/*  2093*/  OPC_RecordChild0, // #0 = $a
-/*  2094*/  OPC_CheckChild0Type, MVT::i16,
-/*  2096*/  OPC_CheckTypeI32,
-/*  2097*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_SEXT),
+/*  2300*/ /*SwitchOpcode*/ 12, TARGET_VAL(ISD::SIGN_EXTEND),// ->2315
+/*  2303*/  OPC_RecordChild0, // #0 = $a
+/*  2304*/  OPC_CheckChild0Type, MVT::i16,
+/*  2306*/  OPC_CheckTypeI32,
+/*  2307*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_SEXT),
                 MVT::i32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (sext:{ *:[i32] } GPR16:{ *:[i16] }:$a) - Complexity = 3
             // Dst: (CVT_SEXT:{ *:[i32] } GPR16:{ *:[i16] }:$a, GPR16:{ *:[i16] }:$a, GPR16:{ *:[i16] }:$a)
-/*  2105*/ /*SwitchOpcode*/ 40, TARGET_VAL(ISD::SIGN_EXTEND_INREG),// ->2148
-/*  2108*/  OPC_RecordChild0, // #0 = $a
-/*  2109*/  OPC_MoveChild1,
-/*  2110*/  OPC_CheckValueType, MVT::i16,
-/*  2112*/  OPC_MoveParent,
-/*  2113*/  OPC_EmitStringInteger32, CCV::GPR16RegClassID,
-/*  2115*/  OPC_EmitNode1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
+/*  2315*/ /*SwitchOpcode*/ 40, TARGET_VAL(ISD::SIGN_EXTEND_INREG),// ->2358
+/*  2318*/  OPC_RecordChild0, // #0 = $a
+/*  2319*/  OPC_MoveChild1,
+/*  2320*/  OPC_CheckValueType, MVT::i16,
+/*  2322*/  OPC_MoveParent,
+/*  2323*/  OPC_EmitStringInteger32, CCV::GPR16RegClassID,
+/*  2325*/  OPC_EmitNode1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
                 MVT::i16, 2/*#Ops*/, 0, 1,  // Results = #2
-/*  2122*/  OPC_EmitStringInteger32, CCV::GPR16RegClassID,
-/*  2124*/  OPC_EmitNode1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
+/*  2332*/  OPC_EmitStringInteger32, CCV::GPR16RegClassID,
+/*  2334*/  OPC_EmitNode1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
                 MVT::i16, 2/*#Ops*/, 0, 3,  // Results = #4
-/*  2131*/  OPC_EmitStringInteger32, CCV::GPR16RegClassID,
-/*  2133*/  OPC_EmitNode1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
+/*  2341*/  OPC_EmitStringInteger32, CCV::GPR16RegClassID,
+/*  2343*/  OPC_EmitNode1None, TARGET_VAL(TargetOpcode::COPY_TO_REGCLASS),
                 MVT::i16, 2/*#Ops*/, 0, 5,  // Results = #6
-/*  2140*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_SEXT),
+/*  2350*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_SEXT),
                 MVT::i32, 3/*#Ops*/, 2, 4, 6, 
             // Src: (sext_inreg:{ *:[i32] } GPR:{ *:[i32] }:$a, i16:{ *:[Other] }) - Complexity = 3
             // Dst: (CVT_SEXT:{ *:[i32] } (COPY_TO_REGCLASS:{ *:[i16] } GPR:{ *:[i32] }:$a, GPR16:{ *:[i32] }), (COPY_TO_REGCLASS:{ *:[i16] } GPR:{ *:[i32] }:$a, GPR16:{ *:[i32] }), (COPY_TO_REGCLASS:{ *:[i16] } GPR:{ *:[i32] }:$a, GPR16:{ *:[i32] }))
-/*  2148*/ /*SwitchOpcode*/ 25, TARGET_VAL(ISD::ConstantFP),// ->2176
-/*  2151*/  OPC_RecordNode, // #0 = $i
-/*  2152*/  OPC_Scope, 11, /*->2165*/ // 2 children in Scope
-/*  2154*/   OPC_CheckPredicate, 18, // Predicate_fpimm_small
-/*  2156*/   OPC_EmitNodeXForm, 4, 0, // fpimm_bits
-/*  2159*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MOVI),
+/*  2358*/ /*SwitchOpcode*/ 25, TARGET_VAL(ISD::ConstantFP),// ->2386
+/*  2361*/  OPC_RecordNode, // #0 = $i
+/*  2362*/  OPC_Scope, 11, /*->2375*/ // 2 children in Scope
+/*  2364*/   OPC_CheckPredicate, 18, // Predicate_fpimm_small
+/*  2366*/   OPC_EmitNodeXForm, 4, 0, // fpimm_bits
+/*  2369*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MOVI),
                  MVT::f32, 1/*#Ops*/, 1, 
              // Src: (fpimm:{ *:[f32] })<<P:Predicate_fpimm_small>>:$i - Complexity = 14
              // Dst: (MOVI:{ *:[f32] } (fpimm_bits:{ *:[i32] } ?:{ *:[f32] }:$i))
-/*  2165*/  /*Scope*/ 9, /*->2175*/
-/*  2166*/   OPC_EmitNodeXForm, 4, 0, // fpimm_bits
-/*  2169*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MOVI48),
+/*  2375*/  /*Scope*/ 9, /*->2385*/
+/*  2376*/   OPC_EmitNodeXForm, 4, 0, // fpimm_bits
+/*  2379*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::MOVI48),
                  MVT::f32, 1/*#Ops*/, 1, 
              // Src: (fpimm:{ *:[f32] }):$i - Complexity = 3
              // Dst: (MOVI48:{ *:[f32] } (fpimm_bits:{ *:[i32] } ?:{ *:[f32] }:$i))
-/*  2175*/  0, /*End of Scope*/
-/*  2176*/ /*SwitchOpcode*/ 41, TARGET_VAL(ISD::INTRINSIC_WO_CHAIN),// ->2220
-/*  2179*/  OPC_Scope, 12, /*->2193*/ // 3 children in Scope
-/*  2181*/   OPC_CheckChild0Integer, 12|128,127/*16268*/, 
-/*  2184*/   OPC_RecordChild1, // #0 = $a
-/*  2185*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::RSQRT_F32),
+/*  2385*/  0, /*End of Scope*/
+/*  2386*/ /*SwitchOpcode*/ 41, TARGET_VAL(ISD::INTRINSIC_WO_CHAIN),// ->2430
+/*  2389*/  OPC_Scope, 12, /*->2403*/ // 3 children in Scope
+/*  2391*/   OPC_CheckChild0Integer, 12|128,127/*16268*/, 
+/*  2394*/   OPC_RecordChild1, // #0 = $a
+/*  2395*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::RSQRT_F32),
                  MVT::f32, 3/*#Ops*/, 0, 0, 0, 
              // Src: (intrinsic_wo_chain:{ *:[f32] } 8134:{ *:[iPTR] }, GPR:{ *:[f32] }:$a) - Complexity = 8
              // Dst: (RSQRT_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2193*/  /*Scope*/ 12, /*->2206*/
-/*  2194*/   OPC_CheckChild0Integer, 102|128,127/*16358*/, 
-/*  2197*/   OPC_RecordChild1, // #0 = $a
-/*  2198*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::SIN_F32),
+/*  2403*/  /*Scope*/ 12, /*->2416*/
+/*  2404*/   OPC_CheckChild0Integer, 102|128,127/*16358*/, 
+/*  2407*/   OPC_RecordChild1, // #0 = $a
+/*  2408*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::SIN_F32),
                  MVT::f32, 3/*#Ops*/, 0, 0, 0, 
              // Src: (intrinsic_wo_chain:{ *:[f32] } 8179:{ *:[iPTR] }, GPR:{ *:[f32] }:$a) - Complexity = 8
              // Dst: (SIN_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2206*/  /*Scope*/ 12, /*->2219*/
-/*  2207*/   OPC_CheckChild0Integer, 96|128,118/*15200*/, 
-/*  2210*/   OPC_RecordChild1, // #0 = $a
-/*  2211*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::COS_F32),
+/*  2416*/  /*Scope*/ 12, /*->2429*/
+/*  2417*/   OPC_CheckChild0Integer, 96|128,118/*15200*/, 
+/*  2420*/   OPC_RecordChild1, // #0 = $a
+/*  2421*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::COS_F32),
                  MVT::f32, 3/*#Ops*/, 0, 0, 0, 
              // Src: (intrinsic_wo_chain:{ *:[f32] } 7600:{ *:[iPTR] }, GPR:{ *:[f32] }:$a) - Complexity = 8
              // Dst: (COS_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2219*/  0, /*End of Scope*/
-/*  2220*/ /*SwitchOpcode*/ 56, TARGET_VAL(ISD::FDIV),// ->2279
-/*  2223*/  OPC_MoveChild0,
-/*  2224*/  OPC_CheckOpcode, TARGET_VAL(ISD::ConstantFP),
-/*  2227*/  OPC_Scope, 12, /*->2241*/ // 2 children in Scope
-/*  2229*/   OPC_CheckPredicate, 19, // Predicate_fpimm_one
-/*  2231*/   OPC_MoveParent,
-/*  2232*/   OPC_RecordChild1, // #0 = $a
-/*  2233*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::RCP_F32),
+/*  2429*/  0, /*End of Scope*/
+/*  2430*/ /*SwitchOpcode*/ 56, TARGET_VAL(ISD::FDIV),// ->2489
+/*  2433*/  OPC_MoveChild0,
+/*  2434*/  OPC_CheckOpcode, TARGET_VAL(ISD::ConstantFP),
+/*  2437*/  OPC_Scope, 12, /*->2451*/ // 2 children in Scope
+/*  2439*/   OPC_CheckPredicate, 19, // Predicate_fpimm_one
+/*  2441*/   OPC_MoveParent,
+/*  2442*/   OPC_RecordChild1, // #0 = $a
+/*  2443*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::RCP_F32),
                  MVT::f32, 3/*#Ops*/, 0, 0, 0, 
              // Src: (fdiv:{ *:[f32] } (fpimm:{ *:[f32] })<<P:Predicate_fpimm_one>>, GPR:{ *:[f32] }:$a) - Complexity = 7
              // Dst: (RCP_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2241*/  /*Scope*/ 36, /*->2278*/
-/*  2242*/   OPC_CheckPredicate, 20, // Predicate_fpimm_minus_one
-/*  2244*/   OPC_MoveParent,
-/*  2245*/   OPC_RecordChild1, // #0 = $a
-/*  2246*/   OPC_EmitNode1None, TARGET_VAL(CCV::RCP_F32),
+/*  2451*/  /*Scope*/ 36, /*->2488*/
+/*  2452*/   OPC_CheckPredicate, 20, // Predicate_fpimm_minus_one
+/*  2454*/   OPC_MoveParent,
+/*  2455*/   OPC_RecordChild1, // #0 = $a
+/*  2456*/   OPC_EmitNode1None, TARGET_VAL(CCV::RCP_F32),
                  MVT::i32, 3/*#Ops*/, 0, 0, 0,  // Results = #1
-/*  2254*/   OPC_EmitNode1None, TARGET_VAL(CCV::RCP_F32),
+/*  2464*/   OPC_EmitNode1None, TARGET_VAL(CCV::RCP_F32),
                  MVT::i32, 3/*#Ops*/, 0, 0, 0,  // Results = #2
-/*  2262*/   OPC_EmitNode1None, TARGET_VAL(CCV::RCP_F32),
+/*  2472*/   OPC_EmitNode1None, TARGET_VAL(CCV::RCP_F32),
                  MVT::i32, 3/*#Ops*/, 0, 0, 0,  // Results = #3
-/*  2270*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::FNEG_F0),
+/*  2480*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::FNEG_F0),
                  MVT::f32, 3/*#Ops*/, 1, 2, 3, 
              // Src: (fdiv:{ *:[f32] } (fpimm:{ *:[f32] })<<P:Predicate_fpimm_minus_one>>, GPR:{ *:[f32] }:$a) - Complexity = 7
              // Dst: (FNEG_F0:{ *:[f32] } (RCP_F32:{ *:[i32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a), (RCP_F32:{ *:[i32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a), (RCP_F32:{ *:[i32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a))
-/*  2278*/  0, /*End of Scope*/
-/*  2279*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FADD),// ->2291
-/*  2282*/  OPC_RecordChild0, // #0 = $a
-/*  2283*/  OPC_RecordChild1, // #1 = $b
-/*  2284*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FADD),
+/*  2488*/  0, /*End of Scope*/
+/*  2489*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FADD),// ->2501
+/*  2492*/  OPC_RecordChild0, // #0 = $a
+/*  2493*/  OPC_RecordChild1, // #1 = $b
+/*  2494*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FADD),
                 MVT::f32, 2/*#Ops*/, 0, 1, 
             // Src: (fadd:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b) - Complexity = 3
             // Dst: (C_FADD:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b)
-/*  2291*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FMUL),// ->2303
-/*  2294*/  OPC_RecordChild0, // #0 = $a
-/*  2295*/  OPC_RecordChild1, // #1 = $b
-/*  2296*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FMUL),
+/*  2501*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FMUL),// ->2513
+/*  2504*/  OPC_RecordChild0, // #0 = $a
+/*  2505*/  OPC_RecordChild1, // #1 = $b
+/*  2506*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FMUL),
                 MVT::f32, 2/*#Ops*/, 0, 1, 
             // Src: (fmul:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b) - Complexity = 3
             // Dst: (C_FMUL:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b)
-/*  2303*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::FSUB),// ->2316
-/*  2306*/  OPC_RecordChild0, // #0 = $a
-/*  2307*/  OPC_RecordChild1, // #1 = $b
-/*  2308*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FSUB),
+/*  2513*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::FSUB),// ->2526
+/*  2516*/  OPC_RecordChild0, // #0 = $a
+/*  2517*/  OPC_RecordChild1, // #1 = $b
+/*  2518*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FSUB),
                 MVT::f32, 3/*#Ops*/, 0, 1, 0, 
             // Src: (fsub:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b) - Complexity = 3
             // Dst: (FSUB:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b, GPR:{ *:[f32] }:$a)
-/*  2316*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FMINNUM),// ->2328
-/*  2319*/  OPC_RecordChild0, // #0 = $a
-/*  2320*/  OPC_RecordChild1, // #1 = $b
-/*  2321*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FMIN),
+/*  2526*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FMINNUM),// ->2538
+/*  2529*/  OPC_RecordChild0, // #0 = $a
+/*  2530*/  OPC_RecordChild1, // #1 = $b
+/*  2531*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FMIN),
                 MVT::f32, 2/*#Ops*/, 0, 1, 
             // Src: (fminnum:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b) - Complexity = 3
             // Dst: (C_FMIN:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b)
-/*  2328*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FMAXNUM),// ->2340
-/*  2331*/  OPC_RecordChild0, // #0 = $a
-/*  2332*/  OPC_RecordChild1, // #1 = $b
-/*  2333*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FMAX),
+/*  2538*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FMAXNUM),// ->2550
+/*  2541*/  OPC_RecordChild0, // #0 = $a
+/*  2542*/  OPC_RecordChild1, // #1 = $b
+/*  2543*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FMAX),
                 MVT::f32, 2/*#Ops*/, 0, 1, 
             // Src: (fmaxnum:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b) - Complexity = 3
             // Dst: (C_FMAX:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b)
-/*  2340*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FNEG),// ->2352
-/*  2343*/  OPC_RecordChild0, // #0 = $a
-/*  2344*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FNEG_F0),
+/*  2550*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FNEG),// ->2562
+/*  2553*/  OPC_RecordChild0, // #0 = $a
+/*  2554*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FNEG_F0),
                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (fneg:{ *:[f32] } GPR:{ *:[f32] }:$a) - Complexity = 3
             // Dst: (FNEG_F0:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2352*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FABS),// ->2364
-/*  2355*/  OPC_RecordChild0, // #0 = $a
-/*  2356*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FABS_F0),
+/*  2562*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FABS),// ->2574
+/*  2565*/  OPC_RecordChild0, // #0 = $a
+/*  2566*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FABS_F0),
                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (fabs:{ *:[f32] } GPR:{ *:[f32] }:$a) - Complexity = 3
             // Dst: (FABS_F0:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2364*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::FMA),// ->2378
-/*  2367*/  OPC_RecordChild0, // #0 = $a
-/*  2368*/  OPC_RecordChild1, // #1 = $b
-/*  2369*/  OPC_RecordChild2, // #2 = $c
-/*  2370*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FFMA_F0),
+/*  2574*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::FMA),// ->2588
+/*  2577*/  OPC_RecordChild0, // #0 = $a
+/*  2578*/  OPC_RecordChild1, // #1 = $b
+/*  2579*/  OPC_RecordChild2, // #2 = $c
+/*  2580*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FFMA_F0),
                 MVT::f32, 3/*#Ops*/, 0, 1, 2, 
             // Src: (fma:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b, GPR:{ *:[f32] }:$c) - Complexity = 3
             // Dst: (FFMA_F0:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b, GPR:{ *:[f32] }:$c)
-/*  2378*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::SINT_TO_FP),// ->2391
-/*  2381*/  OPC_RecordChild0, // #0 = $a
-/*  2382*/  OPC_CheckChild0TypeI32,
-/*  2383*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_F32_S32),
+/*  2588*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::SINT_TO_FP),// ->2601
+/*  2591*/  OPC_RecordChild0, // #0 = $a
+/*  2592*/  OPC_CheckChild0TypeI32,
+/*  2593*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_F32_S32),
                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (sint_to_fp:{ *:[f32] } GPR:{ *:[i32] }:$a) - Complexity = 3
             // Dst: (CVT_F32_S32:{ *:[f32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a)
-/*  2391*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::UINT_TO_FP),// ->2404
-/*  2394*/  OPC_RecordChild0, // #0 = $a
-/*  2395*/  OPC_CheckChild0TypeI32,
-/*  2396*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_F32_U32),
+/*  2601*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::UINT_TO_FP),// ->2614
+/*  2604*/  OPC_RecordChild0, // #0 = $a
+/*  2605*/  OPC_CheckChild0TypeI32,
+/*  2606*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_F32_U32),
                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (uint_to_fp:{ *:[f32] } GPR:{ *:[i32] }:$a) - Complexity = 3
             // Dst: (CVT_F32_U32:{ *:[f32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a)
-/*  2404*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FSQRT),// ->2416
-/*  2407*/  OPC_RecordChild0, // #0 = $a
-/*  2408*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::SQRT_F32),
+/*  2614*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FSQRT),// ->2626
+/*  2617*/  OPC_RecordChild0, // #0 = $a
+/*  2618*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::SQRT_F32),
                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (fsqrt:{ *:[f32] } GPR:{ *:[f32] }:$a) - Complexity = 3
             // Dst: (SQRT_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2416*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FEXP2),// ->2428
-/*  2419*/  OPC_RecordChild0, // #0 = $a
-/*  2420*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::EX2_F32),
+/*  2626*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FEXP2),// ->2638
+/*  2629*/  OPC_RecordChild0, // #0 = $a
+/*  2630*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::EX2_F32),
                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (fexp2:{ *:[f32] } GPR:{ *:[f32] }:$a) - Complexity = 3
             // Dst: (EX2_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2428*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FLOG2),// ->2440
-/*  2431*/  OPC_RecordChild0, // #0 = $a
-/*  2432*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::LG2_F32),
+/*  2638*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FLOG2),// ->2650
+/*  2641*/  OPC_RecordChild0, // #0 = $a
+/*  2642*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::LG2_F32),
                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (flog2:{ *:[f32] } GPR:{ *:[f32] }:$a) - Complexity = 3
             // Dst: (LG2_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2440*/ 0, // EndSwitchOpcode
+/*  2650*/ 0, // EndSwitchOpcode
     0
-  }; // Total Array size is 2442 bytes
+  }; // Total Array size is 2652 bytes
 
   // Opcode Histogram:
   // #OPC_Scope                                = 44
@@ -1514,8 +1595,8 @@ void DAGISEL_CLASS_COLONCOLON SelectCode(SDNode *N)
   // #OPC_CheckPredicate                       = 135
   // #OPC_CheckOpcode                          = 38
   // #OPC_SwitchOpcode                         = 1
-  // #OPC_CheckType                            = 82
-  // #OPC_SwitchType                           = 7
+  // #OPC_CheckType                            = 76
+  // #OPC_SwitchType                           = 13
   // #OPC_CheckChildType                       = 28
   // #OPC_CheckInteger                         = 2
   // #OPC_CheckChildInteger                    = 15
@@ -1529,15 +1610,15 @@ void DAGISEL_CLASS_COLONCOLON SelectCode(SDNode *N)
   // #OPC_CheckImmAllZerosV                    = 0
   // #OPC_CheckFoldableChainNode               = 0
   // #OPC_EmitInteger                          = 48
-  // #OPC_EmitStringInteger                    = 9
+  // #OPC_EmitStringInteger                    = 21
   // #OPC_EmitRegister                         = 0
-  // #OPC_EmitConvertToTarget                  = 25
+  // #OPC_EmitConvertToTarget                  = 28
   // #OPC_EmitMergeInputChains                 = 43
   // #OPC_EmitCopyToReg                        = 0
-  // #OPC_EmitNode                             = 24
+  // #OPC_EmitNode                             = 39
   // #OPC_EmitNodeXForm                        = 6
   // #OPC_CompleteMatch                        = 2
-  // #OPC_MorphNodeTo                          = 125
+  // #OPC_MorphNodeTo                          = 131
 
   #undef TARGET_VAL
   SelectCodeCommon(N, MatcherTable,sizeof(MatcherTable));
