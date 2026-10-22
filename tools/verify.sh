@@ -124,6 +124,14 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-calls.sh || fail=1
 fi
 
+# O-60: forward progress between diverged lanes. A spin-wait on a lane at a
+# higher PC must hang under strict min-PC (the control) and finish under the
+# oracle's fairness rule.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  forward progress between diverged lanes (O-60)"
+  ./tools/check-spinwait.sh || fail=1
+fi
+
 # F-143's fused-kernel corpus executes. F-134's lesson applies with full force
 # here: a corpus assembled to settle an architectural question has to be one
 # whose kernels are known to work, or the question is being settled from the
