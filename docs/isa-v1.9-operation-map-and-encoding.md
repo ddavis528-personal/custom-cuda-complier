@@ -87,6 +87,12 @@ context. Its window index is launch-block word 28 (§5.2). Its constant part is 
 range of O-51, and only data pointers inside it are relocated. No instruction or encoding
 changes.
 
+### An instruction writes only its own group's lanes (O-62; CP-11)
+
+Invariant 10 now covers lanes outside the issue mask, not only lanes the guard excludes. The
+case that raised it is `ld.pred`, which writes only the issuing group's bits of each
+predicate. Whether `st.pred` should store only those bits is open (IS-18).
+
 ### Still open
 
 SFU accuracy is ruled under IS-12, but its PTX bound table is not yet written.
@@ -1222,6 +1228,15 @@ wide; the address is taken from lane 0 and a non-uniform `rbase` produces a dete
 result, per invariant 3 — the same contract already governing width and FP-format
 mismatches. The predicate spill region is therefore warp-scoped, which §5.2's window
 covers. See O-19.
+
+**Under divergence, `ld.pred` writes only the issuing group's lanes — normative (O-62).**
+For each predicate in the mask, lane *i*'s bit takes bit *i* of the predicate's word if lane
+*i* is in the issue mask, and keeps its value otherwise (invariant 10). The address is still
+lane 0's. `st.pred` stores all 32 bits of each word. So two PC groups that are live at once
+and spill one predicate to one slot overwrite each other's bits, and a group's reload can
+return another group's later store. Whether `st.pred` should instead write only the issuing
+group's bits is open as IS-18. Until it is decided, a compiler spills a predicate with
+`st.pred` only where no other group of the warp can spill to the same slot.
 
 `.local` maps to `ld.global`/`st.global` via the thread-private windowing convention.
 `.const` maps to `ld.global` for reads. **A store or atomic any byte of which falls in
@@ -2558,7 +2573,11 @@ quantified on one side of it.
     do Format K's 40 destructive points — so preservation costs nothing new anywhere. Where
     a clearing semantic is wanted it is a **separate opcode**, never a change of rule:
     `packi.z` (§3, Format B) is the only one, and `pand pd, ps, !ps` clears a predicate in
-    16 bits.
+    16 bits. **Lanes outside the issuing group are a fourth site, with the same answer**
+    (O-62). An instruction changes a lane's GPR elements and predicate bits only if the lane
+    is in its issue mask, whatever the instruction, `ld.pred` included. A lane in another PC
+    group is another thread, and executes nothing here. A register's `chwidth` is register-wide
+    state, not per lane, and is outside this rule.
 
 11. **No register holds a data address.** Data addresses are 48 bits and exist only as the
     output of address generation; the registers feeding it hold at most 32 bits each. This is what
@@ -2889,6 +2908,22 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-62 — An instruction writes only the lanes of its issue mask, `ld.pred` included —
+decided in 1.9.** CP-11. The compiler spills predicates with `rbase` = R15,
+so every group of a diverged warp spills a given predicate to lane 0's slot. `ccv-sim`
+restored all 32 bits on `ld.pred`, so one group's reload overwrote another group's live bits.
+That is a write to a thread that executed nothing. Invariant 10 already preserved lanes the
+guard excludes, and per-thread PCs (§1) make a lane in another group the same case, so the
+invariant now says so. It should need nothing new in hardware: a write by a group smaller
+than the warp already reads its destination and merges the other lanes, the core's implicit
+old-destination source. OA is asked to confirm that `ld.pred`'s predicate write takes it. What it does not settle: with `st.pred`
+storing the full word, a shared slot is still unsafe for groups live at once. The fix is
+either a bit-masked `st.pred` or a per-group slot in the compiler, and it is IS-18's. What
+lost: the full-width `ld.pred`, which is the only reading under which one thread's reload
+changes another's state.
 
 ---
 
