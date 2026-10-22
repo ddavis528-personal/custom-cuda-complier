@@ -1231,8 +1231,12 @@ covers. See O-19.
 
 **Under divergence, `ld.pred` writes only the issuing group's lanes — normative (O-62).**
 For each predicate in the mask, lane *i*'s bit takes bit *i* of the predicate's word if lane
-*i* is in the issue mask, and keeps its value otherwise (invariant 10). The address is still
-lane 0's. `st.pred` stores all 32 bits of each word. So two PC groups that are live at once
+*i* is in the issue mask, and keeps its value otherwise (invariant 10). **The address is lane
+0's `rbase` value whether or not lane 0 is in the issue mask** (the value lane 0's element of
+that register holds, merged as any register is), never the lowest executing lane's. That
+gives a warp one slot per frame across every split and merge, so a reload finds the slot its
+spill used even when the groups have changed in between. The lowest executing lane would move
+the slot whenever a group splits. `st.pred` stores all 32 bits of each word. So two PC groups that are live at once
 and spill one predicate to one slot overwrite each other's bits, and a group's reload can
 return another group's later store. Whether `st.pred` should instead write only the issuing
 group's bits is open as IS-18. Until it is decided, a compiler spills a predicate with
