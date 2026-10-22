@@ -120,6 +120,22 @@ void CCVFrameLowering::emitPrologue(MachineFunction &MF,
   if (FrameStats && ccvIsKernel(F))
     errs() << "  frame " << F.getName() << ": " << Base + Size
            << " bytes a thread (own " << Size << ")\n";
+  // IS-19: each frame object's displacement range from R15, by kind -- a
+  // spill slot (the allocator's, and callee-saved saves), a fixed object (a
+  // stack argument), or any other object (a local array, an address-taken
+  // scalar), which a lane-interleaved register-free form could not hold.
+  if (FrameStats) {
+    const MachineFrameInfo &MFI = MF.getFrameInfo();
+    for (int FI = MFI.getObjectIndexBegin(); FI != MFI.getObjectIndexEnd(); ++FI) {
+      if (MFI.isDeadObjectIndex(FI) || !MFI.getObjectSize(FI))
+        continue;
+      int64_t D = MFI.getObjectOffset(FI) - int64_t(Base);
+      const char *Kind = MFI.isFixedObjectIndex(FI) ? "fixed"
+                         : MFI.isSpillSlotObjectIndex(FI) ? "spill" : "object";
+      errs() << "  frame-object " << F.getName() << " " << Kind << " " << D
+             << " " << D + int64_t(MFI.getObjectSize(FI)) << "\n";
+    }
+  }
 
   // Only a kernel sets R15: a device function inherits its caller's, which is
   // the same window. A kernel sets it when anything below it has a frame.

@@ -24,6 +24,15 @@ channel -- as a share of all memops: `st idx` below, ST_GLOBAL_IDX and
 ST_SHARED_IDX at every width, issued, over `memops`, every issued load and
 store. The slot form (O-45) has no register base and is not counted.
 
+IS-19 asks how frame traffic splits between spill slots, which a
+lane-interleaved register-free ld.local/st.local could hold, and objects no
+such form can (a local array, an address-taken scalar), and how many
+functions have such an object, which keep R15 under it. Each R15 access is
+classified by its function's frame layout (-ccv-frame-stats): spill (the
+allocator's slots and callee-saved saves), args (a stack argument, the
+callee's fixed objects), or object; `via ptr` is frame memory reached through
+a pointer rather than R15 -- an object by construction.
+
 Issue counts are warp issue groups. Every dynamic run checks nothing beyond
 running to completion; the kernels' results are checked by the gate's own
 tests, at these launches or the exports'.
@@ -56,6 +65,51 @@ def lower(src, out, flags=""):
     return f"{out}-lowered.ll" if r.returncode == 0 else None
 
 
+def layout(ll):
+    """Per function: its frame objects' displacement ranges by kind; and the
+    module's functions, and those with an object."""
+    r = sh(LLC, ll, "-o", "/dev/null", "-ccv-frame-stats")
+    objs = {}
+    for m in re.finditer(r"frame-object (\S+) (\w+) (-?\d+) (-?\d+)", r.stderr):
+        objs.setdefault(m.group(1), []).append((m.group(2), int(m.group(3)), int(m.group(4))))
+    return objs
+
+
+def kind(objs, fn, d):
+    for k, lo, hi in objs.get(fn, []):
+        if lo <= d < hi:
+            return k
+    # A caller writing its callee's stack arguments.
+    if any(k == "fixed" and lo <= d < hi for v in objs.values() for k, lo, hi in v):
+        return "args"
+    return "spill"          # a callee-saved save outside the objects: a spill slot
+
+
+DISP = re.compile(r"\[r15(?:,\s*r\d+,\s*\d+,\s*(-?\d+)| \+ (-?\d+))?\]")
+
+
+def static_split(ll):
+    """Frame instructions in the code by kind, and function counts."""
+    objs = layout(ll)
+    r = sh(LLC, ll, "-o", "-")
+    n = {"spill": 0, "args": 0, "object": 0}
+    fn, fns = None, set()
+    for line in r.stdout.splitlines():
+        m = re.match(r"^([A-Za-z_][\w.$]*):", line)
+        if m and not m.group(1).startswith(("LBB", ".L", "Lfunc", "Ltmp")):
+            fn = m.group(1); fns.add(fn); continue
+        if not FRAME.match(line + "\n"):
+            continue
+        m = DISP.search(line)
+        d = int(m.group(1) or m.group(2) or 0) if m else 0
+        k = kind(objs, fn, d)
+        n["fixed" if k == "fixed" else k if k != "fixed" else "args"] = \
+            n.get("fixed" if k == "fixed" else k, 0) + 1
+    n["args"] += n.pop("fixed", 0)
+    with_obj = sum(1 for f, v in objs.items() if any(k == "object" for k, _, _ in v))
+    return n, len(fns), with_obj
+
+
 def static(ll):
     """Frame extent in words, and frame transfers in the code, default and
     with the lane-index register reserved."""
@@ -68,7 +122,7 @@ def static(ll):
             len(FRAME.findall(r2.stdout)) if r2.returncode == 0 else None)
 
 
-def dynamic(ll, pokes, tmp, extra=(), sim_extra=()):
+def dynamic(ll, pokes, tmp, extra=(), sim_extra=(), split=None):
     """Issue groups, frame transfers, memops and register-base indexed stores
     issued, from the oracle's records."""
     o, b, orc = f"{tmp}/d.o", f"{tmp}/d.bin", f"{tmp}/d.jsonl"
@@ -90,6 +144,9 @@ def dynamic(ll, pokes, tmp, extra=(), sim_extra=()):
     r = subprocess.run(args, capture_output=True, text=True)
     if r.returncode:
         return None
+    syms = sorted((int(l.split()[0], 16) + 0x1000, l.split()[2])
+                  for l in sh("llvm-nm", o).stdout.splitlines() if l.split()[1:2] == ["T"])
+    objs = layout(ll) if split is not None else {}
     n = frame = mem = idx = 0
     for line in open(orc):
         rec = json.loads(line)
@@ -98,8 +155,16 @@ def dynamic(ll, pokes, tmp, extra=(), sim_extra=()):
         n += 1
         if rec["load"] or rec["store"]:
             mem += 1
-            if any(u["reg"] == "R15" for u in rec["uses"]):
+            r15 = any(u["reg"] == "R15" for u in rec["uses"])
+            if r15:
                 frame += 1
+            if split is not None:
+                if r15 and rec["imms"]:
+                    fn = max((s for s in syms if s[0] <= rec["pc"]), default=(0, ""))[1]
+                    k = kind(objs, fn, rec["imms"][-1])
+                    split[k if k != "fixed" else "args"] = split.get(k if k != "fixed" else "args", 0) + 1
+                elif any(255 <= (m["addr"] >> 16) <= 256 + 128 for m in rec["mem"]):
+                    split["via ptr"] = split.get("via ptr", 0) + 1
             if rec["store"] and re.match(r"ST_(GLOBAL|SHARED)_IDX", rec["op"]):
                 idx += 1
     return n, frame, mem, idx
@@ -109,7 +174,7 @@ def main():
     bench = load("bench", "tools/bench.py")
     exp = load("export", "tools/export-kernels.py")
     sweep = load("sweep", "tools/sweep-coremark.py")
-    rows, dyn = [], []
+    rows, dyn, dsplit = [], [], {}
     with tempfile.TemporaryDirectory() as tmp:
         # Static: every kernel in the corpus.
         srcs = sorted(glob.glob(f"{ROOT}/test/bench/*.cu") + glob.glob(f"{ROOT}/test/cuda/*.cu")
@@ -121,6 +186,11 @@ def main():
             rows.append((name, st))
         sweep.build(tmp)
         rows.append(("test/coremark-derived", static(f"{tmp}/cm-lowered.ll")))
+        splits = {}
+        for src in srcs:
+            ll = lower(src, f"{tmp}/x")
+            splits[os.path.relpath(src, ROOT)] = static_split(ll) if ll else None
+        splits["test/coremark-derived"] = static_split(f"{tmp}/cm-lowered.ll")
 
         # Dynamic: bench's launches.
         for k, vals in bench.ARGS.items():
@@ -153,6 +223,23 @@ def main():
         print("  frame words: " + ", ".join(f"{k}: {v}" for k, v in hist.items()) +
               f" of {sum(hist.values())} kernels")
         print()
+        print("  frame instructions by kind (static), and functions with a frame object")
+        print(f"  {'kernel':<34} {'spill':>6} {'args':>5} {'object':>7} {'fns':>4} {'w/obj':>6}")
+        st = [0, 0, 0, 0, 0]
+        for name, sp in splits.items():
+            if not sp:
+                continue
+            c, f, wo = sp
+            if not (c["spill"] or c["args"] or c["object"] or wo):
+                continue
+            print(f"  {name:<34} {c['spill']:>6} {c['args']:>5} {c['object']:>7} {f:>4} {wo:>6}")
+            for i, v in enumerate((c["spill"], c["args"], c["object"], f, wo)):
+                st[i] += v
+        allf = sum(sp[1] for sp in splits.values() if sp)
+        allo = sum(sp[2] for sp in splits.values() if sp)
+        print(f"  {'total (kernels with a frame)':<34} {st[0]:>6} {st[1]:>5} {st[2]:>7}")
+        print(f"  functions in the corpus: {allf}, with a frame object: {allo}")
+        print()
         print("  issued, at each kernel's launch (dynamic)")
         print(f"  {'kernel':<18} {'issue':>9} {'memops':>8} {'frame':>7} {'+lane reg':>10} "
               f"{'st idx':>7} {'idx/mem':>8}")
@@ -160,7 +247,9 @@ def main():
         for k, ll, pokes, sx in dyn:
             if not ll:
                 continue
-            d0 = dynamic(ll, pokes, tmp, sim_extra=sx)
+            sp = {}
+            d0 = dynamic(ll, pokes, tmp, sim_extra=sx, split=sp)
+            dsplit[k] = sp
             d1 = dynamic(ll, pokes, tmp, ("-ccv-reserve-lane-index",), sx)
             if d0 is None:
                 print(f"  {k:<18} did not run")
@@ -173,6 +262,13 @@ def main():
                 tot[i] += v
         print(f"  {'total':<18} {tot[0]:>9} {tot[1]:>8} {tot[2]:>7} {tot[3]:>10} {tot[4]:>7} "
               f"{100.0 * tot[4] / tot[1] if tot[1] else 0:>7.1f}%")
+        print()
+        print("  frame traffic by kind, issued (IS-19)")
+        print(f"  {'kernel':<18} {'spill':>7} {'args':>6} {'object':>7} {'via ptr':>8}")
+        for k, sp in dsplit.items():
+            if sp:
+                print(f"  {k:<18} {sp.get('spill', 0):>7} {sp.get('args', 0):>6} "
+                      f"{sp.get('object', 0):>7} {sp.get('via ptr', 0):>8}")
 
 
 if __name__ == "__main__":
