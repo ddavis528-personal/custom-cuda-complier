@@ -63,13 +63,19 @@ private:
 
 } // namespace
 
-unsigned CCVMCCodeEmitter::getMachineOpValue(const MCInst &, const MCOperand &MO,
-                                             SmallVectorImpl<MCFixup> &,
+unsigned CCVMCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &MO,
+                                             SmallVectorImpl<MCFixup> &Fixups,
                                              const MCSubtargetInfo &) const {
   if (MO.isReg())
     return Ctx.getRegisterInfo()->getEncodingValue(MO.getReg());
   if (MO.isImm())
     return static_cast<unsigned>(MO.getImm());
+  // A function's code address in `movi` (F-21 step 5), resolved at layout.
+  if (MO.isExpr() && MI.getOpcode() == CCV::MOVI) {
+    Fixups.push_back(MCFixup::create(0, MO.getExpr(),
+                                     MCFixupKind(CCV::fixup_ccv_abs17)));
+    return 0;
+  }
   // Branch targets go through the per-operand encoders above, which create
   // fixups; anything else reaching here with an expression is a bug.
   llvm_unreachable("CCV: unhandled operand kind in getMachineOpValue");

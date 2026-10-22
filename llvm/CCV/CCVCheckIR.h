@@ -13,6 +13,10 @@ bool checkCCVModule(Module &M, raw_ostream &Err);
 /// (rbase, roffset) pairs. Runs before checkCCVModule, which then reports only
 /// the pointers that could not be split. CCVPointerPairs.cpp.
 void lowerCCVPointerPairs(Module &M);
+/// F-21 step 5: function pointers become i32 code addresses, and indirect
+/// calls record the functions they may reach. Runs first, so CCVPointerPairs
+/// never mistakes a code pointer for a data pointer. CCVCodePointers.cpp.
+void lowerCCVCodePointers(Module &M);
 } // namespace llvm
 
 #endif

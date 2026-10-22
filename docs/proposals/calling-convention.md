@@ -182,7 +182,19 @@ names its entry point, and `ccv-sim -entry` takes it.
    pointers are read through, forwarded with an offset, and returned in `check-calls.sh`,
    with a control that drops the offset. `ptr-in-call.ll` stays a reject, because its
    callee is only declared, and a pointer the pass cannot split is still diagnosed.
-5. Indirect calls via the `ret` stub.
+5. Indirect calls via the `ret` stub. **Done** (2026-10-22). `CCVCodePointers` traces code
+   pointers from each function used as a value and each indirect callee, through direct-call
+   parameters, selects and phis, and makes them i32: a function's address is
+   `movi rd, (f - .Lccv_text) + 0x1000`, its offset in the image plus the load address,
+   which the assembler resolves with no relocation (`-ccv-code-base`). An indirect call puts
+   the target in R7 and calls a per-function stub, `ret r7`. Each indirect caller records
+   the address-taken functions of its call's type; those are placed first in the module, so
+   codegen lays their frames out first, and the caller's base clears them all. Their data
+   pointers cross as pairs like any other call's. `check-calls.sh` executes a function
+   pointer passed down a level and one chosen per lane, under all three callee-saved sets,
+   with controls for the frame layout and the load address. Not built: a function pointer
+   in memory, returned, or compared, and more than six arguments to an indirect call, whose
+   targets' frames differ.
 6. The CoreMark port (AR-20), then the CSR sweep, which settles §6.
 
 Steps 1–4 unblock the direct-call CoreMark kernels. Step 5 unblocks `core_list_mergesort`'s

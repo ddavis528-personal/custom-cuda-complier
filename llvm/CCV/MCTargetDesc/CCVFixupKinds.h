@@ -29,6 +29,10 @@ enum Fixups {
   /// the target turns out to be further than ±256 bytes, which is a decision
   /// only layout can make.
   fixup_ccv_bra8,
+  /// `movi`'s 17-bit unsigned immediate at [31:15], absolute: a function's
+  /// code address as a value (F-21 step 5), resolved by the assembler from
+  /// the function's distance to the start of .text.
+  fixup_ccv_abs17,
 
   LastTargetFixupKind,
   NumTargetFixupKinds = LastTargetFixupKind - FirstTargetFixupKind

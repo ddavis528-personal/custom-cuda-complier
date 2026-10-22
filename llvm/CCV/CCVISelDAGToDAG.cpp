@@ -107,6 +107,28 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
   SDLoc DL(N);
 
   switch (N->getOpcode()) {
+  case CCVISD::CODEADDR:
+    // A function's code address: a `movi` the asm printer gives its
+    // link-time value (F-21 step 5).
+    ReplaceNode(N, CurDAG->getMachineNode(CCV::MOVI, DL, MVT::i32,
+                                          N->getOperand(0)));
+    return;
+  case CCVISD::CALL: {
+    // An indirect call targets its function's `ret` stub, an MCSymbol, which
+    // the i32-typed declarative pattern cannot match (mcsym is pointer-typed).
+    if (!isa<MCSymbolSDNode>(N->getOperand(1)))
+      break;
+    SmallVector<SDValue, 8> Ops;
+    unsigned E = N->getNumOperands();
+    bool HasGlue = N->getOperand(E - 1).getValueType() == MVT::Glue;
+    for (unsigned I = 1, Last = HasGlue ? E - 1 : E; I != Last; ++I)
+      Ops.push_back(N->getOperand(I));
+    Ops.push_back(N->getOperand(0));
+    if (HasGlue)
+      Ops.push_back(N->getOperand(E - 1));
+    ReplaceNode(N, CurDAG->getMachineNode(CCV::PSEUDO_CALL, DL, N->getVTList(), Ops));
+    return;
+  }
   case CCVISD::RET: {
     // A device function returns through its link value, operand 1, carrying
     // the return registers as uses so they stay live to the `ret` (F-21).
@@ -289,6 +311,20 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
                                         MVT::Other, Ops);
     CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
     ReplaceNode(N, MN);
+    return;
+  }
+  case ISD::TRUNCATE: {
+    // The low bit as a predicate. The combiner makes `(x & 1) == 0`, which a
+    // select between two function pointers produced (F-21 step 5), into a
+    // truncate to i1; it is (x & 1) != 0, an `andi` and an immediate compare.
+    if (N->getValueType(0) != MVT::i1)
+      break;
+    SDNode *And = CurDAG->getMachineNode(
+        CCV::ANDI, DL, MVT::i32,
+        {N->getOperand(0), CurDAG->getTargetConstant(1, DL, MVT::i32)});
+    ReplaceNode(N, CurDAG->getMachineNode(
+                       immediateCompare(CCV::SETP_NE_NP), DL, MVT::i1, MVT::i32,
+                       {SDValue(And, 0), CurDAG->getTargetConstant(0, DL, MVT::i32)}));
     return;
   }
   case ISD::SETCC: {

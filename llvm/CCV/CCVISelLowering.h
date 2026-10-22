@@ -23,6 +23,7 @@ enum NodeType : unsigned {
   ST_SLOTIDX, ///< store to   (launch[slot] << 16) + idx -- chain, value, slot, idx, scale
   LD_FRAME,   ///< load  from a .local frame slot -- chain, FI, idx, scale
   ST_FRAME,   ///< store to   a .local frame slot -- chain, value, FI, idx, scale
+  CODEADDR,   ///< a function's 32-bit code address -- target global (F-21)
 };
 } // namespace CCVISD
 
