@@ -80,6 +80,13 @@ since Volta: every PC group of a live warp that is not waiting at a barrier even
 DA decided it on 2026-10-21. It binds the implementation, not the encoding. A scheduler needs a
 fairness rule beside min-PC, and room for one PC per lane, so a split never waits on a merge.
 
+### A module's data has a home (O-61; CP-10)
+
+A module's globals live in one data image, which the runtime loads once per module and
+context. Its window index is launch-block word 28 (§5.2). Its constant part is the `.const`
+range of O-51, and only data pointers inside it are relocated. No instruction or encoding
+changes.
+
 ### Still open
 
 SFU accuracy is ruled under IS-12, but its PTX bound table is not yet written.
@@ -2106,6 +2113,36 @@ The second sentence is load-bearing. A struct passed by value can carry pointers
 inside it and no front-loading rule reaches them, so without the exclusion the first metadata
 struct would violate the rule. Scalars follow the pointers at their natural alignment.
 
+**The launch block's fixed words.** The ISA fixes three: `.local`'s CTA-wide window index at
+byte offset 24 (O-30), the module data window `W_d` at 28 (below), and the argument area from
+`OffArgs` = 32 (§3 Format D's slot rule). Everything else in the block is the launch ABI's.
+
+**Where a module's data lives — normative (O-61).** Device code is compiled as a closed module.
+Every global it holds (`__constant__` and `__device__` variables, string literals, lookup
+tables) is laid out in **one data image per module**: the constant globals first, then the
+writable ones.
+
+- **Load.** The runtime loads the image once per module **per context** at
+  `W_d << 16`, a 64 KiB-aligned address (§5.1), and writes `W_d` to word 28 of every launch
+  block of that module's kernels. One window reaches an image of up to 4 GiB − 64 KiB. A global
+  at image offset *o* is the pair (`W_d`, *o*): one launch-block load, warp-uniform and
+  hoistable, then an ordinary Format D access.
+- **Constant part.** The constant globals occupy `[W_d << 16, (W_d << 16) + const_size)`, which
+  is that launch's `.const` range: a store or atomic into it raises `F-RO` (O-51).
+- **Writable part.** Writable globals are shared by every launch of the module within its
+  context, and never across contexts. This is CUDA's semantics. Their initial state is
+  defined (invariant 12, O-38). Initialized globals take the image's values. Every other byte
+  is zero, written by the loader, never what memory held before.
+- **Relocation.** A data pointer stored in the image is O-54's flat 64-bit address, in a
+  naturally aligned 8-byte slot. Its target is known only once `W_d` is chosen. So the image
+  carries a list of those slots, and the loader adds `W_d << 16` to each. A **code** pointer
+  in the image needs no relocation. It is the target's offset in its code window (§3
+  Format E), a constant of the image wherever it is loaded. The code image itself carries no
+  relocation.
+- **Invariance is per launch.** The cacheable, speculatable and invariant contract above holds
+  for `.const` for the duration of a launch. The host may write constant globals between
+  launches. The implementation must make such a write visible to the next launch's reads.
+
 ### 5.3 `srd` — what a kernel cannot read from memory
 
 A memory location can supply any value that is uniform across its readers. It cannot supply
@@ -2838,6 +2875,22 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-61 — A module's data lives in one image per module, its window in launch-block word 28 —
+decided in 1.9.** CP-10, from the CoreMark-derived workload (AR-20). `core_state.c` reads
+constant tables of string pointers by a runtime index. Until now the backend had no data
+section, and nothing told a kernel where O-51's `.const` range was. CP's proposal
+(CP-10, on CP's branch) is adopted with IS's four additions. Code pointers
+need no relocation. The writable part's initial state is defined, zero where not
+initialized. The image is per context. Invariance is per launch, so host writes between
+launches are allowed. TI confirmed word 28 is free in its launch model (TI's rev 108); the
+core never decodes the launch block. What lost: rejecting pointers in initializers, which rules
+out CoreMark and every string table; per-launch copies in the launch block, which are wrong for
+writable globals and grow the block; and a launch *slot* for `W_d`, which would save one load
+per function but move every argument by 8 bytes, deferred until a measurement asks for it. No
+encoding changes.
 
 ---
 
