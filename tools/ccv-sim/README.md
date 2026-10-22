@@ -40,7 +40,9 @@ Formats A/A′, B/B′, C/C′/C″, D/D′, E, F, G, I, J and K, as listed in
 family across all four encodings, global and shared memory in both addressing
 modes, barriers, `shfl.idx`, `srd`, conversions and the SFU points O-31 added.
 `srd #2` (`%lanectx`, O-64) is `(context << 5) | lane`, with warp *w* of the CTA
-(`-warp`) in context *w*; selectors 3-15 are F-ILLEGAL.
+(`-warp`) in context *w* unless `-context N` names the one the core's dispatcher
+gives it (TI-35; the oracle's `init` then carries `lane_context`); selectors 3-15
+are F-ILLEGAL.
 An instruction without semantics stops the run and names itself rather than
 silently doing nothing.
 

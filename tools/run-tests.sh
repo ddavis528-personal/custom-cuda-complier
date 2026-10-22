@@ -245,10 +245,14 @@ run_lanectx() {
   sed 's/SRD           R1, 2 /SRD           R1, 3 /' test/lanectx.s > "$TMP/lc3.s"
   python3 "$AS" "$JSON" "$TMP/lc3.s" "$TMP/lc3.bin" >/dev/null || return 1
   ill=$("$SIM" "$TMP/lc3.bin" $args 2>&1)
-  if [ "${out% }" = "32 51" ] && grep -q "F-ILLEGAL" <<< "$ill"; then
-    echo "  PASS  srd #2 gives (context << 5) | lane, and srd #3 is still F-ILLEGAL"
+  # TI-35: -context names the warp's hardware context, here 3 for warp 0.
+  local ctx="-threads 32 -context 3 -peek 0x30180 -peek 0x301fc -oracle $TMP/lc.jsonl"
+  local c3; c3=$("$SIM" "$TMP/lc.bin" $ctx 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  if [ "${out% }" = "32 51" ] && grep -q "F-ILLEGAL" <<< "$ill" && [ "${c3% }" = "96 127" ] &&
+     grep -q '"lane_context":3,' "$TMP/lc.jsonl"; then
+    echo "  PASS  srd #2 gives (context << 5) | lane, -context sets it (TI-35), and srd #3 is still F-ILLEGAL"
   else
-    echo "  FAIL  srd #2: got '$out', want '32 51'; srd #3: $ill"; return 1
+    echo "  FAIL  srd #2: got '$out', want '32 51'; -context 3: '$c3', want '96 127'; srd #3: $ill"; return 1
   fi
 }
 # --- narrow FP executed (CP-6) ----------------------------------------------

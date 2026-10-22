@@ -232,7 +232,7 @@ struct Warp {
   uint32_t CtaId = 0;
   // The warp's hardware context, which srd #2 (%lanectx) reads (O-64). Which
   // context a warp gets is the dispatcher's choice; ccv-sim gives warp w of
-  // the CTA context w, so warp 0 reads exactly what %ctatid gives.
+  // the CTA context w unless -context names another (TI-35).
   uint32_t WarpCtx = 0;
 
   /// Lanes blocked at a barrier. They hold their PC and are skipped when the
