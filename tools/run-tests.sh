@@ -185,6 +185,14 @@ run_pred_spill() {
   done
   [ $bad -eq 0 ] && echo "  PASS  ld.pred/st.pred: positional frame, whole-warp words, a clobbered predicate restored" \
                  || { echo "  FAIL  ld.pred/st.pred"; return 1; }
+  # O-62, O-63: a diverged group's reload and store leave the other group's
+  # lanes alone, in the register and in the word.
+  python3 "$AS" "$JSON" test/pred-merge.s "$TMP/pm.bin" >/dev/null || return 1
+  out=$("$SIM" "$TMP/pm.bin" -peek 0x90040 -peek 0x90050 2>&1) ||
+    { echo "$out"; echo "  FAIL  pred-merge.s did not run"; return 1; }
+  local r=$(echo "$out" | grep -oP "\[0x90040\] = \K\d+") w=$(echo "$out" | grep -oP "\[0x90050\] = \K\d+")
+  [ "$r $w" = "4294901760 0" ] && echo "  PASS  ld.pred and st.pred move only the issuing group's lanes (O-62, O-63)" \
+                               || { echo "  FAIL  predicate transfers under divergence: got $r $w, want 4294901760 0"; return 1; }
 }
 echo
 echo "  --- predicate spill (IS-15) ---"

@@ -61,6 +61,7 @@
 #include "CCVInstrInfo.h"
 #include "CCVSubtarget.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
@@ -275,9 +276,25 @@ bool CCVSpillStats::runOnMachineFunction(MachineFunction &MF) {
       // Predicate spill is neither an address nor an accumulator, and there is
       // no third thing it could be: §3's predicate file is 4 entries and they
       // hold control-flow conditions.
+      //
+      // What it does report is whether a GPR is free there (IS-18): a
+      // predicate spilled per lane, outside converged code, goes through a
+      // scratch GPR, a predicated move and the thread's own slot.
       if (MI.getOpcode() == CCV::PSEUDO_ST_PRED ||
-          MI.getOpcode() == CCV::PSEUDO_LD_PRED)
+          MI.getOpcode() == CCV::PSEUDO_LD_PRED) {
+        LivePhysRegs Live(*TRI);
+        Live.addLiveOuts(MBB);
+        for (auto It = MBB.rbegin(); &*It != &MI; ++It)
+          Live.stepBackward(*It);
+        Live.stepBackward(MI);         // live across the transfer itself
+        unsigned Free = 0;
+        for (unsigned R = CCV::R0; R != CCV::R15; ++R)
+          if (Live.available(MF.getRegInfo(), R))
+            ++Free;
+        errs() << "    predicate " << (IsStore ? "spill" : "reload") << " in "
+               << MF.getName() << ": " << Free << " GPRs free\n";
         continue;
+      }
 
       Register R = MI.getOperand(0).getReg();
       if (!R.isPhysical())

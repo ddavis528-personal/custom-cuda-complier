@@ -964,14 +964,21 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       if (!(PMask & (1u << P)))
         continue;
       if (Op == CCV::LD_PRED_G) {
-        W.Pred[P] = Mem.read32(A + 4 * P);
+        // O-62: only the issuing group's lanes take the loaded bits; a lane
+        // outside the issue mask is another thread, and keeps its own.
+        W.Pred[P] = (W.Pred[P] & ~Mask) | (Mem.read32(A + 4 * P) & Mask);
         continue;
       }
       // Warp-scoped, at lane 0's address (§3), so lane 0 is the lane that
       // faults, as the oracle attributes the access.
       Mem.CurLane = 0;
-      if (Mem.roOK(A + 4 * P, 4))
-        Mem.write32(A + 4 * P, W.Pred[P]);
+      // O-63: only the issuing group's bits, merged into memory's word, so
+      // a slot shared by diverged groups is per-lane storage. The read is the
+      // merge's, not a load: it is not logged.
+      if (Mem.roOK(A + 4 * P, 4)) {
+        uint32_t Old = Mem.peek32(A + 4 * P);
+        Mem.write32(A + 4 * P, (Old & ~Mask) | (W.Pred[P] & Mask));
+      }
     }
     break;
   }
