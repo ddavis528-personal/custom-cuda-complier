@@ -526,15 +526,19 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     28428872U,	// LD_GLOBAL
     5360200U,	// LD_GLOBAL_IDX
     5360200U,	// LD_GLOBAL_IDX_W16
+    5360200U,	// LD_GLOBAL_IDX_W8
     318545U,	// LD_GLOBAL_P
     330312U,	// LD_GLOBAL_SLOT
     330312U,	// LD_GLOBAL_SLOT_W16
+    330312U,	// LD_GLOBAL_SLOT_W8
     28428872U,	// LD_GLOBAL_W16
+    28428872U,	// LD_GLOBAL_W8
     28428670U,	// LD_PRED_G
     28428616U,	// LD_PRED_S
     28428648U,	// LD_SHARED
     5359976U,	// LD_SHARED_IDX
     28428648U,	// LD_SHARED_W16
+    28428648U,	// LD_SHARED_W8
     8439933U,	// LG2_F32
     67160721U,	// MADLO
     351313U,	// MADLO_P
@@ -661,14 +665,18 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     28428883U,	// ST_GLOBAL
     5360211U,	// ST_GLOBAL_IDX
     5360211U,	// ST_GLOBAL_IDX_W16
+    5360211U,	// ST_GLOBAL_IDX_W8
     330323U,	// ST_GLOBAL_SLOT
     330323U,	// ST_GLOBAL_SLOT_W16
+    330323U,	// ST_GLOBAL_SLOT_W8
     28428883U,	// ST_GLOBAL_W16
+    28428883U,	// ST_GLOBAL_W8
     28428679U,	// ST_PRED_G
     28428632U,	// ST_PRED_S
     28428659U,	// ST_SHARED
     5359987U,	// ST_SHARED_IDX
     28428659U,	// ST_SHARED_W16
+    28428659U,	// ST_SHARED_W8
     51493U,	// SUB
     51493U,	// SUBI
     875601U,	// SUBI_P
@@ -907,7 +915,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     return;
     break;
   case 20:
-    // LD_GLOBAL_SLOT, LD_GLOBAL_SLOT_W16, ST_GLOBAL_SLOT, ST_GLOBAL_SLOT_W16
+    // LD_GLOBAL_SLOT, LD_GLOBAL_SLOT_W16, LD_GLOBAL_SLOT_W8, ST_GLOBAL_SLOT,...
     O << ", [#";
     printOperand(MI, 1, O);
     O << ", ";
@@ -1297,7 +1305,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     return;
     break;
   case 3:
-    // ATOM_ADD_G, LD_GLOBAL, LD_GLOBAL_W16, LD_PRED_G, LD_PRED_S, LD_SHARED,...
+    // ATOM_ADD_G, LD_GLOBAL, LD_GLOBAL_W16, LD_GLOBAL_W8, LD_PRED_G, LD_PRED...
     O << " + ";
     break;
   case 4:
@@ -1306,7 +1314,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     return;
     break;
   case 5:
-    // LD_GLOBAL_IDX, LD_GLOBAL_IDX_W16, LD_SHARED_IDX, ST_GLOBAL_IDX, ST_GLO...
+    // LD_GLOBAL_IDX, LD_GLOBAL_IDX_W16, LD_GLOBAL_IDX_W8, LD_SHARED_IDX, ST_...
     O << ", ";
     printOperand(MI, 2, O);
     O << ", ";
@@ -1338,7 +1346,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     return;
     break;
   case 3:
-    // LD_GLOBAL, LD_GLOBAL_W16, LD_PRED_G, LD_PRED_S, LD_SHARED, LD_SHARED_W...
+    // LD_GLOBAL, LD_GLOBAL_W16, LD_GLOBAL_W8, LD_PRED_G, LD_PRED_S, LD_SHARE...
     printOperand(MI, 2, O);
     O << ']';
     return;

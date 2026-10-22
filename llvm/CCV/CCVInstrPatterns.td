@@ -270,6 +270,48 @@ foreach ty = [i32, f32] in {
   def : Pat<(st_shared ty:$v, GPR:$rbase), (ST_SHARED GPR:$v, GPR:$rbase, 0)>;
 }
 
+// Bytes in .shared (F-161). i8 is not legal, so a byte load arrives as an
+// extending load to i32 and a byte store as a truncating one. The W8 forms put
+// the data register at chwidth 8, and §3 takes the transfer size from that.
+// Zero extension is the widening chwidth's (O-38); sign extension is a shift
+// pair. A register index is added into the base first: .shared's index form
+// has no byte twin, and a byte array in .shared is rare enough not to want one.
+def ld_shared_u8 : SharedLoad<extloadi8>;
+def ld_shared_z8 : SharedLoad<zextloadi8>;
+def ld_shared_s8 : SharedLoad<sextloadi8>;
+def st_shared_8  : SharedStore<truncstorei8>;
+foreach ld = [ld_shared_u8, ld_shared_z8] in {
+  def : Pat<(i32 (ld GPR:$rbase)), (LD_SHARED_W8 GPR:$rbase, 0)>;
+  def : Pat<(i32 (ld (add GPR:$rbase, (i32 imm:$off)))),
+            (LD_SHARED_W8 GPR:$rbase, imm:$off)>;
+  def : Pat<(i32 (ld (add GPR:$rbase, GPR:$ri))),
+            (LD_SHARED_W8 (i32 (ADD GPR:$rbase, GPR:$ri, GPR:$rbase)), 0)>;
+}
+def : Pat<(i32 (ld_shared_s8 GPR:$rbase)),
+          (i32 (SRAI (i32 (SHLI (i32 (LD_SHARED_W8 GPR:$rbase, 0)), 24)), 24))>;
+def : Pat<(i32 (ld_shared_s8 (add GPR:$rbase, (i32 imm:$off)))),
+          (i32 (SRAI (i32 (SHLI (i32 (LD_SHARED_W8 GPR:$rbase, imm:$off)), 24)),
+                     24))>;
+def : Pat<(i32 (ld_shared_s8 (add GPR:$rbase, GPR:$ri))),
+          (i32 (SRAI (i32 (SHLI (i32 (LD_SHARED_W8
+                                         (i32 (ADD GPR:$rbase, GPR:$ri, GPR:$rbase)),
+                                         0)), 24)), 24))>;
+// A 16-bit value stored as a byte: the same register at width 8.
+def : Pat<(st_shared_8 GPR16:$v, GPR:$rbase),
+          (ST_SHARED_W8 (COPY_TO_REGCLASS GPR16:$v, GPR8), GPR:$rbase, 0)>;
+def : Pat<(st_shared_8 GPR16:$v, (add GPR:$rbase, (i32 imm:$off))),
+          (ST_SHARED_W8 (COPY_TO_REGCLASS GPR16:$v, GPR8), GPR:$rbase, imm:$off)>;
+def : Pat<(st_shared_8 GPR16:$v, (add GPR:$rbase, GPR:$ri)),
+          (ST_SHARED_W8 (COPY_TO_REGCLASS GPR16:$v, GPR8),
+                        (i32 (ADD GPR:$rbase, GPR:$ri, GPR:$rbase)), 0)>;
+def : Pat<(st_shared_8 (i32 GPR:$v), GPR:$rbase),
+          (ST_SHARED_W8 (COPY_TO_REGCLASS (i32 GPR:$v), GPR8), GPR:$rbase, 0)>;
+def : Pat<(st_shared_8 (i32 GPR:$v), (add GPR:$rbase, (i32 imm:$off))),
+          (ST_SHARED_W8 (COPY_TO_REGCLASS (i32 GPR:$v), GPR8), GPR:$rbase, imm:$off)>;
+def : Pat<(st_shared_8 (i32 GPR:$v), (add GPR:$rbase, GPR:$ri)),
+          (ST_SHARED_W8 (COPY_TO_REGCLASS (i32 GPR:$v), GPR8),
+                        (i32 (ADD GPR:$rbase, GPR:$ri, GPR:$rbase)), 0)>;
+
 // ---------------------------------------------------------------------------
 // Predicate logic (O-20). These are the i1 domain -- a predicate is 32 bits,
 // one per lane, and never narrows (invariant 5), so i1 operations are real
@@ -370,6 +412,7 @@ def : Pat<(i16 imm:$i), (COPY (MOVI (imm16_bits $i)))>;
 // change; CCVInsertChwidth places the instruction that performs it. `sext` is
 // NOT free -- zeros do not replicate a sign -- and still has no lowering (F-66).
 def : Pat<(i32 (zext GPR16:$a)), (COPY GPR16:$a)>;
+def : Pat<(i32 (anyext GPR16:$a)), (COPY GPR16:$a)>;
 def : Pat<(i32 (sext GPR16:$a)), (CVT_SEXT GPR16:$a, GPR16:$a, GPR16:$a)>;
 
 // `sext i16 to i32` on a value that is already in a 32-bit register arrives as

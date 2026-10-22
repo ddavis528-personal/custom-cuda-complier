@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-10-22-a5e91ba
+# Snapshot snapshot-2026-10-22-60ce43f
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `a5e91baeb470d5ba4c82bd9a5ed2cab0513dcd7d`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `60ce43f06f8eee15375d81c1cb3ddf00cf7289df`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -19,7 +19,7 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `a5e91baeb470d5ba4c82bd9a5ed2cab0513dcd7d` |
+| Source | `ccr-ea1c4e17-tem30u` @ `60ce43f06f8eee15375d81c1cb3ddf00cf7289df` |
 | Built | 2026-10-22 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
@@ -38,8 +38,9 @@ d1825cc689f6094e35e3a24b144576c67d44e6995960739a3f95e7d9ef2162f5  release/asm/be
 dd05714aa352e4b46c5fa8aaaa531d4c219c2a44ca1fc1a83f131bb72d4df5b5  release/asm/bench-vadd16_loop.s
 1ab4360d07e9db8b92b340ce99306c8bfe7392e51ac96c61a3e69e445c895d02  release/asm/bench-vadd_loop.s
 ce633b5713036d7524e482dc2f7870435037bfaa79302180f904d5cff0fe285c  release/asm/cuda-argorder.s
+2e328cffc9a0640fbd5ff21f3c9f27be1c8c9d2f236c328082f7d96c12d61285  release/asm/cuda-bytes.s
 1f26d7ee153520931e5eb272ef77d1c8d75cf8fa6a33ef5ef9c790edf555d872  release/asm/cuda-byval.s
-13eed4bbd665fd38fdefe516631b78f3c9b160a22391519686da606c99627ac0  release/asm/cuda-calls.s
+18977a669e19e44262eaa2f82b0bfac055cecc318d2e134fa0bbd87fa769ddb7  release/asm/cuda-calls.s
 3c19ff201a515a8e7504e94d6370f3ae3427848d217ff2e575014799970837ff  release/asm/cuda-divconst.s
 c0a3175bcf36b3b9a65b50d78fade10df23ff64e851bb2866a6a899f9900f362  release/asm/cuda-dp4.s
 8f8ea379638fe9c0c5477ca4edc59bee0e2140e845c6b581983f8d6f149f024b  release/asm/cuda-fused.s
@@ -59,7 +60,7 @@ f540a502bf7063cfb75450053c5163bc8986871d7cb0aa9bc2b8ee8cb9637a3c  release/asm/cu
 74f722d1b50b6e23f8379727243b480a810e07219cd3b8676c475bcce69a1883  release/bench/bench.txt
 b7e7adbfd99c4b2c1c2e5ea653273976d3f98fd179972597a4329938df50af80  release/bench/sweep-decode.txt
 eb6d722fd0f11e7d58e0200733f7f4398035974d0bf74329c01ca4dcefdf1c1a  release/bench/sweep-tiles.txt
-374d9ea1922596ce206c995b663782f169f5b6652ca84ccf4b11c8e1b372eba3  release/bin/ccv-sim
-8398b1aeaf9ec49ea423062e1fd2c058b4f5a4d6dc5a01f2d4b131818da14d92  release/bin/ccv-sim.txt
-c9628c4807e9a56beb02bcf0c44933c250f0eb6887b0e738b2405092cd4e0ae8  release/verify.log
+86fdaffc8df9a2f7be4060fd71db894b04b64721cf4dd9cb3429034c5a1ffd9c  release/bin/ccv-sim
+cef6f6b408e7c7837dd9661b518e8b7d2d5eb35c9329495be4069b9b402bff86  release/bin/ccv-sim.txt
+e30a27abc1437705e893f5009d9358b31450f164807839d841f4871fc1f7c0d7  release/verify.log
 ```

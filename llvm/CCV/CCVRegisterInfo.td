@@ -80,5 +80,16 @@ def GPR16 : RegisterClass<"CCV", [i16], 32,
     (add R14, R13, R12, R11, R10, R9, R8, R7, R6, R5, R4, R3, R2, R1, R0,
          R15)>;
 
+// 8-bit elements (F-161). i8 is not a legal type: a byte value lives in a
+// 32-bit register as i32, and the type legalizer promotes byte arithmetic as
+// any target's would. What needs the width is the MEMORY access, since §3
+// takes a transfer's size from `rdata`'s chwidth. So this class differs from
+// GPR only in its ID, which CCVInsertChwidth reads off a W8 instruction's data
+// operand as width code 2. Widening it back for a 32-bit use clears bits
+// [31:8] (O-38), which makes a byte load's zero extension free.
+def GPR8 : RegisterClass<"CCV", [i32], 32,
+    (add R14, R13, R12, R11, R10, R9, R8, R7, R6, R5, R4, R3, R2, R1, R0,
+         R15)>;
+
 // One bit per lane in hardware; i1 per thread in the type system.
 def PR : RegisterClass<"CCV", [i1], 32, (sequence "P%u", 0, 3)>;

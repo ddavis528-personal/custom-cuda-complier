@@ -393,15 +393,19 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(32),	// LD_GLOBAL
     UINT64_C(288),	// LD_GLOBAL_IDX
     UINT64_C(288),	// LD_GLOBAL_IDX_W16
+    UINT64_C(288),	// LD_GLOBAL_IDX_W8
     UINT64_C(52),	// LD_GLOBAL_P
     UINT64_C(800),	// LD_GLOBAL_SLOT
     UINT64_C(800),	// LD_GLOBAL_SLOT_W16
+    UINT64_C(800),	// LD_GLOBAL_SLOT_W8
     UINT64_C(32),	// LD_GLOBAL_W16
+    UINT64_C(32),	// LD_GLOBAL_W8
     UINT64_C(544),	// LD_PRED_G
     UINT64_C(672),	// LD_PRED_S
     UINT64_C(160),	// LD_SHARED
     UINT64_C(416),	// LD_SHARED_IDX
     UINT64_C(160),	// LD_SHARED_W16
+    UINT64_C(160),	// LD_SHARED_W8
     UINT64_C(1073742080),	// LG2_F32
     UINT64_C(320),	// MADLO
     UINT64_C(324),	// MADLO_P
@@ -528,14 +532,18 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(96),	// ST_GLOBAL
     UINT64_C(352),	// ST_GLOBAL_IDX
     UINT64_C(352),	// ST_GLOBAL_IDX_W16
+    UINT64_C(352),	// ST_GLOBAL_IDX_W8
     UINT64_C(864),	// ST_GLOBAL_SLOT
     UINT64_C(864),	// ST_GLOBAL_SLOT_W16
+    UINT64_C(864),	// ST_GLOBAL_SLOT_W8
     UINT64_C(96),	// ST_GLOBAL_W16
+    UINT64_C(96),	// ST_GLOBAL_W8
     UINT64_C(608),	// ST_PRED_G
     UINT64_C(736),	// ST_PRED_S
     UINT64_C(224),	// ST_SHARED
     UINT64_C(480),	// ST_SHARED_IDX
     UINT64_C(224),	// ST_SHARED_W16
+    UINT64_C(224),	// ST_SHARED_W8
     UINT64_C(64),	// SUB
     UINT64_C(76),	// SUBI
     UINT64_C(80),	// SUBI_P
@@ -1425,16 +1433,20 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
       break;
     }
     case CCV::LD_GLOBAL:
+    case CCV::LD_GLOBAL_W8:
     case CCV::LD_GLOBAL_W16:
     case CCV::LD_PRED_G:
     case CCV::LD_PRED_S:
     case CCV::LD_SHARED:
+    case CCV::LD_SHARED_W8:
     case CCV::LD_SHARED_W16:
     case CCV::ST_GLOBAL:
+    case CCV::ST_GLOBAL_W8:
     case CCV::ST_GLOBAL_W16:
     case CCV::ST_PRED_G:
     case CCV::ST_PRED_S:
     case CCV::ST_SHARED:
+    case CCV::ST_SHARED_W8:
     case CCV::ST_SHARED_W16: {
       // op: rdata
       op = getMachineOpValue(MI, MI.getOperand(0), Fixups, STI);
@@ -1454,9 +1466,11 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
       break;
     }
     case CCV::LD_GLOBAL_IDX:
+    case CCV::LD_GLOBAL_IDX_W8:
     case CCV::LD_GLOBAL_IDX_W16:
     case CCV::LD_SHARED_IDX:
     case CCV::ST_GLOBAL_IDX:
+    case CCV::ST_GLOBAL_IDX_W8:
     case CCV::ST_GLOBAL_IDX_W16:
     case CCV::ST_SHARED_IDX: {
       // op: rdata
@@ -1509,8 +1523,10 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
       break;
     }
     case CCV::LD_GLOBAL_SLOT:
+    case CCV::LD_GLOBAL_SLOT_W8:
     case CCV::LD_GLOBAL_SLOT_W16:
     case CCV::ST_GLOBAL_SLOT:
+    case CCV::ST_GLOBAL_SLOT_W8:
     case CCV::ST_GLOBAL_SLOT_W16: {
       // op: rdata
       op = getMachineOpValue(MI, MI.getOperand(0), Fixups, STI);
@@ -2107,16 +2123,20 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
       break;
     }
     case CCV::LD_GLOBAL:
+    case CCV::LD_GLOBAL_W8:
     case CCV::LD_GLOBAL_W16:
     case CCV::LD_PRED_G:
     case CCV::LD_PRED_S:
     case CCV::LD_SHARED:
+    case CCV::LD_SHARED_W8:
     case CCV::LD_SHARED_W16:
     case CCV::ST_GLOBAL:
+    case CCV::ST_GLOBAL_W8:
     case CCV::ST_GLOBAL_W16:
     case CCV::ST_PRED_G:
     case CCV::ST_PRED_S:
     case CCV::ST_SHARED:
+    case CCV::ST_SHARED_W8:
     case CCV::ST_SHARED_W16: {
       switch (OpNum) {
       case 0:
@@ -2132,9 +2152,11 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
       break;
     }
     case CCV::LD_GLOBAL_IDX:
+    case CCV::LD_GLOBAL_IDX_W8:
     case CCV::LD_GLOBAL_IDX_W16:
     case CCV::LD_SHARED_IDX:
     case CCV::ST_GLOBAL_IDX:
+    case CCV::ST_GLOBAL_IDX_W8:
     case CCV::ST_GLOBAL_IDX_W16:
     case CCV::ST_SHARED_IDX: {
       switch (OpNum) {
@@ -2157,8 +2179,10 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
       break;
     }
     case CCV::LD_GLOBAL_SLOT:
+    case CCV::LD_GLOBAL_SLOT_W8:
     case CCV::LD_GLOBAL_SLOT_W16:
     case CCV::ST_GLOBAL_SLOT:
+    case CCV::ST_GLOBAL_SLOT_W8:
     case CCV::ST_GLOBAL_SLOT_W16: {
       switch (OpNum) {
       case 0:

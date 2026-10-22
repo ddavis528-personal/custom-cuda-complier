@@ -211,6 +211,7 @@ EMIT_SHAPES = [
     r"\?\s*CCV::%s\b",                       # cond ? CCV::X
     r"(?<!:):\s*CCV::%s\b",                  # ... : CCV::X   (ternary else)
     r"setOpcode\(\s*CCV::%s\b",              # MC-layer relaxation
+    r"atWidth\(\s*CCV::%s\b",                # ISel: an access at its width
 ]
 
 

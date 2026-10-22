@@ -52,6 +52,9 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   setTargetDAGCombine({ISD::LOAD, ISD::STORE, ISD::ADD, ISD::TRUNCATE,
                        ISD::LIFETIME_START, ISD::LIFETIME_END});
   setOperationAction(ISD::GlobalAddress, MVT::i64, Custom);
+  // A signed byte (F-161): a shift pair. combineDP4 has matched the byte
+  // extracts it wants by the time this applies, before legalization.
+  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i8, Expand);
 
   // No hardware divide (§4's integer map ends at prmt with no divide).
   for (MVT VT : {MVT::i32}) {
@@ -79,6 +82,28 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::BR_CC, MVT::f32, Expand);
   setOperationAction(ISD::SELECT_CC, MVT::f32, Expand);
   setOperationAction(ISD::SELECT, MVT::f32, Legal);
+  // A compare or select on 16-bit values is done at 32 bits. The compare's
+  // operand class is GPR, so CCVInsertChwidth would widen a GPR16 operand
+  // first, which zero-extends (O-38) and so gets a signed compare wrong;
+  // promotion extends each operand as the compare's signedness asks. Byte
+  // loads (F-161) were the first thing to reach one.
+  setOperationAction(ISD::BR_CC, MVT::i16, Expand);
+  setOperationAction(ISD::SELECT_CC, MVT::i16, Expand);
+  setOperationAction(ISD::SETCC, MVT::i16, Promote);
+  AddPromotedToType(ISD::SETCC, MVT::i16, MVT::i32);
+  setOperationAction(ISD::SELECT, MVT::i16, Promote);
+  AddPromotedToType(ISD::SELECT, MVT::i16, MVT::i32);
+  // 16-bit arithmetic with no 16-bit form (patterns exist for add, sub, the
+  // logic ops and signed min/max) is done at 32 bits. The middle end narrows
+  // byte arithmetic to i16 because i16 is legal, so `(unsigned char)(i * 7)`
+  // reached an i16 multiply nothing selects (F-161).
+  for (unsigned Op : {ISD::MUL, ISD::MULHS, ISD::MULHU, ISD::SHL, ISD::SRL,
+                      ISD::SRA, ISD::SDIV, ISD::UDIV, ISD::SREM, ISD::UREM,
+                      ISD::UMIN, ISD::UMAX, ISD::ABS, ISD::CTPOP, ISD::CTLZ,
+                      ISD::CTTZ, ISD::BSWAP, ISD::ROTL, ISD::ROTR}) {
+    setOperationAction(Op, MVT::i16, Promote);
+    AddPromotedToType(Op, MVT::i16, MVT::i32);
+  }
   // brcond takes an i1; there is no BRCOND over a GPR bit pattern, because a
   // branch reads the predicate file directly (§3, Format E).
   setOperationAction(ISD::BRCOND, MVT::Other, Legal);
@@ -713,12 +738,20 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     // extension: free for zero (O-38's widening clears the bits it exposes),
     // `cvt.sext` for sign. Left alone, its 64-bit address reached the type
     // legalizer unmatched and aborted (a `short` field; O-61's globals.cu).
+    //
+    // A byte load (F-161) is a W8 load into a 32-bit register: zero-extended
+    // by the widening chwidth, sign-extended by `sext_inreg`, truncated for an
+    // i8 or i16 user. i8 is not legal, so this has to happen here, before the
+    // type legalizer meets the 64-bit address.
     ISD::LoadExtType Ext = LD->getExtensionType();
-    if (Ext != ISD::NON_EXTLOAD &&
-        (LD->getMemoryVT() != MVT::i16 || LD->getValueType(0) != MVT::i32))
+    EVT MemVT = LD->getMemoryVT(), VT = LD->getValueType(0);
+    const bool Byte = MemVT == MVT::i8;
+    if (Byte ? !(VT == MVT::i8 || VT == MVT::i16 || VT == MVT::i32)
+             : Ext != ISD::NON_EXTLOAD && (MemVT != MVT::i16 || VT != MVT::i32))
       return SDValue();
-    SDVTList VTs = DAG.getVTList(Ext == ISD::NON_EXTLOAD ? LD->getValueType(0)
-                                                         : MVT::i16,
+    SDVTList VTs = DAG.getVTList(Byte                      ? MVT::i32
+                                 : Ext == ISD::NON_EXTLOAD ? VT
+                                                           : MVT::i16,
                                  MVT::Other);
     SDValue Base, Idx, New;
     bool Scale = false;
@@ -763,9 +796,16 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     // value and leave the chain hanging off the dead original, which shows up
     // later as an unexpandable i64 rather than as anything recognisable.
     SDValue V = New.getValue(0);
-    if (Ext != ISD::NON_EXTLOAD)
+    if (Byte) {
+      if (Ext == ISD::SEXTLOAD)
+        V = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, MVT::i32, V,
+                        DAG.getValueType(MVT::i8));
+      if (VT != MVT::i32)
+        V = DAG.getNode(ISD::TRUNCATE, DL, VT, V);
+    } else if (Ext != ISD::NON_EXTLOAD) {
       V = DAG.getNode(Ext == ISD::SEXTLOAD ? ISD::SIGN_EXTEND : ISD::ZERO_EXTEND,
                       DL, MVT::i32, V);
+    }
     DCI.CombineTo(N, V, New.getValue(1));
     return SDValue(N, 0);
   }
@@ -777,8 +817,14 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     // 16, as `trunc i32 -> i16` is free. Left alone, it reached the type
     // legalizer with its 64-bit address unmatched, which crashed rather than
     // diagnosing (C's `ee_s16` fields; AR-20).
+    // A byte store (F-161) stores a 32-bit register's low byte at width 8:
+    // its value is any-extended to i32 and the memory type stays i8, which
+    // selects the W8 form.
     SDValue Val = ST->getValue();
-    if (ST->isTruncatingStore()) {
+    if (ST->getMemoryVT() == MVT::i8) {
+      if (Val.getValueType() != MVT::i32)
+        Val = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i32, Val);
+    } else if (ST->isTruncatingStore()) {
       if (ST->getMemoryVT() != MVT::i16 || Val.getValueType() != MVT::i32)
         return SDValue();
       Val = DAG.getNode(ISD::TRUNCATE, DL, MVT::i16, Val);
