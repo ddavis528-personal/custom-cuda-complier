@@ -26,8 +26,8 @@ before building anything.
 
 **1.8 is frozen** at its content of 20 October 2026, including the amendments it took after its
 first cut. Changes through 1.8 are recorded there. This revision adopts the **fault model**,
-IS-2, now that DA's one sub-question is answered. No encoding changes: every bit map, opcode
-point and format tag is as 1.8 left it. What changes is that every encoding, and every
+IS-2, now that DA's one sub-question is answered. No encoding changes but one: every bit map, opcode
+point and format tag is as 1.8 left it, and `srd` selector 2 is now defined (O-64). What changes is that every encoding, and every
 encoding meeting architectural state, now has defined behaviour.
 
 ### The fault model is adopted (O-57; IS-2)
@@ -93,6 +93,13 @@ Invariant 10 now covers lanes outside the issue mask, not only lanes the guard e
 case that raised it is `ld.pred`, which writes only the issuing group's bits of each
 predicate. `st.pred` likewise stores only those bits, merged into memory's word (O-63). So a
 predicate spill slot is per-lane storage, and diverged groups can share it.
+
+### `.local` frames are indexed by hardware lane context (O-64; TI-33)
+
+O-30's frames aliased between resident CTAs, since each CTA's thread *t* used window
+`local_base + t`. A frame is now `local_base + %lanectx`, a new `srd` selector, 2, unique
+among the device's live lanes. It is the one encoding change in 1.9: a reserved selector value
+becomes defined.
 
 ### Still open
 
@@ -2149,14 +2156,14 @@ struct would violate the rule. Scalars follow the pointers at their natural alig
 byte offset 24 (O-30), the module data window `W_d` at 28 (below), and the argument area from
 `OffArgs` = 32 (§3 Format D's slot rule). Everything else in the block is the launch ABI's.
 
-**Each CTA's `.local` windows are its own — normative (O-64).** The launch block is CTA-private:
-every CTA reads `LAUNCH_WINDOW`, and sees its own block there. So word 24 is per CTA. The
-launch mechanism writes each CTA a `local_base` such that its windows `[local_base,
-local_base + ntid)` overlap no other resident CTA's, of this context or any other. Frames
-are sized by the CTAs resident together, not by the grid. A base per CTA slot, reused as
-slots are, meets the rule. The prologue (O-30) is unchanged. The same holds for any per-CTA
-word the ABI adds, such as a spill window. Word 28, the module data window, is the same for
-every CTA of a module, by design (O-61).
+**`.local` frames are indexed by hardware lane context, not by thread index — normative
+(O-64).** A thread's frame is window `local_base + %lanectx`, where `%lanectx` is `srd #2`
+(§5.3). It is unique among every lane live on the device at once and constant for its warp's
+lifetime. So two threads live together never share a frame, whichever CTAs or grids they
+belong to. `local_base`, word 24, is the context's, the same in every CTA's launch block. The
+runtime reserves `local_base` through `local_base + CCV_LANE_CONTEXTS − 1` per context, sized
+by the device's lane contexts, not by the grid. O-30's prologue reads `srd #2` where it read
+`srd #0`, and is otherwise unchanged.
 
 **The whole launch window is read-only (O-61).** `LAUNCH_BASE` is 64 KiB-aligned, and the
 launch block lies within the 64 KiB region `[LAUNCH_BASE, LAUNCH_BASE + 2^16)`, the addresses
@@ -2217,13 +2224,14 @@ putting it in the block would mean materializing one block per CTA, a hundred th
 them for a hundred-thousand-CTA grid. Thread index is per-lane by definition and no single
 location can hold it.
 
-`srd rd, #sel` is specified in §3 under Format K. Two selectors are allocated:
+`srd rd, #sel` is specified in §3 under Format K. Three selectors are allocated:
 
 | Selector | Value |
 |---|---|
 | `0` | `%ctatid` — flat thread index within CTA, 10 bits |
 | `1` | `%ctaid` — flat CTA index within grid |
-| `2–15` | reserved — `%smid`, `%clock`, `%globaltimer` if a workload forces them |
+| `2` | `%lanectx` — the lane's hardware context: unique among all lanes live on the device at once, constant for the warp's lifetime, below `CCV_LANE_CONTEXTS` (O-64) |
+| `3–15` | reserved — `%smid`, `%clock`, `%globaltimer` if a workload forces them |
 
 **Everything else derives**, using dimensions the block already carries:
 
@@ -2240,11 +2248,16 @@ launch, so it writes the magic multiplier and shift into the block alongside the
 only possible because the block is runtime-written memory rather than a hardware register
 file — a second dividend from that choice.
 
-**`srd #0` is the only lane-varying instruction with no lane-varying source.** Every other
+**`srd #0` and `srd #2` are the only lane-varying instructions with no lane-varying
+source.** Every other
 instruction is lane-wise from lane-wise sources or a broadcast; §3 Format F states that
 immediates are warp-uniform, broadcast to all lanes. `srd #0` writes lane *n* with
 `warp_base + n` — a broadcast of the warp's base index ORed with a per-lane wire. Selector 1
-is a plain broadcast. `chwidth` applies as everywhere else: the destination is written at
+is a plain broadcast. Selector 2 is built as selector 0 is: the warp's hardware context
+index, composed with the core's index where a device has several cores, shifted left 5, ORed
+with the lane. Its value is bounded nondeterminism (§12.1): which context a warp occupies is
+the dispatcher's choice, so a program may use it only as a name, as O-30's frames do, and never
+as data. `chwidth` applies as everywhere else: the destination is written at
 its current width and truncates below 16 bits, per invariant 3.
 
 ### 5.4 Memory scopes and windowing
@@ -2943,18 +2956,21 @@ path back to OOE. No encoding changes: the field stays 6 bits, its top values re
 
 ---
 
-**O-64 — Each resident CTA's `.local` base is distinct — decided in 1.9.** TI-33. O-30 puts
-thread *t*'s frame at window `local_base + t`, with *t* the thread's index in its CTA. It
-called `local_base` CTA-wide but never said it differed between CTAs. With one value for every
-CTA, CTA 0's thread *t* and CTA 1's thread *t* share a frame whenever both are resident. On the
-skeleton, rope at two CTAs reloaded the other CTA's spill. `ccv-sim` runs one CTA at a time,
-so it never showed this. No mechanism is needed. §5.2 already makes the launch block
-CTA-private, and MIU already maps each CTA slot's view of `LAUNCH_WINDOW` to that CTA's block
-(`launch_block_addr`). So the rule is the launch mechanism's: write each resident CTA a
-`local_base` that overlaps no other's. What lost: the global thread index (sizes `.local` by
-the grid and adds a multiply-add to every prologue); and a hardware-supplied CTA base through
-`srd` (a new selector and a field from RAU, for what the CTA-private launch block already
-carries).
+**O-64 — `.local` frames are indexed by hardware lane context (`srd #2`) — decided in 1.9.**
+TI-33. O-30 put thread *t*'s frame at window `local_base + t`, with *t* the thread's index in
+its CTA. Every CTA read the same `local_base`, so CTA 0's thread *t* and CTA 1's thread *t*
+shared a frame whenever both were resident. On the skeleton, rope at two CTAs reloaded the
+other CTA's spill. `ccv-sim` runs one CTA at a time, so it never showed this. IS's first
+answer in 1.9 made `local_base` per CTA, which was wrong. §5.3 rules out per-CTA launch-block
+contents, and a base chosen per CTA slot would need the block's writer to know the slot RAU
+assigns at dispatch. Adopted: AR's form (AR's TI-33 response). A new `srd` selector, 2, gives
+the lane's hardware context, built as selector 0 is. OOE substitutes the warp's hardware index
+where it substitutes `warp_in_cta`, at a cost of one more immediate-kind code (6 wires). A warp
+keeps its context while parked, so its frame survives a swap. `.local` is bounded by the
+device's lane contexts, whatever the grid. Unique across the device, not only the core, or two
+cores' warp 3 would collide. What lost: the global thread index (sizes `.local` by the grid, a
+65,535-CTA grid would back about 256 GiB of pages); a CTA-slot base through `srd` (more wires,
+and an `ntid` multiply); and the per-CTA `local_base`.
 
 ---
 
@@ -4493,7 +4509,7 @@ raises an execute-stage fault, whatever its operand values.
 **`F-ILLEGAL` covers every encoding that names no operation.** Reserved opcode points (Format K
 29–31, §4 integer 26–31, `dp` 60–63, Format D `01110`+, Format E `00101`+, any tag at a length it
 has no form for); reserved field bits nonzero (Format I `[47:37]`, `bar.wait`'s `[14:15]`, and
-every other field §3 marks reserved); reserved values in defined fields (`srd` selectors 2–15,
+every other field §3 marks reserved); reserved values in defined fields (`srd` selectors 3–15,
 the meaningless-rounding points of the conversion product); and non-canonical encodings (A′ long
 with `opcode[9:7]` = `000`, O-37). Must-be-zero rather than ignored: an ignored field can never
 be given meaning, because code that happened to set it would change behaviour.
