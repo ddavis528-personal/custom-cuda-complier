@@ -83,6 +83,15 @@ static cl::opt<std::string> DataReloc(
     cl::value_desc("file"));
 static cl::opt<unsigned> DataWindow("data-window", cl::init(0x200),
                                     cl::desc("the window the image is loaded at"));
+static cl::opt<std::string> DataInfo(
+    "data-info", cl::desc("the image's .ccv_info: u32 size of its constant "
+                          "part, which becomes the .const range (O-61)"),
+    cl::value_desc("file"));
+// F-RO's .const range for a kernel not built with -data: [base, limit),
+// flat addresses. The launch window, 2, is always read-only.
+static cl::opt<std::string> ConstRange(
+    "const-range", cl::desc("the .const range, base:limit (F-RO, O-51)"),
+    cl::value_desc("base:limit"));
 static cl::list<std::string> Pokes("poke", cl::desc("addr=value, before run"),
                                    cl::value_desc("hex=hex"));
 static cl::list<std::string> Peeks("peek", cl::desc("addr, after run"),
@@ -184,6 +193,23 @@ int main(int argc, char **argv) {
   }
   AllPokes.insert(AllPokes.end(), Pokes.begin(), Pokes.end());
 
+  // F-RO's .const range: the image's constant part, or -const-range.
+  if (!DataInfo.empty()) {
+    auto Info = MemoryBuffer::getFile(DataInfo);
+    if (!Info || (*Info)->getBufferSize() < 4) {
+      errs() << "error: cannot read " << DataInfo << "\n"; return 1;
+    }
+    I.Mem.ConstBase = uint64_t(DataWindow) << 16;
+    I.Mem.ConstLimit =
+        I.Mem.ConstBase + support::endian::read32le((*Info)->getBufferStart());
+  }
+  if (!ConstRange.empty()) {
+    auto [B, L] = StringRef(ConstRange).split(':');
+    if (B.getAsInteger(0, I.Mem.ConstBase) || L.getAsInteger(0, I.Mem.ConstLimit)) {
+      errs() << "error: bad -const-range '" << ConstRange << "'\n"; return 1;
+    }
+  }
+
   for (const auto &P : AllPokes) {
     auto [A, V] = StringRef(P).split('=');
     uint64_t Addr; uint32_t Val;
@@ -200,9 +226,16 @@ int main(int argc, char **argv) {
     OF = std::fopen(OracleFile.c_str(), "w");
     if (!OF) { errs() << "error: cannot write " << OracleFile << "\n"; return 1; }
     std::fprintf(OF, "{\"init\":{\"code_base\":%llu,\"threads\":%u,"
-                     "\"ctaid\":%u,\"code\":\"",
+                     "\"ctaid\":%u,",
                  (unsigned long long)CodeBase, unsigned(NumThreads),
                  unsigned(CtaId));
+    // F-RO's .const range, when there is one, for MIU's const_base and
+    // const_limit (TI-26). Absent, the range is empty.
+    if (I.Mem.ConstLimit > I.Mem.ConstBase)
+      std::fprintf(OF, "\"const\":[%llu,%llu],",
+                   (unsigned long long)I.Mem.ConstBase,
+                   (unsigned long long)I.Mem.ConstLimit);
+    std::fprintf(OF, "\"code\":\"");
     for (unsigned char Ch : Code) std::fprintf(OF, "%02x", Ch);
     std::fprintf(OF, "\",\"mem\":[");
     bool First = true;

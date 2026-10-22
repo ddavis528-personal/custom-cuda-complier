@@ -218,9 +218,49 @@ run_faults() {
   [ $bad -eq 0 ] && echo "  PASS  faults: F-ALIGN precise and predicate-gated, F-WIDTH ignores the predicate, F-ILLEGAL, F-FETCH, F-BARRIER" \
                  || { echo "  FAIL  the fault model"; return 1; }
 }
+# F-RO (O-51, O-61; TI-26): a store any byte of which is read-only -- the
+# .const range, here [0x50000, 0x50006) by -const-range, or the whole launch
+# window -- faults per lane, gated, after F-ALIGN; loads, and a store starting
+# at the limit, do not. Every faulting case must leave memory as poked.
+run_ro() {
+  local bad=0 t want out rc
+  local mem="-poke 0x50000=57005 -poke 0x50004=48879 -poke 0x50008=4660 -peek 0x50000 -peek 0x50004 -peek 0x50008"
+  for pair in "ro-const:FAULT F-RO  pc=0x1010  lanes=00000001  addr=0x50000" \
+              "ro-straddle:FAULT F-RO  pc=0x100a  lanes=ffffffff  addr=0x50004" \
+              "ro-launch:FAULT F-RO  pc=0x1008  lanes=ffffffff  addr=0x20040" \
+              "ro-gated:FAULT F-RO  pc=0x1014  lanes=ffff0000  addr=0x50000" \
+              "ro-load:" "ro-limit:"; do
+    t=${pair%%:*}; want=${pair#*:}
+    python3 "$AS" "$JSON" "test/faults/$t.s" "$TMP/f.bin" >/dev/null || { bad=1; continue; }
+    out=$("$SIM" "$TMP/f.bin" -const-range 0x50000:0x50006 $mem 2>&1); rc=$?
+    if [ -z "$want" ]; then
+      if [ $rc -ne 0 ] || grep -q FAULT <<< "$out"; then
+        echo "    $t: faulted where nothing is read-only: $out"; bad=1; fi
+    elif [ $rc -ne 3 ] || ! grep -qF "$want" <<< "$out"; then
+      echo "    $t: want '$want' (status 3), got status $rc: $out"; bad=1
+    else
+      for w in "0x50000] = 57005" "0x50004] = 48879" "0x50008] = 4660"; do
+        grep -qF "[$w" <<< "$out" || { echo "    $t: not precise, [$w changed"; bad=1; }
+      done
+    fi
+  done
+  # The control for ro-straddle: the store at the limit landed.
+  python3 "$AS" "$JSON" test/faults/ro-limit.s "$TMP/f.bin" >/dev/null &&
+    grep -qF "[0x50004] = 5095151" <<< "$("$SIM" "$TMP/f.bin" -const-range 0x50000:0x50006 $mem 2>&1)" ||
+    { echo "    ro-limit: the store at const_limit did not land"; bad=1; }
+  # The oracle's init record carries the range, for MIU's const_base and
+  # const_limit (TI-26).
+  "$SIM" "$TMP/f.bin" -const-range 0x50000:0x50006 -oracle "$TMP/ro.jsonl" >/dev/null 2>&1
+  head -1 "$TMP/ro.jsonl" | grep -qF '"const":[327680,327686]' ||
+    { echo "    the oracle's init record has no .const range"; bad=1; }
+  [ $bad -eq 0 ] && echo "  PASS  F-RO: .const and the launch window, any byte, per lane and gated, precise; loads and the limit itself do not fault" \
+                 || { echo "  FAIL  F-RO"; return 1; }
+}
+
 echo
 echo "  --- the fault model (ISA v1.9 section 12) ---"
 run_faults || fail=1
+run_ro || fail=1
 
 echo
 echo "  --- call and ret (F-21) ---"

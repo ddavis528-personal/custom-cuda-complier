@@ -11,10 +11,11 @@
 // combine already take: one launch-block load, warp-uniform, then ordinary
 // Format D accesses.
 //
-// The image itself becomes two arrays in sections of their own, which the
-// object carries beside .text: .ccv_data, the bytes, and .ccv_reloc, the
-// image offsets of the 8-byte slots holding data pointers, to which the
-// loader adds W_d << 16. Such a slot holds its target's image offset until
+// The image itself becomes arrays in sections of their own, which the object
+// carries beside .text: .ccv_data, the bytes; .ccv_reloc, the image offsets
+// of the 8-byte slots holding data pointers, to which the loader adds
+// W_d << 16; and .ccv_info, the size of the constant part, which is the
+// .const range F-RO protects (§5.2). Such a slot holds its target's image offset until
 // then (O-54's flat address, relative to the image). A code pointer would
 // need no relocation (O-61), but needs the code layout, which is not known
 // here; it is diagnosed until it is needed.
@@ -129,15 +130,19 @@ void llvm::lowerCCVModuleData(Module &M) {
   if (Const.empty() && Writable.empty())
     return;
 
-  // 1. Layout: constants first, so the .const range is the image's prefix.
+  // 1. Layout: constants first, so the .const range is the image's prefix,
+  //    [0, ConstSize): F-RO's range, recorded for the loader in .ccv_info.
   DenseMap<const GlobalVariable *, uint64_t> Offset;
-  uint64_t Size = 0;
-  for (auto *Part : {&Const, &Writable})
+  uint64_t Size = 0, ConstSize = 0;
+  for (auto *Part : {&Const, &Writable}) {
     for (GlobalVariable *G : *Part) {
       Size = alignTo(Size, DL.getPreferredAlign(G).value());
       Offset[G] = Size;
       Size += DL.getTypeAllocSize(G->getValueType());
     }
+    if (Part == &Const)
+      ConstSize = Size;
+  }
   Image Img{DL, Offset, {}, {}};
   Img.Bytes.assign(alignTo(Size, 8), 0);
   for (auto *Part : {&Const, &Writable})
@@ -196,6 +201,8 @@ void llvm::lowerCCVModuleData(Module &M) {
   };
   Emit("__ccv_data", ".ccv_data",
        ConstantDataArray::get(Ctx, ArrayRef<uint8_t>(Img.Bytes)));
+  Emit("__ccv_info", ".ccv_info",
+       ConstantDataArray::get(Ctx, ArrayRef<uint32_t>{uint32_t(ConstSize)}));
   if (!Img.Relocs.empty() && !TestNoDataReloc)
     Emit("__ccv_reloc", ".ccv_reloc",
          ConstantDataArray::get(Ctx, ArrayRef<uint32_t>(Img.Relocs)));

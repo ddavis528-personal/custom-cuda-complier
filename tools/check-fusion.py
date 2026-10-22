@@ -244,7 +244,9 @@ def build(name, tmp):
 
 def run(name, spec, binf, layout):
     """Lay out memory per the kernel's own argument layout, run, read back."""
-    pokes = ["-poke", f"{hex(LAUNCH)}={NTID}"]
+    # .local from window 256: left at 0, thread t's frame is window t - 1,
+    # and thread 3's lands in the launch window, which is read-only (O-61).
+    pokes = ["-poke", f"{hex(LAUNCH)}={NTID}", "-poke", f"{hex(LAUNCH + 24)}=256"]
     if "nctaid" in spec:
         pokes += ["-poke", f"{hex(LAUNCH + 12)}={spec['nctaid']}"]
     ptrs, win = [], 3

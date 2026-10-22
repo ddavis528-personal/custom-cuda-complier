@@ -37,7 +37,7 @@ def i2f(x): return struct.unpack("<f", struct.pack("<I", x))[0]
 a = [[(r * 3 + k + 1) % 7 - 3 for k in range(N)] for r in range(N)]
 b = [[(k * 5 + c * 2 + 1) % 5 - 2 for c in range(N)] for k in range(N)]
 
-pokes = ["-poke", f"{hex(LAUNCH)}=32",
+pokes = ["-poke", f"{hex(LAUNCH)}=32", "-poke", f"{hex(LAUNCH + 24)}=256",
          "-poke", f"{hex(LAUNCH + 32)}={C >> 16}",
          "-poke", f"{hex(LAUNCH + 40)}={A >> 16}",
          "-poke", f"{hex(LAUNCH + 48)}={B >> 16}",

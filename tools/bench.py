@@ -370,7 +370,8 @@ def dynamic(src, tmp, kernel, extra=()):
         return None
 
     LAUNCH = 0x20000
-    pokes = ["-poke", f"{hex(LAUNCH)}=32"]             # ntid.x
+    pokes = ["-poke", f"{hex(LAUNCH)}=32",             # ntid.x
+             "-poke", f"{hex(LAUNCH + 24)}=256"]       # .local, clear of the launch window
     for slot, v in zip(slots, vals):
         pokes += ["-poke", f"{hex(LAUNCH + int(slot[1:]))}={v}"]
     r = run(f"{ROOT}/build/ccv-sim", binf, *pokes, "-counters")

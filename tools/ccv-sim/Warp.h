@@ -104,6 +104,27 @@ public:
     return false;
   }
 
+  /// F-RO (O-51, O-61; ISA v1.9 §5.2): a store any byte of which lies in
+  /// read-only memory -- the whole launch window, and the module's .const
+  /// range [ConstBase, ConstLimit) -- is refused per lane and recorded, as
+  /// F-ALIGN is, and Interp::step raises it after F-ALIGN (§12.5). Loads are
+  /// unaffected.
+  uint64_t LaunchWindow = 2;
+  uint64_t ConstBase = 0, ConstLimit = 0;
+  uint32_t RoLanes = 0;
+  uint64_t RoAddr = 0;
+  bool roOK(uint64_t Addr, unsigned Bytes) {
+    bool InLaunch = (Addr >> 16) == LaunchWindow ||
+                    ((Addr + Bytes - 1) >> 16) == LaunchWindow;
+    bool InConst = Addr < ConstLimit && Addr + Bytes > ConstBase;
+    if (!InLaunch && !InConst)
+      return true;
+    if (!RoLanes)
+      RoAddr = Addr;
+    RoLanes |= 1u << CurLane;
+    return false;
+  }
+
   /// A fault is precise (§12.4): the faulting instruction has no architectural
   /// effect, though other lanes of it may already have written. While a step
   /// runs, every byte written is journalled, and a fault undoes them.
@@ -130,7 +151,7 @@ public:
     return V;
   }
   void writeN(uint64_t Addr, uint32_t V, unsigned Bytes) {
-    if (!alignOK(Addr, Bytes))
+    if (!alignOK(Addr, Bytes) || !roOK(Addr, Bytes))
       return;
     for (unsigned I = 0; I != Bytes; ++I) {
       journal(Addr + I);

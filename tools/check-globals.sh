@@ -20,7 +20,7 @@ CCV_CFLAGS=-Itest/bench ./tools/cuda-to-asm.sh test/cuda/globals.cu "$TMP/g.s" "
 run() {
   build/ccv-llc "$TMP/g-lowered.ll" -o "$TMP/g.o" -obj "$@" 2>"$TMP/llc.err" ||
     { echo "compile failed: $(head -1 "$TMP/llc.err")"; return; }
-  for s in text ccv_data ccv_reloc; do
+  for s in text ccv_data ccv_reloc ccv_info; do
     llvm-objcopy -O binary --only-section=.$s "$TMP/g.o" "$TMP/$s.bin" || return
   done
   local entry; entry=$(llvm-nm "$TMP/g.o" | awk '/ T .*globals/ {print "0x"$1}')
@@ -34,7 +34,10 @@ scale = [0.5, 2.0]
 def s32(x):
     x &= 0xffffffff
     return x - (1 << 32) if x & 0x80000000 else x
+# -data-info makes the constant part read-only (F-RO), so the writable
+# globals' updates also check that the layout put them past it.
 args = ["-entry", entry, "-data", f"{tmp}/ccv_data.bin", "-data-window", str(DW),
+        "-data-info", f"{tmp}/ccv_info.bin",
         "-poke", "0x20000=32", "-poke", "0x20020=7", "-poke", "0x20024=0"]
 if os.path.getsize(f"{tmp}/ccv_reloc.bin"):
     args += ["-data-reloc", f"{tmp}/ccv_reloc.bin"]
