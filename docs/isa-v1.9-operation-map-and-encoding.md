@@ -2745,8 +2745,15 @@ present", which is what it has always meant and what Format D has always done �
 implicit had cost two review cycles, once in F-110 and once in the proposal that produced this
 decision.
 
-The hardware cost is real and unpriced: something must hold or cache the launch block for the
-AGU. It is CTA-wide, read-only and small, which makes a cache plausible without making it free.
+The hardware cost is real. Through 1.9's first cut it was unpriced: something must hold or
+cache the launch block for the AGU. It is CTA-wide, read-only and small, which makes a cache
+plausible without making it free. *Priced in 1.9 (AR's TI-31 response, 2026-10-22):* MIU holds
+each CTA slot's sixteen windows in a table, 8 × 16 × 32 bits plus valid bits, 4,224 flops, filled
+a launch-block line at a time on first use. A first use is an ordinary L1 miss, so there is no
+replay and no new mechanism. The table clears at each CTA launch, which is sound because the
+windows are invariant within a launch (§5.2) and `F-RO` forbids a device write to the launch
+window. The memop gains 20 wires. Reading DCU on every slot access was rejected, because it
+would add a dependent lookup to every L1 hit. This prices the decision and does not change it.
 
 ---
 
