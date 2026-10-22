@@ -56,8 +56,9 @@ show up in a result comparison.
 
 The compares were the last addition and they are the cautionary one. A compare's
 operands are read at their element width — signed relations sign-extending,
-unsigned zero-extending — and a narrow *floating-point* compare refuses, because
-§4 has no narrow FP. Format C's materialization destination `rd` is exempt from
+unsigned zero-extending — and a narrow *floating-point* compare decodes each
+operand at its width in the format bit `[23]` names (O-65; an immediate is read
+at `rs0`'s width, in format `00`). Format C's materialization destination `rd` is exempt from
 the width guard, since these semantics never write it; that exemption is what
 lets the compiler leave a dead `rd` narrow instead of spending a `chwidth`
 restoring a register no one reads (F-89). **The order matters:** the semantics
@@ -99,8 +100,10 @@ per loop iteration and overstated a published speedup (F-91).
 
 Narrow FP (CP-6) is exact: `NarrowFP.h` decodes every format of §4's table to
 sign × integer × 2^e and rounds once, saturating at 8 and 4 bits (O-53, O-56).
-FP32-only executions keep host arithmetic. `-fp-cases FILE` evaluates single
-lanes for `tools/check-narrow-fp.py`.
+FP32-only executions keep host arithmetic, with a NaN result made canonical:
+every format's NaN is NVIDIA's (O-66), FP32 `0x7FFFFFFF`, FP16 and BF16 `0x7FFF`,
+E4M3 and E5M2 `0x7F`. `-fp-cases FILE` evaluates single lanes, compares
+included, for `tools/check-narrow-fp.py`.
 
 `-warp W` runs warp W of a CTA of `-threads` threads: lane L is thread
 32W + L, and lanes [0, min(32, T - 32W)) are live. A CTA's warps share

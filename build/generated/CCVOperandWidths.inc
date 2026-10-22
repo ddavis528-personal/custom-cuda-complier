@@ -268,6 +268,8 @@ static const CCVOperandInfo Operands_RSQRT_F32[] = {{4, false}, {4, false}, {4, 
 static const CCVOperandInfo Operands_SEL[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_EQ[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_EQ_F[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_SETP_EQ_F1[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_SETP_EQ_F1_NP[] = {{2, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_EQ_F_I[] = {{2, false}, {4, false}, {3, false}, {4, false}, {8, true}};
 static const CCVOperandInfo Operands_SETP_EQ_F_NP[] = {{2, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_EQ_F_NPI[] = {{2, false}, {4, false}, {4, false}, {8, true}};
@@ -276,6 +278,8 @@ static const CCVOperandInfo Operands_SETP_EQ_NP[] = {{2, false}, {4, false}, {4,
 static const CCVOperandInfo Operands_SETP_EQ_NPI[] = {{2, false}, {4, false}, {4, false}, {8, true}};
 static const CCVOperandInfo Operands_SETP_GE[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_GE_F[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_SETP_GE_F1[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_SETP_GE_F1_NP[] = {{2, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_GE_F_I[] = {{2, false}, {4, false}, {3, false}, {4, false}, {8, true}};
 static const CCVOperandInfo Operands_SETP_GE_F_NP[] = {{2, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_GE_F_NPI[] = {{2, false}, {4, false}, {4, false}, {8, true}};
@@ -288,6 +292,8 @@ static const CCVOperandInfo Operands_SETP_GE_U_NP[] = {{2, false}, {4, false}, {
 static const CCVOperandInfo Operands_SETP_GE_U_NPI[] = {{2, false}, {4, false}, {4, false}, {8, true}};
 static const CCVOperandInfo Operands_SETP_GT[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_GT_F[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_SETP_GT_F1[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_SETP_GT_F1_NP[] = {{2, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_GT_F_I[] = {{2, false}, {4, false}, {3, false}, {4, false}, {8, true}};
 static const CCVOperandInfo Operands_SETP_GT_F_NP[] = {{2, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_GT_F_NPI[] = {{2, false}, {4, false}, {4, false}, {8, true}};
@@ -300,6 +306,8 @@ static const CCVOperandInfo Operands_SETP_GT_U_NP[] = {{2, false}, {4, false}, {
 static const CCVOperandInfo Operands_SETP_GT_U_NPI[] = {{2, false}, {4, false}, {4, false}, {8, true}};
 static const CCVOperandInfo Operands_SETP_LE[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_LE_F[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_SETP_LE_F1[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_SETP_LE_F1_NP[] = {{2, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_LE_F_I[] = {{2, false}, {4, false}, {3, false}, {4, false}, {8, true}};
 static const CCVOperandInfo Operands_SETP_LE_F_NP[] = {{2, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_LE_F_NPI[] = {{2, false}, {4, false}, {4, false}, {8, true}};
@@ -312,6 +320,8 @@ static const CCVOperandInfo Operands_SETP_LE_U_NP[] = {{2, false}, {4, false}, {
 static const CCVOperandInfo Operands_SETP_LE_U_NPI[] = {{2, false}, {4, false}, {4, false}, {8, true}};
 static const CCVOperandInfo Operands_SETP_LT[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_LT_F[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_SETP_LT_F1[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_SETP_LT_F1_NP[] = {{2, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_LT_F_I[] = {{2, false}, {4, false}, {3, false}, {4, false}, {8, true}};
 static const CCVOperandInfo Operands_SETP_LT_F_NP[] = {{2, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_LT_F_NPI[] = {{2, false}, {4, false}, {4, false}, {8, true}};
@@ -324,6 +334,8 @@ static const CCVOperandInfo Operands_SETP_LT_U_NP[] = {{2, false}, {4, false}, {
 static const CCVOperandInfo Operands_SETP_LT_U_NPI[] = {{2, false}, {4, false}, {4, false}, {8, true}};
 static const CCVOperandInfo Operands_SETP_NE[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_NE_F[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_SETP_NE_F1[] = {{2, false}, {4, false}, {3, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_SETP_NE_F1_NP[] = {{2, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_NE_F_I[] = {{2, false}, {4, false}, {3, false}, {4, false}, {8, true}};
 static const CCVOperandInfo Operands_SETP_NE_F_NP[] = {{2, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SETP_NE_F_NPI[] = {{2, false}, {4, false}, {4, false}, {8, true}};
@@ -638,6 +650,8 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"SEL", 5, Operands_SEL},
   {"SETP_EQ", 5, Operands_SETP_EQ},
   {"SETP_EQ_F", 5, Operands_SETP_EQ_F},
+  {"SETP_EQ_F1", 5, Operands_SETP_EQ_F1},
+  {"SETP_EQ_F1_NP", 4, Operands_SETP_EQ_F1_NP},
   {"SETP_EQ_F_I", 5, Operands_SETP_EQ_F_I},
   {"SETP_EQ_F_NP", 4, Operands_SETP_EQ_F_NP},
   {"SETP_EQ_F_NPI", 4, Operands_SETP_EQ_F_NPI},
@@ -646,6 +660,8 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"SETP_EQ_NPI", 4, Operands_SETP_EQ_NPI},
   {"SETP_GE", 5, Operands_SETP_GE},
   {"SETP_GE_F", 5, Operands_SETP_GE_F},
+  {"SETP_GE_F1", 5, Operands_SETP_GE_F1},
+  {"SETP_GE_F1_NP", 4, Operands_SETP_GE_F1_NP},
   {"SETP_GE_F_I", 5, Operands_SETP_GE_F_I},
   {"SETP_GE_F_NP", 4, Operands_SETP_GE_F_NP},
   {"SETP_GE_F_NPI", 4, Operands_SETP_GE_F_NPI},
@@ -658,6 +674,8 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"SETP_GE_U_NPI", 4, Operands_SETP_GE_U_NPI},
   {"SETP_GT", 5, Operands_SETP_GT},
   {"SETP_GT_F", 5, Operands_SETP_GT_F},
+  {"SETP_GT_F1", 5, Operands_SETP_GT_F1},
+  {"SETP_GT_F1_NP", 4, Operands_SETP_GT_F1_NP},
   {"SETP_GT_F_I", 5, Operands_SETP_GT_F_I},
   {"SETP_GT_F_NP", 4, Operands_SETP_GT_F_NP},
   {"SETP_GT_F_NPI", 4, Operands_SETP_GT_F_NPI},
@@ -670,6 +688,8 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"SETP_GT_U_NPI", 4, Operands_SETP_GT_U_NPI},
   {"SETP_LE", 5, Operands_SETP_LE},
   {"SETP_LE_F", 5, Operands_SETP_LE_F},
+  {"SETP_LE_F1", 5, Operands_SETP_LE_F1},
+  {"SETP_LE_F1_NP", 4, Operands_SETP_LE_F1_NP},
   {"SETP_LE_F_I", 5, Operands_SETP_LE_F_I},
   {"SETP_LE_F_NP", 4, Operands_SETP_LE_F_NP},
   {"SETP_LE_F_NPI", 4, Operands_SETP_LE_F_NPI},
@@ -682,6 +702,8 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"SETP_LE_U_NPI", 4, Operands_SETP_LE_U_NPI},
   {"SETP_LT", 5, Operands_SETP_LT},
   {"SETP_LT_F", 5, Operands_SETP_LT_F},
+  {"SETP_LT_F1", 5, Operands_SETP_LT_F1},
+  {"SETP_LT_F1_NP", 4, Operands_SETP_LT_F1_NP},
   {"SETP_LT_F_I", 5, Operands_SETP_LT_F_I},
   {"SETP_LT_F_NP", 4, Operands_SETP_LT_F_NP},
   {"SETP_LT_F_NPI", 4, Operands_SETP_LT_F_NPI},
@@ -694,6 +716,8 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"SETP_LT_U_NPI", 4, Operands_SETP_LT_U_NPI},
   {"SETP_NE", 5, Operands_SETP_NE},
   {"SETP_NE_F", 5, Operands_SETP_NE_F},
+  {"SETP_NE_F1", 5, Operands_SETP_NE_F1},
+  {"SETP_NE_F1_NP", 4, Operands_SETP_NE_F1_NP},
   {"SETP_NE_F_I", 5, Operands_SETP_NE_F_I},
   {"SETP_NE_F_NP", 4, Operands_SETP_NE_F_NP},
   {"SETP_NE_F_NPI", 4, Operands_SETP_NE_F_NPI},
@@ -745,4 +769,4 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"XOR_P", 5, Operands_XOR_P},
   {"XOR_W16", 4, Operands_XOR_W16},
 };
-static const unsigned CCVNumInstOperands = 368;
+static const unsigned CCVNumInstOperands = 380;

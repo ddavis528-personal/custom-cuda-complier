@@ -183,6 +183,8 @@ static bool isWidthAware(unsigned Op) {
   case CCV::SETP_GT_U: case CCV::SETP_GE_U:
   case CCV::SETP_LT_F: case CCV::SETP_LE_F: case CCV::SETP_EQ_F:
   case CCV::SETP_NE_F: case CCV::SETP_GT_F: case CCV::SETP_GE_F:
+  case CCV::SETP_LT_F1: case CCV::SETP_LE_F1: case CCV::SETP_EQ_F1:
+  case CCV::SETP_NE_F1: case CCV::SETP_GT_F1: case CCV::SETP_GE_F1:
     return true;
   default:
     return false;
@@ -191,6 +193,19 @@ static bool isWidthAware(unsigned Op) {
 
 static float bitsToFloat(uint32_t B) { float F; std::memcpy(&F, &B, 4); return F; }
 static uint32_t floatToBits(float F) { uint32_t B; std::memcpy(&B, &F, 4); return B; }
+static Interp::Result formatFault(uint32_t Mask) {
+  Interp::Result F{Interp::Result::Fault, 0};
+  F.Cause = "F-FORMAT";
+  F.TakenMask = Mask;
+  return F;
+}
+/// An FP32 arithmetic result's bits, a NaN made canonical (O-66): positive,
+/// every mantissa bit set, NVIDIA's value, whatever the host produced (x86's
+/// default NaN is 0xFFC00000) and whatever payload an operand carried. Moves,
+/// fneg, fabs and fmin/fmax's pass-through of a number keep their bits.
+static uint32_t fpBits(float F) {
+  return std::isnan(F) && !nfp::TestHostNaN ? 0x7fffffffu : floatToBits(F);
+}
 
 // O-44's FP packed dot products. The packed element types are decoded here
 // rather than by the C++ type system: BF16 is the top half of an FP32, FP16 and
@@ -420,8 +435,21 @@ static bool formatReserved(const FpInfo &I, const uint8_t *Widths) {
   return false;
 }
 
+static unsigned fpRelation(unsigned Op, unsigned &Code);
+static bool fpCompareElem(unsigned Rel, unsigned Code, uint8_t WA, uint8_t WB,
+                          uint32_t X, uint32_t Y);
+
 bool Interp::evalFp(unsigned Op, const uint8_t Widths[4], uint32_t X,
                     uint32_t Y, uint32_t Z, uint32_t &Out) {
+  // An FP compare (O-65): Widths[1] and [2] are rs0's and rs1's, Out is 0 or 1.
+  unsigned FCode;
+  if (unsigned Rel = fpRelation(Op, FCode)) {
+    if (!nfp::format(Widths[1], FCode) || !nfp::format(Widths[2], FCode))
+      return false;
+    Out = fpCompareElem(Rel, FCode, Widths[1], Widths[2], narrow(X, Widths[1]),
+                        narrow(Y, Widths[2]));
+    return true;
+  }
   FpInfo I = fpInfo(Op);
   if (I.K == FpInfo::None)
     return false;
@@ -476,13 +504,13 @@ static uint32_t cvtSfuLane(unsigned Op, uint32_t X) {
     uint64_t Exact = std::min<uint64_t>((1ull << 32) / X, 0xFFFFFFFFull);
     return uint32_t((Exact * ((1u << 16) - 1)) >> 16);   // exact*(1 - 2^-16)
   }
-  case CCV::RCP_F32:   return floatToBits(1.0f / F);
-  case CCV::RSQRT_F32: return floatToBits(1.0f / std::sqrt(F));
-  case CCV::SQRT_F32:  return floatToBits(std::sqrt(F));
-  case CCV::EX2_F32:   return floatToBits(std::exp2f(F));
-  case CCV::LG2_F32:   return floatToBits(std::log2f(F));
-  case CCV::SIN_F32:   return floatToBits(std::sin(F));
-  default:             return floatToBits(std::cos(F));
+  case CCV::RCP_F32:   return fpBits(1.0f / F);
+  case CCV::RSQRT_F32: return fpBits(1.0f / std::sqrt(F));
+  case CCV::SQRT_F32:  return fpBits(std::sqrt(F));
+  case CCV::EX2_F32:   return fpBits(std::exp2f(F));
+  case CCV::LG2_F32:   return fpBits(std::log2f(F));
+  case CCV::SIN_F32:   return fpBits(std::sin(F));
+  default:             return fpBits(std::cos(F));
   }
 }
 
@@ -530,11 +558,11 @@ static uint32_t aluR(unsigned Op, uint32_t X) {
 static uint32_t fpRR(unsigned Op, uint32_t XB, uint32_t YB) {
   float X = bitsToFloat(XB), Y = bitsToFloat(YB);
   switch (Op) {
-  case CCV::FADD: case CCV::C_FADD: return floatToBits(X + Y);
-  case CCV::FSUB:                   return floatToBits(X - Y);
-  case CCV::FMUL: case CCV::C_FMUL: return floatToBits(X * Y);
-  case CCV::FMIN: case CCV::C_FMIN: return floatToBits(std::fmin(X, Y));
-  case CCV::FMAX: case CCV::C_FMAX: return floatToBits(std::fmax(X, Y));
+  case CCV::FADD: case CCV::C_FADD: return fpBits(X + Y);
+  case CCV::FSUB:                   return fpBits(X - Y);
+  case CCV::FMUL: case CCV::C_FMUL: return fpBits(X * Y);
+  case CCV::FMIN: case CCV::C_FMIN: return fpBits(std::fmin(X, Y));
+  case CCV::FMAX: case CCV::C_FMAX: return fpBits(std::fmax(X, Y));
   }
   llvm_unreachable("not a floating-point ALU opcode");
 }
@@ -554,6 +582,10 @@ static unsigned baseCompare(unsigned Op) {
   NP(SETP_LT_F) NP(SETP_LE_F) NP(SETP_EQ_F) NP(SETP_NE_F)
   NP(SETP_GT_F) NP(SETP_GE_F)
 #undef NP
+#define NP1(x) case CCV::x##_NP: return CCV::x;
+  NP1(SETP_LT_F1) NP1(SETP_LE_F1) NP1(SETP_EQ_F1) NP1(SETP_NE_F1)
+  NP1(SETP_GT_F1) NP1(SETP_GE_F1)
+#undef NP1
   default: return Op;
   }
 }
@@ -566,22 +598,54 @@ bool Interp::isCompare(unsigned Op) {
   REL(SETP_LT_F) REL(SETP_LE_F) REL(SETP_EQ_F) REL(SETP_NE_F)
   REL(SETP_GT_F) REL(SETP_GE_F)
 #undef REL
+#define REL1(x) case CCV::x: case CCV::x##_NP:
+  REL1(SETP_LT_F1) REL1(SETP_LE_F1) REL1(SETP_EQ_F1) REL1(SETP_NE_F1)
+  REL1(SETP_GT_F1) REL1(SETP_GE_F1)
+#undef REL1
     return true;
   default:
     return false;
   }
 }
 
-/// Is this compare a floating-point one? FP has no narrow form in §4 -- the
-/// element-width model is integer-only for now -- so a narrow FP compare is a
-/// selection bug and must stop rather than silently compare 16 bits as a float.
-static bool isFloatCompare(unsigned Op) {
+/// An FP compare's relation, as the format-00 register opcode (SETP_LT_F and
+/// so on), and its format code: bit [23] of the register forms (O-65), 0 for
+/// the immediate forms. 0 for an integer compare.
+static unsigned fpRelation(unsigned Op, unsigned &Code) {
+  Code = 0;
   switch (baseCompare(Op)) {
-  case CCV::SETP_LT_F: case CCV::SETP_LE_F: case CCV::SETP_EQ_F:
-  case CCV::SETP_NE_F: case CCV::SETP_GT_F: case CCV::SETP_GE_F:
-    return true;
-  default:
-    return false;
+#define R0(x) case CCV::x: case CCV::x##_I: return CCV::x;
+  R0(SETP_LT_F) R0(SETP_LE_F) R0(SETP_EQ_F) R0(SETP_NE_F) R0(SETP_GT_F) R0(SETP_GE_F)
+#undef R0
+#define R1(x) case CCV::x##1: Code = 1; return CCV::x;
+  R1(SETP_LT_F) R1(SETP_LE_F) R1(SETP_EQ_F) R1(SETP_NE_F) R1(SETP_GT_F) R1(SETP_GE_F)
+#undef R1
+  default: return 0;
+  }
+}
+
+static bool isFloatCompare(unsigned Op) {
+  unsigned Code;
+  return fpRelation(Op, Code) != 0;
+}
+
+/// One lane of an FP compare at any width, through NarrowFP.h: each operand
+/// decoded at its own width in format Code (O-65). Ordered relations are false
+/// on a NaN and ne.f is true, as at 32 bits; -0 equals +0.
+static bool fpCompareElem(unsigned Rel, unsigned Code, uint8_t WA, uint8_t WB,
+                          uint32_t X, uint32_t Y) {
+  using namespace nfp;
+  Value A = decode(*format(WA, Code), X), B = decode(*format(WB, Code), Y);
+  if (A.K == Value::NaN || B.K == Value::NaN)
+    return Rel == CCV::SETP_NE_F;
+  int C = A.isZero() && B.isZero() ? 0 : compare(A, B);
+  switch (Rel) {
+  case CCV::SETP_LT_F: return C < 0;
+  case CCV::SETP_LE_F: return C <= 0;
+  case CCV::SETP_GT_F: return C > 0;
+  case CCV::SETP_GE_F: return C >= 0;
+  case CCV::SETP_EQ_F: return C == 0;
+  default:             return C != 0;   // ne.f
   }
 }
 
@@ -987,7 +1051,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
                  (long double)fp8ToFloat<2>(uint8_t(Y >> (8 * K)));
         break;
       }
-      W.GPR[D][L] = floatToBits((float)Sum);   // the one rounding
+      W.GPR[D][L] = fpBits((float)Sum);   // the one rounding
     });
     break;
   }
@@ -1020,7 +1084,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       // fp32 divide -- whose correct rounding rests entirely on the residual
       // `fma(-b, q, a)` being exact. 164 of 2048 divisions came out 1 ulp
       // wrong against a model that was right. See F-63.
-      W.GPR[D][L] = floatToBits(std::fmaf(bitsToFloat(W.GPR[A][L]),
+      W.GPR[D][L] = fpBits(std::fmaf(bitsToFloat(W.GPR[A][L]),
                                           bitsToFloat(W.GPR[B][L]),
                                           bitsToFloat(W.GPR[C][L])));
     });
@@ -1121,7 +1185,9 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::SETP_LT_U_I: case CCV::SETP_LE_U_I: case CCV::SETP_GT_U_I:
   case CCV::SETP_GE_U_I: case CCV::SETP_LT_F_I: case CCV::SETP_LE_F_I:
   case CCV::SETP_EQ_F_I: case CCV::SETP_NE_F_I: case CCV::SETP_GT_F_I:
-  case CCV::SETP_GE_F_I: {
+  case CCV::SETP_GE_F_I:
+  case CCV::SETP_LT_F1: case CCV::SETP_LE_F1: case CCV::SETP_EQ_F1:
+  case CCV::SETP_NE_F1: case CCV::SETP_GT_F1: case CCV::SETP_GE_F1: {
     unsigned P = regOf(MI, 0), A = regOf(MI, 3);
     bool Imm = MI.getOperand(4).isImm() && !MI.getOperand(4).isReg();
     unsigned B = Imm ? 0 : regOf(MI, 4);
@@ -1129,8 +1195,22 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     uint32_t G = guardMask(W, uint32_t(MI.getOperand(2).getImm())) & Mask;
     const bool Sgn = isSignedCompare(Op);
     const uint8_t WA = W.ChWidth[A], WB = Imm ? 0 : W.ChWidth[B];
-    if (isFloatCompare(Op) && (WA || WB))
-      return {Result::Unimplemented, 0};   // narrow FP: not built yet (CP-6)
+    unsigned FCode, Rel = fpRelation(Op, FCode);
+    if (Rel && (WA || WB || FCode)) {
+      // A narrow or format-01 FP compare (O-65). An immediate is read at
+      // rs0's width and format.
+      const uint8_t WY = Imm ? WA : WB;
+      if (!nfp::format(WA, FCode) || !nfp::format(WY, FCode))
+        return formatFault(Mask);
+      forEachLane([&](unsigned L) {
+        if (!((G >> L) & 1)) return;
+        uint32_t X = narrow(W.GPR[A][L], WA);
+        uint32_t Y = narrow(Imm ? uint32_t(IV) : W.GPR[B][L], WY);
+        bool T = fpCompareElem(Rel, FCode, WA, WY, X, Y);
+        W.Pred[P] = (W.Pred[P] & ~(1u << L)) | (uint32_t(T) << L);
+      });
+      break;
+    }
     forEachLane([&](unsigned L) {
       if (!((G >> L) & 1)) return;   // invariant 10: excluded lanes preserved
       uint32_t X = cmpOperand(W.GPR[A][L], WA, Sgn);
@@ -1152,7 +1232,9 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::SETP_LT_U_NPI: case CCV::SETP_LE_U_NPI: case CCV::SETP_GT_U_NPI:
   case CCV::SETP_GE_U_NPI: case CCV::SETP_LT_F_NPI: case CCV::SETP_LE_F_NPI:
   case CCV::SETP_EQ_F_NPI: case CCV::SETP_NE_F_NPI: case CCV::SETP_GT_F_NPI:
-  case CCV::SETP_GE_F_NPI: {
+  case CCV::SETP_GE_F_NPI:
+  case CCV::SETP_LT_F1_NP: case CCV::SETP_LE_F1_NP: case CCV::SETP_EQ_F1_NP:
+  case CCV::SETP_NE_F1_NP: case CCV::SETP_GT_F1_NP: case CCV::SETP_GE_F1_NP: {
     // Format C" (O-32): no qualifier, so every lane in the issue mask is
     // written. Lanes OUTSIDE the mask are still preserved -- they are at a
     // different PC and may hold a live predicate (invariant 10 applies to the
@@ -1170,8 +1252,19 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     // restoring a register no one reads (F-87).
     const bool Sgn = isSignedCompare(Op);
     const uint8_t WA = W.ChWidth[A], WB = Imm ? 0 : W.ChWidth[B];
-    if (isFloatCompare(Op) && (WA || WB))
-      return {Result::Unimplemented, 0};   // narrow FP: not built yet (CP-6)
+    unsigned FCode, Rel = fpRelation(Op, FCode);
+    if (Rel && (WA || WB || FCode)) {
+      const uint8_t WY = Imm ? WA : WB;   // as Format C's, above (O-65)
+      if (!nfp::format(WA, FCode) || !nfp::format(WY, FCode))
+        return formatFault(Mask);
+      forEachLane([&](unsigned L) {
+        uint32_t X = narrow(W.GPR[A][L], WA);
+        uint32_t Y = narrow(Imm ? uint32_t(IV) : W.GPR[B][L], WY);
+        bool T = fpCompareElem(Rel, FCode, WA, WY, X, Y);
+        W.Pred[P] = (W.Pred[P] & ~(1u << L)) | (uint32_t(T) << L);
+      });
+      break;
+    }
     forEachLane([&](unsigned L) {
       uint32_t X = cmpOperand(W.GPR[A][L], WA, Sgn);
       uint32_t Y = Imm ? uint32_t(IV) : cmpOperand(W.GPR[B][L], WB, Sgn);
@@ -1411,7 +1504,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::FFMA_ACC_F0: {
     unsigned D = regOf(MI, 0), A = regOf(MI, 2), B = regOf(MI, 3);
     forEachLane([&](unsigned L) {
-      W.GPR[D][L] = floatToBits(std::fmaf(bitsToFloat(W.GPR[A][L]),
+      W.GPR[D][L] = fpBits(std::fmaf(bitsToFloat(W.GPR[A][L]),
                                           bitsToFloat(W.GPR[B][L]),
                                           bitsToFloat(W.GPR[D][L])));   // fused, F-63
     });

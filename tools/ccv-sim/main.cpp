@@ -48,6 +48,8 @@ static cl::opt<bool> TestFpFtz("ccv-test-fp-ftz", cl::Hidden,
     cl::desc("flush subnormal FP results to zero, to test that it is caught"));
 static cl::opt<bool> TestFpNoSat("ccv-test-fp-no-saturate", cl::Hidden,
     cl::desc("narrow FP overflow gives NaN, to test that it is caught"));
+static cl::opt<bool> TestFpHostNaN("ccv-test-fp-host-nan", cl::Hidden,
+    cl::desc("FP32 NaN results keep the host's bits, to test that it is caught"));
 static cl::opt<unsigned> NumThreads("threads", cl::init(32),
                                     cl::desc("active threads in the CTA"));
 static cl::opt<unsigned> CtaId("ctaid", cl::init(0), cl::desc("CTA index"));
@@ -168,6 +170,7 @@ int main(int argc, char **argv) {
   std::unique_ptr<const MCInstrInfo> MII(T->createMCInstrInfo());
   nfp::TestFtz = TestFpFtz;
   nfp::TestNoSaturate = TestFpNoSat;
+  nfp::TestHostNaN = TestFpHostNaN;
   if (!FpCases.empty()) {
     StringMap<unsigned> ByName;
     for (unsigned Op = 0, N = MII->getNumOpcodes(); Op != N; ++Op)

@@ -215,6 +215,27 @@ run_warp() {
     echo "  FAIL  -warp: got '$out' (warp 0: '$ctl'), want '$want'; barrier: $bar"; return 1
   fi
 }
+# --- canonical NaN and the compare format bit (O-66, O-65) ------------------
+run_fp_canon() {
+  python3 "$AS" "$JSON" test/fp-canon.s "$TMP/fc.bin" >/dev/null || return 1
+  local args="-peek 0x90000 -peek 0x90004 -peek 0x90008" want="2147483647 32767 6" got nan f0 ff
+  got=$("$SIM" "$TMP/fc.bin" $args 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  # Controls: the host's FP32 NaN; the format bit ignored (setp.eq.f for .f1);
+  # and a format-1 compare at 32 bits, which is F-FORMAT.
+  nan=$("$SIM" "$TMP/fc.bin" $args -ccv-test-fp-host-nan 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  sed 's/SETP_EQ_F1_NP/SETP_EQ_F_NP /' test/fp-canon.s > "$TMP/fc0.s"
+  python3 "$AS" "$JSON" "$TMP/fc0.s" "$TMP/fc0.bin" >/dev/null || return 1
+  f0=$("$SIM" "$TMP/fc0.bin" $args 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  sed '/C_CHWIDTH  R4, 2/d' test/fp-canon.s > "$TMP/fcw.s"
+  python3 "$AS" "$JSON" "$TMP/fcw.s" "$TMP/fcw.bin" >/dev/null || return 1
+  ff=$("$SIM" "$TMP/fcw.bin" 2>&1)
+  if [ "${got% }" = "$want" ] && [ "${nan% }" != "$want" ] && [ "${f0% }" != "$want" ] &&
+     grep -q "F-FORMAT" <<< "$ff"; then
+    echo "  PASS  canonical NaN at FP32 and FP16 (O-66), the compare's format bit (O-65), F-FORMAT at 32 bits"
+  else
+    echo "  FAIL  fp-canon: got '$got', want '$want' (host NaN: '$nan', bit ignored: '$f0'); 32-bit .f1: $ff"; return 1
+  fi
+}
 # --- srd #2, %lanectx (O-64) -----------------------------------------------
 run_lanectx() {
   python3 "$AS" "$JSON" test/lanectx.s "$TMP/lc.bin" >/dev/null || return 1
@@ -255,6 +276,9 @@ run_warp || fail=1
 echo
 echo "  --- srd #2, %lanectx (O-64) ---"
 run_lanectx || fail=1
+echo
+echo "  --- canonical NaN, compare format (O-66, O-65) ---"
+run_fp_canon || fail=1
 
 # --- the fault model (ISA v1.9 section 12, O-57/O-58) ------------------------
 # Each case names the record it must produce. A fault exits 3, distinct from a

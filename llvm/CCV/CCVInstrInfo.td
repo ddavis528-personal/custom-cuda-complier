@@ -585,6 +585,26 @@ defm SETP_EQ_F : Setp<setpOpc.EQ_F, "eq.f">;
 defm SETP_NE_F : Setp<setpOpc.NE_F, "ne.f">;
 defm SETP_GT_F : Setp<setpOpc.GT_F, "gt.f">;
 defm SETP_GE_F : Setp<setpOpc.GE_F, "ge.f">;
+// Format code 01 (BF16 at 16 bits, E5M2 at 8): bit [23] of the register forms,
+// C and C" (O-65). The immediate forms have no free bit and keep code 00, so a
+// format-1 compare against a constant takes the register form. Defined for
+// the simulator and the assembler; nothing selects them yet (CP-6).
+multiclass SetpF1<int opc, string suffix> {
+  let fmt = 1 in {
+  def NAME    : FormatC<opc, (outs PR:$pd, GPR:$rd),
+                        (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
+                        "@$pq setp."#suffix#"1 $pd, $rs0, $rs1">;
+  def NAME#_NP : FormatCu<opc, 0, (outs PR:$pd, GPR:$rd),
+                         (ins GPR:$rs0, GPR:$rs1),
+                         "setp."#suffix#"1 $pd, $rs0, $rs1">;
+  }
+}
+defm SETP_LT_F1 : SetpF1<setpOpc.LT_F, "lt.f">;
+defm SETP_LE_F1 : SetpF1<setpOpc.LE_F, "le.f">;
+defm SETP_EQ_F1 : SetpF1<setpOpc.EQ_F, "eq.f">;
+defm SETP_NE_F1 : SetpF1<setpOpc.NE_F, "ne.f">;
+defm SETP_GT_F1 : SetpF1<setpOpc.GT_F, "gt.f">;
+defm SETP_GE_F1 : SetpF1<setpOpc.GE_F, "ge.f">;
 
 // ---------------------------------------------------------------------------
 // Format D -- load / store. §3 opcode map.

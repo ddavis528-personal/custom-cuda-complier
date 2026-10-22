@@ -556,6 +556,8 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(1220),	// SEL
     UINT64_C(152),	// SETP_EQ
     UINT64_C(792),	// SETP_EQ_F
+    UINT64_C(8389400),	// SETP_EQ_F1
+    UINT64_C(8389436),	// SETP_EQ_F1_NP
     UINT64_C(796),	// SETP_EQ_F_I
     UINT64_C(828),	// SETP_EQ_F_NP
     UINT64_C(134218556),	// SETP_EQ_F_NPI
@@ -564,6 +566,8 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(134217916),	// SETP_EQ_NPI
     UINT64_C(344),	// SETP_GE
     UINT64_C(984),	// SETP_GE_F
+    UINT64_C(8389592),	// SETP_GE_F1
+    UINT64_C(8389628),	// SETP_GE_F1_NP
     UINT64_C(988),	// SETP_GE_F_I
     UINT64_C(1020),	// SETP_GE_F_NP
     UINT64_C(134218748),	// SETP_GE_F_NPI
@@ -576,6 +580,8 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(134218364),	// SETP_GE_U_NPI
     UINT64_C(280),	// SETP_GT
     UINT64_C(920),	// SETP_GT_F
+    UINT64_C(8389528),	// SETP_GT_F1
+    UINT64_C(8389564),	// SETP_GT_F1_NP
     UINT64_C(924),	// SETP_GT_F_I
     UINT64_C(956),	// SETP_GT_F_NP
     UINT64_C(134218684),	// SETP_GT_F_NPI
@@ -588,6 +594,8 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(134218300),	// SETP_GT_U_NPI
     UINT64_C(88),	// SETP_LE
     UINT64_C(728),	// SETP_LE_F
+    UINT64_C(8389336),	// SETP_LE_F1
+    UINT64_C(8389372),	// SETP_LE_F1_NP
     UINT64_C(732),	// SETP_LE_F_I
     UINT64_C(764),	// SETP_LE_F_NP
     UINT64_C(134218492),	// SETP_LE_F_NPI
@@ -600,6 +608,8 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(134218236),	// SETP_LE_U_NPI
     UINT64_C(24),	// SETP_LT
     UINT64_C(664),	// SETP_LT_F
+    UINT64_C(8389272),	// SETP_LT_F1
+    UINT64_C(8389308),	// SETP_LT_F1_NP
     UINT64_C(668),	// SETP_LT_F_I
     UINT64_C(700),	// SETP_LT_F_NP
     UINT64_C(134218428),	// SETP_LT_F_NPI
@@ -612,6 +622,8 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(134218172),	// SETP_LT_U_NPI
     UINT64_C(216),	// SETP_NE
     UINT64_C(856),	// SETP_NE_F
+    UINT64_C(8389464),	// SETP_NE_F1
+    UINT64_C(8389500),	// SETP_NE_F1_NP
     UINT64_C(860),	// SETP_NE_F_I
     UINT64_C(892),	// SETP_NE_F_NP
     UINT64_C(134218620),	// SETP_NE_F_NPI
@@ -1515,20 +1527,26 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
       Value |= op;
       break;
     }
+    case CCV::SETP_EQ_F1_NP:
     case CCV::SETP_EQ_F_NP:
     case CCV::SETP_EQ_NP:
+    case CCV::SETP_GE_F1_NP:
     case CCV::SETP_GE_F_NP:
     case CCV::SETP_GE_NP:
     case CCV::SETP_GE_U_NP:
+    case CCV::SETP_GT_F1_NP:
     case CCV::SETP_GT_F_NP:
     case CCV::SETP_GT_NP:
     case CCV::SETP_GT_U_NP:
+    case CCV::SETP_LE_F1_NP:
     case CCV::SETP_LE_F_NP:
     case CCV::SETP_LE_NP:
     case CCV::SETP_LE_U_NP:
+    case CCV::SETP_LT_F1_NP:
     case CCV::SETP_LT_F_NP:
     case CCV::SETP_LT_NP:
     case CCV::SETP_LT_U_NP:
+    case CCV::SETP_NE_F1_NP:
     case CCV::SETP_NE_F_NP:
     case CCV::SETP_NE_NP: {
       // op: rd
@@ -1598,20 +1616,26 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     }
     case CCV::SETP_EQ:
     case CCV::SETP_EQ_F:
+    case CCV::SETP_EQ_F1:
     case CCV::SETP_GE:
     case CCV::SETP_GE_F:
+    case CCV::SETP_GE_F1:
     case CCV::SETP_GE_U:
     case CCV::SETP_GT:
     case CCV::SETP_GT_F:
+    case CCV::SETP_GT_F1:
     case CCV::SETP_GT_U:
     case CCV::SETP_LE:
     case CCV::SETP_LE_F:
+    case CCV::SETP_LE_F1:
     case CCV::SETP_LE_U:
     case CCV::SETP_LT:
     case CCV::SETP_LT_F:
+    case CCV::SETP_LT_F1:
     case CCV::SETP_LT_U:
     case CCV::SETP_NE:
-    case CCV::SETP_NE_F: {
+    case CCV::SETP_NE_F:
+    case CCV::SETP_NE_F1: {
       // op: rd
       op = getMachineOpValue(MI, MI.getOperand(1), Fixups, STI);
       op &= UINT64_C(15);
@@ -2597,20 +2621,26 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
       }
       break;
     }
+    case CCV::SETP_EQ_F1_NP:
     case CCV::SETP_EQ_F_NP:
     case CCV::SETP_EQ_NP:
+    case CCV::SETP_GE_F1_NP:
     case CCV::SETP_GE_F_NP:
     case CCV::SETP_GE_NP:
     case CCV::SETP_GE_U_NP:
+    case CCV::SETP_GT_F1_NP:
     case CCV::SETP_GT_F_NP:
     case CCV::SETP_GT_NP:
     case CCV::SETP_GT_U_NP:
+    case CCV::SETP_LE_F1_NP:
     case CCV::SETP_LE_F_NP:
     case CCV::SETP_LE_NP:
     case CCV::SETP_LE_U_NP:
+    case CCV::SETP_LT_F1_NP:
     case CCV::SETP_LT_F_NP:
     case CCV::SETP_LT_NP:
     case CCV::SETP_LT_U_NP:
+    case CCV::SETP_NE_F1_NP:
     case CCV::SETP_NE_F_NP:
     case CCV::SETP_NE_NP: {
       switch (OpNum) {
@@ -2666,20 +2696,26 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
     }
     case CCV::SETP_EQ:
     case CCV::SETP_EQ_F:
+    case CCV::SETP_EQ_F1:
     case CCV::SETP_GE:
     case CCV::SETP_GE_F:
+    case CCV::SETP_GE_F1:
     case CCV::SETP_GE_U:
     case CCV::SETP_GT:
     case CCV::SETP_GT_F:
+    case CCV::SETP_GT_F1:
     case CCV::SETP_GT_U:
     case CCV::SETP_LE:
     case CCV::SETP_LE_F:
+    case CCV::SETP_LE_F1:
     case CCV::SETP_LE_U:
     case CCV::SETP_LT:
     case CCV::SETP_LT_F:
+    case CCV::SETP_LT_F1:
     case CCV::SETP_LT_U:
     case CCV::SETP_NE:
-    case CCV::SETP_NE_F: {
+    case CCV::SETP_NE_F:
+    case CCV::SETP_NE_F1: {
       switch (OpNum) {
       case 1:
         // op: rd

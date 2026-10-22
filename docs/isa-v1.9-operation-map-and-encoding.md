@@ -101,6 +101,12 @@ O-30's frames aliased between resident CTAs, since each CTA's thread *t* used wi
 among the device's live lanes. It is the one encoding change in 1.9: a reserved selector value
 becomes defined.
 
+### Narrow FP compares, integer narrowing and the canonical NaN (O-65, O-66; CP-12)
+
+An FP compare's format comes from a bit the register forms reserved (O-65), the second encoding
+change in 1.9. An integer narrowing conversion saturates, and truncation is a `chwidth`. A NaN
+result is the canonical one, NVIDIA's (O-66).
+
 ### Still open
 
 SFU accuracy is ruled under IS-12, but its PTX bound table is not yet written.
@@ -944,7 +950,8 @@ qualifier and the predicate destination all sit where an A-format instruction pu
 | `[14:11]` | 4 | `rd` — materialization dest | `rd` |
 | `[18:15]` | 4 | `rs0` | `rs0` |
 | `[22:19]` | 4 | `rs1` | *immediate* |
-| `[26:23]` | 4 | reserved | *immediate* |
+| `[23]` | 1 | FP format (O-65); 0 for integer compares | *immediate* |
+| `[26:24]` | 3 | reserved | *immediate* |
 | `[29:27]` | 3 | **pred qualifier** | **pred qualifier** |
 | `[31:30]` | 2 | **pred dest** (mandatory) | **pred dest** (mandatory) |
 
@@ -980,6 +987,17 @@ more. `rd` is always allocated and the opcode selects whether it is written.
 **`chwidth` does not affect compares.** A compare reads one element per lane at whatever
 width the sources carry and writes one bit per lane, so the predicate destination is 32 bits
 in every case. There is no width interaction and nothing to encode.
+
+**An FP compare's format — normative (O-65).** A `.f` compare reads its sources in a format,
+as every FP operation does, chosen by the format code at the sources' `chwidth` (§4). The
+register forms carry it in bit `[23]`, which was reserved: C's, and C″'s when `[27]` = 0. `0`
+selects format code `00` (FP32, FP16, E4M3, E2M1) and `1` selects `01` (BF16, E5M2). Format
+`01` is reserved at 32 and 4 bits, so bit `[23]` = 1 there raises `F-FORMAT` (§12.3), and the
+bit must be 0 for every non-`.f` compare (`F-ILLEGAL` otherwise, as a reserved bit). The
+immediate forms (C′, and C″ with `[27]` = 1) have no free bit, and always use format `00`.
+One bit suffices because ordering is the same function of the bit pattern in every IEEE-like
+format. Only which patterns are NaN, and so unordered, differs between the two formats of a
+width.
 
 ### Formats D / D′ — Load / store (32-bit)
 
@@ -1839,6 +1857,15 @@ a documented divergence confined to the subnormal range. `fmin` and `fmax` are I
 minNum and maxNum: a NaN operand gives the other operand, and two NaNs give NaN. That is
 PTX's `min.f32` and `max.f32`.
 
+**The NaN an operation produces is canonical — normative (O-66).** Every FP operation and
+conversion whose result is NaN gives the destination format's canonical NaN, whatever NaNs its
+operands held: no payload propagates. The canonical NaN is positive with every mantissa bit
+set: FP32 `0x7FFFFFFF`, FP16 `0x7FFF`, BF16 `0x7FFF`, E4M3 `0x7F` (`S.1111.111` with S = 0), E5M2
+`0x7F`. E2M1 has none, and its rule (+6) stands. These are NVIDIA's values, so results match
+the compatibility target bit for bit. Three exceptions are not arithmetic, and preserve the
+operand's bits: moves and loads; negation and absolute value, which change only the sign bit;
+and `fmin`/`fmax`, which return an operand unchanged when one is not NaN.
+
 ---
 
 ### Packed dot-product-accumulate — points 48–63
@@ -1966,7 +1993,11 @@ Worked points:
 | `cvt.s32.s8` | `10` | `10` | — | 64 + 32 + 8 + 0 = **104** |
 
 The last row is a real instruction, not a formality: `chwidth` reinterprets a register's
-elements rather than extending them, so widening an integer is a conversion. Mixed-`chwidth`
+elements rather than extending them, so widening an integer is a conversion. **An
+integer-to-integer conversion that narrows saturates** to the destination's range (§4's rule
+for every out-of-range conversion), which is PTX's `cvt.sat.s8.s32` in one instruction.
+**Truncation needs no conversion**: narrowing a register's `chwidth` keeps its low bits
+(O-38), which is PTX's unsaturated `cvt.s8.s32` and C's integer cast. Mixed-`chwidth`
 operands are established practice — see `mad.lo`, which reads narrow and writes wide.
 
 **Conversions to the narrow FP formats saturate (O-53).** A conversion whose destination is
@@ -2953,6 +2984,27 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-66 — A NaN result is the canonical NaN — decided in 1.9.** CP-12 (3). IEEE 754 leaves
+the NaN a default operation produces to the implementation, which invariant 12 does not allow.
+`ccv-sim` took FP32's from host arithmetic, and x86's default NaN is negative (`0xFFC00000`). So
+the oracle and conforming hardware could differ on the same binary. Adopted: NVIDIA's canonical
+NaN at every format, positive with every mantissa bit set, and no payload propagation, by
+Daniel's criterion for FP (consistency with industry, IS-8). What lost: payload propagation,
+IEEE's "should", which costs datapath muxes and has no PTX-visible use; and ARM's default NaN
+(`0x7FC00000`), which differs from the compatibility target.
+
+**O-65 — An FP compare's format is bit `[23]` of the register forms — decided in 1.9.**
+CP-12 (1). The compare map has no format code, and §3 said only that `chwidth` does not
+affect compares. So a BF16 or E5M2 compare was unspecified, and `ccv-sim` refused narrow
+compares. Bit `[23]` was reserved in C and in C″'s register form, so defining it changes no
+existing encoding: every program today has it 0, which keeps format `00`. One bit is enough,
+since ordering is the same in every IEEE-like format, and only NaN detection differs. The
+immediate forms have no free bit, and keep format `00`. A BF16 or E5M2 compare against a
+constant takes the register form. What lost: a format code in the opcode (the 32-point map is
+full) and compare-by-convert (a `cvt` per operand on BF16, ML's commonest narrow type).
 
 ---
 
