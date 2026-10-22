@@ -67,7 +67,7 @@ checked 258 instructions
   forward progress between diverged lanes (O-60)
   PASS  spinwait hangs under strict lowest-PC-first (the control)
   PASS  test/spinwait.s assembles to the compiled kernel's bytes
-  PASS  spinwait finishes under O-60's fairness, issue groups at N=4:46 N=8:70 N=16:118 N=32:214 N=default:6166
+  PASS  spinwait finishes under O-60's fairness, issue groups at N=4:58 N=8:102 N=16:190 N=32:366 N=default:190
   the fused corpus executes and computes the right numbers
   PASS  fused corpus: 8 kernels execute and agree with a reference written from the mathematics
   each SFU intrinsic computes its own function
