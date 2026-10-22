@@ -107,6 +107,12 @@ An FP compare's format comes from a bit the register forms reserved (O-65), the 
 change in 1.9. An integer narrowing conversion saturates, and truncation is a `chwidth`. A NaN
 result is the canonical one, NVIDIA's (O-66).
 
+### The mixed-width rule is written (O-67; IS-20)
+
+Invariant 3 promised a deterministic result for a width mismatch without saying which. Now it
+does: raw fields, zero-extended or truncated to the operating width, never converted. It is
+§3's shuffle rule applied everywhere, and what the lanes' operand path delivers (OA).
+
 ### Still open
 
 SFU accuracy is ruled under IS-12, but its PTX bound table is not yet written.
@@ -2572,7 +2578,15 @@ quantified on one side of it.
    checkpoint, and no special rollback path.
 3. **Width mismatches are compiler-correctness problems, not hardware hazards.** They
    produce deterministic results **or a defined fault**, never undefined behavior. Same for FP
-   format mismatches. The faults are the two §12 names: `F-WIDTH` and `F-FORMAT`.
+   format mismatches. The faults are the two §12 names: `F-WIDTH` and `F-FORMAT`. **The
+   result is fixed by the mixed-width rule (O-67).** An operation works at its operating
+   width: its destination's `chwidth`, or `rs0`'s for a compare. Each source is read as its
+   raw element at its own `chwidth`, zero-extended or truncated to the operating width as a
+   bit field, and only then interpreted in the operation's format. No source is converted.
+   The operations defined to mix widths keep their definitions: `cvt`, `mad.lo`, `dp4`/`dp8`,
+   `packi`/`unpacki`, and address registers (O-39). Zero-extension is required, not merely
+   cheap. A narrow register's neighbouring sections hold other registers, possibly another
+   warp's (OI-29), so reading them would leak state across registers.
 4. **Predication is bounded and signalled by format tag**, never a universal guard operand
    and never an opcode bit. There is no always-true predicate to fall back on.
 5. **Predicate registers and GPRs are separate namespaces** with separate RATs. A predicate
@@ -2984,6 +2998,21 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-67 — The mixed-width operand rule — decided in 1.9.** IS-20, found reading CP-15:
+`ccv-sim` compared mixed-width FP operands by value, a conversion the ISA never specified.
+Invariant 3 promised only that the result was deterministic. §3's shuffle paragraph was the
+one place a rule was written ("a raw bit field, truncated or zero-extended"), and it claimed
+to be the policy everywhere. Adopted: that rule, generalised, with the operating width the
+destination's `chwidth`, or `rs0`'s for a compare. OA confirmed it is what the lanes receive:
+the operand path selects by width code, truncates a wider register and zero-extends a narrower
+one. OA also confirmed that zero-extension is required: a narrow register's neighbouring
+sections belong to other registers, so filling from them would create a co-issue dependence
+and break isolation. What lost: by-value reads, which need a converter on every operand path
+for a case no correct program reaches. No encoding changes. Nothing the compiler emits mixes
+widths, so no oracle changes.
 
 ---
 
