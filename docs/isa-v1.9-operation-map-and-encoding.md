@@ -1224,10 +1224,11 @@ mismatches. The predicate spill region is therefore warp-scoped, which §5.2's w
 covers. See O-19.
 
 `.local` maps to `ld.global`/`st.global` via the thread-private windowing convention.
-`.const` maps to `ld.global` for reads. **A store or atomic whose effective address falls in
-the `.const` window raises `F-RO`.** There is no dedicated opcode: the protection is a bounds
-check in the memory pipe, on the same path as the launch block's (§5.2), so MIU carries a
-`.const` base and limit per kernel beside the launch block's. See O-51.
+`.const` maps to `ld.global` for reads. **A store or atomic any byte of which falls in
+the `.const` window raises `F-RO`**, whether or not the atomic would have changed memory.
+There is no dedicated opcode: the protection is a bounds check in the memory pipe, on the same
+path as the launch block's (§5.2), so MIU carries a `.const` base and limit per kernel beside
+the launch block's. See O-51.
 
 **Ordinary loads and stores carry no ordering qualifier.** Formats D, D′, M and M′ have no
 ordering field at any length. The only ordering mechanism in the instruction set is `fence`
@@ -4373,7 +4374,7 @@ raises an execute-stage fault, whatever its operand values.
 | `F-ALIGN` | Execute | A lane's effective address not a multiple of its transfer size (O-58) |
 | `F-ADDR` | Execute | Effective address not mapped, or not permitted for the context |
 | `F-SHARED` | Execute | `.shared` access outside the CTA's allocation |
-| `F-RO` | Execute | Store or atomic to read-only memory: the launch block and `.const` (§5.2, O-51) |
+| `F-RO` | Execute | Store or atomic any byte of which lies in read-only memory: the launch block and `.const` (§5.2, O-51) |
 | `F-BARRIER` | Dispatch | Barrier ID (`bar.arrive`, `bar.wait`, `bar.init`, `bar.wait.phase`) at or above the CTA's allocated barrier count (O-59) |
 
 **`F-ILLEGAL` covers every encoding that names no operation.** Reserved opcode points (Format K
