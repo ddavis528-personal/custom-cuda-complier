@@ -146,6 +146,13 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-globals.sh || fail=1
 fi
 
+# F-161: byte memory access at chwidth 8, and F-164's narrow store after a
+# widening use, executed, with two controls.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  byte memory access (F-161, F-164)"
+  ./tools/check-bytes.sh || fail=1
+fi
+
 # O-60: forward progress between diverged lanes. A spin-wait on a lane at a
 # higher PC must hang under strict min-PC (the control) and finish under the
 # oracle's fairness rule.

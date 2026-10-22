@@ -91,15 +91,15 @@ const char *causeName(unsigned C) {
 /// True when operand `I` of `MI` is a memory instruction's base or index.
 bool isAddressOperand(const MachineInstr &MI, unsigned I) {
   switch (MI.getOpcode()) {
-  case CCV::LD_GLOBAL:      case CCV::LD_GLOBAL_W16:
-  case CCV::LD_SHARED:      case CCV::LD_SHARED_W16:
-  case CCV::ST_GLOBAL:      case CCV::ST_GLOBAL_W16:
-  case CCV::ST_SHARED:      case CCV::ST_SHARED_W16:
+  case CCV::LD_GLOBAL:      case CCV::LD_GLOBAL_W16:  case CCV::LD_GLOBAL_W8:
+  case CCV::LD_SHARED:      case CCV::LD_SHARED_W16:  case CCV::LD_SHARED_W8:
+  case CCV::ST_GLOBAL:      case CCV::ST_GLOBAL_W16:  case CCV::ST_GLOBAL_W8:
+  case CCV::ST_SHARED:      case CCV::ST_SHARED_W16:  case CCV::ST_SHARED_W8:
   case CCV::C_LD_GLOBAL:    case CCV::C_ST_GLOBAL:
   case CCV::LD_GLOBAL_P:
     return I == 1;                       // rbase
-  case CCV::LD_GLOBAL_IDX:  case CCV::LD_GLOBAL_IDX_W16:
-  case CCV::ST_GLOBAL_IDX:  case CCV::ST_GLOBAL_IDX_W16:
+  case CCV::LD_GLOBAL_IDX:  case CCV::LD_GLOBAL_IDX_W16: case CCV::LD_GLOBAL_IDX_W8:
+  case CCV::ST_GLOBAL_IDX:  case CCV::ST_GLOBAL_IDX_W16: case CCV::ST_GLOBAL_IDX_W8:
   case CCV::LD_SHARED_IDX:  case CCV::ST_SHARED_IDX:
     return I == 1 || I == 2;             // rbase, rindex
   default:
@@ -127,7 +127,7 @@ bool isAccumulatorOperand(const MachineInstr &MI, unsigned I) {
 /// True when this opcode produces a value staged out of shared memory.
 bool isStagedDef(const MachineInstr &MI) {
   switch (MI.getOpcode()) {
-  case CCV::LD_SHARED:     case CCV::LD_SHARED_W16:
+  case CCV::LD_SHARED:     case CCV::LD_SHARED_W16: case CCV::LD_SHARED_W8:
   case CCV::LD_SHARED_IDX:
     return true;
   default:
@@ -161,7 +161,8 @@ bool isUniformDef(const MachineInstr &MI, const MachineBasicBlock &MBB) {
     return true;
   case CCV::SRD:
     return MI.getOperand(1).getImm() == 1;              // %ctaid, not %ctatid
-  case CCV::LD_GLOBAL: case CCV::LD_GLOBAL_W16: case CCV::C_LD_GLOBAL:
+  case CCV::LD_GLOBAL: case CCV::LD_GLOBAL_W16: case CCV::LD_GLOBAL_W8:
+  case CCV::C_LD_GLOBAL:
   case CCV::LD_GLOBAL_P:
     break;
   default:

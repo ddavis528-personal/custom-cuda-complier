@@ -1,5 +1,6 @@
 //===-- CCVISelDAGToDAG.cpp - CCV instruction selection ------------------===//
 #include "CCVISelLowering.h"
+#include "llvm/Support/CommandLine.h"
 #include "CCVFrameLowering.h"
 #include "CCVSubtarget.h"
 #include "CCVTargetMachine.h"
@@ -99,6 +100,40 @@ static unsigned immediateCompare(unsigned Opc) {
   }
 }
 
+/// A memory access's opcode at its element width. §3 takes the transfer size
+/// from `rdata`'s chwidth, so a 16- or 8-bit access must select the twin whose
+/// data operand is GPR16 or GPR8: the 32-bit form moves four bytes and
+/// clobbers the neighbouring elements with nothing downstream noticing (F-125,
+/// F-111). One table for every addressing path, so no path can miss a width
+/// again -- the frame path had no narrow form at all until F-161.
+// Mutation control for tools/check-bytes.sh: byte accesses select the 32-bit
+// forms, so every transfer moves four bytes. It must be caught by the values.
+static cl::opt<bool> TestBytesAt32(
+    "ccv-test-bytes-at-32", cl::init(false), cl::Hidden,
+    cl::desc("select 32-bit forms for byte accesses, to test that it is caught"));
+
+static unsigned atWidth(unsigned Opc, EVT MemVT) {
+  if (TestBytesAt32 && MemVT == MVT::i8)
+    return Opc;
+  const bool W16 = MemVT == MVT::i16, W8 = MemVT == MVT::i8;
+  switch (Opc) {
+  case CCV::LD_GLOBAL:
+    return W16 ? CCV::LD_GLOBAL_W16 : W8 ? CCV::LD_GLOBAL_W8 : CCV::LD_GLOBAL;
+  case CCV::ST_GLOBAL:
+    return W16 ? CCV::ST_GLOBAL_W16 : W8 ? CCV::ST_GLOBAL_W8 : CCV::ST_GLOBAL;
+  case CCV::LD_GLOBAL_IDX:
+    return W16 ? CCV::LD_GLOBAL_IDX_W16 : W8 ? CCV::LD_GLOBAL_IDX_W8 : CCV::LD_GLOBAL_IDX;
+  case CCV::ST_GLOBAL_IDX:
+    return W16 ? CCV::ST_GLOBAL_IDX_W16 : W8 ? CCV::ST_GLOBAL_IDX_W8 : CCV::ST_GLOBAL_IDX;
+  case CCV::LD_GLOBAL_SLOT:
+    return W16 ? CCV::LD_GLOBAL_SLOT_W16 : W8 ? CCV::LD_GLOBAL_SLOT_W8 : CCV::LD_GLOBAL_SLOT;
+  case CCV::ST_GLOBAL_SLOT:
+    return W16 ? CCV::ST_GLOBAL_SLOT_W16 : W8 ? CCV::ST_GLOBAL_SLOT_W8 : CCV::ST_GLOBAL_SLOT;
+  default:
+    return Opc;
+  }
+}
+
 void CCVDAGToDAGISel::Select(SDNode *N) {
   if (N->isMachineOpcode()) {
     N->setNodeId(-1);
@@ -192,13 +227,11 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     // through the 32-bit form writes FOUR bytes and clobbers the neighbouring
     // element, and the value written is still correct, so nothing downstream
     // notices. That is exactly what happened before this check existed.
-    bool Narrow = cast<MemSDNode>(N)->getMemoryVT() == MVT::i16;
+    EVT MemVT = cast<MemSDNode>(N)->getMemoryVT();
     MachineSDNode *MN =
-        IsLoad ? CurDAG->getMachineNode(Narrow ? CCV::LD_GLOBAL_IDX_W16
-                                               : CCV::LD_GLOBAL_IDX,
+        IsLoad ? CurDAG->getMachineNode(atWidth(CCV::LD_GLOBAL_IDX, MemVT),
                                         DL, N->getValueType(0), MVT::Other, Ops)
-               : CurDAG->getMachineNode(Narrow ? CCV::ST_GLOBAL_IDX_W16
-                                               : CCV::ST_GLOBAL_IDX,
+               : CurDAG->getMachineNode(atWidth(CCV::ST_GLOBAL_IDX, MemVT),
                                         DL, MVT::Other, Ops);
     CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
     ReplaceNode(N, MN);
@@ -232,13 +265,11 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     // Transfer size comes from `rdata`'s chwidth, so a 16-bit access must select
     // the narrow form to put its data register in GPR16 (F-125, and F-139 for
     // the repeat).
-    bool Narrow = cast<MemSDNode>(N)->getMemoryVT() == MVT::i16;
+    EVT MemVT = cast<MemSDNode>(N)->getMemoryVT();
     MachineSDNode *MN =
-        IsLoad ? CurDAG->getMachineNode(Narrow ? CCV::LD_GLOBAL_SLOT_W16
-                                               : CCV::LD_GLOBAL_SLOT,
+        IsLoad ? CurDAG->getMachineNode(atWidth(CCV::LD_GLOBAL_SLOT, MemVT),
                                         DL, N->getValueType(0), MVT::Other, Ops)
-               : CurDAG->getMachineNode(Narrow ? CCV::ST_GLOBAL_SLOT_W16
-                                               : CCV::ST_GLOBAL_SLOT,
+               : CurDAG->getMachineNode(atWidth(CCV::ST_GLOBAL_SLOT, MemVT),
                                         DL, MVT::Other, Ops);
     CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
     ReplaceNode(N, MN);
@@ -277,6 +308,7 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     }
     Ops.push_back(N->getOperand(0));                      // chain
 
+    Opc = atWidth(Opc, cast<MemSDNode>(N)->getMemoryVT());
     MachineSDNode *MN =
         IsLoad ? CurDAG->getMachineNode(Opc, DL, N->getValueType(0), MVT::Other,
                                         Ops)
@@ -306,13 +338,11 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     // base+index path got the check; this one was missed, and F-111's audit
     // found it by noticing that nothing could produce LD_GLOBAL_W16 or
     // ST_GLOBAL_W16.
-    bool Narrow = cast<MemSDNode>(N)->getMemoryVT() == MVT::i16;
+    EVT MemVT = cast<MemSDNode>(N)->getMemoryVT();
     MachineSDNode *MN =
-        IsLoad ? CurDAG->getMachineNode(Narrow ? CCV::LD_GLOBAL_W16
-                                               : CCV::LD_GLOBAL,
+        IsLoad ? CurDAG->getMachineNode(atWidth(CCV::LD_GLOBAL, MemVT),
                                         DL, N->getValueType(0), MVT::Other, Ops)
-               : CurDAG->getMachineNode(Narrow ? CCV::ST_GLOBAL_W16
-                                               : CCV::ST_GLOBAL, DL,
+               : CurDAG->getMachineNode(atWidth(CCV::ST_GLOBAL, MemVT), DL,
                                         MVT::Other, Ops);
     CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
     ReplaceNode(N, MN);

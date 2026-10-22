@@ -600,6 +600,38 @@ let isCodeGenOnly = 1 in {
                              "st.global $rdata, [$rbase + $off]">;
 }
 
+// The 8-bit twins (F-161): a byte load or store, the transfer size taken from
+// rdata's chwidth = 8. Same encodings as the 32-bit forms, isCodeGenOnly for
+// the reason the 16-bit twins are.
+let isCodeGenOnly = 1 in {
+  let mayLoad = 1 in
+  def LD_SHARED_W8 : FormatD<0b00010, (outs GPR8:$rdata),
+                             (ins GPR:$rbase, simm13:$off),
+                             "ld.shared $rdata, [$rbase + $off]">;
+  let mayStore = 1 in
+  def ST_SHARED_W8 : FormatD<0b00011, (outs),
+                             (ins GPR8:$rdata, GPR:$rbase, simm13:$off),
+                             "st.shared $rdata, [$rbase + $off]">;
+  let mayLoad = 1 in
+  def LD_GLOBAL_IDX_W8 : FormatDidx<0b00100, (outs GPR8:$rdata),
+                             (ins GPR:$rbase, GPR:$rindex, uimm2:$scale,
+                              simm8:$disp),
+                             "ld.global $rdata, [$rbase, $rindex, $scale, $disp]">;
+  let mayStore = 1 in
+  def ST_GLOBAL_IDX_W8 : FormatDidx<0b00101, (outs),
+                             (ins GPR8:$rdata, GPR:$rbase, GPR:$rindex,
+                              uimm2:$scale, simm8:$disp),
+                             "st.global $rdata, [$rbase, $rindex, $scale, $disp]">;
+  let mayLoad = 1 in
+  def LD_GLOBAL_W8 : FormatD<0b00000, (outs GPR8:$rdata),
+                             (ins GPR:$rbase, simm13:$off),
+                             "ld.global $rdata, [$rbase + $off]">;
+  let mayStore = 1 in
+  def ST_GLOBAL_W8 : FormatD<0b00001, (outs),
+                             (ins GPR8:$rdata, GPR:$rbase, simm13:$off),
+                             "st.global $rdata, [$rbase + $off]">;
+}
+
 // O-45: the window base comes from a launch-block slot, so it never occupies a
 // GPR. Two points, not four: `.shared` is flat 32-bit and has no window (§5.1),
 // and `.const` is where the launch block itself lives.
@@ -634,6 +666,16 @@ let isCodeGenOnly = 1 in {
   let mayStore = 1 in
   def ST_GLOBAL_SLOT_W16 : FormatDslot<0b01101, (outs),
                            (ins GPR16:$rdata, uimm4:$slot, GPR:$rindex,
+                            uimm2:$scale, simm8:$disp),
+                           "st.global $rdata, [#$slot, $rindex, $scale, $disp]">;
+  let mayLoad = 1 in
+  def LD_GLOBAL_SLOT_W8 : FormatDslot<0b01100, (outs GPR8:$rdata),
+                           (ins uimm4:$slot, GPR:$rindex, uimm2:$scale,
+                            simm8:$disp),
+                           "ld.global $rdata, [#$slot, $rindex, $scale, $disp]">;
+  let mayStore = 1 in
+  def ST_GLOBAL_SLOT_W8 : FormatDslot<0b01101, (outs),
+                           (ins GPR8:$rdata, uimm4:$slot, GPR:$rindex,
                             uimm2:$scale, simm8:$disp),
                            "st.global $rdata, [#$slot, $rindex, $scale, $disp]">;
 }

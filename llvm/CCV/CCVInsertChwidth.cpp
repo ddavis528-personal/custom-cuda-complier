@@ -75,6 +75,14 @@ static cl::opt<bool> ReportChwidth(
     "ccv-chwidth-stats", cl::init(false),
     cl::desc("report width transitions and chwidth.multi opportunities (F-3)"));
 
+// Mutation control for tools/check-bytes.sh: the dataflow models only
+// definitions, as before F-164, so a use that widened a register is invisible
+// to its successors.
+static cl::opt<bool> TestDefsOnly(
+    "ccv-test-chwidth-defs-only", cl::init(false), cl::Hidden,
+    cl::desc("model only definitions in chwidth's dataflow, to test that it "
+             "is caught"));
+
 namespace {
 
 /// Width of a physical register at a program point. 0-3 are §1's width codes;
@@ -117,6 +125,8 @@ uint8_t operandWidth(const MCInstrDesc &D, unsigned OpNo) {
   int16_t RC = D.operands()[OpNo].RegClass;
   if (RC == CCV::GPR16RegClassID)
     return 1;
+  if (RC == CCV::GPR8RegClassID)        // F-161: a byte access's data register
+    return 2;
   return 0;
 }
 
@@ -173,6 +183,20 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
           if (I != ~0u)
             S[I] = uint8_t(MI.getOperand(1).getImm());
           continue;
+        }
+        // A use leaves its register at the width it was read at: step 2
+        // inserts a `chwidth` before any use whose width differs, or is
+        // unknown. Modelling only definitions here left a block's Out state
+        // at a load's narrow width after a wider use had already widened
+        // the register, so a successor's narrow store got no `chwidth` and
+        // moved four bytes for one (F-164, found by byte stores, F-161).
+        for (unsigned O = 0, N = MI.getNumOperands(); O != N && !TestDefsOnly; ++O) {
+          const MachineOperand &MO = MI.getOperand(O);
+          if (!MO.isReg() || MO.isDef() || MO.isUndef())
+            continue;
+          unsigned I = gprIndex(MO.getReg());
+          if (I != ~0u)
+            S[I] = operandWidth(MI.getDesc(), O);
         }
         for (unsigned O = 0, N = MI.getNumOperands(); O != N; ++O) {
           const MachineOperand &MO = MI.getOperand(O);
@@ -416,8 +440,12 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
           continue;
         unsigned I = gprIndex(MO.getReg());
         uint8_t Need = operandWidth(MI.getDesc(), O);
-        if (I == ~0u || S[I] == kUnknown || S[I] == Need)
+        if (I == ~0u || MO.isUndef() || S[I] == Need)
           continue;
+        // An unknown width -- predecessors that disagree, which step 1b could
+        // not settle on an edge -- gets the transition too. Skipping it read
+        // the register at whatever width the path left (F-164); establishing
+        // the width is safe in either direction, as below.
         // Either direction is safe on a live register now: narrowing is a
         // truncation and widening is a zero-extension, because O-38 requires
         // the exposed bits to be cleared.
@@ -425,7 +453,7 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
         // Classify BEFORE updating the state -- a larger width code is a
         // narrower element, and reading S[I] after assigning it made every
         // insertion report as a widening.
-        if (Need > S[I])
+        if (S[I] != kUnknown && Need > S[I])
           ++Narrowing;
         else
           ++Widening;
