@@ -51,25 +51,19 @@ static cl::opt<unsigned> Barriers(
 // waiting at a barrier eventually issues. Strict lowest-PC-first does not
 // meet that -- a lane spinning at a low PC on a flag a higher-PC lane sets
 // starves the setter forever (test/cuda/spinwait.cu) -- so the oracle needs a
-// fairness rule. It is FET's (AR's IS-17 rows, revs 104 and 119), because a
-// kernel whose lanes talk to each other has more than one legal order and the
-// oracle must be the one the hardware takes: min-PC, except that every Nth
-// pick goes to the group holding lane r, a rotating pointer that then moves
-// to the next live lane after it. Lanes waiting at a barrier are skipped.
-// N is FET's CCV_FAIR_N and must stay equal to it; N = 0 is strict min-PC,
-// kept as the spin-wait kernel's hanging control.
+// fairness rule. It is FET's (AR's IS-17 rows, revs 119 to 121; FET spec rev
+// 15), because a kernel whose lanes talk to each other has more than one
+// legal order and the oracle must be the one the hardware takes: min-PC,
+// except that once the group holding lane r has gone N picks without
+// issuing, the next pick is that group. r is a rotating pointer; whenever
+// its group issues, by either path, the count restarts and r moves to the
+// next live lane. Lanes waiting at a barrier are skipped. N is FET's
+// CCV_FAIR_N and must stay equal to it; N = 0 is strict min-PC, kept as the
+// spin-wait kernel's hanging control.
 static cl::opt<unsigned> Fairness(
-    "fairness", cl::init(16),
-    cl::desc("every Nth pick goes to the rotating lane pointer's group (O-60, "
-             "FET's CCV_FAIR_N); 0 = strict lowest-PC-first"));
-// AR's refinement under measurement (IS-17, rev 120): the counter counts
-// picks since lane r's group last issued, and resets whenever min-PC picks
-// that group itself, so an override fires only on a group that has really
-// waited N picks. Either way r advances once its group issues.
-static cl::opt<bool> FairnessStarved(
-    "fairness-starved",
-    cl::desc("override only when lane r's group has waited N picks (AR's "
-             "IS-17 refinement), not on every Nth pick"));
+    "fairness", cl::init(48),
+    cl::desc("picks lane r's group may go without issuing before it is "
+             "issued (O-60, FET's CCV_FAIR_N); 0 = strict lowest-PC-first"));
 static cl::opt<bool> Trace("trace", cl::desc("print each issue group"));
 static cl::opt<bool> Stats("counters", cl::desc("print execution counters"));
 static cl::opt<unsigned> MaxSteps("max-steps", cl::init(100000),
@@ -238,8 +232,8 @@ int main(int argc, char **argv) {
   unsigned PrevGroups = 1;
 
   unsigned Steps = 0, Issued = 0;
-  // O-60 fairness state, FET's: the pick counter and the rotating lane
-  // pointer.
+  // O-60 fairness state, FET's: picks since lane r's group last issued, and
+  // the rotating lane pointer r.
   unsigned Picks = 0, FairLane = 0;
   while (W.Active && Steps++ < MaxSteps) {
     // Group by PC: pick the lowest PC among active lanes and issue for every
@@ -262,27 +256,21 @@ int main(int argc, char **argv) {
       if ((Runnable >> L) & 1)
         Target = std::min(Target, W.PC[L]);
 
-    // O-60's fairness: every Nth pick goes to the group holding lane r, the
-    // first runnable lane at or after the pointer, and the pointer moves on
-    // to the next live lane after that one. With -fairness-starved, the count
-    // restarts whenever min-PC issues r's group by itself.
+    // O-60's fairness: lane r is the first runnable lane at or after the
+    // pointer. Its group's issue restarts the count and moves the pointer on;
+    // at N picks without one, this pick is its group.
     if (Fairness) {
       unsigned R = FairLane;
       while (!((Runnable >> R) & 1))
         R = (R + 1) % kLanes;
       bool Served = W.PC[R] == Target;
-      if (FairnessStarved && Served) {
-        Picks = 0;
-      } else if (++Picks == Fairness) {
-        Picks = 0;
-        if (!Served)
-          ++C.FairPicks;
+      if (!Served && ++Picks == Fairness) {
+        ++C.FairPicks;
         Target = W.PC[R];
         Served = true;
-      } else {
-        Served = false;
       }
       if (Served) {
+        Picks = 0;
         FairLane = (R + 1) % kLanes;
         while (!((W.Active >> FairLane) & 1))
           FairLane = (FairLane + 1) % kLanes;
