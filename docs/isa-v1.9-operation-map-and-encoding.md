@@ -2118,6 +2118,15 @@ struct would violate the rule. Scalars follow the pointers at their natural alig
 byte offset 24 (O-30), the module data window `W_d` at 28 (below), and the argument area from
 `OffArgs` = 32 (§3 Format D's slot rule). Everything else in the block is the launch ABI's.
 
+**The whole launch window is read-only (O-61).** `LAUNCH_BASE` is 64 KiB-aligned, and the
+launch block lies within the 64 KiB region `[LAUNCH_BASE, LAUNCH_BASE + 2^16)`, the addresses
+whose bits `[47:16]` equal `LAUNCH_WINDOW`. Each CTA sees its own block there. A store or
+atomic to any address in that region raises `F-RO`, unless an earlier cause wins (§12.5). An
+address past the block's end is either unmapped (`F-ADDR`) or read-only, so nothing writable
+lives in the region, and no module image is placed at `W_d` = `LAUNCH_WINDOW`. The check
+needs no per-CTA bound: it is one compare of the effective address against a constant. The
+value of `LAUNCH_BASE` is the launch ABI's. `ccv-sim` uses `0x20000`, window 2.
+
 **Where a module's data lives — normative (O-61).** Device code is compiled as a closed module.
 Every global it holds (`__constant__` and `__device__` variables, string literals, lookup
 tables) is laid out in **one data image per module**: the constant globals first, then the
@@ -2130,6 +2139,10 @@ writable ones.
   hoistable, then an ordinary Format D access.
 - **Constant part.** The constant globals occupy `[W_d << 16, (W_d << 16) + const_size)`, which
   is that launch's `.const` range: a store or atomic into it raises `F-RO` (O-51).
+  `const_size` is padded to a multiple of 4 bytes. With natural alignment (O-58) and no
+  transfer wider than 4 bytes, no access then straddles either bound. So a check of each
+  lane's effective address alone decides `F-RO` exactly, which §12.3's any-byte rule
+  requires.
 - **Writable part.** Writable globals are shared by every launch of the module within its
   context, and never across contexts. This is CUDA's semantics. Their initial state is
   defined (invariant 12, O-38). Initialized globals take the image's values. Every other byte
