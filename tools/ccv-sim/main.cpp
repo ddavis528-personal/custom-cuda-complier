@@ -663,7 +663,10 @@ int main(int argc, char **argv) {
                     Op == CCV::PMOV_IMM;
       if (IsBar)               ++C.Barrier;
       else if (IsPred)         ++C.Pred;
-      else if (D.isBranch() || D.isReturn() || Op == CCV::C_EXIT) ++C.Ctrl;
+      else if (D.isBranch() || D.isReturn() || D.isCall() || Op == CCV::C_EXIT) {
+        ++C.Ctrl;
+        if (D.isCall()) ++C.Calls;
+      }
       else if (D.mayLoad() || D.mayStore()) {
         ++C.Mem;
         int Slot = Op == CCV::LD_GLOBAL || Op == CCV::LD_GLOBAL_IDX ? 0
@@ -793,9 +796,9 @@ int main(int argc, char **argv) {
                      (unsigned long long)C.LdSt[0], (unsigned long long)C.LdSt[1],
                      (unsigned long long)C.LdSt[2], (unsigned long long)C.LdSt[3],
                      (unsigned long long)C.Spill)
-           << format("  control                 %10llu   %5.1f%%   (%llu divergent)\n",
+           << format("  control                 %10llu   %5.1f%%   (%llu divergent, %llu calls)\n",
                      (unsigned long long)C.Ctrl, pct(C.Ctrl, C.IssueGroups),
-                     (unsigned long long)C.Diverged)
+                     (unsigned long long)C.Diverged, (unsigned long long)C.Calls)
            << format("  predicate               %10llu   %5.1f%%\n",
                      (unsigned long long)C.Pred, pct(C.Pred, C.IssueGroups))
            << format("  barrier                 %10llu   %5.1f%%   (%llu lane-stalls)\n",

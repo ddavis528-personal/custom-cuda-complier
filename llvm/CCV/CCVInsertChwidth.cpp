@@ -42,6 +42,7 @@
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
@@ -73,6 +74,13 @@ static cl::opt<bool> TestNarrowSrd(
 static cl::opt<bool> TestHoistPastCalls(
     "ccv-test-hoist-past-calls", cl::init(false), cl::Hidden,
     cl::desc("hoist chwidth above calls, to test that it is caught"));
+
+// Mutation control: narrow a register in place for a narrow use even when its
+// wider value is read later, as before F-169.
+static cl::opt<bool> TestNarrowInPlace(
+    "ccv-test-narrow-in-place", cl::init(false), cl::Hidden,
+    cl::desc("narrow a live register in place for a narrow use, to test that "
+             "it is caught"));
 
 static cl::opt<bool> TestNoCallWidths(
     "ccv-test-no-call-widths", cl::init(false), cl::Hidden,
@@ -108,7 +116,7 @@ public:
 
 private:
   unsigned Inserted = 0, Narrowing = 0, Widening = 0, Multi = 0, Runs = 0,
-           Hoisted = 0, Blocks = 0, EdgePlaced = 0;
+           Hoisted = 0, Blocks = 0, EdgePlaced = 0, Copied = 0;
 };
 
 /// The element width an instruction expects a given OPERAND to be at.
@@ -125,6 +133,9 @@ private:
 ///
 /// Read from the instruction description's static operand info, which survives
 /// register allocation -- unlike the virtual register's class, which does not.
+} // namespace
+
+namespace llvm {
 uint8_t operandWidth(const MCInstrDesc &D, unsigned OpNo) {
   if (OpNo >= D.getNumOperands())
     return 0;
@@ -135,6 +146,9 @@ uint8_t operandWidth(const MCInstrDesc &D, unsigned OpNo) {
     return 2;
   return 0;
 }
+} // namespace llvm
+
+namespace {
 
 /// R0-R15 as an index, or ~0 for anything else (predicates, virtual leftovers).
 unsigned gprIndex(Register R) {
@@ -143,10 +157,116 @@ unsigned gprIndex(Register R) {
   return ~0u;
 }
 
+/// Is R's value read wider than Need after MI, before it dies? A narrowing
+/// `chwidth` keeps only the element, and widening again zero-extends (O-38),
+/// so narrowing in place is a truncation only when nothing reads the wide
+/// value afterwards. Selection reads a 32-bit value at 16 bits without a copy
+/// wherever `trunc` meets a 16-bit instruction -- the classes share registers,
+/// so the copy folds away -- and `align_mem` then lost the high half of a
+/// pointer's in-window offset (F-169). Conservative: a call or return reached
+/// while R is live reads it at 32 (F-21), and so does a successor it is live
+/// into.
+bool wideReadLater(const MachineInstr &MI, Register R, uint8_t Need) {
+  if (MI.definesRegister(R))
+    return false;
+  // From an instruction to the end of its block: true for a wide read, false
+  // once the value dies, nothing when it reaches the end live.
+  auto scan = [&](MachineBasicBlock::const_iterator It,
+                  MachineBasicBlock::const_iterator End) -> std::optional<bool> {
+    for (; It != End; ++It) {
+      if (It->isCall() || It->getOpcode() == CCV::PSEUDO_RET)
+        return true;
+      bool Reads = false, Killed = false;
+      for (unsigned O = 0, N = It->getNumOperands(); O != N; ++O) {
+        const MachineOperand &MO = It->getOperand(O);
+        if (!MO.isReg() || MO.getReg() != R || MO.isDef() || MO.isUndef())
+          continue;
+        if (operandWidth(It->getDesc(), O) < Need)
+          return true;
+        Reads = true;
+        Killed |= MO.isKill();
+      }
+      if (Killed || (!Reads && It->definesRegister(R)))
+        return false;
+    }
+    return std::nullopt;
+  };
+  const MachineBasicBlock *MBB = MI.getParent();
+  if (auto V = scan(std::next(MI.getIterator()), MBB->end()))
+    return *V;
+  // Live out: every block it is live into, once each, a loop's included.
+  SmallVector<const MachineBasicBlock *, 8> Work;
+  SmallPtrSet<const MachineBasicBlock *, 8> Seen;
+  for (const MachineBasicBlock *S : MBB->successors())
+    if (S->isLiveIn(R) && Seen.insert(S).second)
+      Work.push_back(S);
+  while (!Work.empty()) {
+    const MachineBasicBlock *B = Work.pop_back_val();
+    auto V = scan(B->begin(), B->end());
+    if (V && *V)
+      return true;
+    if (!V)
+      for (const MachineBasicBlock *S : B->successors())
+        if (S->isLiveIn(R) && Seen.insert(S).second)
+          Work.push_back(S);
+  }
+  return false;
+}
+
+/// An instruction whose result is no wider than Need and whose low Need bits
+/// depend only on its sources' low Need bits: a source wider than Need gives
+/// the same answer, since an operand is read at its own register's width and
+/// the result written at the destination's (§3). Its wider sources need no
+/// transition at all, which is most of F-169's cases and costs nothing.
+} // namespace
+
+namespace llvm {
+bool lowBitsClosed(unsigned Op) {
+  switch (Op) {
+  case CCV::ADD_W16: case CCV::SUB_W16: case CCV::AND_W16:
+  case CCV::OR_W16:  case CCV::XOR_W16: case CCV::ADDI_W16:
+    return true;
+  default:
+    return false;
+  }
+}
+bool ccvTestNarrowInPlace() { return TestNarrowInPlace; }
+} // namespace llvm
+
+namespace {
+
+/// A source of a lowBitsClosed instruction already wider than it reads.
+bool readsWideAsIs(const MachineInstr &MI, uint8_t Cur, uint8_t Need) {
+  return !TestNarrowInPlace && lowBitsClosed(MI.getOpcode()) &&
+         Cur != kUnknown && Cur < Need;
+}
+
+/// Whether the use of R by MI at width Need goes through a copy rather than
+/// narrowing R in place. Steps 1 and 2 both ask, so the dataflow models what
+/// step 2 emits: R keeps its width.
+bool copiesForUse(const MachineInstr &MI, Register R, uint8_t Cur, uint8_t Need) {
+  return !TestNarrowInPlace && Need != 0 && Cur != Need &&
+         (Cur == kUnknown || Need > Cur) && wideReadLater(MI, R, Need);
+}
+
 } // namespace
 
 bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
   const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
+  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
+
+  // CCVNarrowUses' copies (F-169): a move, or nothing where the allocator put
+  // both values in one register. First, so every step sees the real move.
+  for (MachineBasicBlock &MBB : MF)
+    for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
+      if (MI.getOpcode() != CCV::PSEUDO_NARROW)
+        continue;
+      Register D = MI.getOperand(0).getReg(), S = MI.getOperand(1).getReg();
+      if (D != S)
+        TII->copyPhysReg(MBB, MI, MI.getDebugLoc(), D, S,
+                         MI.getOperand(1).isKill());
+      MI.eraseFromParent();
+    }
   bool Changed = false;
 
   // --- 1. Forward dataflow over the CFG ------------------------------------
@@ -201,8 +321,10 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
           if (!MO.isReg() || MO.isDef() || MO.isUndef())
             continue;
           unsigned I = gprIndex(MO.getReg());
-          if (I != ~0u)
-            S[I] = operandWidth(MI.getDesc(), O);
+          uint8_t W = operandWidth(MI.getDesc(), O);
+          if (I != ~0u && !readsWideAsIs(MI, S[I], W) &&
+              !copiesForUse(MI, MO.getReg(), S[I], W))
+            S[I] = W;
         }
         for (unsigned O = 0, N = MI.getNumOperands(); O != N; ++O) {
           const MachineOperand &MO = MI.getOperand(O);
@@ -446,7 +568,8 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
           continue;
         unsigned I = gprIndex(MO.getReg());
         uint8_t Need = operandWidth(MI.getDesc(), O);
-        if (I == ~0u || MO.isUndef() || S[I] == Need)
+        if (I == ~0u || MO.isUndef() || S[I] == Need ||
+            readsWideAsIs(MI, S[I], Need))
           continue;
         // An unknown width -- predecessors that disagree, which step 1b could
         // not settle on an edge -- gets the transition too. Skipping it read
@@ -463,6 +586,49 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
           ++Narrowing;
         else
           ++Widening;
+        if (copiesForUse(MI, MO.getReg(), S[I], Need)) {
+          // F-169: the wide value is read later, so the narrow use reads a
+          // copy. A scratch GPR free across MI: not live after it and not
+          // one of its operands. It is set to 32 for the move, narrowed for
+          // the use, and given its old width back after, so the dataflow,
+          // which does not see the scratch, still describes it.
+          LivePhysRegs Live(*TRI);
+          Live.addLiveOuts(MBB);
+          for (auto It = MBB.rbegin(); &*It != &MI; ++It)
+            Live.stepBackward(*It);
+          Register T;
+          for (unsigned R = CCV::R0; R != CCV::R15 && !T; ++R)
+            if (Live.available(MF.getRegInfo(), R) && !MI.readsRegister(R) &&
+                !MI.modifiesRegister(R))
+              T = R;
+          if (!T) {
+            std::string Str;
+            raw_string_ostream OS(Str);
+            MI.print(OS, /*IsStandalone=*/true, false, false, false);
+            report_fatal_error(Twine("CCV: a narrow use of a register whose "
+                               "wide value is live, with no GPR free for the "
+                               "copy (F-169), in ") + MF.getName() + ": " +
+                               OS.str());
+          }
+          if (ReportChwidth)
+            errs() << "    copy for a narrow use of r" << I << ": " << MI;
+          unsigned TI = gprIndex(T);
+          uint8_t Old = S[TI];
+          const DebugLoc &DL = MI.getDebugLoc();
+          if (Old != 0)
+            BuildMI(MBB, MI, DL, TII->get(CCV::C_CHWIDTH)).addReg(T).addImm(0);
+          TII->copyPhysReg(MBB, MI, DL, T, MO.getReg(), false);
+          BuildMI(MBB, MI, DL, TII->get(CCV::C_CHWIDTH)).addReg(T).addImm(Need);
+          MI.getOperand(O).setReg(T);
+          MI.getOperand(O).setIsKill(true);
+          if (Old != kUnknown && Old != Need)
+            BuildMI(MBB, std::next(MI.getIterator()), DL,
+                    TII->get(CCV::C_CHWIDTH)).addReg(T).addImm(Old);
+          ++Copied;
+          ++Inserted;
+          Changed = true;
+          continue;
+        }
         BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(CCV::C_CHWIDTH))
             .addReg(MO.getReg())
             .addImm(Need);
@@ -644,6 +810,8 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
            << "   (a truncation; the element bits are preserved)\n"
            << "      widening a live reg : " << Widening
            << "   (a zero-extension -- O-38 clears the exposed bits)\n"
+           << "      through a copy      : " << Copied
+           << "   (F-169: the wide value is read later)\n"
            << "    placed on an edge     : " << EdgePlaced
          << "   (F-87: loop-invariant, so out of the body)\n"
          << "    hoisted               : " << Hoisted

@@ -82,6 +82,7 @@ python3 tools/bench.py >"$A/bench/bench.txt" 2>&1 || die "tools/bench.py failed"
 python3 tools/bench.py --json >"$A/bench/bench.json" 2>/dev/null || die "bench --json failed"
 ./tools/sweep-tiles.sh >"$A/bench/sweep-tiles.txt" 2>&1 || die "sweep-tiles failed"
 ./tools/sweep-decode.sh >"$A/bench/sweep-decode.txt" 2>&1 || die "sweep-decode failed"
+python3 tools/sweep-coremark.py >"$A/bench/sweep-coremark.txt" 2>&1 || die "sweep-coremark failed"
 
 # Every CUDA kernel in the repo, compiled. A kernel that does not compile at
 # its default parameters is listed, not hidden.
@@ -119,7 +120,8 @@ ver() { "$@" 2>&1 | head -1; }
   echo "  (\`ccv-sim.txt\` records its system-library dependencies). A pinned"
   echo "  snapshot commit is how another repository runs it."
   echo "- **\`release/bench/\`:** \`tools/bench.py\` and both sweeps -- the"
-  echo "  numbers \`docs/benchmarks.md\` is checked against."
+  echo "  numbers \`docs/benchmarks.md\` is checked against -- and the"
+  echo "  CoreMark-derived workload's run shapes and callee-saved sweep (AR-20)."
   echo "- **\`release/asm/\`:** every CUDA kernel under \`test/\`, compiled."
   echo "- **\`release/kernels/\`:** kernels for a consumer without \`ccv-llc\`"
   echo "  (TI-30): ccv-as source, the image, the launch as \`-poke\` lines, and"
