@@ -38,6 +38,22 @@
   test/coremark-derived                  84       509        531
   frame words: 0: 25, 1-32: 8, 33-64: 2, >64: 1 of 36 kernels
 
+  frame instructions by kind (static), and functions with a frame object
+  kernel                              spill  args  object  fns  w/obj
+  test/cuda/bytes.cu                      1     0       6    1      1
+  test/cuda/calls.cu                     31    12      15   15      3
+  test/cuda/fusion/adamw.cu              11     0       0    1      0
+  test/cuda/fusion/attn_combine.cu       11     0       0    1      0
+  test/cuda/fusion/rope.cu               24     0       0    1      0
+  test/cuda/gemv.cu                       3     0       0    1      0
+  test/cuda/gemv8.cu                      3     0       0    1      0
+  test/cuda/igemm.cu                    105     0       0    1      0
+  test/cuda/ptrlist.cu                   11     0       4    4      1
+  test/cuda/sgemm.cu                     97     0       0    1      0
+  test/coremark-derived                 450     3      56   13      2
+  total (kernels with a frame)          747    15      81
+  functions in the corpus: 69, with a frame object: 7
+
   issued, at each kernel's launch (dynamic)
   kernel                 issue   memops   frame  +lane reg  st idx  idx/mem
   vadd                      13        5       0          0       0     0.0%
@@ -54,3 +70,10 @@
   layernorm                268       93       0          0       1     1.1%
   coremark-derived      783612   108170   22384      24835   18157    16.8%
   total                 785227   108812   22565      25018   18159    16.7%
+
+  frame traffic by kind, issued (IS-19)
+  kernel               spill   args  object  via ptr
+  gemv                     3      0       0        0
+  sgemm                  149      0       0        0
+  rope                    29      0       0        0
+  coremark-derived     22244    110      30      135

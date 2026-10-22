@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-10-22-21a40a9
+# Snapshot snapshot-2026-10-22-07ab44a
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `21a40a94eab6c15d6b8714dcb595da7d190c626b`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `07ab44ad7bb1b5496a5b8dd4249c0d82c44fe007`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -24,7 +24,7 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `21a40a94eab6c15d6b8714dcb595da7d190c626b` |
+| Source | `ccr-ea1c4e17-tem30u` @ `07ab44ad7bb1b5496a5b8dd4249c0d82c44fe007` |
 | Built | 2026-10-22 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
@@ -65,10 +65,10 @@ f540a502bf7063cfb75450053c5163bc8986871d7cb0aa9bc2b8ee8cb9637a3c  release/asm/cu
 74f722d1b50b6e23f8379727243b480a810e07219cd3b8676c475bcce69a1883  release/bench/bench.txt
 a6f8714acb354be54969225401d5993cf1c43eb7f7ceb045cac04d953646d18a  release/bench/sweep-coremark.txt
 b7e7adbfd99c4b2c1c2e5ea653273976d3f98fd179972597a4329938df50af80  release/bench/sweep-decode.txt
-e430ecad6f73119d733b48f98bdd8d66eb1e43b39340ca2acab4d198f21699b1  release/bench/sweep-frames.txt
+eaca28d853e3cd40291e3fd86cedb7d688ede4f2ac0852e9dd38db985fb1ba10  release/bench/sweep-frames.txt
 eb6d722fd0f11e7d58e0200733f7f4398035974d0bf74329c01ca4dcefdf1c1a  release/bench/sweep-tiles.txt
 95f4156250879803ac60a6ce3706a884ee06f62ea6bbb2d1fd6e169e6ae06922  release/bin/ccv-sim
-aeccae3b0adf26597921256d596688321052b392d2a48beabeb0b47ea5c9e5e9  release/bin/ccv-sim.txt
+f406394f9d9fe14ec4f261c087c4c799040eb62a14eeba74bf0aed7e0563259e  release/bin/ccv-sim.txt
 795ddec2ad120317dd9da5e48a141b5c6a3e9abadfbf13bc37114b0cab6c5506  release/kernels/coremark-derived/kernel.bin
 b76252fafa0996072f7e51707f307b8587b12b9ac0f2db25d53e0df63a7af497  release/kernels/coremark-derived/kernel.s
 0c651ef270ced41afc6a40d386f9019d6971dd7dfd108849003ed8fadefb7a2c  release/kernels/coremark-derived/launch.txt
