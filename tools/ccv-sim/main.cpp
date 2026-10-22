@@ -48,6 +48,12 @@ static cl::opt<bool> TestFpFtz("ccv-test-fp-ftz", cl::Hidden,
     cl::desc("flush subnormal FP results to zero, to test that it is caught"));
 static cl::opt<bool> TestFpNoSat("ccv-test-fp-no-saturate", cl::Hidden,
     cl::desc("narrow FP overflow gives NaN, to test that it is caught"));
+// TI-35: the hardware warp context srd #2 (%lanectx) reports (O-64). The core
+// gives each resident warp its own, so one run standing for one warp of a
+// multi-CTA launch takes the context that warp will have. The value is only a
+// name (§12.1's bounded nondeterminism). Default: the -warp index.
+static cl::opt<int> LaneContext("context", cl::init(-1),
+    cl::desc("hardware warp context for srd #2 (default: the -warp index)"));
 static cl::opt<bool> TestFpHostNaN("ccv-test-fp-host-nan", cl::Hidden,
     cl::desc("FP32 NaN results keep the host's bits, to test that it is caught"));
 static cl::opt<unsigned> NumThreads("threads", cl::init(32),
@@ -212,7 +218,12 @@ int main(int argc, char **argv) {
   I.BarrierCount = std::min(unsigned(Barriers), 16u);
   Warp W;
   W.CtaId = CtaId;
-  W.WarpCtx = WarpInCta;
+  W.WarpCtx = LaneContext >= 0 ? unsigned(LaneContext) : unsigned(WarpInCta);
+  if (W.WarpCtx >= (1u << 27)) {
+    errs() << "error: -context=" << W.WarpCtx << " does not fit srd #2's "
+           << "(context << 5) | lane\n";
+    return 1;
+  }
   for (unsigned L = 0; L != kLanes; ++L) {
     W.PC[L] = CodeBase + Entry;
     W.CtaTid[L] = kLanes * WarpInCta + L;  // warp w, lane L is thread 32w + L
@@ -290,6 +301,9 @@ int main(int argc, char **argv) {
     // it is 0, so a one-warp record is exactly what it was.
     if (WarpInCta)
       std::fprintf(OF, "\"warp_in_cta\":%u,", unsigned(WarpInCta));
+    // The warp's hardware context, when it is not the -warp index (TI-35).
+    if (W.WarpCtx != WarpInCta)
+      std::fprintf(OF, "\"lane_context\":%u,", unsigned(W.WarpCtx));
     // F-RO's .const range, when there is one, for MIU's const_base and
     // const_limit (TI-26). Absent, the range is empty.
     if (I.Mem.ConstLimit > I.Mem.ConstBase)

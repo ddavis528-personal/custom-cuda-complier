@@ -171,7 +171,7 @@ checked 380 instructions
   PASS  -warp 1 of a 52-thread CTA: threads 32-51 on lanes 0-19, warp_in_cta in the record, a barrier refused
 
   --- srd #2, %lanectx (O-64) ---
-  PASS  srd #2 gives (context << 5) | lane, and srd #3 is still F-ILLEGAL
+  PASS  srd #2 gives (context << 5) | lane, -context sets it (TI-35), and srd #3 is still F-ILLEGAL
 
   --- canonical NaN, compare format (O-66, O-65) ---
   PASS  canonical NaN at FP32 and FP16 (O-66), the compare's format bit (O-65), F-FORMAT at 32 bits
