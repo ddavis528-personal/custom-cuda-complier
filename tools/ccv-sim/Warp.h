@@ -45,7 +45,11 @@ public:
   /// One architectural access, for the oracle record (`-oracle`). Only
   /// recorded while `Log` is set, so the simulator's own runs pay nothing,
   /// and pokes/peeks made from outside a step never appear.
-  struct Access { uint64_t Addr; unsigned Bytes; uint32_t Val; bool Write; };
+  /// Refused: the access was not made, for F-ALIGN or F-RO. It is logged so
+  /// a faulting instruction's oracle record still has every executing lane's
+  /// address (TI-28).
+  struct Access { uint64_t Addr; unsigned Bytes; uint32_t Val; bool Write;
+                  bool Refused = false; };
   std::vector<Access> *Log = nullptr;
 
   uint32_t read32(uint64_t Addr) {
@@ -142,8 +146,10 @@ public:
   /// field." So a load is 4, 2 or 1 bytes depending on the destination
   /// register's current width, and the 4-bit width has no byte transfer at all.
   uint32_t readN(uint64_t Addr, unsigned Bytes) {
-    if (!alignOK(Addr, Bytes))
+    if (!alignOK(Addr, Bytes)) {
+      if (Log) Log->push_back({Addr, Bytes, 0, false, true});
       return 0;
+    }
     uint32_t V = 0;
     for (unsigned I = 0; I != Bytes; ++I)
       V |= uint32_t(*byteAt(Addr + I)) << (8 * I);
@@ -151,8 +157,10 @@ public:
     return V;
   }
   void writeN(uint64_t Addr, uint32_t V, unsigned Bytes) {
-    if (!alignOK(Addr, Bytes) || !roOK(Addr, Bytes))
+    if (!alignOK(Addr, Bytes) || !roOK(Addr, Bytes)) {
+      if (Log) Log->push_back({Addr, Bytes, V, true, true});
       return;
+    }
     for (unsigned I = 0; I != Bytes; ++I) {
       journal(Addr + I);
       *byteAt(Addr + I) = uint8_t(V >> (8 * I));
