@@ -146,7 +146,7 @@ void CCVFrameLowering::emitPrologue(MachineFunction &MF,
   MachineBasicBlock::iterator I = MBB.begin();
   DebugLoc DL;
 
-  // R15 = launch-block window, then the CTA's .local window base, then this
+  // R15 = launch-block window, then the context's .local window base, then this
   // thread's own window. Nothing is live at function entry -- a kernel takes
   // no register arguments (§5.2) -- so R14 is free to use as a scratch here
   // regardless of what the allocator does with it later.
@@ -155,7 +155,9 @@ void CCVFrameLowering::emitPrologue(MachineFunction &MF,
   BuildMI(MBB, I, DL, TII->get(CCV::LD_GLOBAL), CCV::R15)
       .addReg(CCV::R15)
       .addImm(kOffLocalBase);
-  BuildMI(MBB, I, DL, TII->get(CCV::SRD), CCV::R14).addImm(0);  // %ctatid
+  // O-64: the window is indexed by %lanectx (srd #2), unique among the
+  // device's live lanes, not by %ctatid, which every CTA repeats.
+  BuildMI(MBB, I, DL, TII->get(CCV::SRD), CCV::R14).addImm(2);  // %lanectx
   BuildMI(MBB, I, DL, TII->get(CCV::ADD), CCV::R15)
       .addReg(CCV::R15)
       .addReg(CCV::R14)

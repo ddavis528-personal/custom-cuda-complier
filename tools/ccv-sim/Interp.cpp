@@ -816,8 +816,10 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       forEachLane([&](unsigned L) { W.GPR[D][L] = W.CtaTid[L]; });
     else if (Sel == 1)   // %ctaid: broadcast
       forEachLane([&](unsigned L) { W.GPR[D][L] = W.CtaId; });
+    else if (Sel == 2)   // %lanectx: (hardware warp context << 5) | lane (O-64)
+      forEachLane([&](unsigned L) { W.GPR[D][L] = (W.WarpCtx << 5) | L; });
     else {
-      // Selectors 2-15 are reserved values in a defined field: F-ILLEGAL at
+      // Selectors 3-15 are reserved values in a defined field: F-ILLEGAL at
       // decode, whole instruction (ISA v1.9 §12.3).
       Result F{Result::Fault, 0};
       F.Cause = "F-ILLEGAL";

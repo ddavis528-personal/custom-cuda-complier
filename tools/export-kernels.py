@@ -62,10 +62,10 @@ class Launch:
 
 
 # --- rope: rotary embedding, query and key heads ---------------------------
-def rope():
-    T, NH, NKV, HS, RD, NPOS = 32, 2, 1, 64, 64, 8
+def rope(NH=2, NKV=1, HS=64, RD=64, positions=(3, 7)):
+    T, NPOS = 32, 8
     half = RD // 2
-    positions = [3, 7]
+    positions = list(positions)
     cache = [math.cos(0.1 * p * (i + 1)) if i < half else math.sin(0.1 * p * (i - half + 1))
              for p in range(NPOS) for i in range(RD)]
     q0 = [((i * 37) % 101 - 50) / 25.0 for i in range(len(positions) * NH * HS)]
@@ -118,10 +118,18 @@ def layernorm():
     return T, ctas
 
 
-KERNELS = {"rope": rope, "layernorm": layernorm}
+# rope-diverged is check-fusion.py's geometry, rot_dim 8: half is 4, so only
+# lanes 0-3 work in each loop and the warp diverges. It is the shape whose
+# fairness picks set CCV_FAIR_N (CP's IS-17 sweep, AR's rev 121); the default
+# rope, rot_dim 64, keeps all 32 lanes busy and makes none (AR's rev 143).
+KERNELS = {"rope": rope,
+           "rope-diverged": lambda: rope(2, 1, 8, 8, (1, 1)),
+           "layernorm": layernorm}
+SOURCE = {"rope-diverged": "rope"}
 
 
 def build(name, tmp):
+    name = SOURCE.get(name, name)
     env = dict(os.environ, CCV_CFLAGS="-Itest/bench -Itest/cuda/fusion")
     subprocess.run(["./tools/cuda-to-asm.sh", f"test/cuda/fusion/{name}.cu",
                     f"{tmp}/{name}.ll.s", f"{tmp}/{name}"],
@@ -283,7 +291,7 @@ def main():
             threads, ctas = fn()
             d = os.path.join(out, name)
             os.makedirs(d, exist_ok=True)
-            hdr = (f"# {name}: test/cuda/fusion/{name}.cu, compiled; ccv-as source, "
+            hdr = (f"# {name}: test/cuda/fusion/{SOURCE.get(name, name)}.cu, compiled; ccv-as source, "
                    "reassembled byte for byte\n# by tools/ccv-dis.py --check. "
                    "Load at ccv-sim's -code-base; entry at offset 0.\n")
             open(f"{d}/kernel.s", "w").write(hdr + src)

@@ -215,6 +215,21 @@ run_warp() {
     echo "  FAIL  -warp: got '$out' (warp 0: '$ctl'), want '$want'; barrier: $bar"; return 1
   fi
 }
+# --- srd #2, %lanectx (O-64) -----------------------------------------------
+run_lanectx() {
+  python3 "$AS" "$JSON" test/lanectx.s "$TMP/lc.bin" >/dev/null || return 1
+  local args="-threads 52 -warp 1 -peek 0x30080 -peek 0x300cc" out ill
+  out=$("$SIM" "$TMP/lc.bin" $args 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  # The control: selector 3 is still reserved, F-ILLEGAL.
+  sed 's/SRD           R1, 2 /SRD           R1, 3 /' test/lanectx.s > "$TMP/lc3.s"
+  python3 "$AS" "$JSON" "$TMP/lc3.s" "$TMP/lc3.bin" >/dev/null || return 1
+  ill=$("$SIM" "$TMP/lc3.bin" $args 2>&1)
+  if [ "${out% }" = "32 51" ] && grep -q "F-ILLEGAL" <<< "$ill"; then
+    echo "  PASS  srd #2 gives (context << 5) | lane, and srd #3 is still F-ILLEGAL"
+  else
+    echo "  FAIL  srd #2: got '$out', want '32 51'; srd #3: $ill"; return 1
+  fi
+}
 # --- narrow FP executed (CP-6) ----------------------------------------------
 run_narrow_fp() {
   python3 "$AS" "$JSON" test/narrow-fp.s "$TMP/nf.bin" >/dev/null || return 1
@@ -237,6 +252,9 @@ run_narrow_fp || fail=1
 echo
 echo "  --- one warp of several (TI-29) ---"
 run_warp || fail=1
+echo
+echo "  --- srd #2, %lanectx (O-64) ---"
+run_lanectx || fail=1
 
 # --- the fault model (ISA v1.9 section 12, O-57/O-58) ------------------------
 # Each case names the record it must produce. A fault exits 3, distinct from a

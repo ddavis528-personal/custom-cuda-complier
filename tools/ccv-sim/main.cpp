@@ -209,6 +209,7 @@ int main(int argc, char **argv) {
   I.BarrierCount = std::min(unsigned(Barriers), 16u);
   Warp W;
   W.CtaId = CtaId;
+  W.WarpCtx = WarpInCta;
   for (unsigned L = 0; L != kLanes; ++L) {
     W.PC[L] = CodeBase + Entry;
     W.CtaTid[L] = kLanes * WarpInCta + L;  // warp w, lane L is thread 32w + L
