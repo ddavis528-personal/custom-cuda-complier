@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Interp.h"
+#include "NarrowFP.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
@@ -22,6 +23,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/bit.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
@@ -37,6 +39,15 @@ extern "C" void LLVMInitializeCCVDisassembler();
 
 static cl::opt<std::string> InputFile(cl::Positional, cl::Required,
                                       cl::desc("<kernel.bin>"));
+// CP-6: evaluate FP operations from a case file instead of running a kernel.
+// Each line is `OPCODE wd wa wb wc x y z` (width codes, then operand bits in
+// hex); each output line is the result in hex, or F-FORMAT.
+static cl::opt<std::string> FpCases("fp-cases", cl::Hidden,
+                                    cl::desc("evaluate FP cases from a file (CP-6)"));
+static cl::opt<bool> TestFpFtz("ccv-test-fp-ftz", cl::Hidden,
+    cl::desc("flush subnormal FP results to zero, to test that it is caught"));
+static cl::opt<bool> TestFpNoSat("ccv-test-fp-no-saturate", cl::Hidden,
+    cl::desc("narrow FP overflow gives NaN, to test that it is caught"));
 static cl::opt<unsigned> NumThreads("threads", cl::init(32),
                                     cl::desc("active threads in the CTA"));
 static cl::opt<unsigned> CtaId("ctaid", cl::init(0), cl::desc("CTA index"));
@@ -155,6 +166,35 @@ int main(int argc, char **argv) {
   MCTargetOptions Opts;
   std::unique_ptr<const MCAsmInfo> MAI(T->createMCAsmInfo(*MRI, TT.str(), Opts));
   std::unique_ptr<const MCInstrInfo> MII(T->createMCInstrInfo());
+  nfp::TestFtz = TestFpFtz;
+  nfp::TestNoSaturate = TestFpNoSat;
+  if (!FpCases.empty()) {
+    StringMap<unsigned> ByName;
+    for (unsigned Op = 0, N = MII->getNumOpcodes(); Op != N; ++Op)
+      ByName[MII->getName(Op)] = Op;
+    auto Buf = MemoryBuffer::getFile(FpCases);
+    if (!Buf) { errs() << "error: cannot read " << FpCases << "\n"; return 1; }
+    SmallVector<StringRef, 0> Lines;
+    (*Buf)->getBuffer().split(Lines, '\n', -1, false);
+    for (StringRef Line : Lines) {
+      SmallVector<StringRef, 8> F;
+      Line.split(F, ' ', -1, false);
+      if (F.size() != 8 || !ByName.count(F[0])) {
+        errs() << "error: bad case: " << Line << "\n";
+        return 1;
+      }
+      uint8_t W[4];
+      uint32_t V[3];
+      for (int K = 0; K != 4; ++K) W[K] = uint8_t(std::stoul(F[1 + K].str()));
+      for (int K = 0; K != 3; ++K) V[K] = uint32_t(std::stoul(F[5 + K].str(), nullptr, 16));
+      uint32_t Out;
+      if (Interp::evalFp(ByName[F[0]], W, V[0], V[1], V[2], Out))
+        outs() << format("%x\n", Out);
+      else
+        outs() << "F-FORMAT\n";
+    }
+    return 0;
+  }
   std::unique_ptr<const MCSubtargetInfo> STI(
       T->createMCSubtargetInfo(TT.str(), "generic", ""));
   MCContext Ctx(TT, MAI.get(), MRI.get(), STI.get());

@@ -324,6 +324,100 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(56),	// CHWIDTH_MULTI
     UINT64_C(1472),	// CLZ
     UINT64_C(1073742208),	// COS_F32
+    UINT64_C(268435456),	// CVT_D0_S0_R0
+    UINT64_C(2147483652),	// CVT_D0_S0_R0_P
+    UINT64_C(268435520),	// CVT_D0_S0_R1
+    UINT64_C(2147483716),	// CVT_D0_S0_R1_P
+    UINT64_C(268435584),	// CVT_D0_S0_R2
+    UINT64_C(2147483780),	// CVT_D0_S0_R2_P
+    UINT64_C(268435648),	// CVT_D0_S0_R3
+    UINT64_C(2147483844),	// CVT_D0_S0_R3_P
+    UINT64_C(268435712),	// CVT_D0_S1_R0
+    UINT64_C(2147483908),	// CVT_D0_S1_R0_P
+    UINT64_C(268435776),	// CVT_D0_S1_R1
+    UINT64_C(2147483972),	// CVT_D0_S1_R1_P
+    UINT64_C(268435840),	// CVT_D0_S1_R2
+    UINT64_C(2147484036),	// CVT_D0_S1_R2_P
+    UINT64_C(268435904),	// CVT_D0_S1_R3
+    UINT64_C(2147484100),	// CVT_D0_S1_R3_P
+    UINT64_C(268436032),	// CVT_D0_S2_R1
+    UINT64_C(2147484228),	// CVT_D0_S2_R1_P
+    UINT64_C(268436096),	// CVT_D0_S2_R2
+    UINT64_C(2147484292),	// CVT_D0_S2_R2_P
+    UINT64_C(268436160),	// CVT_D0_S2_R3
+    UINT64_C(2147484356),	// CVT_D0_S2_R3_P
+    UINT64_C(268436288),	// CVT_D0_S3_R1
+    UINT64_C(2147484484),	// CVT_D0_S3_R1_P
+    UINT64_C(268436352),	// CVT_D0_S3_R2
+    UINT64_C(2147484548),	// CVT_D0_S3_R2_P
+    UINT64_C(268436416),	// CVT_D0_S3_R3
+    UINT64_C(2147484612),	// CVT_D0_S3_R3_P
+    UINT64_C(268436480),	// CVT_D1_S0_R0
+    UINT64_C(2147484676),	// CVT_D1_S0_R0_P
+    UINT64_C(268436544),	// CVT_D1_S0_R1
+    UINT64_C(2147484740),	// CVT_D1_S0_R1_P
+    UINT64_C(268436608),	// CVT_D1_S0_R2
+    UINT64_C(2147484804),	// CVT_D1_S0_R2_P
+    UINT64_C(268436672),	// CVT_D1_S0_R3
+    UINT64_C(2147484868),	// CVT_D1_S0_R3_P
+    UINT64_C(268436736),	// CVT_D1_S1_R0
+    UINT64_C(2147484932),	// CVT_D1_S1_R0_P
+    UINT64_C(268436800),	// CVT_D1_S1_R1
+    UINT64_C(2147484996),	// CVT_D1_S1_R1_P
+    UINT64_C(268436864),	// CVT_D1_S1_R2
+    UINT64_C(2147485060),	// CVT_D1_S1_R2_P
+    UINT64_C(268436928),	// CVT_D1_S1_R3
+    UINT64_C(2147485124),	// CVT_D1_S1_R3_P
+    UINT64_C(268436992),	// CVT_D1_S2_R0
+    UINT64_C(2147485188),	// CVT_D1_S2_R0_P
+    UINT64_C(268437056),	// CVT_D1_S2_R1
+    UINT64_C(2147485252),	// CVT_D1_S2_R1_P
+    UINT64_C(268437120),	// CVT_D1_S2_R2
+    UINT64_C(2147485316),	// CVT_D1_S2_R2_P
+    UINT64_C(268437184),	// CVT_D1_S2_R3
+    UINT64_C(2147485380),	// CVT_D1_S2_R3_P
+    UINT64_C(268437248),	// CVT_D1_S3_R0
+    UINT64_C(2147485444),	// CVT_D1_S3_R0_P
+    UINT64_C(268437312),	// CVT_D1_S3_R1
+    UINT64_C(2147485508),	// CVT_D1_S3_R1_P
+    UINT64_C(268437376),	// CVT_D1_S3_R2
+    UINT64_C(2147485572),	// CVT_D1_S3_R2_P
+    UINT64_C(268437440),	// CVT_D1_S3_R3
+    UINT64_C(2147485636),	// CVT_D1_S3_R3_P
+    UINT64_C(402653184),	// CVT_D2_S0_R0
+    UINT64_C(3221225476),	// CVT_D2_S0_R0_P
+    UINT64_C(402653312),	// CVT_D2_S0_R2
+    UINT64_C(3221225604),	// CVT_D2_S0_R2_P
+    UINT64_C(402653376),	// CVT_D2_S0_R3
+    UINT64_C(3221225668),	// CVT_D2_S0_R3_P
+    UINT64_C(402653440),	// CVT_D2_S1_R0
+    UINT64_C(3221225732),	// CVT_D2_S1_R0_P
+    UINT64_C(402653504),	// CVT_D2_S1_R1
+    UINT64_C(3221225796),	// CVT_D2_S1_R1_P
+    UINT64_C(402653568),	// CVT_D2_S1_R2
+    UINT64_C(3221225860),	// CVT_D2_S1_R2_P
+    UINT64_C(402653632),	// CVT_D2_S1_R3
+    UINT64_C(3221225924),	// CVT_D2_S1_R3_P
+    UINT64_C(402653952),	// CVT_D2_S3_R0
+    UINT64_C(3221226244),	// CVT_D2_S3_R0_P
+    UINT64_C(402654208),	// CVT_D3_S0_R0
+    UINT64_C(3221226500),	// CVT_D3_S0_R0_P
+    UINT64_C(402654336),	// CVT_D3_S0_R2
+    UINT64_C(3221226628),	// CVT_D3_S0_R2_P
+    UINT64_C(402654400),	// CVT_D3_S0_R3
+    UINT64_C(3221226692),	// CVT_D3_S0_R3_P
+    UINT64_C(402654464),	// CVT_D3_S1_R0
+    UINT64_C(3221226756),	// CVT_D3_S1_R0_P
+    UINT64_C(402654528),	// CVT_D3_S1_R1
+    UINT64_C(3221226820),	// CVT_D3_S1_R1_P
+    UINT64_C(402654592),	// CVT_D3_S1_R2
+    UINT64_C(3221226884),	// CVT_D3_S1_R2_P
+    UINT64_C(402654656),	// CVT_D3_S1_R3
+    UINT64_C(3221226948),	// CVT_D3_S1_R3_P
+    UINT64_C(402654720),	// CVT_D3_S2_R0
+    UINT64_C(3221227012),	// CVT_D3_S2_R0_P
+    UINT64_C(402654976),	// CVT_D3_S3_R0
+    UINT64_C(3221227268),	// CVT_D3_S3_R0_P
     UINT64_C(268435968),	// CVT_F32_S32
     UINT64_C(2147484164),	// CVT_F32_S32_P
     UINT64_C(268436224),	// CVT_F32_U32
@@ -381,17 +475,25 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(134218752),	// DP4_SS
     UINT64_C(1073742016),	// EX2_F32
     UINT64_C(134218176),	// FABS_F0
+    UINT64_C(134218688),	// FABS_F1
     UINT64_C(134217728),	// FADD
+    UINT64_C(134218240),	// FADD_F1
     UINT64_C(1073741828),	// FADD_P
     UINT64_C(1),	// FFMA_ACC_F0
     UINT64_C(5),	// FFMA_ACC_F1
     UINT64_C(134217920),	// FFMA_F0
+    UINT64_C(134218432),	// FFMA_F1
     UINT64_C(134218048),	// FMAX
+    UINT64_C(134218560),	// FMAX_F1
     UINT64_C(134217984),	// FMIN
+    UINT64_C(134218496),	// FMIN_F1
     UINT64_C(134217856),	// FMUL
+    UINT64_C(134218368),	// FMUL_F1
     UINT64_C(1073741956),	// FMUL_P
     UINT64_C(134218112),	// FNEG_F0
+    UINT64_C(134218624),	// FNEG_F1
     UINT64_C(134217792),	// FSUB
+    UINT64_C(134218304),	// FSUB_F1
     UINT64_C(1073741892),	// FSUB_P
     UINT64_C(32),	// LD_GLOBAL
     UINT64_C(288),	// LD_GLOBAL_IDX
@@ -866,6 +968,53 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     case CCV::BREV:
     case CCV::CLZ:
     case CCV::COS_F32:
+    case CCV::CVT_D0_S0_R0:
+    case CCV::CVT_D0_S0_R1:
+    case CCV::CVT_D0_S0_R2:
+    case CCV::CVT_D0_S0_R3:
+    case CCV::CVT_D0_S1_R0:
+    case CCV::CVT_D0_S1_R1:
+    case CCV::CVT_D0_S1_R2:
+    case CCV::CVT_D0_S1_R3:
+    case CCV::CVT_D0_S2_R1:
+    case CCV::CVT_D0_S2_R2:
+    case CCV::CVT_D0_S2_R3:
+    case CCV::CVT_D0_S3_R1:
+    case CCV::CVT_D0_S3_R2:
+    case CCV::CVT_D0_S3_R3:
+    case CCV::CVT_D1_S0_R0:
+    case CCV::CVT_D1_S0_R1:
+    case CCV::CVT_D1_S0_R2:
+    case CCV::CVT_D1_S0_R3:
+    case CCV::CVT_D1_S1_R0:
+    case CCV::CVT_D1_S1_R1:
+    case CCV::CVT_D1_S1_R2:
+    case CCV::CVT_D1_S1_R3:
+    case CCV::CVT_D1_S2_R0:
+    case CCV::CVT_D1_S2_R1:
+    case CCV::CVT_D1_S2_R2:
+    case CCV::CVT_D1_S2_R3:
+    case CCV::CVT_D1_S3_R0:
+    case CCV::CVT_D1_S3_R1:
+    case CCV::CVT_D1_S3_R2:
+    case CCV::CVT_D1_S3_R3:
+    case CCV::CVT_D2_S0_R0:
+    case CCV::CVT_D2_S0_R2:
+    case CCV::CVT_D2_S0_R3:
+    case CCV::CVT_D2_S1_R0:
+    case CCV::CVT_D2_S1_R1:
+    case CCV::CVT_D2_S1_R2:
+    case CCV::CVT_D2_S1_R3:
+    case CCV::CVT_D2_S3_R0:
+    case CCV::CVT_D3_S0_R0:
+    case CCV::CVT_D3_S0_R2:
+    case CCV::CVT_D3_S0_R3:
+    case CCV::CVT_D3_S1_R0:
+    case CCV::CVT_D3_S1_R1:
+    case CCV::CVT_D3_S1_R2:
+    case CCV::CVT_D3_S1_R3:
+    case CCV::CVT_D3_S2_R0:
+    case CCV::CVT_D3_S3_R0:
     case CCV::CVT_F32_S32:
     case CCV::CVT_F32_U32:
     case CCV::CVT_S32_F32:
@@ -878,13 +1027,21 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     case CCV::DP4_SS:
     case CCV::EX2_F32:
     case CCV::FABS_F0:
+    case CCV::FABS_F1:
     case CCV::FADD:
+    case CCV::FADD_F1:
     case CCV::FFMA_F0:
+    case CCV::FFMA_F1:
     case CCV::FMAX:
+    case CCV::FMAX_F1:
     case CCV::FMIN:
+    case CCV::FMIN_F1:
     case CCV::FMUL:
+    case CCV::FMUL_F1:
     case CCV::FNEG_F0:
+    case CCV::FNEG_F1:
     case CCV::FSUB:
+    case CCV::FSUB_F1:
     case CCV::LG2_F32:
     case CCV::MADLO:
     case CCV::MAX_S:
@@ -1008,6 +1165,53 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     }
     case CCV::ADD_P:
     case CCV::AND_P:
+    case CCV::CVT_D0_S0_R0_P:
+    case CCV::CVT_D0_S0_R1_P:
+    case CCV::CVT_D0_S0_R2_P:
+    case CCV::CVT_D0_S0_R3_P:
+    case CCV::CVT_D0_S1_R0_P:
+    case CCV::CVT_D0_S1_R1_P:
+    case CCV::CVT_D0_S1_R2_P:
+    case CCV::CVT_D0_S1_R3_P:
+    case CCV::CVT_D0_S2_R1_P:
+    case CCV::CVT_D0_S2_R2_P:
+    case CCV::CVT_D0_S2_R3_P:
+    case CCV::CVT_D0_S3_R1_P:
+    case CCV::CVT_D0_S3_R2_P:
+    case CCV::CVT_D0_S3_R3_P:
+    case CCV::CVT_D1_S0_R0_P:
+    case CCV::CVT_D1_S0_R1_P:
+    case CCV::CVT_D1_S0_R2_P:
+    case CCV::CVT_D1_S0_R3_P:
+    case CCV::CVT_D1_S1_R0_P:
+    case CCV::CVT_D1_S1_R1_P:
+    case CCV::CVT_D1_S1_R2_P:
+    case CCV::CVT_D1_S1_R3_P:
+    case CCV::CVT_D1_S2_R0_P:
+    case CCV::CVT_D1_S2_R1_P:
+    case CCV::CVT_D1_S2_R2_P:
+    case CCV::CVT_D1_S2_R3_P:
+    case CCV::CVT_D1_S3_R0_P:
+    case CCV::CVT_D1_S3_R1_P:
+    case CCV::CVT_D1_S3_R2_P:
+    case CCV::CVT_D1_S3_R3_P:
+    case CCV::CVT_D2_S0_R0_P:
+    case CCV::CVT_D2_S0_R2_P:
+    case CCV::CVT_D2_S0_R3_P:
+    case CCV::CVT_D2_S1_R0_P:
+    case CCV::CVT_D2_S1_R1_P:
+    case CCV::CVT_D2_S1_R2_P:
+    case CCV::CVT_D2_S1_R3_P:
+    case CCV::CVT_D2_S3_R0_P:
+    case CCV::CVT_D3_S0_R0_P:
+    case CCV::CVT_D3_S0_R2_P:
+    case CCV::CVT_D3_S0_R3_P:
+    case CCV::CVT_D3_S1_R0_P:
+    case CCV::CVT_D3_S1_R1_P:
+    case CCV::CVT_D3_S1_R2_P:
+    case CCV::CVT_D3_S1_R3_P:
+    case CCV::CVT_D3_S2_R0_P:
+    case CCV::CVT_D3_S3_R0_P:
     case CCV::CVT_F32_S32_P:
     case CCV::CVT_F32_U32_P:
     case CCV::CVT_S32_F32_P:
@@ -1749,6 +1953,53 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
     case CCV::BREV:
     case CCV::CLZ:
     case CCV::COS_F32:
+    case CCV::CVT_D0_S0_R0:
+    case CCV::CVT_D0_S0_R1:
+    case CCV::CVT_D0_S0_R2:
+    case CCV::CVT_D0_S0_R3:
+    case CCV::CVT_D0_S1_R0:
+    case CCV::CVT_D0_S1_R1:
+    case CCV::CVT_D0_S1_R2:
+    case CCV::CVT_D0_S1_R3:
+    case CCV::CVT_D0_S2_R1:
+    case CCV::CVT_D0_S2_R2:
+    case CCV::CVT_D0_S2_R3:
+    case CCV::CVT_D0_S3_R1:
+    case CCV::CVT_D0_S3_R2:
+    case CCV::CVT_D0_S3_R3:
+    case CCV::CVT_D1_S0_R0:
+    case CCV::CVT_D1_S0_R1:
+    case CCV::CVT_D1_S0_R2:
+    case CCV::CVT_D1_S0_R3:
+    case CCV::CVT_D1_S1_R0:
+    case CCV::CVT_D1_S1_R1:
+    case CCV::CVT_D1_S1_R2:
+    case CCV::CVT_D1_S1_R3:
+    case CCV::CVT_D1_S2_R0:
+    case CCV::CVT_D1_S2_R1:
+    case CCV::CVT_D1_S2_R2:
+    case CCV::CVT_D1_S2_R3:
+    case CCV::CVT_D1_S3_R0:
+    case CCV::CVT_D1_S3_R1:
+    case CCV::CVT_D1_S3_R2:
+    case CCV::CVT_D1_S3_R3:
+    case CCV::CVT_D2_S0_R0:
+    case CCV::CVT_D2_S0_R2:
+    case CCV::CVT_D2_S0_R3:
+    case CCV::CVT_D2_S1_R0:
+    case CCV::CVT_D2_S1_R1:
+    case CCV::CVT_D2_S1_R2:
+    case CCV::CVT_D2_S1_R3:
+    case CCV::CVT_D2_S3_R0:
+    case CCV::CVT_D3_S0_R0:
+    case CCV::CVT_D3_S0_R2:
+    case CCV::CVT_D3_S0_R3:
+    case CCV::CVT_D3_S1_R0:
+    case CCV::CVT_D3_S1_R1:
+    case CCV::CVT_D3_S1_R2:
+    case CCV::CVT_D3_S1_R3:
+    case CCV::CVT_D3_S2_R0:
+    case CCV::CVT_D3_S3_R0:
     case CCV::CVT_F32_S32:
     case CCV::CVT_F32_U32:
     case CCV::CVT_S32_F32:
@@ -1761,13 +2012,21 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
     case CCV::DP4_SS:
     case CCV::EX2_F32:
     case CCV::FABS_F0:
+    case CCV::FABS_F1:
     case CCV::FADD:
+    case CCV::FADD_F1:
     case CCV::FFMA_F0:
+    case CCV::FFMA_F1:
     case CCV::FMAX:
+    case CCV::FMAX_F1:
     case CCV::FMIN:
+    case CCV::FMIN_F1:
     case CCV::FMUL:
+    case CCV::FMUL_F1:
     case CCV::FNEG_F0:
+    case CCV::FNEG_F1:
     case CCV::FSUB:
+    case CCV::FSUB_F1:
     case CCV::LG2_F32:
     case CCV::MADLO:
     case CCV::MAX_S:
@@ -1884,6 +2143,53 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
     }
     case CCV::ADD_P:
     case CCV::AND_P:
+    case CCV::CVT_D0_S0_R0_P:
+    case CCV::CVT_D0_S0_R1_P:
+    case CCV::CVT_D0_S0_R2_P:
+    case CCV::CVT_D0_S0_R3_P:
+    case CCV::CVT_D0_S1_R0_P:
+    case CCV::CVT_D0_S1_R1_P:
+    case CCV::CVT_D0_S1_R2_P:
+    case CCV::CVT_D0_S1_R3_P:
+    case CCV::CVT_D0_S2_R1_P:
+    case CCV::CVT_D0_S2_R2_P:
+    case CCV::CVT_D0_S2_R3_P:
+    case CCV::CVT_D0_S3_R1_P:
+    case CCV::CVT_D0_S3_R2_P:
+    case CCV::CVT_D0_S3_R3_P:
+    case CCV::CVT_D1_S0_R0_P:
+    case CCV::CVT_D1_S0_R1_P:
+    case CCV::CVT_D1_S0_R2_P:
+    case CCV::CVT_D1_S0_R3_P:
+    case CCV::CVT_D1_S1_R0_P:
+    case CCV::CVT_D1_S1_R1_P:
+    case CCV::CVT_D1_S1_R2_P:
+    case CCV::CVT_D1_S1_R3_P:
+    case CCV::CVT_D1_S2_R0_P:
+    case CCV::CVT_D1_S2_R1_P:
+    case CCV::CVT_D1_S2_R2_P:
+    case CCV::CVT_D1_S2_R3_P:
+    case CCV::CVT_D1_S3_R0_P:
+    case CCV::CVT_D1_S3_R1_P:
+    case CCV::CVT_D1_S3_R2_P:
+    case CCV::CVT_D1_S3_R3_P:
+    case CCV::CVT_D2_S0_R0_P:
+    case CCV::CVT_D2_S0_R2_P:
+    case CCV::CVT_D2_S0_R3_P:
+    case CCV::CVT_D2_S1_R0_P:
+    case CCV::CVT_D2_S1_R1_P:
+    case CCV::CVT_D2_S1_R2_P:
+    case CCV::CVT_D2_S1_R3_P:
+    case CCV::CVT_D2_S3_R0_P:
+    case CCV::CVT_D3_S0_R0_P:
+    case CCV::CVT_D3_S0_R2_P:
+    case CCV::CVT_D3_S0_R3_P:
+    case CCV::CVT_D3_S1_R0_P:
+    case CCV::CVT_D3_S1_R1_P:
+    case CCV::CVT_D3_S1_R2_P:
+    case CCV::CVT_D3_S1_R3_P:
+    case CCV::CVT_D3_S2_R0_P:
+    case CCV::CVT_D3_S3_R0_P:
     case CCV::CVT_F32_S32_P:
     case CCV::CVT_F32_U32_P:
     case CCV::CVT_S32_F32_P:

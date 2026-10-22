@@ -25,119 +25,174 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
   /* 58 */ "fmin.f0 \0"
   /* 67 */ "fabs.f0 \0"
   /* 76 */ "fmax.f0 \0"
-  /* 85 */ "ffma.acc.f1 \0"
-  /* 98 */ "cvt.s32.f32 \0"
-  /* 111 */ "cvt.u32.f32 \0"
-  /* 124 */ "lg2.f32 \0"
-  /* 133 */ "ex2.f32 \0"
-  /* 142 */ "sin.f32 \0"
-  /* 151 */ "rcp.f32 \0"
-  /* 160 */ "cos.f32 \0"
-  /* 169 */ "rsqrt.f32 \0"
-  /* 180 */ "cvt.f32.s32 \0"
-  /* 193 */ "cvt.f32.u32 \0"
-  /* 206 */ "rcp.u32 \0"
-  /* 215 */ "dp4.e5m2 \0"
-  /* 225 */ "dp4.e4m3 \0"
-  /* 235 */ "dp2.f16 \0"
-  /* 244 */ "dp2.bf16 \0"
-  /* 254 */ "f48 \0"
-  /* 259 */ "# pAND \0"
-  /* 267 */ "# pXOR \0"
-  /* 275 */ "# pOR \0"
-  /* 282 */ "bra \0"
-  /* 287 */ "sra \0"
-  /* 292 */ "sub \0"
-  /* 297 */ "dp4.acc \0"
-  /* 306 */ "mad.acc \0"
-  /* 315 */ "popc \0"
-  /* 321 */ "fadd \0"
-  /* 327 */ "ld.pred.shared \0"
-  /* 343 */ "st.pred.shared \0"
-  /* 359 */ "ld.shared \0"
-  /* 370 */ "st.shared \0"
-  /* 381 */ "# ld.pred \0"
-  /* 392 */ "# st.pred \0"
-  /* 403 */ "pand \0"
-  /* 409 */ "srd \0"
-  /* 414 */ "fence \0"
-  /* 421 */ "setp.ge \0"
-  /* 430 */ "setp.le \0"
-  /* 439 */ "setp.ne \0"
-  /* 448 */ "bar.arrive \0"
-  /* 460 */ "setp.ge.f \0"
-  /* 471 */ "setp.le.f \0"
-  /* 482 */ "setp.ne.f \0"
-  /* 493 */ "setp.eq.f \0"
-  /* 504 */ "setp.gt.f \0"
-  /* 515 */ "setp.lt.f \0"
-  /* 526 */ "neg \0"
-  /* 531 */ "chwidth \0"
-  /* 540 */ "unpacki \0"
-  /* 549 */ "chwidth.multi \0"
-  /* 564 */ "movi \0"
-  /* 570 */ "atom.add.global \0"
-  /* 587 */ "ld.global \0"
-  /* 598 */ "st.global \0"
-  /* 609 */ "shl \0"
-  /* 614 */ "# call \0"
-  /* 622 */ "fmul \0"
-  /* 628 */ "andn \0"
-  /* 634 */ "fmin \0"
-  /* 640 */ "# adjcallstackdown \0"
-  /* 660 */ "mad.lo \0"
-  /* 668 */ "mul.lo \0"
-  /* 676 */ "# adjcallstackup \0"
-  /* 694 */ "setp.eq \0"
-  /* 703 */ "shr \0"
-  /* 708 */ "por \0"
-  /* 713 */ "pxor \0"
-  /* 719 */ "mul.hi.s \0"
-  /* 729 */ "min.s \0"
-  /* 736 */ "max.s \0"
-  /* 743 */ "abs \0"
-  /* 748 */ "dp4.ss \0"
-  /* 756 */ "# ret \0"
-  /* 763 */ "setp.gt \0"
-  /* 772 */ "bar.wait \0"
-  /* 782 */ "bar.init \0"
-  /* 792 */ "setp.lt \0"
-  /* 801 */ "reconv.hint \0"
-  /* 814 */ "cvt.sint.sint \0"
-  /* 829 */ "not \0"
-  /* 834 */ "bra.short \0"
-  /* 845 */ "# broadcast \0"
-  /* 858 */ "setp.ge.u \0"
-  /* 869 */ "setp.le.u \0"
-  /* 880 */ "mul.hi.u \0"
-  /* 890 */ "min.u \0"
-  /* 897 */ "setp.gt.u \0"
-  /* 908 */ "setp.lt.u \0"
-  /* 919 */ "max.u \0"
-  /* 926 */ "brev \0"
-  /* 932 */ "pmov \0"
-  /* 938 */ "# narrow \0"
-  /* 948 */ "fmax \0"
-  /* 954 */ "packi.z \0"
-  /* 963 */ "clz \0"
-  /* 968 */ "# XRay Function Patchable RET.\0"
-  /* 999 */ "# XRay Typed Event Log.\0"
-  /* 1023 */ "# XRay Custom Event Log.\0"
-  /* 1048 */ "# XRay Function Enter.\0"
-  /* 1071 */ "# XRay Tail Call Exit.\0"
-  /* 1094 */ "# XRay Function Exit.\0"
-  /* 1116 */ "# @\0"
-  /* 1120 */ "LIFETIME_END\0"
-  /* 1133 */ "PSEUDO_PROBE\0"
-  /* 1146 */ "BUNDLE\0"
-  /* 1153 */ "DBG_VALUE\0"
-  /* 1163 */ "DBG_INSTR_REF\0"
-  /* 1177 */ "DBG_PHI\0"
-  /* 1185 */ "DBG_LABEL\0"
-  /* 1195 */ "LIFETIME_START\0"
-  /* 1210 */ "DBG_VALUE_LIST\0"
-  /* 1225 */ "# FEntry call\0"
-  /* 1239 */ "exit\0"
+  /* 85 */ "cvt.rm.fp0.fp0 \0"
+  /* 101 */ "cvt.rn.fp0.fp0 \0"
+  /* 117 */ "cvt.rp.fp0.fp0 \0"
+  /* 133 */ "cvt.rz.fp0.fp0 \0"
+  /* 149 */ "cvt.rm.fp1.fp0 \0"
+  /* 165 */ "cvt.rn.fp1.fp0 \0"
+  /* 181 */ "cvt.rp.fp1.fp0 \0"
+  /* 197 */ "cvt.rz.fp1.fp0 \0"
+  /* 213 */ "cvt.rm.s.fp0 \0"
+  /* 227 */ "cvt.rn.s.fp0 \0"
+  /* 241 */ "cvt.rp.s.fp0 \0"
+  /* 255 */ "cvt.rm.u.fp0 \0"
+  /* 269 */ "cvt.rn.u.fp0 \0"
+  /* 283 */ "cvt.rp.u.fp0 \0"
+  /* 297 */ "ffma.f1 \0"
+  /* 306 */ "fsub.f1 \0"
+  /* 315 */ "ffma.acc.f1 \0"
+  /* 328 */ "fadd.f1 \0"
+  /* 337 */ "fneg.f1 \0"
+  /* 346 */ "fmul.f1 \0"
+  /* 355 */ "fmin.f1 \0"
+  /* 364 */ "fabs.f1 \0"
+  /* 373 */ "fmax.f1 \0"
+  /* 382 */ "cvt.rm.fp0.fp1 \0"
+  /* 398 */ "cvt.rn.fp0.fp1 \0"
+  /* 414 */ "cvt.rp.fp0.fp1 \0"
+  /* 430 */ "cvt.rz.fp0.fp1 \0"
+  /* 446 */ "cvt.rm.fp1.fp1 \0"
+  /* 462 */ "cvt.rn.fp1.fp1 \0"
+  /* 478 */ "cvt.rp.fp1.fp1 \0"
+  /* 494 */ "cvt.rz.fp1.fp1 \0"
+  /* 510 */ "cvt.rm.s.fp1 \0"
+  /* 524 */ "cvt.rn.s.fp1 \0"
+  /* 538 */ "cvt.rp.s.fp1 \0"
+  /* 552 */ "cvt.rz.s.fp1 \0"
+  /* 566 */ "cvt.rm.u.fp1 \0"
+  /* 580 */ "cvt.rn.u.fp1 \0"
+  /* 594 */ "cvt.rp.u.fp1 \0"
+  /* 608 */ "cvt.rz.u.fp1 \0"
+  /* 622 */ "cvt.s32.f32 \0"
+  /* 635 */ "cvt.u32.f32 \0"
+  /* 648 */ "lg2.f32 \0"
+  /* 657 */ "ex2.f32 \0"
+  /* 666 */ "sin.f32 \0"
+  /* 675 */ "rcp.f32 \0"
+  /* 684 */ "cos.f32 \0"
+  /* 693 */ "rsqrt.f32 \0"
+  /* 704 */ "cvt.f32.s32 \0"
+  /* 717 */ "cvt.f32.u32 \0"
+  /* 730 */ "rcp.u32 \0"
+  /* 739 */ "dp4.e5m2 \0"
+  /* 749 */ "dp4.e4m3 \0"
+  /* 759 */ "dp2.f16 \0"
+  /* 768 */ "dp2.bf16 \0"
+  /* 778 */ "f48 \0"
+  /* 783 */ "# pAND \0"
+  /* 791 */ "# pXOR \0"
+  /* 799 */ "# pOR \0"
+  /* 806 */ "bra \0"
+  /* 811 */ "sra \0"
+  /* 816 */ "sub \0"
+  /* 821 */ "dp4.acc \0"
+  /* 830 */ "mad.acc \0"
+  /* 839 */ "popc \0"
+  /* 845 */ "fadd \0"
+  /* 851 */ "ld.pred.shared \0"
+  /* 867 */ "st.pred.shared \0"
+  /* 883 */ "ld.shared \0"
+  /* 894 */ "st.shared \0"
+  /* 905 */ "# ld.pred \0"
+  /* 916 */ "# st.pred \0"
+  /* 927 */ "pand \0"
+  /* 933 */ "srd \0"
+  /* 938 */ "fence \0"
+  /* 945 */ "setp.ge \0"
+  /* 954 */ "setp.le \0"
+  /* 963 */ "setp.ne \0"
+  /* 972 */ "bar.arrive \0"
+  /* 984 */ "setp.ge.f \0"
+  /* 995 */ "setp.le.f \0"
+  /* 1006 */ "setp.ne.f \0"
+  /* 1017 */ "setp.eq.f \0"
+  /* 1028 */ "setp.gt.f \0"
+  /* 1039 */ "setp.lt.f \0"
+  /* 1050 */ "neg \0"
+  /* 1055 */ "chwidth \0"
+  /* 1064 */ "unpacki \0"
+  /* 1073 */ "chwidth.multi \0"
+  /* 1088 */ "movi \0"
+  /* 1094 */ "atom.add.global \0"
+  /* 1111 */ "ld.global \0"
+  /* 1122 */ "st.global \0"
+  /* 1133 */ "shl \0"
+  /* 1138 */ "# call \0"
+  /* 1146 */ "fmul \0"
+  /* 1152 */ "andn \0"
+  /* 1158 */ "fmin \0"
+  /* 1164 */ "# adjcallstackdown \0"
+  /* 1184 */ "mad.lo \0"
+  /* 1192 */ "mul.lo \0"
+  /* 1200 */ "# adjcallstackup \0"
+  /* 1218 */ "setp.eq \0"
+  /* 1227 */ "shr \0"
+  /* 1232 */ "por \0"
+  /* 1237 */ "pxor \0"
+  /* 1243 */ "cvt.rm.fp0.s \0"
+  /* 1257 */ "cvt.rp.fp0.s \0"
+  /* 1271 */ "cvt.rz.fp0.s \0"
+  /* 1285 */ "cvt.rm.fp1.s \0"
+  /* 1299 */ "cvt.rn.fp1.s \0"
+  /* 1313 */ "cvt.rp.fp1.s \0"
+  /* 1327 */ "cvt.rz.fp1.s \0"
+  /* 1341 */ "mul.hi.s \0"
+  /* 1351 */ "min.s \0"
+  /* 1358 */ "cvt.u.s \0"
+  /* 1367 */ "max.s \0"
+  /* 1374 */ "abs \0"
+  /* 1379 */ "dp4.ss \0"
+  /* 1387 */ "# ret \0"
+  /* 1394 */ "setp.gt \0"
+  /* 1403 */ "bar.wait \0"
+  /* 1413 */ "bar.init \0"
+  /* 1423 */ "setp.lt \0"
+  /* 1432 */ "reconv.hint \0"
+  /* 1445 */ "cvt.sint.sint \0"
+  /* 1460 */ "not \0"
+  /* 1465 */ "bra.short \0"
+  /* 1476 */ "# broadcast \0"
+  /* 1489 */ "cvt.rm.fp0.u \0"
+  /* 1503 */ "cvt.rp.fp0.u \0"
+  /* 1517 */ "cvt.rz.fp0.u \0"
+  /* 1531 */ "cvt.rm.fp1.u \0"
+  /* 1545 */ "cvt.rn.fp1.u \0"
+  /* 1559 */ "cvt.rp.fp1.u \0"
+  /* 1573 */ "cvt.rz.fp1.u \0"
+  /* 1587 */ "setp.ge.u \0"
+  /* 1598 */ "setp.le.u \0"
+  /* 1609 */ "mul.hi.u \0"
+  /* 1619 */ "min.u \0"
+  /* 1626 */ "cvt.s.u \0"
+  /* 1635 */ "setp.gt.u \0"
+  /* 1646 */ "setp.lt.u \0"
+  /* 1657 */ "cvt.u.u \0"
+  /* 1666 */ "max.u \0"
+  /* 1673 */ "brev \0"
+  /* 1679 */ "pmov \0"
+  /* 1685 */ "# narrow \0"
+  /* 1695 */ "fmax \0"
+  /* 1701 */ "packi.z \0"
+  /* 1710 */ "clz \0"
+  /* 1715 */ "# XRay Function Patchable RET.\0"
+  /* 1746 */ "# XRay Typed Event Log.\0"
+  /* 1770 */ "# XRay Custom Event Log.\0"
+  /* 1795 */ "# XRay Function Enter.\0"
+  /* 1818 */ "# XRay Tail Call Exit.\0"
+  /* 1841 */ "# XRay Function Exit.\0"
+  /* 1863 */ "# @\0"
+  /* 1867 */ "LIFETIME_END\0"
+  /* 1880 */ "PSEUDO_PROBE\0"
+  /* 1893 */ "BUNDLE\0"
+  /* 1900 */ "DBG_VALUE\0"
+  /* 1910 */ "DBG_INSTR_REF\0"
+  /* 1924 */ "DBG_PHI\0"
+  /* 1932 */ "DBG_LABEL\0"
+  /* 1942 */ "LIFETIME_START\0"
+  /* 1957 */ "DBG_VALUE_LIST\0"
+  /* 1972 */ "# FEntry call\0"
+  /* 1986 */ "exit\0"
 };
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -157,20 +212,20 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     0U,	// IMPLICIT_DEF
     0U,	// SUBREG_TO_REG
     0U,	// COPY_TO_REGCLASS
-    1154U,	// DBG_VALUE
-    1211U,	// DBG_VALUE_LIST
-    1164U,	// DBG_INSTR_REF
-    1178U,	// DBG_PHI
-    1186U,	// DBG_LABEL
+    1901U,	// DBG_VALUE
+    1958U,	// DBG_VALUE_LIST
+    1911U,	// DBG_INSTR_REF
+    1925U,	// DBG_PHI
+    1933U,	// DBG_LABEL
     0U,	// REG_SEQUENCE
     0U,	// COPY
-    1147U,	// BUNDLE
-    1196U,	// LIFETIME_START
-    1121U,	// LIFETIME_END
-    1134U,	// PSEUDO_PROBE
+    1894U,	// BUNDLE
+    1943U,	// LIFETIME_START
+    1868U,	// LIFETIME_END
+    1881U,	// PSEUDO_PROBE
     0U,	// ARITH_FENCE
     0U,	// STACKMAP
-    1226U,	// FENTRY_CALL
+    1973U,	// FENTRY_CALL
     0U,	// PATCHPOINT
     0U,	// LOAD_STACK_GUARD
     0U,	// PREALLOCATED_SETUP
@@ -179,12 +234,12 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     0U,	// LOCAL_ESCAPE
     0U,	// FAULTING_OP
     0U,	// PATCHABLE_OP
-    1049U,	// PATCHABLE_FUNCTION_ENTER
-    969U,	// PATCHABLE_RET
-    1095U,	// PATCHABLE_FUNCTION_EXIT
-    1072U,	// PATCHABLE_TAIL_CALL
-    1024U,	// PATCHABLE_EVENT_CALL
-    1000U,	// PATCHABLE_TYPED_EVENT_CALL
+    1796U,	// PATCHABLE_FUNCTION_ENTER
+    1716U,	// PATCHABLE_RET
+    1842U,	// PATCHABLE_FUNCTION_EXIT
+    1819U,	// PATCHABLE_TAIL_CALL
+    1771U,	// PATCHABLE_EVENT_CALL
+    1747U,	// PATCHABLE_TYPED_EVENT_CALL
     0U,	// ICALL_BRANCH_FUNNEL
     0U,	// MEMBARRIER
     0U,	// JUMP_TABLE_DEBUG_INFO
@@ -415,285 +470,387 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     0U,	// G_VECREDUCE_UMIN
     0U,	// G_SBFX
     0U,	// G_UBFX
-    2689U,	// ADJCALLSTACKDOWN
-    2725U,	// ADJCALLSTACKUP
-    19278U,	// PSEUDO_BCAST
-    35933U,	// PSEUDO_BRA_PRED
-    2663U,	// PSEUDO_CALL
-    51582U,	// PSEUDO_LD_PRED
-    9505707U,	// PSEUDO_NARROW
-    17893636U,	// PSEUDO_PAND
-    5213U,	// PSEUDO_PMOV
-    17893652U,	// PSEUDO_POR
-    17893644U,	// PSEUDO_PXOR
-    2805U,	// PSEUDO_RET
-    51593U,	// PSEUDO_ST_PRED
-    9505512U,	// ABS
-    17893699U,	// ADD
-    17893699U,	// ADDI
-    17893699U,	// ADDI48
-    52517983U,	// ADDI_P
-    3236959U,	// ADDI_PP
-    17893699U,	// ADDI_W16
-    52517983U,	// ADD_P
-    3236959U,	// ADD_PP
-    17893699U,	// ADD_W16
-    17893781U,	// AND
-    17893781U,	// ANDI
-    105567U,	// ANDI_P
-    17894005U,	// ANDN
-    17894005U,	// ANDNI
-    121951U,	// ANDNI_P
-    105567U,	// AND_P
-    17893781U,	// AND_W16
-    25217595U,	// ATOM_ADD_G
-    138335U,	// BALLOT
-    9505551U,	// BAR_INIT
-    158815U,	// BAR_WAIT_PHASE
-    2331U,	// BRA
-    175199U,	// BRA_PRED
-    9505695U,	// BREV
-    9505385U,	// CALL
-    189535U,	// CAS_G
-    9505318U,	// CHWIDTH_MULTI
-    9505732U,	// CLZ
-    9504929U,	// COS_F32
-    9504949U,	// CVT_F32_S32
-    203871U,	// CVT_F32_S32_P
-    9504962U,	// CVT_F32_U32
-    220255U,	// CVT_F32_U32_P
-    9504867U,	// CVT_S32_F32
-    236639U,	// CVT_S32_F32_P
-    9505583U,	// CVT_SEXT
-    9504880U,	// CVT_U32_F32
-    253023U,	// CVT_U32_F32_P
-    9505512U,	// C_ABS
-    10553667U,	// C_ADD
-    10553667U,	// C_ADDI
-    10553749U,	// C_AND
-    10553749U,	// C_ANDI
-    10553973U,	// C_ANDN
-    2497U,	// C_BAR_ARRIVE
-    2821U,	// C_BAR_WAIT
-    2883U,	// C_BRA
-    9505300U,	// C_CHWIDTH
-    1240U,	// C_EXIT
-    10553666U,	// C_FADD
-    2463U,	// C_FENCE
-    10554293U,	// C_FMAX
-    10553979U,	// C_FMIN
-    10553967U,	// C_FMUL
-    4246092U,	// C_LD_GLOBAL
-    10554081U,	// C_MAX_S
-    10554264U,	// C_MAX_U
-    10554074U,	// C_MIN_S
-    10554235U,	// C_MIN_U
-    9505702U,	// C_MOV
-    10554013U,	// C_MUL_LO
-    9505295U,	// C_NEG
-    9505598U,	// C_NOT
-    10554054U,	// C_OR
-    10554054U,	// C_ORI
-    2850U,	// C_RECONV
-    2807U,	// C_RET
-    10553954U,	// C_SHL
-    10553954U,	// C_SHLI
-    10554048U,	// C_SHR
-    10554048U,	// C_SHRI
-    10553632U,	// C_SRA
-    10553632U,	// C_SRAI
-    4246103U,	// C_ST_GLOBAL
-    10553637U,	// C_SUB
-    10553637U,	// C_SUBI
-    10554059U,	// C_XOR
-    10554059U,	// C_XORI
-    85002485U,	// DP2_BF16
-    85002476U,	// DP2_F16
-    52496682U,	// DP4_ACC
-    85002466U,	// DP4_E4M3
-    85002456U,	// DP4_E5M2
-    85002989U,	// DP4_SS
-    9504902U,	// EX2_F32
-    9504836U,	// FABS_F0
-    17893408U,	// FADD
-    269407U,	// FADD_P
-    52496403U,	// FFMA_ACC_F0
-    52496470U,	// FFMA_ACC_F1
-    85002241U,	// FFMA_F0
-    17893453U,	// FMAX
-    17893435U,	// FMIN
-    17893426U,	// FMUL
-    285791U,	// FMUL_P
-    9504809U,	// FNEG_F0
-    17893386U,	// FSUB
-    302175U,	// FSUB_P
-    51788U,	// LD_GLOBAL
-    5294668U,	// LD_GLOBAL_IDX
-    5294668U,	// LD_GLOBAL_IDX_W16
-    5294668U,	// LD_GLOBAL_IDX_W8
-    318559U,	// LD_GLOBAL_P
-    330316U,	// LD_GLOBAL_SLOT
-    330316U,	// LD_GLOBAL_SLOT_W16
-    330316U,	// LD_GLOBAL_SLOT_W8
-    51788U,	// LD_GLOBAL_W16
-    51788U,	// LD_GLOBAL_W8
-    51584U,	// LD_PRED_G
-    51528U,	// LD_PRED_S
-    51560U,	// LD_SHARED
-    5294440U,	// LD_SHARED_IDX
-    51560U,	// LD_SHARED_W16
-    51560U,	// LD_SHARED_W8
-    9504893U,	// LG2_F32
-    85002901U,	// MADLO
-    351327U,	// MADLO_P
-    52496691U,	// MAD_ACC
-    17894113U,	// MAX_S
-    367711U,	// MAX_S_P
-    17894113U,	// MAX_S_W16
-    17894296U,	// MAX_U
-    384095U,	// MAX_U_P
-    17894106U,	// MIN_S
-    400479U,	// MIN_S_P
-    17894106U,	// MIN_S_W16
-    17894267U,	// MIN_U
-    416863U,	// MIN_U_P
-    9505333U,	// MOVI
-    9505023U,	// MOVI48
-    435295U,	// MOV_P
-    17894045U,	// MULI
-    449631U,	// MULI_P
-    17894096U,	// MUL_HI_S
-    466015U,	// MUL_HI_S_P
-    17894257U,	// MUL_HI_U
-    482399U,	// MUL_HI_U_P
-    17894045U,	// MUL_LO
-    9505295U,	// NEG
-    17894086U,	// OR
-    17894086U,	// ORI
-    498783U,	// ORI_P
-    498783U,	// OR_P
-    17894086U,	// OR_W16
-    52496927U,	// PACKI
-    17894331U,	// PACKI_Z
-    17893780U,	// PAND
-    9505701U,	// PMOV
-    9505701U,	// PMOV_IMM
-    9505084U,	// POPC
-    17894085U,	// POR
-    17894090U,	// PXOR
-    9504920U,	// RCP_F32
-    515167U,	// RCP_F32_P
-    9504975U,	// RCP_U32
-    9504938U,	// RSQRT_F32
-    531551U,	// SEL
-    549983U,	// SETP_EQ
-    566367U,	// SETP_EQ_F
-    566367U,	// SETP_EQ_F_I
-    52496878U,	// SETP_EQ_F_NP
-    52496878U,	// SETP_EQ_F_NPI
-    549983U,	// SETP_EQ_I
-    52497079U,	// SETP_EQ_NP
-    52497079U,	// SETP_EQ_NPI
-    582751U,	// SETP_GE
-    599135U,	// SETP_GE_F
-    599135U,	// SETP_GE_F_I
-    52496845U,	// SETP_GE_F_NP
-    52496845U,	// SETP_GE_F_NPI
-    582751U,	// SETP_GE_I
-    52496806U,	// SETP_GE_NP
-    52496806U,	// SETP_GE_NPI
-    615519U,	// SETP_GE_U
-    615519U,	// SETP_GE_U_I
-    52497243U,	// SETP_GE_U_NP
-    52497243U,	// SETP_GE_U_NPI
-    631903U,	// SETP_GT
-    648287U,	// SETP_GT_F
-    648287U,	// SETP_GT_F_I
-    52496889U,	// SETP_GT_F_NP
-    52496889U,	// SETP_GT_F_NPI
-    631903U,	// SETP_GT_I
-    52497148U,	// SETP_GT_NP
-    52497148U,	// SETP_GT_NPI
-    664671U,	// SETP_GT_U
-    664671U,	// SETP_GT_U_I
-    52497282U,	// SETP_GT_U_NP
-    52497282U,	// SETP_GT_U_NPI
-    681055U,	// SETP_LE
-    697439U,	// SETP_LE_F
-    697439U,	// SETP_LE_F_I
-    52496856U,	// SETP_LE_F_NP
-    52496856U,	// SETP_LE_F_NPI
-    681055U,	// SETP_LE_I
-    52496815U,	// SETP_LE_NP
-    52496815U,	// SETP_LE_NPI
-    713823U,	// SETP_LE_U
-    713823U,	// SETP_LE_U_I
-    52497254U,	// SETP_LE_U_NP
-    52497254U,	// SETP_LE_U_NPI
-    730207U,	// SETP_LT
-    746591U,	// SETP_LT_F
-    746591U,	// SETP_LT_F_I
-    52496900U,	// SETP_LT_F_NP
-    52496900U,	// SETP_LT_F_NPI
-    730207U,	// SETP_LT_I
-    52497177U,	// SETP_LT_NP
-    52497177U,	// SETP_LT_NPI
-    762975U,	// SETP_LT_U
-    762975U,	// SETP_LT_U_I
-    52497293U,	// SETP_LT_U_NP
-    52497293U,	// SETP_LT_U_NPI
-    779359U,	// SETP_NE
-    795743U,	// SETP_NE_F
-    795743U,	// SETP_NE_F_I
-    52496867U,	// SETP_NE_F_NP
-    52496867U,	// SETP_NE_F_NPI
-    779359U,	// SETP_NE_I
-    52496824U,	// SETP_NE_NP
-    52496824U,	// SETP_NE_NPI
-    810079U,	// SHFL_IDX
-    17893986U,	// SHL
-    17893986U,	// SHLI
-    826463U,	// SHLI_P
-    826463U,	// SHL_P
-    17894080U,	// SHR
-    17894080U,	// SHRI
-    842847U,	// SHRI_P
-    842847U,	// SHR_P
-    9504911U,	// SIN_F32
-    9504939U,	// SQRT_F32
-    17893664U,	// SRA
-    17893664U,	// SRAI
-    859231U,	// SRAI_P
-    859231U,	// SRA_P
-    9505178U,	// SRD
-    51799U,	// ST_GLOBAL
-    5294679U,	// ST_GLOBAL_IDX
-    5294679U,	// ST_GLOBAL_IDX_W16
-    5294679U,	// ST_GLOBAL_IDX_W8
-    330327U,	// ST_GLOBAL_SLOT
-    330327U,	// ST_GLOBAL_SLOT_W16
-    330327U,	// ST_GLOBAL_SLOT_W8
-    51799U,	// ST_GLOBAL_W16
-    51799U,	// ST_GLOBAL_W8
-    51595U,	// ST_PRED_G
-    51544U,	// ST_PRED_S
-    51571U,	// ST_SHARED
-    5294451U,	// ST_SHARED_IDX
-    51571U,	// ST_SHARED_W16
-    51571U,	// ST_SHARED_W8
-    17893669U,	// SUB
-    17893669U,	// SUBI
-    875615U,	// SUBI_P
-    875615U,	// SUB_P
-    17893669U,	// SUB_W16
-    891999U,	// UNBALLOT
-    17893917U,	// UNPACKI
-    908383U,	// VOTE_ANY
-    17894091U,	// XOR
-    17894091U,	// XORI
-    924767U,	// XORI_P
-    924767U,	// XOR_P
-    17894091U,	// XOR_W16
+    3213U,	// ADJCALLSTACKDOWN
+    3249U,	// ADJCALLSTACKUP
+    19909U,	// PSEUDO_BCAST
+    36680U,	// PSEUDO_BRA_PRED
+    3187U,	// PSEUDO_CALL
+    52106U,	// PSEUDO_LD_PRED
+    18943638U,	// PSEUDO_NARROW
+    35719952U,	// PSEUDO_PAND
+    5960U,	// PSEUDO_PMOV
+    35719968U,	// PSEUDO_POR
+    35719960U,	// PSEUDO_PXOR
+    3436U,	// PSEUDO_RET
+    52117U,	// PSEUDO_ST_PRED
+    18943327U,	// ABS
+    35720015U,	// ADD
+    35720015U,	// ADDI
+    35720015U,	// ADDI48
+    104947530U,	// ADDI_P
+    6383434U,	// ADDI_PP
+    35720015U,	// ADDI_W16
+    104947530U,	// ADD_P
+    6383434U,	// ADD_PP
+    35720015U,	// ADD_W16
+    35720097U,	// AND
+    35720097U,	// ANDI
+    106314U,	// ANDI_P
+    35720321U,	// ANDN
+    35720321U,	// ANDNI
+    122698U,	// ANDNI_P
+    106314U,	// AND_P
+    35720097U,	// AND_W16
+    50383943U,	// ATOM_ADD_G
+    139082U,	// BALLOT
+    18943366U,	// BAR_INIT
+    159562U,	// BAR_WAIT_PHASE
+    2855U,	// BRA
+    175946U,	// BRA_PRED
+    18943626U,	// BREV
+    18943093U,	// CALL
+    190282U,	// CAS_G
+    18943026U,	// CHWIDTH_MULTI
+    18943663U,	// CLZ
+    18942637U,	// COS_F32
+    18942054U,	// CVT_D0_S0_R0
+    204618U,	// CVT_D0_S0_R0_P
+    18942086U,	// CVT_D0_S0_R1
+    221002U,	// CVT_D0_S0_R1_P
+    18942038U,	// CVT_D0_S0_R2
+    237386U,	// CVT_D0_S0_R2_P
+    18942070U,	// CVT_D0_S0_R3
+    253770U,	// CVT_D0_S0_R3_P
+    18942351U,	// CVT_D0_S1_R0
+    270154U,	// CVT_D0_S1_R0_P
+    18942383U,	// CVT_D0_S1_R1
+    286538U,	// CVT_D0_S1_R1_P
+    18942335U,	// CVT_D0_S1_R2
+    302922U,	// CVT_D0_S1_R2_P
+    18942367U,	// CVT_D0_S1_R3
+    319306U,	// CVT_D0_S1_R3_P
+    18943224U,	// CVT_D0_S2_R1
+    335690U,	// CVT_D0_S2_R1_P
+    18943196U,	// CVT_D0_S2_R2
+    352074U,	// CVT_D0_S2_R2_P
+    18943210U,	// CVT_D0_S2_R3
+    368458U,	// CVT_D0_S2_R3_P
+    18943470U,	// CVT_D0_S3_R1
+    384842U,	// CVT_D0_S3_R1_P
+    18943442U,	// CVT_D0_S3_R2
+    401226U,	// CVT_D0_S3_R2_P
+    18943456U,	// CVT_D0_S3_R3
+    417610U,	// CVT_D0_S3_R3_P
+    18942118U,	// CVT_D1_S0_R0
+    433994U,	// CVT_D1_S0_R0_P
+    18942150U,	// CVT_D1_S0_R1
+    450378U,	// CVT_D1_S0_R1_P
+    18942102U,	// CVT_D1_S0_R2
+    466762U,	// CVT_D1_S0_R2_P
+    18942134U,	// CVT_D1_S0_R3
+    483146U,	// CVT_D1_S0_R3_P
+    18942415U,	// CVT_D1_S1_R0
+    499530U,	// CVT_D1_S1_R0_P
+    18942447U,	// CVT_D1_S1_R1
+    515914U,	// CVT_D1_S1_R1_P
+    18942399U,	// CVT_D1_S1_R2
+    532298U,	// CVT_D1_S1_R2_P
+    18942431U,	// CVT_D1_S1_R3
+    548682U,	// CVT_D1_S1_R3_P
+    18943252U,	// CVT_D1_S2_R0
+    565066U,	// CVT_D1_S2_R0_P
+    18943280U,	// CVT_D1_S2_R1
+    581450U,	// CVT_D1_S2_R1_P
+    18943238U,	// CVT_D1_S2_R2
+    597834U,	// CVT_D1_S2_R2_P
+    18943266U,	// CVT_D1_S2_R3
+    614218U,	// CVT_D1_S2_R3_P
+    18943498U,	// CVT_D1_S3_R0
+    630602U,	// CVT_D1_S3_R0_P
+    18943526U,	// CVT_D1_S3_R1
+    646986U,	// CVT_D1_S3_R1_P
+    18943484U,	// CVT_D1_S3_R2
+    663370U,	// CVT_D1_S3_R2_P
+    18943512U,	// CVT_D1_S3_R3
+    679754U,	// CVT_D1_S3_R3_P
+    18942180U,	// CVT_D2_S0_R0
+    696138U,	// CVT_D2_S0_R0_P
+    18942166U,	// CVT_D2_S0_R2
+    712522U,	// CVT_D2_S0_R2_P
+    18942194U,	// CVT_D2_S0_R3
+    728906U,	// CVT_D2_S0_R3_P
+    18942477U,	// CVT_D2_S1_R0
+    745290U,	// CVT_D2_S1_R0_P
+    18942505U,	// CVT_D2_S1_R1
+    761674U,	// CVT_D2_S1_R1_P
+    18942463U,	// CVT_D2_S1_R2
+    778058U,	// CVT_D2_S1_R2_P
+    18942491U,	// CVT_D2_S1_R3
+    794442U,	// CVT_D2_S1_R3_P
+    18943579U,	// CVT_D2_S3_R0
+    810826U,	// CVT_D2_S3_R0_P
+    18942222U,	// CVT_D3_S0_R0
+    827210U,	// CVT_D3_S0_R0_P
+    18942208U,	// CVT_D3_S0_R2
+    843594U,	// CVT_D3_S0_R2_P
+    18942236U,	// CVT_D3_S0_R3
+    859978U,	// CVT_D3_S0_R3_P
+    18942533U,	// CVT_D3_S1_R0
+    876362U,	// CVT_D3_S1_R0_P
+    18942561U,	// CVT_D3_S1_R1
+    892746U,	// CVT_D3_S1_R1_P
+    18942519U,	// CVT_D3_S1_R2
+    909130U,	// CVT_D3_S1_R2_P
+    18942547U,	// CVT_D3_S1_R3
+    925514U,	// CVT_D3_S1_R3_P
+    18943311U,	// CVT_D3_S2_R0
+    941898U,	// CVT_D3_S2_R0_P
+    18943610U,	// CVT_D3_S3_R0
+    958282U,	// CVT_D3_S3_R0_P
+    18942657U,	// CVT_F32_S32
+    974666U,	// CVT_F32_S32_P
+    18942670U,	// CVT_F32_U32
+    991050U,	// CVT_F32_U32_P
+    18942575U,	// CVT_S32_F32
+    1007434U,	// CVT_S32_F32_P
+    18943398U,	// CVT_SEXT
+    18942588U,	// CVT_U32_F32
+    1023818U,	// CVT_U32_F32_P
+    18943327U,	// C_ABS
+    21039951U,	// C_ADD
+    21039951U,	// C_ADDI
+    21040033U,	// C_AND
+    21040033U,	// C_ANDI
+    21040257U,	// C_ANDN
+    3021U,	// C_BAR_ARRIVE
+    3452U,	// C_BAR_WAIT
+    3514U,	// C_BRA
+    18943008U,	// C_CHWIDTH
+    1987U,	// C_EXIT
+    21039950U,	// C_FADD
+    2987U,	// C_FENCE
+    21040800U,	// C_FMAX
+    21040263U,	// C_FMIN
+    21040251U,	// C_FMUL
+    8440920U,	// C_LD_GLOBAL
+    21040472U,	// C_MAX_S
+    21040771U,	// C_MAX_U
+    21040456U,	// C_MIN_S
+    21040724U,	// C_MIN_U
+    18943633U,	// C_MOV
+    21040297U,	// C_MUL_LO
+    18943003U,	// C_NEG
+    18943413U,	// C_NOT
+    21040338U,	// C_OR
+    21040338U,	// C_ORI
+    3481U,	// C_RECONV
+    3438U,	// C_RET
+    21040238U,	// C_SHL
+    21040238U,	// C_SHLI
+    21040332U,	// C_SHR
+    21040332U,	// C_SHRI
+    21039916U,	// C_SRA
+    21039916U,	// C_SRAI
+    8440931U,	// C_ST_GLOBAL
+    21039921U,	// C_SUB
+    21039921U,	// C_SUBI
+    21040343U,	// C_XOR
+    21040343U,	// C_XORI
+    169937665U,	// DP2_BF16
+    169937656U,	// DP2_F16
+    104926006U,	// DP4_ACC
+    169937646U,	// DP4_E4M3
+    169937636U,	// DP4_E5M2
+    169938276U,	// DP4_SS
+    18942610U,	// EX2_F32
+    18942020U,	// FABS_F0
+    18942317U,	// FABS_F1
+    35719200U,	// FADD
+    35719497U,	// FADD_F1
+    1040202U,	// FADD_P
+    104925203U,	// FFMA_ACC_F0
+    104925500U,	// FFMA_ACC_F1
+    169936897U,	// FFMA_F0
+    169937194U,	// FFMA_F1
+    35719245U,	// FMAX
+    35719542U,	// FMAX_F1
+    35719227U,	// FMIN
+    35719524U,	// FMIN_F1
+    35719218U,	// FMUL
+    35719515U,	// FMUL_F1
+    1056586U,	// FMUL_P
+    18941993U,	// FNEG_F0
+    18942290U,	// FNEG_F1
+    35719178U,	// FSUB
+    35719475U,	// FSUB_F1
+    1072970U,	// FSUB_P
+    52312U,	// LD_GLOBAL
+    10538072U,	// LD_GLOBAL_IDX
+    10538072U,	// LD_GLOBAL_IDX_W16
+    10538072U,	// LD_GLOBAL_IDX_W8
+    1089354U,	// LD_GLOBAL_P
+    1100888U,	// LD_GLOBAL_SLOT
+    1100888U,	// LD_GLOBAL_SLOT_W16
+    1100888U,	// LD_GLOBAL_SLOT_W8
+    52312U,	// LD_GLOBAL_W16
+    52312U,	// LD_GLOBAL_W8
+    52108U,	// LD_PRED_G
+    52052U,	// LD_PRED_S
+    52084U,	// LD_SHARED
+    10537844U,	// LD_SHARED_IDX
+    52084U,	// LD_SHARED_W16
+    52084U,	// LD_SHARED_W8
+    18942601U,	// LG2_F32
+    169938081U,	// MADLO
+    1122122U,	// MADLO_P
+    104926015U,	// MAD_ACC
+    35720536U,	// MAX_S
+    1138506U,	// MAX_S_P
+    35720536U,	// MAX_S_W16
+    35720835U,	// MAX_U
+    1154890U,	// MAX_U_P
+    35720520U,	// MIN_S
+    1171274U,	// MIN_S_P
+    35720520U,	// MIN_S_W16
+    35720788U,	// MIN_U
+    1187658U,	// MIN_U_P
+    18943041U,	// MOVI
+    18942731U,	// MOVI48
+    1206090U,	// MOV_P
+    35720361U,	// MULI
+    1220426U,	// MULI_P
+    35720510U,	// MUL_HI_S
+    1236810U,	// MUL_HI_S_P
+    35720778U,	// MUL_HI_U
+    1253194U,	// MUL_HI_U_P
+    35720361U,	// MUL_LO
+    18943003U,	// NEG
+    35720402U,	// OR
+    35720402U,	// ORI
+    1269578U,	// ORI_P
+    1269578U,	// OR_P
+    35720402U,	// OR_W16
+    104926251U,	// PACKI
+    35720870U,	// PACKI_Z
+    35720096U,	// PAND
+    18943632U,	// PMOV
+    18943632U,	// PMOV_IMM
+    18942792U,	// POPC
+    35720401U,	// POR
+    35720406U,	// PXOR
+    18942628U,	// RCP_F32
+    1285962U,	// RCP_F32_P
+    18942683U,	// RCP_U32
+    18942646U,	// RSQRT_F32
+    1302346U,	// SEL
+    1320778U,	// SETP_EQ
+    1337162U,	// SETP_EQ_F
+    1337162U,	// SETP_EQ_F_I
+    104926202U,	// SETP_EQ_F_NP
+    104926202U,	// SETP_EQ_F_NPI
+    1320778U,	// SETP_EQ_I
+    104926403U,	// SETP_EQ_NP
+    104926403U,	// SETP_EQ_NPI
+    1353546U,	// SETP_GE
+    1369930U,	// SETP_GE_F
+    1369930U,	// SETP_GE_F_I
+    104926169U,	// SETP_GE_F_NP
+    104926169U,	// SETP_GE_F_NPI
+    1353546U,	// SETP_GE_I
+    104926130U,	// SETP_GE_NP
+    104926130U,	// SETP_GE_NPI
+    1386314U,	// SETP_GE_U
+    1386314U,	// SETP_GE_U_I
+    104926772U,	// SETP_GE_U_NP
+    104926772U,	// SETP_GE_U_NPI
+    1402698U,	// SETP_GT
+    1419082U,	// SETP_GT_F
+    1419082U,	// SETP_GT_F_I
+    104926213U,	// SETP_GT_F_NP
+    104926213U,	// SETP_GT_F_NPI
+    1402698U,	// SETP_GT_I
+    104926579U,	// SETP_GT_NP
+    104926579U,	// SETP_GT_NPI
+    1435466U,	// SETP_GT_U
+    1435466U,	// SETP_GT_U_I
+    104926820U,	// SETP_GT_U_NP
+    104926820U,	// SETP_GT_U_NPI
+    1451850U,	// SETP_LE
+    1468234U,	// SETP_LE_F
+    1468234U,	// SETP_LE_F_I
+    104926180U,	// SETP_LE_F_NP
+    104926180U,	// SETP_LE_F_NPI
+    1451850U,	// SETP_LE_I
+    104926139U,	// SETP_LE_NP
+    104926139U,	// SETP_LE_NPI
+    1484618U,	// SETP_LE_U
+    1484618U,	// SETP_LE_U_I
+    104926783U,	// SETP_LE_U_NP
+    104926783U,	// SETP_LE_U_NPI
+    1501002U,	// SETP_LT
+    1517386U,	// SETP_LT_F
+    1517386U,	// SETP_LT_F_I
+    104926224U,	// SETP_LT_F_NP
+    104926224U,	// SETP_LT_F_NPI
+    1501002U,	// SETP_LT_I
+    104926608U,	// SETP_LT_NP
+    104926608U,	// SETP_LT_NPI
+    1533770U,	// SETP_LT_U
+    1533770U,	// SETP_LT_U_I
+    104926831U,	// SETP_LT_U_NP
+    104926831U,	// SETP_LT_U_NPI
+    1550154U,	// SETP_NE
+    1566538U,	// SETP_NE_F
+    1566538U,	// SETP_NE_F_I
+    104926191U,	// SETP_NE_F_NP
+    104926191U,	// SETP_NE_F_NPI
+    1550154U,	// SETP_NE_I
+    104926148U,	// SETP_NE_NP
+    104926148U,	// SETP_NE_NPI
+    1580874U,	// SHFL_IDX
+    35720302U,	// SHL
+    35720302U,	// SHLI
+    1597258U,	// SHLI_P
+    1597258U,	// SHL_P
+    35720396U,	// SHR
+    35720396U,	// SHRI
+    1613642U,	// SHRI_P
+    1613642U,	// SHR_P
+    18942619U,	// SIN_F32
+    18942647U,	// SQRT_F32
+    35719980U,	// SRA
+    35719980U,	// SRAI
+    1630026U,	// SRAI_P
+    1630026U,	// SRA_P
+    18942886U,	// SRD
+    52323U,	// ST_GLOBAL
+    10538083U,	// ST_GLOBAL_IDX
+    10538083U,	// ST_GLOBAL_IDX_W16
+    10538083U,	// ST_GLOBAL_IDX_W8
+    1100899U,	// ST_GLOBAL_SLOT
+    1100899U,	// ST_GLOBAL_SLOT_W16
+    1100899U,	// ST_GLOBAL_SLOT_W8
+    52323U,	// ST_GLOBAL_W16
+    52323U,	// ST_GLOBAL_W8
+    52119U,	// ST_PRED_G
+    52068U,	// ST_PRED_S
+    52095U,	// ST_SHARED
+    10537855U,	// ST_SHARED_IDX
+    52095U,	// ST_SHARED_W16
+    52095U,	// ST_SHARED_W8
+    35719985U,	// SUB
+    35719985U,	// SUBI
+    1646410U,	// SUBI_P
+    1646410U,	// SUB_P
+    35719985U,	// SUB_W16
+    1662794U,	// UNBALLOT
+    35720233U,	// UNPACKI
+    1679178U,	// VOTE_ANY
+    35720407U,	// XOR
+    35720407U,	// XORI
+    1695562U,	// XORI_P
+    1695562U,	// XOR_P
+    35720407U,	// XOR_W16
   };
 
   // Emit the opcode for the instruction.
@@ -738,7 +895,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     return;
     break;
   case 3:
-    // ADDI_P, ADD_P, ANDI_P, ANDNI_P, AND_P, BALLOT, CVT_F32_S32_P, CVT_F32_...
+    // ADDI_P, ADD_P, ANDI_P, ANDNI_P, AND_P, BALLOT, CVT_D0_S0_R0_P, CVT_D0_...
     printPredQual(MI, 1, O);
     break;
   case 4:
@@ -752,8 +909,8 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
   }
 
 
-  // Fragment 1 encoded into 6 bits for 57 unique commands.
-  switch ((Bits >> 14) & 63) {
+  // Fragment 1 encoded into 7 bits for 104 unique commands.
+  switch ((Bits >> 14) & 127) {
   default: llvm_unreachable("Invalid command number.");
   case 0:
     // ADJCALLSTACKDOWN, ADJCALLSTACKUP, PSEUDO_CALL, PSEUDO_RET, BRA, C_BAR_...
@@ -846,6 +1003,382 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     return;
     break;
   case 12:
+    // CVT_D0_S0_R0_P
+    O << " cvt.rn.fp0.fp0 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 13:
+    // CVT_D0_S0_R1_P
+    O << " cvt.rz.fp0.fp0 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 14:
+    // CVT_D0_S0_R2_P
+    O << " cvt.rm.fp0.fp0 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 15:
+    // CVT_D0_S0_R3_P
+    O << " cvt.rp.fp0.fp0 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 16:
+    // CVT_D0_S1_R0_P
+    O << " cvt.rn.fp0.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 17:
+    // CVT_D0_S1_R1_P
+    O << " cvt.rz.fp0.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 18:
+    // CVT_D0_S1_R2_P
+    O << " cvt.rm.fp0.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 19:
+    // CVT_D0_S1_R3_P
+    O << " cvt.rp.fp0.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 20:
+    // CVT_D0_S2_R1_P
+    O << " cvt.rz.fp0.s ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 21:
+    // CVT_D0_S2_R2_P
+    O << " cvt.rm.fp0.s ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 22:
+    // CVT_D0_S2_R3_P
+    O << " cvt.rp.fp0.s ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 23:
+    // CVT_D0_S3_R1_P
+    O << " cvt.rz.fp0.u ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 24:
+    // CVT_D0_S3_R2_P
+    O << " cvt.rm.fp0.u ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 25:
+    // CVT_D0_S3_R3_P
+    O << " cvt.rp.fp0.u ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 26:
+    // CVT_D1_S0_R0_P
+    O << " cvt.rn.fp1.fp0 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 27:
+    // CVT_D1_S0_R1_P
+    O << " cvt.rz.fp1.fp0 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 28:
+    // CVT_D1_S0_R2_P
+    O << " cvt.rm.fp1.fp0 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 29:
+    // CVT_D1_S0_R3_P
+    O << " cvt.rp.fp1.fp0 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 30:
+    // CVT_D1_S1_R0_P
+    O << " cvt.rn.fp1.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 31:
+    // CVT_D1_S1_R1_P
+    O << " cvt.rz.fp1.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 32:
+    // CVT_D1_S1_R2_P
+    O << " cvt.rm.fp1.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 33:
+    // CVT_D1_S1_R3_P
+    O << " cvt.rp.fp1.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 34:
+    // CVT_D1_S2_R0_P
+    O << " cvt.rn.fp1.s ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 35:
+    // CVT_D1_S2_R1_P
+    O << " cvt.rz.fp1.s ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 36:
+    // CVT_D1_S2_R2_P
+    O << " cvt.rm.fp1.s ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 37:
+    // CVT_D1_S2_R3_P
+    O << " cvt.rp.fp1.s ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 38:
+    // CVT_D1_S3_R0_P
+    O << " cvt.rn.fp1.u ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 39:
+    // CVT_D1_S3_R1_P
+    O << " cvt.rz.fp1.u ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 40:
+    // CVT_D1_S3_R2_P
+    O << " cvt.rm.fp1.u ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 41:
+    // CVT_D1_S3_R3_P
+    O << " cvt.rp.fp1.u ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 42:
+    // CVT_D2_S0_R0_P
+    O << " cvt.rn.s.fp0 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 43:
+    // CVT_D2_S0_R2_P
+    O << " cvt.rm.s.fp0 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 44:
+    // CVT_D2_S0_R3_P
+    O << " cvt.rp.s.fp0 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 45:
+    // CVT_D2_S1_R0_P
+    O << " cvt.rn.s.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 46:
+    // CVT_D2_S1_R1_P
+    O << " cvt.rz.s.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 47:
+    // CVT_D2_S1_R2_P
+    O << " cvt.rm.s.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 48:
+    // CVT_D2_S1_R3_P
+    O << " cvt.rp.s.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 49:
+    // CVT_D2_S3_R0_P
+    O << " cvt.s.u ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 50:
+    // CVT_D3_S0_R0_P
+    O << " cvt.rn.u.fp0 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 51:
+    // CVT_D3_S0_R2_P
+    O << " cvt.rm.u.fp0 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 52:
+    // CVT_D3_S0_R3_P
+    O << " cvt.rp.u.fp0 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 53:
+    // CVT_D3_S1_R0_P
+    O << " cvt.rn.u.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 54:
+    // CVT_D3_S1_R1_P
+    O << " cvt.rz.u.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 55:
+    // CVT_D3_S1_R2_P
+    O << " cvt.rm.u.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 56:
+    // CVT_D3_S1_R3_P
+    O << " cvt.rp.u.fp1 ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 57:
+    // CVT_D3_S2_R0_P
+    O << " cvt.u.s ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 58:
+    // CVT_D3_S3_R0_P
+    O << " cvt.u.u ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 59:
     // CVT_F32_S32_P
     O << " cvt.f32.s32 ";
     printOperand(MI, 0, O);
@@ -853,7 +1386,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 13:
+  case 60:
     // CVT_F32_U32_P
     O << " cvt.f32.u32 ";
     printOperand(MI, 0, O);
@@ -861,7 +1394,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 14:
+  case 61:
     // CVT_S32_F32_P
     O << " cvt.s32.f32 ";
     printOperand(MI, 0, O);
@@ -869,7 +1402,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 15:
+  case 62:
     // CVT_U32_F32_P
     O << " cvt.u32.f32 ";
     printOperand(MI, 0, O);
@@ -877,7 +1410,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 16:
+  case 63:
     // FADD_P
     O << " fadd.f0 ";
     printOperand(MI, 0, O);
@@ -887,7 +1420,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 17:
+  case 64:
     // FMUL_P
     O << " fmul.f0 ";
     printOperand(MI, 0, O);
@@ -897,7 +1430,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 18:
+  case 65:
     // FSUB_P
     O << " fsub.f0 ";
     printOperand(MI, 0, O);
@@ -907,7 +1440,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 19:
+  case 66:
     // LD_GLOBAL_P
     O << " ld.global ";
     printOperand(MI, 0, O);
@@ -918,7 +1451,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     O << ']';
     return;
     break;
-  case 20:
+  case 67:
     // LD_GLOBAL_SLOT, LD_GLOBAL_SLOT_W16, LD_GLOBAL_SLOT_W8, ST_GLOBAL_SLOT,...
     O << ", [#";
     printOperand(MI, 1, O);
@@ -931,7 +1464,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     O << ']';
     return;
     break;
-  case 21:
+  case 68:
     // MADLO_P
     O << " mad.lo ";
     printOperand(MI, 0, O);
@@ -943,7 +1476,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 22:
+  case 69:
     // MAX_S_P
     O << " max.s ";
     printOperand(MI, 0, O);
@@ -953,7 +1486,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 23:
+  case 70:
     // MAX_U_P
     O << " max.u ";
     printOperand(MI, 0, O);
@@ -963,7 +1496,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 24:
+  case 71:
     // MIN_S_P
     O << " min.s ";
     printOperand(MI, 0, O);
@@ -973,7 +1506,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 25:
+  case 72:
     // MIN_U_P
     O << " min.u ";
     printOperand(MI, 0, O);
@@ -983,7 +1516,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 26:
+  case 73:
     // MOV_P
     O << " mov ";
     printOperand(MI, 0, O);
@@ -991,7 +1524,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 27:
+  case 74:
     // MULI_P
     O << " mul.lo ";
     printOperand(MI, 0, O);
@@ -1001,7 +1534,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 28:
+  case 75:
     // MUL_HI_S_P
     O << " mul.hi.s ";
     printOperand(MI, 0, O);
@@ -1011,7 +1544,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 29:
+  case 76:
     // MUL_HI_U_P
     O << " mul.hi.u ";
     printOperand(MI, 0, O);
@@ -1021,7 +1554,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 30:
+  case 77:
     // ORI_P, OR_P
     O << " or ";
     printOperand(MI, 0, O);
@@ -1031,7 +1564,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 31:
+  case 78:
     // RCP_F32_P
     O << " rcp.f32 ";
     printOperand(MI, 0, O);
@@ -1039,7 +1572,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 32:
+  case 79:
     // SEL
     O << " sel ";
     printOperand(MI, 0, O);
@@ -1049,7 +1582,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 33:
+  case 80:
     // SETP_EQ, SETP_EQ_I
     O << " setp.eq ";
     printOperand(MI, 0, O);
@@ -1059,7 +1592,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 34:
+  case 81:
     // SETP_EQ_F, SETP_EQ_F_I
     O << " setp.eq.f ";
     printOperand(MI, 0, O);
@@ -1069,7 +1602,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 35:
+  case 82:
     // SETP_GE, SETP_GE_I
     O << " setp.ge ";
     printOperand(MI, 0, O);
@@ -1079,7 +1612,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 36:
+  case 83:
     // SETP_GE_F, SETP_GE_F_I
     O << " setp.ge.f ";
     printOperand(MI, 0, O);
@@ -1089,7 +1622,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 37:
+  case 84:
     // SETP_GE_U, SETP_GE_U_I
     O << " setp.ge.u ";
     printOperand(MI, 0, O);
@@ -1099,7 +1632,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 38:
+  case 85:
     // SETP_GT, SETP_GT_I
     O << " setp.gt ";
     printOperand(MI, 0, O);
@@ -1109,7 +1642,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 39:
+  case 86:
     // SETP_GT_F, SETP_GT_F_I
     O << " setp.gt.f ";
     printOperand(MI, 0, O);
@@ -1119,7 +1652,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 40:
+  case 87:
     // SETP_GT_U, SETP_GT_U_I
     O << " setp.gt.u ";
     printOperand(MI, 0, O);
@@ -1129,7 +1662,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 41:
+  case 88:
     // SETP_LE, SETP_LE_I
     O << " setp.le ";
     printOperand(MI, 0, O);
@@ -1139,7 +1672,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 42:
+  case 89:
     // SETP_LE_F, SETP_LE_F_I
     O << " setp.le.f ";
     printOperand(MI, 0, O);
@@ -1149,7 +1682,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 43:
+  case 90:
     // SETP_LE_U, SETP_LE_U_I
     O << " setp.le.u ";
     printOperand(MI, 0, O);
@@ -1159,7 +1692,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 44:
+  case 91:
     // SETP_LT, SETP_LT_I
     O << " setp.lt ";
     printOperand(MI, 0, O);
@@ -1169,7 +1702,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 45:
+  case 92:
     // SETP_LT_F, SETP_LT_F_I
     O << " setp.lt.f ";
     printOperand(MI, 0, O);
@@ -1179,7 +1712,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 46:
+  case 93:
     // SETP_LT_U, SETP_LT_U_I
     O << " setp.lt.u ";
     printOperand(MI, 0, O);
@@ -1189,7 +1722,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 47:
+  case 94:
     // SETP_NE, SETP_NE_I
     O << " setp.ne ";
     printOperand(MI, 0, O);
@@ -1199,7 +1732,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 48:
+  case 95:
     // SETP_NE_F, SETP_NE_F_I
     O << " setp.ne.f ";
     printOperand(MI, 0, O);
@@ -1209,7 +1742,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 49:
+  case 96:
     // SHFL_IDX
     O << " shfl.idx ";
     printOperand(MI, 0, O);
@@ -1219,7 +1752,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 50:
+  case 97:
     // SHLI_P, SHL_P
     O << " shl ";
     printOperand(MI, 0, O);
@@ -1229,7 +1762,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 51:
+  case 98:
     // SHRI_P, SHR_P
     O << " shr ";
     printOperand(MI, 0, O);
@@ -1239,7 +1772,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 52:
+  case 99:
     // SRAI_P, SRA_P
     O << " sra ";
     printOperand(MI, 0, O);
@@ -1249,7 +1782,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 53:
+  case 100:
     // SUBI_P, SUB_P
     O << " sub ";
     printOperand(MI, 0, O);
@@ -1259,7 +1792,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 54:
+  case 101:
     // UNBALLOT
     O << " unballot ";
     printOperand(MI, 0, O);
@@ -1267,7 +1800,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 55:
+  case 102:
     // VOTE_ANY
     O << " vote.any ";
     printOperand(MI, 0, O);
@@ -1275,7 +1808,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 56:
+  case 103:
     // XORI_P, XOR_P
     O << " xor ";
     printOperand(MI, 0, O);
@@ -1289,7 +1822,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
 
 
   // Fragment 2 encoded into 3 bits for 6 unique commands.
-  switch ((Bits >> 20) & 7) {
+  switch ((Bits >> 21) & 7) {
   default: llvm_unreachable("Invalid command number.");
   case 0:
     // PSEUDO_LD_PRED, PSEUDO_ST_PRED, ATOM_ADD_G, LD_GLOBAL, LD_GLOBAL_W16, ...
@@ -1332,7 +1865,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
 
 
   // Fragment 3 encoded into 2 bits for 4 unique commands.
-  switch ((Bits >> 23) & 3) {
+  switch ((Bits >> 24) & 3) {
   default: llvm_unreachable("Invalid command number.");
   case 0:
     // PSEUDO_LD_PRED, PSEUDO_ST_PRED, LD_GLOBAL, LD_GLOBAL_W16, LD_GLOBAL_W8...
@@ -1359,7 +1892,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
 
 
   // Fragment 4 encoded into 1 bits for 2 unique commands.
-  if ((Bits >> 25) & 1) {
+  if ((Bits >> 26) & 1) {
     // ADDI_P, ADD_P, DP4_ACC, FFMA_ACC_F0, FFMA_ACC_F1, MAD_ACC, PACKI, SETP...
     printOperand(MI, 3, O);
     return;
@@ -1370,8 +1903,8 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
 
 
   // Fragment 5 encoded into 1 bits for 2 unique commands.
-  if ((Bits >> 26) & 1) {
-    // DP2_BF16, DP2_F16, DP4_E4M3, DP4_E5M2, DP4_SS, FFMA_F0, MADLO
+  if ((Bits >> 27) & 1) {
+    // DP2_BF16, DP2_F16, DP4_E4M3, DP4_E5M2, DP4_SS, FFMA_F0, FFMA_F1, MADLO
     O << ", ";
     printOperand(MI, 3, O);
     return;

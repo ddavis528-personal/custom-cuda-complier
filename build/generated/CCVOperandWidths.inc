@@ -36,6 +36,100 @@ static const CCVOperandInfo Operands_CAS_G[] = {{4, false}, {2, false}, {3, fals
 static const CCVOperandInfo Operands_CHWIDTH_MULTI[] = {{16, false}, {2, false}};
 static const CCVOperandInfo Operands_CLZ[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_COS_F32[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S0_R0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S0_R0_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S0_R1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S0_R1_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S0_R2[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S0_R2_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S0_R3[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S0_R3_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S1_R0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S1_R0_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S1_R1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S1_R1_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S1_R2[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S1_R2_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S1_R3[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S1_R3_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S2_R1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S2_R1_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S2_R2[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S2_R2_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S2_R3[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S2_R3_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S3_R1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S3_R1_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S3_R2[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S3_R2_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S3_R3[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S3_R3_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S0_R0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S0_R0_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S0_R1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S0_R1_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S0_R2[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S0_R2_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S0_R3[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S0_R3_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S1_R0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S1_R0_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S1_R1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S1_R1_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S1_R2[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S1_R2_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S1_R3[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S1_R3_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S2_R0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S2_R0_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S2_R1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S2_R1_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S2_R2[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S2_R2_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S2_R3[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S2_R3_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S3_R0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S3_R0_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S3_R1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S3_R1_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S3_R2[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S3_R2_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S3_R3[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D1_S3_R3_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S0_R0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S0_R0_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S0_R2[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S0_R2_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S0_R3[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S0_R3_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S1_R0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S1_R0_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S1_R1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S1_R1_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S1_R2[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S1_R2_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S1_R3[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S1_R3_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S3_R0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D2_S3_R0_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S0_R0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S0_R0_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S0_R2[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S0_R2_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S0_R3[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S0_R3_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S1_R0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S1_R0_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S1_R1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S1_R1_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S1_R2[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S1_R2_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S1_R3[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S1_R3_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S2_R0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S2_R0_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S3_R0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D3_S3_R0_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_CVT_F32_S32[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_CVT_F32_S32_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_CVT_F32_U32[] = {{4, false}, {4, false}, {4, false}, {4, false}};
@@ -93,17 +187,25 @@ static const CCVOperandInfo Operands_DP4_E5M2[] = {{4, false}, {4, false}, {4, f
 static const CCVOperandInfo Operands_DP4_SS[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_EX2_F32[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FABS_F0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_FABS_F1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FADD[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_FADD_F1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FADD_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FFMA_ACC_F0[] = {{4, false}, {0, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FFMA_ACC_F1[] = {{4, false}, {0, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FFMA_F0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_FFMA_F1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FMAX[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_FMAX_F1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FMIN[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_FMIN_F1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FMUL[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_FMUL_F1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FMUL_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FNEG_F0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_FNEG_F1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FSUB[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_FSUB_F1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FSUB_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_LD_GLOBAL[] = {{4, false}, {4, false}, {13, true}};
 static const CCVOperandInfo Operands_LD_GLOBAL_IDX[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
@@ -304,6 +406,100 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"CHWIDTH_MULTI", 2, Operands_CHWIDTH_MULTI},
   {"CLZ", 4, Operands_CLZ},
   {"COS_F32", 4, Operands_COS_F32},
+  {"CVT_D0_S0_R0", 4, Operands_CVT_D0_S0_R0},
+  {"CVT_D0_S0_R0_P", 5, Operands_CVT_D0_S0_R0_P},
+  {"CVT_D0_S0_R1", 4, Operands_CVT_D0_S0_R1},
+  {"CVT_D0_S0_R1_P", 5, Operands_CVT_D0_S0_R1_P},
+  {"CVT_D0_S0_R2", 4, Operands_CVT_D0_S0_R2},
+  {"CVT_D0_S0_R2_P", 5, Operands_CVT_D0_S0_R2_P},
+  {"CVT_D0_S0_R3", 4, Operands_CVT_D0_S0_R3},
+  {"CVT_D0_S0_R3_P", 5, Operands_CVT_D0_S0_R3_P},
+  {"CVT_D0_S1_R0", 4, Operands_CVT_D0_S1_R0},
+  {"CVT_D0_S1_R0_P", 5, Operands_CVT_D0_S1_R0_P},
+  {"CVT_D0_S1_R1", 4, Operands_CVT_D0_S1_R1},
+  {"CVT_D0_S1_R1_P", 5, Operands_CVT_D0_S1_R1_P},
+  {"CVT_D0_S1_R2", 4, Operands_CVT_D0_S1_R2},
+  {"CVT_D0_S1_R2_P", 5, Operands_CVT_D0_S1_R2_P},
+  {"CVT_D0_S1_R3", 4, Operands_CVT_D0_S1_R3},
+  {"CVT_D0_S1_R3_P", 5, Operands_CVT_D0_S1_R3_P},
+  {"CVT_D0_S2_R1", 4, Operands_CVT_D0_S2_R1},
+  {"CVT_D0_S2_R1_P", 5, Operands_CVT_D0_S2_R1_P},
+  {"CVT_D0_S2_R2", 4, Operands_CVT_D0_S2_R2},
+  {"CVT_D0_S2_R2_P", 5, Operands_CVT_D0_S2_R2_P},
+  {"CVT_D0_S2_R3", 4, Operands_CVT_D0_S2_R3},
+  {"CVT_D0_S2_R3_P", 5, Operands_CVT_D0_S2_R3_P},
+  {"CVT_D0_S3_R1", 4, Operands_CVT_D0_S3_R1},
+  {"CVT_D0_S3_R1_P", 5, Operands_CVT_D0_S3_R1_P},
+  {"CVT_D0_S3_R2", 4, Operands_CVT_D0_S3_R2},
+  {"CVT_D0_S3_R2_P", 5, Operands_CVT_D0_S3_R2_P},
+  {"CVT_D0_S3_R3", 4, Operands_CVT_D0_S3_R3},
+  {"CVT_D0_S3_R3_P", 5, Operands_CVT_D0_S3_R3_P},
+  {"CVT_D1_S0_R0", 4, Operands_CVT_D1_S0_R0},
+  {"CVT_D1_S0_R0_P", 5, Operands_CVT_D1_S0_R0_P},
+  {"CVT_D1_S0_R1", 4, Operands_CVT_D1_S0_R1},
+  {"CVT_D1_S0_R1_P", 5, Operands_CVT_D1_S0_R1_P},
+  {"CVT_D1_S0_R2", 4, Operands_CVT_D1_S0_R2},
+  {"CVT_D1_S0_R2_P", 5, Operands_CVT_D1_S0_R2_P},
+  {"CVT_D1_S0_R3", 4, Operands_CVT_D1_S0_R3},
+  {"CVT_D1_S0_R3_P", 5, Operands_CVT_D1_S0_R3_P},
+  {"CVT_D1_S1_R0", 4, Operands_CVT_D1_S1_R0},
+  {"CVT_D1_S1_R0_P", 5, Operands_CVT_D1_S1_R0_P},
+  {"CVT_D1_S1_R1", 4, Operands_CVT_D1_S1_R1},
+  {"CVT_D1_S1_R1_P", 5, Operands_CVT_D1_S1_R1_P},
+  {"CVT_D1_S1_R2", 4, Operands_CVT_D1_S1_R2},
+  {"CVT_D1_S1_R2_P", 5, Operands_CVT_D1_S1_R2_P},
+  {"CVT_D1_S1_R3", 4, Operands_CVT_D1_S1_R3},
+  {"CVT_D1_S1_R3_P", 5, Operands_CVT_D1_S1_R3_P},
+  {"CVT_D1_S2_R0", 4, Operands_CVT_D1_S2_R0},
+  {"CVT_D1_S2_R0_P", 5, Operands_CVT_D1_S2_R0_P},
+  {"CVT_D1_S2_R1", 4, Operands_CVT_D1_S2_R1},
+  {"CVT_D1_S2_R1_P", 5, Operands_CVT_D1_S2_R1_P},
+  {"CVT_D1_S2_R2", 4, Operands_CVT_D1_S2_R2},
+  {"CVT_D1_S2_R2_P", 5, Operands_CVT_D1_S2_R2_P},
+  {"CVT_D1_S2_R3", 4, Operands_CVT_D1_S2_R3},
+  {"CVT_D1_S2_R3_P", 5, Operands_CVT_D1_S2_R3_P},
+  {"CVT_D1_S3_R0", 4, Operands_CVT_D1_S3_R0},
+  {"CVT_D1_S3_R0_P", 5, Operands_CVT_D1_S3_R0_P},
+  {"CVT_D1_S3_R1", 4, Operands_CVT_D1_S3_R1},
+  {"CVT_D1_S3_R1_P", 5, Operands_CVT_D1_S3_R1_P},
+  {"CVT_D1_S3_R2", 4, Operands_CVT_D1_S3_R2},
+  {"CVT_D1_S3_R2_P", 5, Operands_CVT_D1_S3_R2_P},
+  {"CVT_D1_S3_R3", 4, Operands_CVT_D1_S3_R3},
+  {"CVT_D1_S3_R3_P", 5, Operands_CVT_D1_S3_R3_P},
+  {"CVT_D2_S0_R0", 4, Operands_CVT_D2_S0_R0},
+  {"CVT_D2_S0_R0_P", 5, Operands_CVT_D2_S0_R0_P},
+  {"CVT_D2_S0_R2", 4, Operands_CVT_D2_S0_R2},
+  {"CVT_D2_S0_R2_P", 5, Operands_CVT_D2_S0_R2_P},
+  {"CVT_D2_S0_R3", 4, Operands_CVT_D2_S0_R3},
+  {"CVT_D2_S0_R3_P", 5, Operands_CVT_D2_S0_R3_P},
+  {"CVT_D2_S1_R0", 4, Operands_CVT_D2_S1_R0},
+  {"CVT_D2_S1_R0_P", 5, Operands_CVT_D2_S1_R0_P},
+  {"CVT_D2_S1_R1", 4, Operands_CVT_D2_S1_R1},
+  {"CVT_D2_S1_R1_P", 5, Operands_CVT_D2_S1_R1_P},
+  {"CVT_D2_S1_R2", 4, Operands_CVT_D2_S1_R2},
+  {"CVT_D2_S1_R2_P", 5, Operands_CVT_D2_S1_R2_P},
+  {"CVT_D2_S1_R3", 4, Operands_CVT_D2_S1_R3},
+  {"CVT_D2_S1_R3_P", 5, Operands_CVT_D2_S1_R3_P},
+  {"CVT_D2_S3_R0", 4, Operands_CVT_D2_S3_R0},
+  {"CVT_D2_S3_R0_P", 5, Operands_CVT_D2_S3_R0_P},
+  {"CVT_D3_S0_R0", 4, Operands_CVT_D3_S0_R0},
+  {"CVT_D3_S0_R0_P", 5, Operands_CVT_D3_S0_R0_P},
+  {"CVT_D3_S0_R2", 4, Operands_CVT_D3_S0_R2},
+  {"CVT_D3_S0_R2_P", 5, Operands_CVT_D3_S0_R2_P},
+  {"CVT_D3_S0_R3", 4, Operands_CVT_D3_S0_R3},
+  {"CVT_D3_S0_R3_P", 5, Operands_CVT_D3_S0_R3_P},
+  {"CVT_D3_S1_R0", 4, Operands_CVT_D3_S1_R0},
+  {"CVT_D3_S1_R0_P", 5, Operands_CVT_D3_S1_R0_P},
+  {"CVT_D3_S1_R1", 4, Operands_CVT_D3_S1_R1},
+  {"CVT_D3_S1_R1_P", 5, Operands_CVT_D3_S1_R1_P},
+  {"CVT_D3_S1_R2", 4, Operands_CVT_D3_S1_R2},
+  {"CVT_D3_S1_R2_P", 5, Operands_CVT_D3_S1_R2_P},
+  {"CVT_D3_S1_R3", 4, Operands_CVT_D3_S1_R3},
+  {"CVT_D3_S1_R3_P", 5, Operands_CVT_D3_S1_R3_P},
+  {"CVT_D3_S2_R0", 4, Operands_CVT_D3_S2_R0},
+  {"CVT_D3_S2_R0_P", 5, Operands_CVT_D3_S2_R0_P},
+  {"CVT_D3_S3_R0", 4, Operands_CVT_D3_S3_R0},
+  {"CVT_D3_S3_R0_P", 5, Operands_CVT_D3_S3_R0_P},
   {"CVT_F32_S32", 4, Operands_CVT_F32_S32},
   {"CVT_F32_S32_P", 5, Operands_CVT_F32_S32_P},
   {"CVT_F32_U32", 4, Operands_CVT_F32_U32},
@@ -361,17 +557,25 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"DP4_SS", 4, Operands_DP4_SS},
   {"EX2_F32", 4, Operands_EX2_F32},
   {"FABS_F0", 4, Operands_FABS_F0},
+  {"FABS_F1", 4, Operands_FABS_F1},
   {"FADD", 4, Operands_FADD},
+  {"FADD_F1", 4, Operands_FADD_F1},
   {"FADD_P", 5, Operands_FADD_P},
   {"FFMA_ACC_F0", 4, Operands_FFMA_ACC_F0},
   {"FFMA_ACC_F1", 4, Operands_FFMA_ACC_F1},
   {"FFMA_F0", 4, Operands_FFMA_F0},
+  {"FFMA_F1", 4, Operands_FFMA_F1},
   {"FMAX", 4, Operands_FMAX},
+  {"FMAX_F1", 4, Operands_FMAX_F1},
   {"FMIN", 4, Operands_FMIN},
+  {"FMIN_F1", 4, Operands_FMIN_F1},
   {"FMUL", 4, Operands_FMUL},
+  {"FMUL_F1", 4, Operands_FMUL_F1},
   {"FMUL_P", 5, Operands_FMUL_P},
   {"FNEG_F0", 4, Operands_FNEG_F0},
+  {"FNEG_F1", 4, Operands_FNEG_F1},
   {"FSUB", 4, Operands_FSUB},
+  {"FSUB_F1", 4, Operands_FSUB_F1},
   {"FSUB_P", 5, Operands_FSUB_P},
   {"LD_GLOBAL", 3, Operands_LD_GLOBAL},
   {"LD_GLOBAL_IDX", 5, Operands_LD_GLOBAL_IDX},
@@ -541,4 +745,4 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"XOR_P", 5, Operands_XOR_P},
   {"XOR_W16", 4, Operands_XOR_W16},
 };
-static const unsigned CCVNumInstOperands = 266;
+static const unsigned CCVNumInstOperands = 368;

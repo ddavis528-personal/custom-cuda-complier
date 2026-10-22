@@ -1,12 +1,12 @@
   gen-register-info    ok (639 lines)
-  gen-instr-info       ok (4884 lines)
-  gen-emitter          ok (2432 lines)
-  gen-disassembler     ok (1367 lines)
-  gen-asm-writer       ok (1441 lines)
+  gen-instr-info       ok (5713 lines)
+  gen-emitter          ok (2738 lines)
+  gen-disassembler     ok (1624 lines)
+  gen-asm-writer       ok (1974 lines)
   gen-dag-isel         ok (1867 lines)
   gen-callingconv      ok (92 lines)
 
-checked 266 instructions
+checked 368 instructions
 
   EXEMPT       CHWIDTH_MULTI: Format I metadata: register mask, no canonical slots
   EXEMPT       PMOV_IMM: Format I metadata: pd at [9:8], excluded by invariant 8 (v1.4)
@@ -87,6 +87,10 @@ checked 266 instructions
   PASS  coremark-derived: 32 lanes give e714 e714 1fd7 8e3a; 60 opcodes, 783612 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
   PASS  rope: 2 CTAs of 32 threads match the reference; 31 opcodes, 374 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
   PASS  layernorm: 2 CTAs of 32 threads match the reference; 37 opcodes, 536 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
+  narrow FP (CP-6)
+  PASS  narrow FP: 457115 cases agree with the reference bit for bit (every 8- and 4-bit pair, every conversion point, F-FORMAT)
+  PASS  control -ccv-test-fp-ftz is caught: 9760 cases differ
+  PASS  control -ccv-test-fp-no-saturate is caught: 21207 cases differ
   CoreMark-derived workload (AR-20)
   PASS  CoreMark-derived: list, matrix and state on 32 lanes give CoreMark's CRCs, and the host's after 2 iterations (72be e714 1fd7 8e3a; 1538673 issue groups)
   PASS  control -ccv-test-hoist-past-calls is caught: did not run: error: MOV_P has no semantics in the simulator yet
@@ -103,7 +107,7 @@ checked 266 instructions
   dp4 against a four-MAC reference
   PASS  dp4: 32 lanes correct against a four-MAC reference (1 dp4 instruction(s) emitted)
   every instruction has a production path
-  PASS  279 instructions, all with a production path (isel 83, pass 122, mc 1, declared 73)
+  PASS  381 instructions, all with a production path (isel 83, pass 122, mc 1, declared 175)
   the production-path gate catches its own cases
   PASS  removing the bra.short pattern (with insertBranch also removed) fails the check
   PASS  removing the immediate-compare mapping fails the check
@@ -111,7 +115,7 @@ checked 266 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 173 findings and 63 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 174 findings and 63 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -130,8 +134,8 @@ checked 266 instructions
   PASS  fused-corpus sweep matches the tool
   encode -> decode round trip
 
-  CCV instructions     : 266
-  round trips          : 17024 (64 random operand sets each)
+  CCV instructions     : 368
+  round trips          : 23552 (64 random operand sets each)
   non-CCV opcodes      : 284 (LLVM pseudos and GlobalISel generics, no encoding)
   unbuildable operands : 0
   failures             : 0
@@ -158,6 +162,9 @@ checked 266 instructions
   --- predicate spill (IS-15) ---
   PASS  ld.pred/st.pred: positional frame, whole-warp words, a clobbered predicate restored
   PASS  ld.pred and st.pred move only the issuing group's lanes (O-62, O-63)
+
+  --- narrow FP (CP-6) ---
+  PASS  narrow FP in a kernel: E4M3, E5M2, E2M1, FP16 ffma, BF16 ffma.acc, a saturating conversion, compressed and predicated forms
 
   --- one warp of several (TI-29) ---
   PASS  -warp 1 of a 52-thread CTA: threads 32-51 on lanes 0-19, warp_in_cta in the record, a barrier refused

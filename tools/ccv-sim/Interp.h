@@ -11,6 +11,13 @@ namespace ccv {
 
 class Interp {
 public:
+  /// CP-6: one lane of an FP-block operation or a conversion, for
+  /// tools/check-narrow-fp.py. Widths are the registers' width codes in the
+  /// order destination, a, b, c (unused ones ignored). False is F-FORMAT, or an
+  /// opcode that is neither.
+  static bool evalFp(unsigned Op, const uint8_t Widths[4], uint32_t X,
+                     uint32_t Y, uint32_t Z, uint32_t &Out);
+
   Memory Mem;
   /// §5.1 makes `.shared` a separate flat 32-bit space, not a window into the
   /// 48-bit one, so it is a separate memory here too. CTA-private falls out:

@@ -215,6 +215,25 @@ run_warp() {
     echo "  FAIL  -warp: got '$out' (warp 0: '$ctl'), want '$want'; barrier: $bar"; return 1
   fi
 }
+# --- narrow FP executed (CP-6) ----------------------------------------------
+run_narrow_fp() {
+  python3 "$AS" "$JSON" test/narrow-fp.s "$TMP/nf.bin" >/dev/null || return 1
+  local peeks="" o
+  for o in 0 4 8 12 16 20 24 64 124 128 188; do peeks="$peeks -peek $(printf 0x%x $((0x90000 + o)))"; done
+  local want="60 57 7 16896 126 60 16608 60 60 17 17" got ctl
+  got=$("$SIM" "$TMP/nf.bin" $peeks 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  # The control: narrow overflow to NaN, the rule O-56 rejected.
+  ctl=$("$SIM" "$TMP/nf.bin" $peeks -ccv-test-fp-no-saturate 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  if [ "${got% }" = "$want" ] && [ "${ctl% }" != "$want" ]; then
+    echo "  PASS  narrow FP in a kernel: E4M3, E5M2, E2M1, FP16 ffma, BF16 ffma.acc, a saturating conversion, compressed and predicated forms"
+  else
+    echo "  FAIL  narrow FP in a kernel: got '$got', want '$want' (control: '$ctl')"; return 1
+  fi
+}
+echo
+echo "  --- narrow FP (CP-6) ---"
+run_narrow_fp || fail=1
+
 echo
 echo "  --- one warp of several (TI-29) ---"
 run_warp || fail=1
@@ -229,6 +248,7 @@ run_faults() {
               "gated-on:FAULT F-ALIGN  pc=0x100c  lanes=ffffffff  addr=0x50001" \
               "width:FAULT F-WIDTH  pc=0x100e  lanes=ffffffff" \
               "illegal:FAULT F-ILLEGAL  pc=0x1000  lanes=ffffffff" \
+              "format:FAULT F-FORMAT  pc=0x1004  lanes=ffffffff" \
               "fetch:FAULT F-FETCH  pc=0x1001  lanes=ffffffff" \
               "barrier:FAULT F-BARRIER  pc=0x1000  lanes=ffffffff"; do
     t=${pair%%:*}; want=${pair#*:}

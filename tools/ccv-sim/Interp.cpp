@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Interp.h"
+#include "NarrowFP.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
@@ -228,6 +229,213 @@ template <unsigned MantBits> static float fp8ToFloat(uint8_t B) {
          std::ldexp(1.0f + float(M) / float(1u << MantBits), E - Bias);
 }
 
+
+// ---- CP-6: the FP block and the conversions at every width ---------------
+//
+// Where an FP instruction keeps its operands, and what it does, for the
+// generic path through NarrowFP.h. That path takes every execution that
+// touches a register below 32 bits, format code 1, or a conversion without a
+// host form below; an FP32-only execution keeps the host paths in the switch,
+// so every oracle written before narrow FP is unchanged.
+namespace {
+struct FpInfo {
+  enum Kind { None, Bin, Un, Fma, Cvt } K = None;
+  unsigned Base = 0;      // FADD, FSUB, FMUL, FMIN, FMAX, FNEG_F0, FABS_F0, FFMA_F0
+  unsigned Code = 0;      // the FP format code, for Bin, Un and Fma
+  unsigned Dst = 0, Src = 0, Rnd = 0;   // for Cvt: format codes and rounding
+  int D = 0, A = -1, B = -1, C = -1;    // operand indices; C is the addend
+  int Qual = -1;          // the predicate qualifier's operand, if predicated
+  bool HostForm = false;  // FP32-only executions keep a host path
+};
+
+struct CvtRow { unsigned Op, D, S, R; bool Pred; };
+const CvtRow CvtTable[] = {
+    {CCV::CVT_D0_S0_R0, 0, 0, 0, false}, {CCV::CVT_D0_S0_R0_P, 0, 0, 0, true},
+    {CCV::CVT_D0_S0_R1, 0, 0, 1, false}, {CCV::CVT_D0_S0_R1_P, 0, 0, 1, true},
+    {CCV::CVT_D0_S0_R2, 0, 0, 2, false}, {CCV::CVT_D0_S0_R2_P, 0, 0, 2, true},
+    {CCV::CVT_D0_S0_R3, 0, 0, 3, false}, {CCV::CVT_D0_S0_R3_P, 0, 0, 3, true},
+    {CCV::CVT_D0_S1_R0, 0, 1, 0, false}, {CCV::CVT_D0_S1_R0_P, 0, 1, 0, true},
+    {CCV::CVT_D0_S1_R1, 0, 1, 1, false}, {CCV::CVT_D0_S1_R1_P, 0, 1, 1, true},
+    {CCV::CVT_D0_S1_R2, 0, 1, 2, false}, {CCV::CVT_D0_S1_R2_P, 0, 1, 2, true},
+    {CCV::CVT_D0_S1_R3, 0, 1, 3, false}, {CCV::CVT_D0_S1_R3_P, 0, 1, 3, true},
+    {CCV::CVT_F32_S32, 0, 2, 0, false}, {CCV::CVT_F32_S32_P, 0, 2, 0, true},
+    {CCV::CVT_D0_S2_R1, 0, 2, 1, false}, {CCV::CVT_D0_S2_R1_P, 0, 2, 1, true},
+    {CCV::CVT_D0_S2_R2, 0, 2, 2, false}, {CCV::CVT_D0_S2_R2_P, 0, 2, 2, true},
+    {CCV::CVT_D0_S2_R3, 0, 2, 3, false}, {CCV::CVT_D0_S2_R3_P, 0, 2, 3, true},
+    {CCV::CVT_F32_U32, 0, 3, 0, false}, {CCV::CVT_F32_U32_P, 0, 3, 0, true},
+    {CCV::CVT_D0_S3_R1, 0, 3, 1, false}, {CCV::CVT_D0_S3_R1_P, 0, 3, 1, true},
+    {CCV::CVT_D0_S3_R2, 0, 3, 2, false}, {CCV::CVT_D0_S3_R2_P, 0, 3, 2, true},
+    {CCV::CVT_D0_S3_R3, 0, 3, 3, false}, {CCV::CVT_D0_S3_R3_P, 0, 3, 3, true},
+    {CCV::CVT_D1_S0_R0, 1, 0, 0, false}, {CCV::CVT_D1_S0_R0_P, 1, 0, 0, true},
+    {CCV::CVT_D1_S0_R1, 1, 0, 1, false}, {CCV::CVT_D1_S0_R1_P, 1, 0, 1, true},
+    {CCV::CVT_D1_S0_R2, 1, 0, 2, false}, {CCV::CVT_D1_S0_R2_P, 1, 0, 2, true},
+    {CCV::CVT_D1_S0_R3, 1, 0, 3, false}, {CCV::CVT_D1_S0_R3_P, 1, 0, 3, true},
+    {CCV::CVT_D1_S1_R0, 1, 1, 0, false}, {CCV::CVT_D1_S1_R0_P, 1, 1, 0, true},
+    {CCV::CVT_D1_S1_R1, 1, 1, 1, false}, {CCV::CVT_D1_S1_R1_P, 1, 1, 1, true},
+    {CCV::CVT_D1_S1_R2, 1, 1, 2, false}, {CCV::CVT_D1_S1_R2_P, 1, 1, 2, true},
+    {CCV::CVT_D1_S1_R3, 1, 1, 3, false}, {CCV::CVT_D1_S1_R3_P, 1, 1, 3, true},
+    {CCV::CVT_D1_S2_R0, 1, 2, 0, false}, {CCV::CVT_D1_S2_R0_P, 1, 2, 0, true},
+    {CCV::CVT_D1_S2_R1, 1, 2, 1, false}, {CCV::CVT_D1_S2_R1_P, 1, 2, 1, true},
+    {CCV::CVT_D1_S2_R2, 1, 2, 2, false}, {CCV::CVT_D1_S2_R2_P, 1, 2, 2, true},
+    {CCV::CVT_D1_S2_R3, 1, 2, 3, false}, {CCV::CVT_D1_S2_R3_P, 1, 2, 3, true},
+    {CCV::CVT_D1_S3_R0, 1, 3, 0, false}, {CCV::CVT_D1_S3_R0_P, 1, 3, 0, true},
+    {CCV::CVT_D1_S3_R1, 1, 3, 1, false}, {CCV::CVT_D1_S3_R1_P, 1, 3, 1, true},
+    {CCV::CVT_D1_S3_R2, 1, 3, 2, false}, {CCV::CVT_D1_S3_R2_P, 1, 3, 2, true},
+    {CCV::CVT_D1_S3_R3, 1, 3, 3, false}, {CCV::CVT_D1_S3_R3_P, 1, 3, 3, true},
+    {CCV::CVT_D2_S0_R0, 2, 0, 0, false}, {CCV::CVT_D2_S0_R0_P, 2, 0, 0, true},
+    {CCV::CVT_S32_F32, 2, 0, 1, false}, {CCV::CVT_S32_F32_P, 2, 0, 1, true},
+    {CCV::CVT_D2_S0_R2, 2, 0, 2, false}, {CCV::CVT_D2_S0_R2_P, 2, 0, 2, true},
+    {CCV::CVT_D2_S0_R3, 2, 0, 3, false}, {CCV::CVT_D2_S0_R3_P, 2, 0, 3, true},
+    {CCV::CVT_D2_S1_R0, 2, 1, 0, false}, {CCV::CVT_D2_S1_R0_P, 2, 1, 0, true},
+    {CCV::CVT_D2_S1_R1, 2, 1, 1, false}, {CCV::CVT_D2_S1_R1_P, 2, 1, 1, true},
+    {CCV::CVT_D2_S1_R2, 2, 1, 2, false}, {CCV::CVT_D2_S1_R2_P, 2, 1, 2, true},
+    {CCV::CVT_D2_S1_R3, 2, 1, 3, false}, {CCV::CVT_D2_S1_R3_P, 2, 1, 3, true},
+    {CCV::CVT_SEXT, 2, 2, 0, false},
+    {CCV::CVT_D2_S3_R0, 2, 3, 0, false}, {CCV::CVT_D2_S3_R0_P, 2, 3, 0, true},
+    {CCV::CVT_D3_S0_R0, 3, 0, 0, false}, {CCV::CVT_D3_S0_R0_P, 3, 0, 0, true},
+    {CCV::CVT_U32_F32, 3, 0, 1, false}, {CCV::CVT_U32_F32_P, 3, 0, 1, true},
+    {CCV::CVT_D3_S0_R2, 3, 0, 2, false}, {CCV::CVT_D3_S0_R2_P, 3, 0, 2, true},
+    {CCV::CVT_D3_S0_R3, 3, 0, 3, false}, {CCV::CVT_D3_S0_R3_P, 3, 0, 3, true},
+    {CCV::CVT_D3_S1_R0, 3, 1, 0, false}, {CCV::CVT_D3_S1_R0_P, 3, 1, 0, true},
+    {CCV::CVT_D3_S1_R1, 3, 1, 1, false}, {CCV::CVT_D3_S1_R1_P, 3, 1, 1, true},
+    {CCV::CVT_D3_S1_R2, 3, 1, 2, false}, {CCV::CVT_D3_S1_R2_P, 3, 1, 2, true},
+    {CCV::CVT_D3_S1_R3, 3, 1, 3, false}, {CCV::CVT_D3_S1_R3_P, 3, 1, 3, true},
+    {CCV::CVT_D3_S2_R0, 3, 2, 0, false}, {CCV::CVT_D3_S2_R0_P, 3, 2, 0, true},
+    {CCV::CVT_D3_S3_R0, 3, 3, 0, false}, {CCV::CVT_D3_S3_R0_P, 3, 3, 0, true},
+};
+} // namespace
+
+static FpInfo fpInfo(unsigned Op) {
+  FpInfo I;
+  auto bin = [&](unsigned Base, unsigned Code, bool Host) {
+    I.K = FpInfo::Bin; I.Base = Base; I.Code = Code; I.D = 0; I.A = 1; I.B = 2;
+    I.HostForm = Host;
+  };
+  switch (Op) {
+  case CCV::FADD: bin(CCV::FADD, 0, true); return I;
+  case CCV::FSUB: bin(CCV::FSUB, 0, true); return I;
+  case CCV::FMUL: bin(CCV::FMUL, 0, true); return I;
+  case CCV::FMIN: bin(CCV::FMIN, 0, true); return I;
+  case CCV::FMAX: bin(CCV::FMAX, 0, true); return I;
+  case CCV::FADD_F1: bin(CCV::FADD, 1, false); return I;
+  case CCV::FSUB_F1: bin(CCV::FSUB, 1, false); return I;
+  case CCV::FMUL_F1: bin(CCV::FMUL, 1, false); return I;
+  case CCV::FMIN_F1: bin(CCV::FMIN, 1, false); return I;
+  case CCV::FMAX_F1: bin(CCV::FMAX, 1, false); return I;
+  case CCV::FADD_P: case CCV::FSUB_P: case CCV::FMUL_P:
+    bin(Op == CCV::FADD_P ? CCV::FADD : Op == CCV::FSUB_P ? CCV::FSUB : CCV::FMUL,
+        0, true);
+    I.Qual = 1; I.A = 2; I.B = 3;
+    return I;
+  case CCV::C_FADD: case CCV::C_FMUL: case CCV::C_FMIN: case CCV::C_FMAX:
+    bin(Op == CCV::C_FADD ? CCV::FADD : Op == CCV::C_FMUL ? CCV::FMUL
+        : Op == CCV::C_FMIN ? CCV::FMIN : CCV::FMAX, 0, true);
+    I.A = 0; I.B = 2;                   // destructive: rd op rs
+    return I;
+  case CCV::FNEG_F0: case CCV::FABS_F0: case CCV::FNEG_F1: case CCV::FABS_F1:
+    I.K = FpInfo::Un;
+    I.Base = Op == CCV::FNEG_F0 || Op == CCV::FNEG_F1 ? CCV::FNEG_F0 : CCV::FABS_F0;
+    I.Code = Op == CCV::FNEG_F1 || Op == CCV::FABS_F1;
+    I.D = 0; I.A = 1; I.HostForm = !I.Code;
+    return I;
+  case CCV::FFMA_F0: case CCV::FFMA_F1:
+    I.K = FpInfo::Fma; I.Base = CCV::FFMA_F0; I.Code = Op == CCV::FFMA_F1;
+    I.D = 0; I.A = 1; I.B = 2; I.C = 3; I.HostForm = !I.Code;
+    return I;
+  case CCV::FFMA_ACC_F0: case CCV::FFMA_ACC_F1:
+    I.K = FpInfo::Fma; I.Base = CCV::FFMA_F0; I.Code = Op == CCV::FFMA_ACC_F1;
+    I.D = 0; I.A = 2; I.B = 3; I.C = 0; I.HostForm = !I.Code;
+    return I;
+  default:
+    break;
+  }
+  for (const CvtRow &R : CvtTable)
+    if (R.Op == Op) {
+      I.K = FpInfo::Cvt; I.Dst = R.D; I.Src = R.S; I.Rnd = R.R;
+      I.D = 0; I.A = R.Pred ? 2 : 1; I.Qual = R.Pred ? 1 : -1;
+      // The four conversions the division sequence uses have FP32 host forms,
+      // and sign extension its own case; every other point is generic only.
+      I.HostForm = (R.D == 0 && (R.S == 2 || R.S == 3) && R.R == 0) ||
+                   ((R.D == 2 || R.D == 3) && R.S == 0 && R.R == 1) ||
+                   Op == CCV::CVT_SEXT;
+      return I;
+    }
+  return I;
+}
+
+/// One lane of the generic path. X, Y, Z are the operands' elements.
+static uint32_t fpLane(const FpInfo &I, uint8_t WD, uint8_t WA, uint8_t WB,
+                       uint8_t WC, uint32_t X, uint32_t Y, uint32_t Z) {
+  using namespace nfp;
+  if (I.K == FpInfo::Cvt) {
+    Round R = Round(I.Rnd);
+    Value V = I.Src < 2 ? decode(*format(WA, I.Src), X)
+                        : fromInt(X, widthBits(WA), I.Src == 2);
+    return I.Dst < 2 ? encode(*format(WD, I.Dst), V, R)
+                     : toInt(V, widthBits(WD), I.Dst == 2, R);
+  }
+  const Format FD = *format(WD, I.Code), FA = *format(WA, I.Code);
+  Value A = decode(FA, X);
+  if (I.K == FpInfo::Un) {
+    if (WA == WD) {                     // a sign-bit operation, NaN included
+      uint32_t S = 1u << (FD.Bits - 1);
+      return I.Base == CCV::FNEG_F0 ? (X ^ S) : (X & ~S);
+    }
+    if (A.K != Value::NaN)
+      A.Neg = I.Base == CCV::FNEG_F0 ? !A.Neg : false;
+    return encode(FD, A, Round::RN);
+  }
+  Value B = decode(*format(WB, I.Code), Y);
+  switch (I.K == FpInfo::Fma ? CCV::FFMA_F0 : I.Base) {
+  case CCV::FADD: return encode(FD, add(A, B, Round::RN), Round::RN);
+  case CCV::FSUB: return encode(FD, add(A, neg(B), Round::RN), Round::RN);
+  case CCV::FMUL: return encode(FD, mul(A, B), Round::RN);
+  case CCV::FMIN: case CCV::FMAX: {
+    // minNum and maxNum (O-56): a NaN operand gives the other operand.
+    if (A.K == Value::NaN && B.K == Value::NaN) return FD.NaN;
+    if (A.K == Value::NaN) return encode(FD, B, Round::RN);
+    if (B.K == Value::NaN) return encode(FD, A, Round::RN);
+    int C = compare(A, B);
+    bool TakeA = I.Base == CCV::FMIN ? C <= 0 : C >= 0;
+    return encode(FD, TakeA ? A : B, Round::RN);
+  }
+  default: {                            // ffma: one rounding of a*b + c
+    Value C = decode(*format(WC, I.Code), Z);
+    return encode(FD, add(mul(A, B), C, Round::RN), Round::RN);
+  }
+  }
+}
+
+/// §12.3's F-FORMAT: a format code reserved at the width of a register the
+/// instruction reads or writes as FP. Integer codes are valid at every width.
+static bool formatReserved(const FpInfo &I, const uint8_t *Widths) {
+  auto Bad = [](uint8_t W, unsigned Code) {
+    return Code < 2 && !nfp::format(W, Code);
+  };
+  if (I.K == FpInfo::Cvt)
+    return Bad(Widths[0], I.Dst) || Bad(Widths[1], I.Src);
+  for (int K = 0; K != 4; ++K)
+    if (Widths[K] != 0xff && Bad(Widths[K], I.Code))
+      return true;
+  return false;
+}
+
+bool Interp::evalFp(unsigned Op, const uint8_t Widths[4], uint32_t X,
+                    uint32_t Y, uint32_t Z, uint32_t &Out) {
+  FpInfo I = fpInfo(Op);
+  if (I.K == FpInfo::None)
+    return false;
+  uint8_t W[4];
+  int Ops[4] = {I.D, I.A, I.B, I.C};
+  for (int K = 0; K != 4; ++K)
+    W[K] = Ops[K] >= 0 ? Widths[K] : 0xff;
+  if (formatReserved(I, W))
+    return false;
+  auto Elem = [](uint32_t V, uint8_t C) { return C == 0xff ? 0 : narrow(V, C); };
+  Out = fpLane(I, W[0], W[1], I.B >= 0 ? W[2] : 0, I.C >= 0 ? W[3] : 0,
+               Elem(X, W[1]), Elem(Y, W[2]), Elem(Z, W[3]));
+  return true;
+}
 
 /// One lane of a conversion or SFU operation. Lifted out of the dispatch so the
 /// Format A′ twins O-34 made possible share the semantics rather than copying
@@ -485,6 +693,29 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     break;
   }
 
+  // ---- CP-6: the FP block and the conversions at every width -------------
+  // F-FORMAT is dispatch-stage and whole-instruction, like F-WIDTH: a format
+  // code reserved at the width of a register read or written as FP.
+  const FpInfo Fp = fpInfo(Op);
+  bool GenericFp = false;
+  uint8_t FpW[4] = {0xff, 0xff, 0xff, 0xff};   // D, A, B, C widths
+  if (Fp.K != FpInfo::None) {
+    int Ops[4] = {Fp.D, Fp.A, Fp.B, Fp.C};
+    bool Narrow = false;
+    for (int K = 0; K != 4; ++K)
+      if (Ops[K] >= 0) {
+        FpW[K] = W.ChWidth[regOf(MI, unsigned(Ops[K]))];
+        Narrow |= FpW[K] != 0;
+      }
+    if (formatReserved(Fp, FpW)) {
+      Result F{Result::Fault, 0};
+      F.Cause = "F-FORMAT";
+      F.TakenMask = Mask;
+      return F;
+    }
+    GenericFp = Narrow || !Fp.HostForm;
+  }
+
   // ---- Width-awareness guard (F-3) --------------------------------------
   //
   // Element width is per-register state (invariant 1), so EVERY instruction
@@ -497,7 +728,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   // when any GPR it touches is narrow. "Unimplemented" is a stop that names
   // itself; a silent wrong answer is what this project has been bitten by
   // repeatedly, and narrow-width arithmetic is exactly where it would not show.
-  if (!isWidthAware(Op))
+  if (!isWidthAware(Op) && !GenericFp)
     for (unsigned I = 0, N = MI.getNumOperands(); I != N; ++I)
       if (MI.getOperand(I).isReg()) {
         unsigned R = regOf(MI, I);
@@ -536,6 +767,31 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     }
   }
 
+  if (GenericFp) {
+    // Each operand read at its own register's width, the result written at
+    // the destination's (§4, invariant 1); a predicated form writes only the
+    // lanes its qualifier selects (invariant 10).
+    unsigned D = regOf(MI, unsigned(Fp.D));
+    unsigned A = Fp.A >= 0 ? regOf(MI, unsigned(Fp.A)) : 0;
+    unsigned B = Fp.B >= 0 ? regOf(MI, unsigned(Fp.B)) : 0;
+    unsigned C = Fp.C >= 0 ? regOf(MI, unsigned(Fp.C)) : 0;
+    uint32_t G = Mask;
+    if (Fp.Qual >= 0) {
+      G = guardMask(W, uint32_t(MI.getOperand(unsigned(Fp.Qual)).getImm())) & Mask;
+      R.Active = G; R.ActiveSet = true;
+    }
+    Warp In = W;                        // sources as they were, rd may alias
+    forEachLane([&](unsigned L) {
+      if (!((G >> L) & 1))
+        return;
+      uint32_t X = narrow(In.GPR[A][L], FpW[1]);
+      uint32_t Y = Fp.B >= 0 ? narrow(In.GPR[B][L], FpW[2]) : 0;
+      uint32_t Z = Fp.C >= 0 ? narrow(In.GPR[C][L], FpW[3]) : 0;
+      uint32_t V = fpLane(Fp, FpW[0], FpW[1], Fp.B >= 0 ? FpW[2] : 0,
+                          Fp.C >= 0 ? FpW[3] : 0, X, Y, Z);
+      W.GPR[D][L] = writeElem(W.GPR[D][L], V, FpW[0]);
+    });
+  } else
   switch (Op) {
   // ---- Format F: wide immediate, warp-uniform broadcast (§3) -------------
   case CCV::MOVI:
