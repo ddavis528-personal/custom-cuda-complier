@@ -87,11 +87,12 @@ context. Its window index is launch-block word 28 (§5.2). Its constant part is 
 range of O-51, and only data pointers inside it are relocated. No instruction or encoding
 changes.
 
-### An instruction writes only its own group's lanes (O-62; CP-11)
+### An instruction writes only its own group's lanes (O-62, O-63; CP-11, IS-18)
 
 Invariant 10 now covers lanes outside the issue mask, not only lanes the guard excludes. The
 case that raised it is `ld.pred`, which writes only the issuing group's bits of each
-predicate. Whether `st.pred` should store only those bits is open (IS-18).
+predicate. `st.pred` likewise stores only those bits, merged into memory's word (O-63). So a
+predicate spill slot is per-lane storage, and diverged groups can share it.
 
 ### Still open
 
@@ -1236,11 +1237,16 @@ For each predicate in the mask, lane *i*'s bit takes bit *i* of the predicate's 
 that register holds, merged as any register is), never the lowest executing lane's. That
 gives a warp one slot per frame across every split and merge, so a reload finds the slot its
 spill used even when the groups have changed in between. The lowest executing lane would move
-the slot whenever a group splits. `st.pred` stores all 32 bits of each word. So two PC groups that are live at once
-and spill one predicate to one slot overwrite each other's bits, and a group's reload can
-return another group's later store. Whether `st.pred` should instead write only the issuing
-group's bits is open as IS-18. Until it is decided, a compiler spills a predicate with
-`st.pred` only where no other group of the warp can spill to the same slot.
+the slot whenever a group splits.
+
+**`st.pred` stores only the issuing group's bits — normative (O-63).** For each predicate in
+the mask, bit *i* of its word takes lane *i*'s bit if lane *i* is in the issue mask, and keeps
+memory's value otherwise: `new = (old & ~m) | (p & m)`, with `m` the issue mask. Each word's
+read and write are one indivisible step, as an atomic's are. So each lane's bit in a slot is
+written and read only by that lane's thread. With `ld.pred`'s rule above, a spill and its reload
+are per lane under any split, merge or interleaving of groups, at one shared slot, with no
+compiler precaution. `st.pred` is a store for every other rule: `F-RO` (§12.3), `F-ALIGN`, and
+ordering against the warp's later loads.
 
 `.local` maps to `ld.global`/`st.global` via the thread-private windowing convention.
 `.const` maps to `ld.global` for reads. **A store or atomic any byte of which falls in
@@ -2912,6 +2918,23 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-63 — `st.pred` stores only the issuing group's bits, merged into the word — decided in
+1.9.** IS-18, following O-62. O-62 alone left a shared spill slot unsafe. Group A spills P0,
+then changes its own lanes of P0. Group B then spills P0 over the same slot, so the word's
+A-lane bits become A's new value, and A's reload returns that instead of what it spilled.
+With the merge, each lane's bit in the slot is written only by its own thread, so a slot is
+per-lane storage. AR priced it (AR's IS-18 response): `st.pred` goes down MIU's existing
+atomic path as a masked merge, about 32 two-input muxes and one operation code in LANE's
+atomic unit. No channel gains a field, and DCU is unchanged. OA: nothing in OOE, since the
+active mask is already on the memop. The region is warp-private (§5.4), so no other agent
+contends. What lost: (a) bit-granular write enables in DCU, which touch every write port for
+one rare op; (b) a separate read-merge-write in MIU's store drain, a second RMW path; and the
+compiler-only rule (full-word spills only in converged code, a per-lane GPR path elsewhere),
+which needs a free GPR at the moment of pressure. A predicate spill now costs a
+read-merge-write instead of a plain store, and spills are rare on four predicates.
 
 ---
 
