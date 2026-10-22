@@ -1248,6 +1248,12 @@ are per lane under any split, merge or interleaving of groups, at one shared slo
 compiler precaution. `st.pred` is a store for every other rule: `F-RO` (§12.3), `F-ALIGN`, and
 ordering against the warp's later loads.
 
+**A fault on `ld.pred` or `st.pred` belongs to the whole group.** The access is one warp-scoped
+access from lane 0's address, so an execute-stage cause it raises (`F-ALIGN`, `F-ADDR`,
+`F-SHARED`, `F-RO`) is raised by every lane of the issue mask. The fault record's lane mask is
+the issue mask, and its address is the access's address (§12.6). Lane 0 forms that address
+but is in the lane mask only if it is in the issue mask.
+
 `.local` maps to `ld.global`/`st.global` via the thread-private windowing convention.
 `.const` maps to `ld.global` for reads. **A store or atomic any byte of which falls in
 the `.const` window raises `F-RO`**, whether or not the atomic would have changed memory.
