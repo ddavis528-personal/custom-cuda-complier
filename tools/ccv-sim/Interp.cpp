@@ -424,6 +424,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
 
   // CurLane lets the memories attribute an F-ALIGN to its lane.
   Mem.AlignLanes = Shared.AlignLanes = 0;
+  Mem.RoLanes = 0;
   auto forEachLane = [&](auto &&Fn) {
     for (unsigned L = 0; L != kLanes; ++L)
       if (Mask & (1u << L)) {
@@ -954,8 +955,14 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     for (unsigned P = 0; P != kPreds; ++P) {
       if (!(PMask & (1u << P)))
         continue;
-      if (Op == CCV::LD_PRED_G) W.Pred[P] = Mem.read32(A + 4 * P);
-      else                      Mem.write32(A + 4 * P, W.Pred[P]);
+      if (Op == CCV::LD_PRED_G) {
+        W.Pred[P] = Mem.read32(A + 4 * P);
+        continue;
+      }
+      // Warp-scoped, so the lane that faults is the lowest executing one.
+      Mem.CurLane = unsigned(llvm::countr_zero(Mask));
+      if (Mem.roOK(A + 4 * P, 4))
+        Mem.write32(A + 4 * P, W.Pred[P]);
     }
     break;
   }
@@ -1430,6 +1437,14 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     F.Cause = "F-ALIGN";
     F.TakenMask = L;
     F.FaultAddr = Mem.AlignLanes ? Mem.AlignAddr : Shared.AlignAddr;
+    return F;
+  }
+  // ---- F-RO (O-51, O-61): execute stage, per lane, after F-ALIGN ---------
+  if (Mem.RoLanes) {
+    Result F{Result::Fault, 0};
+    F.Cause = "F-RO";
+    F.TakenMask = Mem.RoLanes;
+    F.FaultAddr = Mem.RoAddr;
     return F;
   }
   R.WidthCode = WCode;
