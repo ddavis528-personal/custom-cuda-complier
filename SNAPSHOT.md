@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-10-22-d957266
+# Snapshot snapshot-2026-10-22-5a91892
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `d957266d027a06873f10b66e712fad90d780ebbb`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `5a91892e94edc6eca8d395023dd10e619489cda1`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -23,7 +23,7 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `d957266d027a06873f10b66e712fad90d780ebbb` |
+| Source | `ccr-ea1c4e17-tem30u` @ `5a91892e94edc6eca8d395023dd10e619489cda1` |
 | Built | 2026-10-22 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
@@ -66,7 +66,11 @@ a6f8714acb354be54969225401d5993cf1c43eb7f7ceb045cac04d953646d18a  release/bench/
 b7e7adbfd99c4b2c1c2e5ea653273976d3f98fd179972597a4329938df50af80  release/bench/sweep-decode.txt
 eb6d722fd0f11e7d58e0200733f7f4398035974d0bf74329c01ca4dcefdf1c1a  release/bench/sweep-tiles.txt
 95f4156250879803ac60a6ce3706a884ee06f62ea6bbb2d1fd6e169e6ae06922  release/bin/ccv-sim
-99565ef4798a9f9117d74dd2fc4ebfde47089b6283e6cb46743dd215c1c3e765  release/bin/ccv-sim.txt
+1fc3f969756d337c93dda8b5022ca39546da61a5c4f8265299f5ba30def1ec2e  release/bin/ccv-sim.txt
+795ddec2ad120317dd9da5e48a141b5c6a3e9abadfbf13bc37114b0cab6c5506  release/kernels/coremark-derived/kernel.bin
+b76252fafa0996072f7e51707f307b8587b12b9ac0f2db25d53e0df63a7af497  release/kernels/coremark-derived/kernel.s
+0c651ef270ced41afc6a40d386f9019d6971dd7dfd108849003ed8fadefb7a2c  release/kernels/coremark-derived/launch.txt
+5bc14da2c8b27a16726aa965817fd4936c5b5d3804c69a4be06ca5897235ffd9  release/kernels/coremark-derived/ops.txt
 0ddda9feb5145350dcfd3d94a9eb5028bfbd1d0ad41f12851bfce048c0c7ffc9  release/kernels/layernorm/kernel.bin
 d881d8dc76c9b594ec1f203de485ce16f3f6b281d657610e97483bc8400feea5  release/kernels/layernorm/kernel.s
 e5769fbef4614ef8aed74537de07a82c9018d4215845ec73a517026f606d6d54  release/kernels/layernorm/launch.txt
@@ -75,5 +79,5 @@ e5769fbef4614ef8aed74537de07a82c9018d4215845ec73a517026f606d6d54  release/kernel
 726182c9a3c852ce8b46d9b35640a800a70f2ce60ae711b48c1660a753857b39  release/kernels/rope/kernel.s
 12795ff2ace11fc143ad508c1a541846387f492fba37433e1502316ec19c65b3  release/kernels/rope/launch.txt
 2497007156e55cf968c095bf5800cb0adce150dfe85961df79762b5643bb78aa  release/kernels/rope/ops.txt
-76f82deaa744dfe9d772189e5e101e1a8024146b5bb39a6ffa85e4a390fcc8f6  release/verify.log
+c0e6c272321e1d99ffa66b2c3c0f20236910293bd00810da6cd783b17075b9ab  release/verify.log
 ```

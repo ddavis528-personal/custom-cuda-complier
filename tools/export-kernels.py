@@ -15,12 +15,14 @@ Python reference written from the source. Then it writes, per kernel:
   ops.txt      every opcode the kernel issues, with its dynamic count
 
 Each CTA is its own run (`-ctaid i`): the kernels are one warp a CTA and the
-CTAs share nothing. Results are checked to a relative 1e-5, since ccv-sim's
+CTAs share nothing. The CoreMark-derived workload (AR-20) is exported the same
+way, with its entry, its module data among the pokes and its .const range, and
+checked by replaying launch.txt alone. Results are checked to a relative 1e-5, since ccv-sim's
 rsqrt and the fused multiply-adds round differently from Python's doubles.
 
 Usage: export-kernels.py <out-dir>   (exit 1 if any kernel's results are wrong)
 """
-import collections, json, math, os, struct, subprocess, sys, tempfile
+import collections, json, math, os, re, struct, subprocess, sys, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JSON = os.path.join(ROOT, "build/generated/CCV.json")
@@ -164,10 +166,118 @@ def run(binpath, cta, L, oracle):
     return got, r.stdout
 
 
+def export_coremark(out, tmp):
+    """The CoreMark-derived workload (AR-20): module data, calls, an entry past
+    its device functions. Its pokes are the oracle init record's seeded memory
+    from a run with the data image, so they are exactly what ccv-sim loads: the
+    launch block, the relocated image and word 28. Checked by every lane's
+    CRCs against the host build; the control runs without the image."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "sweep", os.path.join(ROOT, "tools/sweep-coremark.py"))
+    sw = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sw)
+    sw.build(tmp)
+    it, threads, MEMW, OUTW = 1, 32, sw.MEM, sw.OUT
+    want = subprocess.run([f"{tmp}/host", str(it)], capture_output=True, text=True,
+                          check=True).stdout.strip()
+    o = f"{tmp}/cm.o"
+    subprocess.run([f"{ROOT}/build/ccv-llc", f"{tmp}/cm-lowered.ll", "-o", o, "-obj"],
+                   check=True, capture_output=True)
+    for sec in ("text", "ccv_data", "ccv_reloc", "ccv_info"):
+        subprocess.run(["llvm-objcopy", "-O", "binary", f"--only-section=.{sec}", o,
+                        f"{tmp}/cm.{sec}"], check=True)
+    entry = next(int(l.split()[0], 16) for l in subprocess.run(
+        ["llvm-nm", o], capture_output=True, text=True, check=True).stdout.splitlines()
+        if " T _Z8coremark" in l)
+    src = subprocess.run([sys.executable, f"{ROOT}/tools/ccv-dis.py", JSON,
+                          f"{tmp}/cm.text", "--check"],
+                         capture_output=True, text=True, check=True).stdout
+    launch = [(LAUNCH + 0, threads), (LAUNCH + 24, 256), (LAUNCH + 32, MEMW),
+              (LAUNCH + 36, 66000), (LAUNCH + 40, OUTW), (LAUNCH + 44, 0),
+              (LAUNCH + 48, it)]
+
+    def go(with_data, oracle, replay=None):
+        args = [SIM, f"{tmp}/cm.text", "-entry", hex(entry), "-threads", str(threads),
+                "-max-steps", "100000000", "-oracle", oracle]
+        if replay is not None:                  # launch.txt alone, as TI runs it
+            mem, const = replay
+            if const:
+                args += ["-const-range", f"{const[0]:#x}:{const[1]:#x}"]
+            for a, v in mem:
+                args += ["-poke", f"{a:#x}={v}"]
+        elif with_data:
+            args += ["-data", f"{tmp}/cm.ccv_data", "-data-info", f"{tmp}/cm.ccv_info"]
+            if os.path.getsize(f"{tmp}/cm.ccv_reloc"):
+                args += ["-data-reloc", f"{tmp}/cm.ccv_reloc"]
+        if replay is None:
+            for a, v in launch:
+                args += ["-poke", f"{a:#x}={v}"]
+        for t in range(threads):
+            args += ["-peek", f"{(OUTW << 16) + 8 * t:#x}", "-peek", f"{(OUTW << 16) + 8 * t + 4:#x}"]
+        r = subprocess.run(args, capture_output=True, text=True)
+        if r.returncode:
+            return None
+        got = {int(m[0], 16): int(m[1]) for m in
+               re.findall(r"\[(0x[0-9a-f]+)\] = (\d+)", r.stdout)}
+        return {f"{got[(OUTW << 16) + 8 * t] & 0xffff:04x} {got[(OUTW << 16) + 8 * t] >> 16:04x} "
+                f"{got[(OUTW << 16) + 8 * t + 4] & 0xffff:04x} {got[(OUTW << 16) + 8 * t + 4] >> 16:04x}"
+                for t in range(threads)}
+
+    crcs = go(True, f"{tmp}/cm.jsonl")
+    init = json.loads(open(f"{tmp}/cm.jsonl").readline())["init"]
+    ops, issued = collections.Counter(), 0
+    for line in open(f"{tmp}/cm.jsonl"):
+        rec = json.loads(line)
+        if "op" in rec:
+            ops[rec["op"]] += 1
+            issued += 1
+    control = go(False, f"{tmp}/ctl.jsonl")
+    replayed = go(False, f"{tmp}/rp.jsonl", (init["mem"], init.get("const")))
+    d = os.path.join(out, "coremark-derived")
+    os.makedirs(d, exist_ok=True)
+    open(f"{d}/kernel.s", "w").write(
+        "# coremark-derived: test/coremark-derived, compiled; ccv-as source, reassembled\n"
+        f"# byte for byte by tools/ccv-dis.py --check. Load at ccv-sim's -code-base\n"
+        f"# (0x1000: function pointers are absolute); the kernel's entry is {entry:#x}.\n" + src)
+    open(f"{d}/kernel.bin", "wb").write(open(f"{tmp}/cm.text", "rb").read())
+    with open(f"{d}/launch.txt", "w") as f:
+        f.write("# coremark-derived: ccv-sim kernel.bin -entry <entry> -threads <T> "
+                "[-warp <w>] -const-range <const>\n# followed by the pokes: the launch "
+                "block and the module's relocated data image, at its window (word 28).\n"
+                "# Word 0x20030 is the iteration count; word 0x20000, ntid, follows -threads.\n"
+                "# Every lane runs its own context, so AR-20's shapes are -threads 1, 32, and\n"
+                "# 128 with -warp 0-3; each thread's CRCs are written to window "
+                f"{OUTW:#x}, 8 bytes a thread,\n# and must be {want} ({it} iteration).\n")
+        f.write(f"threads {threads}\nctas 1\nentry {entry:#x}\n")
+        if "const" in init:
+            f.write(f"const {init['const'][0]:#x}:{init['const'][1]:#x}\n")
+        f.write("cta 0\n")
+        f.writelines(f"-poke {a:#x}={v}\n" for a, v in init["mem"])
+    with open(f"{d}/ops.txt", "w") as f:
+        f.write(f"# coremark-derived: opcodes issued by one warp of {threads} lanes, "
+                f"by ccv-sim's names; {issued} issue groups\n")
+        f.writelines(f"{n:<18} {c}\n" for n, c in sorted(ops.items()))
+    if crcs != {want}:
+        print(f"  FAIL  coremark-derived: CRCs {sorted(crcs or [])}, want {want}")
+        return 1
+    if replayed != {want}:
+        print(f"  FAIL  coremark-derived: launch.txt alone gives {sorted(replayed or [])}")
+        return 1
+    if control == {want}:
+        print("  FAIL  coremark-derived: control: without the data image it still matched")
+        return 1
+    print(f"  PASS  coremark-derived: {threads} lanes give {want}; {len(ops)} opcodes, "
+          f"{issued} issue groups; launch.txt alone reproduces it, data image included; "
+          "without the image it fails")
+    return 0
+
+
 def main():
     out = sys.argv[1]
     bad = 0
     with tempfile.TemporaryDirectory() as tmp:
+        bad |= export_coremark(out, tmp)
         for name, fn in KERNELS.items():
             src, image = build(name, tmp)
             threads, ctas = fn()
