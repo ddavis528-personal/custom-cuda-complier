@@ -89,6 +89,23 @@ static uint32_t narrow(uint32_t V, uint8_t Code) {
   return N >= 32 ? V : (V & ((1u << N) - 1));
 }
 
+/// O-67, the mixed-width rule: a source read at its operation's operating
+/// width OpW (the destination's chwidth, or rs0's for a compare) is its raw
+/// element at its own width Src, zero-extended or truncated to OpW as a bit
+/// field. Never converted. A narrower source's missing bits are zero, not a
+/// neighbouring section's (OI-29).
+static uint32_t opnd(uint32_t V, uint8_t Src, uint8_t OpW) {
+  if (nfp::TestByValue)
+    return narrow(V, Src);
+  return narrow(V, std::max(Src, OpW));   // the larger code is the narrower
+}
+/// The same, then read as signed at the operating width.
+static uint32_t opndS(uint32_t V, uint8_t Src, uint8_t OpW) {
+  if (nfp::TestByValue)
+    return sextTo32(V, Src);
+  return sextTo32(opnd(V, Src, OpW), OpW);
+}
+
 /// Write an element without disturbing the bits above it.
 ///
 /// §1 says a narrow register "occupies a narrower physical slice of a row", so
@@ -389,18 +406,16 @@ static uint32_t fpLane(const FpInfo &I, uint8_t WD, uint8_t WA, uint8_t WB,
     return I.Dst < 2 ? encode(*format(WD, I.Dst), V, R)
                      : toInt(V, widthBits(WD), I.Dst == 2, R);
   }
-  const Format FD = *format(WD, I.Code), FA = *format(WA, I.Code);
-  Value A = decode(FA, X);
-  if (I.K == FpInfo::Un) {
-    if (WA == WD) {                     // a sign-bit operation, NaN included
-      uint32_t S = 1u << (FD.Bits - 1);
-      return I.Base == CCV::FNEG_F0 ? (X ^ S) : (X & ~S);
-    }
-    if (A.K != Value::NaN)
-      A.Neg = I.Base == CCV::FNEG_F0 ? !A.Neg : false;
-    return encode(FD, A, Round::RN);
+  // O-67: every source is its raw field at the destination's width, read in
+  // the destination's format. Nothing is converted.
+  const Format FD = *format(WD, I.Code);
+  X = opnd(X, WA, WD);
+  if (I.K == FpInfo::Un) {              // a sign-bit operation, NaN included
+    uint32_t S = 1u << (FD.Bits - 1);
+    return I.Base == CCV::FNEG_F0 ? (X ^ S) : (X & ~S);
   }
-  Value B = decode(*format(WB, I.Code), Y);
+  Value A = decode(FD, X);
+  Value B = decode(FD, opnd(Y, WB, WD));
   switch (I.K == FpInfo::Fma ? CCV::FFMA_F0 : I.Base) {
   case CCV::FADD: return encode(FD, add(A, B, Round::RN), Round::RN);
   case CCV::FSUB: return encode(FD, add(A, neg(B), Round::RN), Round::RN);
@@ -415,7 +430,7 @@ static uint32_t fpLane(const FpInfo &I, uint8_t WD, uint8_t WA, uint8_t WB,
     return encode(FD, TakeA ? A : B, Round::RN);
   }
   default: {                            // ffma: one rounding of a*b + c
-    Value C = decode(*format(WC, I.Code), Z);
+    Value C = decode(FD, opnd(Z, WC, WD));
     return encode(FD, add(mul(A, B), C, Round::RN), Round::RN);
   }
   }
@@ -436,8 +451,8 @@ static bool formatReserved(const FpInfo &I, const uint8_t *Widths) {
 }
 
 static unsigned fpRelation(unsigned Op, unsigned &Code);
-static bool fpCompareElem(unsigned Rel, unsigned Code, uint8_t WA, uint8_t WB,
-                          uint32_t X, uint32_t Y);
+static bool fpCompareElem(unsigned Rel, unsigned Code, uint8_t WA, uint32_t X,
+                          uint32_t Y);
 
 bool Interp::evalFp(unsigned Op, const uint8_t Widths[4], uint32_t X,
                     uint32_t Y, uint32_t Z, uint32_t &Out) {
@@ -446,8 +461,8 @@ bool Interp::evalFp(unsigned Op, const uint8_t Widths[4], uint32_t X,
   if (unsigned Rel = fpRelation(Op, FCode)) {
     if (!nfp::format(Widths[1], FCode) || !nfp::format(Widths[2], FCode))
       return false;
-    Out = fpCompareElem(Rel, FCode, Widths[1], Widths[2], narrow(X, Widths[1]),
-                        narrow(Y, Widths[2]));
+    Out = fpCompareElem(Rel, FCode, Widths[1], narrow(X, Widths[1]),
+                        opnd(Y, Widths[2], Widths[1]));
     return true;
   }
   FpInfo I = fpInfo(Op);
@@ -629,13 +644,14 @@ static bool isFloatCompare(unsigned Op) {
   return fpRelation(Op, Code) != 0;
 }
 
-/// One lane of an FP compare at any width, through NarrowFP.h: each operand
-/// decoded at its own width in format Code (O-65). Ordered relations are false
+/// One lane of an FP compare at any width, through NarrowFP.h: both operands
+/// decoded at rs0's width WA in format Code (O-65, O-67). Ordered relations are false
 /// on a NaN and ne.f is true, as at 32 bits; -0 equals +0.
-static bool fpCompareElem(unsigned Rel, unsigned Code, uint8_t WA, uint8_t WB,
-                          uint32_t X, uint32_t Y) {
+static bool fpCompareElem(unsigned Rel, unsigned Code, uint8_t WA, uint32_t X,
+                          uint32_t Y) {
   using namespace nfp;
-  Value A = decode(*format(WA, Code), X), B = decode(*format(WB, Code), Y);
+  const Format F = *format(WA, Code);
+  Value A = decode(F, X), B = decode(F, Y);
   if (A.K == Value::NaN || B.K == Value::NaN)
     return Rel == CCV::SETP_NE_F;
   int C = A.isZero() && B.isZero() ? 0 : compare(A, B);
@@ -913,8 +929,8 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     bool Signed = Op == CCV::MIN_S || Op == CCV::MAX_S || Op == CCV::SRA ||
                   Op == CCV::MUL_HI_S;
     forEachLane([&](unsigned L) {
-      uint32_t X = Signed ? sextTo32(W.GPR[A][L], WA) : narrow(W.GPR[A][L], WA);
-      uint32_t Y = Signed ? sextTo32(W.GPR[B][L], WB) : narrow(W.GPR[B][L], WB);
+      uint32_t X = Signed ? opndS(W.GPR[A][L], WA, WD) : opnd(W.GPR[A][L], WA, WD);
+      uint32_t Y = Signed ? opndS(W.GPR[B][L], WB, WD) : opnd(W.GPR[B][L], WB, WD);
       W.GPR[D][L] = writeElem(W.GPR[D][L], aluRR(Op, X, Y), WD);
     });
     break;
@@ -1119,7 +1135,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     uint8_t WA = W.ChWidth[A], WD = W.ChWidth[D];
     const bool Signed = B == CCV::SRA;
     forEachLane([&](unsigned L) {
-      uint32_t X = Signed ? sextTo32(W.GPR[A][L], WA) : narrow(W.GPR[A][L], WA);
+      uint32_t X = Signed ? opndS(W.GPR[A][L], WA, WD) : opnd(W.GPR[A][L], WA, WD);
       W.GPR[D][L] = writeElem(W.GPR[D][L], aluRR(B, X, Imm), WD);
     });
     break;
@@ -1153,7 +1169,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       // Invariant 10: the lanes the guard excludes keep what they held.
       if (!((G >> L) & 1))
         return;
-      uint32_t X = Signed ? sextTo32(W.GPR[A][L], WA) : narrow(W.GPR[A][L], WA);
+      uint32_t X = Signed ? opndS(W.GPR[A][L], WA, WD) : opnd(W.GPR[A][L], WA, WD);
       W.GPR[D][L] = writeElem(W.GPR[D][L], aluRR(B, X, Imm), WD);
     });
     break;
@@ -1166,7 +1182,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     uint8_t WA = W.ChWidth[A], WD = W.ChWidth[D];
     forEachLane([&](unsigned L) {
       W.GPR[D][L] = writeElem(W.GPR[D][L],
-                              narrow(W.GPR[A][L], WA) + uint32_t(Imm), WD);
+                              opnd(W.GPR[A][L], WA, WD) + uint32_t(Imm), WD);
     });
     break;
   }
@@ -1202,11 +1218,12 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       const uint8_t WY = Imm ? WA : WB;
       if (!nfp::format(WA, FCode) || !nfp::format(WY, FCode))
         return formatFault(Mask);
+      // O-67: rs1's raw field at rs0's width, compared in rs0's format.
       forEachLane([&](unsigned L) {
         if (!((G >> L) & 1)) return;
         uint32_t X = narrow(W.GPR[A][L], WA);
-        uint32_t Y = narrow(Imm ? uint32_t(IV) : W.GPR[B][L], WY);
-        bool T = fpCompareElem(Rel, FCode, WA, WY, X, Y);
+        uint32_t Y = Imm ? narrow(uint32_t(IV), WA) : opnd(W.GPR[B][L], WB, WA);
+        bool T = fpCompareElem(Rel, FCode, WA, X, Y);
         W.Pred[P] = (W.Pred[P] & ~(1u << L)) | (uint32_t(T) << L);
       });
       break;
@@ -1214,7 +1231,8 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     forEachLane([&](unsigned L) {
       if (!((G >> L) & 1)) return;   // invariant 10: excluded lanes preserved
       uint32_t X = cmpOperand(W.GPR[A][L], WA, Sgn);
-      uint32_t Y = Imm ? uint32_t(IV) : cmpOperand(W.GPR[B][L], WB, Sgn);
+      uint32_t Y = Imm ? uint32_t(IV)
+                       : Sgn ? opndS(W.GPR[B][L], WB, WA) : opnd(W.GPR[B][L], WB, WA);
       bool T = compare(Op, X, Y);
       W.Pred[P] = (W.Pred[P] & ~(1u << L)) | (uint32_t(T) << L);
     });
@@ -1257,17 +1275,19 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       const uint8_t WY = Imm ? WA : WB;   // as Format C's, above (O-65)
       if (!nfp::format(WA, FCode) || !nfp::format(WY, FCode))
         return formatFault(Mask);
+      // O-67: rs1's raw field at rs0's width, compared in rs0's format.
       forEachLane([&](unsigned L) {
         uint32_t X = narrow(W.GPR[A][L], WA);
-        uint32_t Y = narrow(Imm ? uint32_t(IV) : W.GPR[B][L], WY);
-        bool T = fpCompareElem(Rel, FCode, WA, WY, X, Y);
+        uint32_t Y = Imm ? narrow(uint32_t(IV), WA) : opnd(W.GPR[B][L], WB, WA);
+        bool T = fpCompareElem(Rel, FCode, WA, X, Y);
         W.Pred[P] = (W.Pred[P] & ~(1u << L)) | (uint32_t(T) << L);
       });
       break;
     }
     forEachLane([&](unsigned L) {
       uint32_t X = cmpOperand(W.GPR[A][L], WA, Sgn);
-      uint32_t Y = Imm ? uint32_t(IV) : cmpOperand(W.GPR[B][L], WB, Sgn);
+      uint32_t Y = Imm ? uint32_t(IV)
+                       : Sgn ? opndS(W.GPR[B][L], WB, WA) : opnd(W.GPR[B][L], WB, WA);
       bool T = compare(Base, X, Y);
       W.Pred[P] = (W.Pred[P] & ~(1u << L)) | (uint32_t(T) << L);
     });
@@ -1456,7 +1476,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     bool Signed = Op == CCV::C_MIN_S || Op == CCV::C_MAX_S || Op == CCV::C_SRA;
     forEachLane([&](unsigned L) {
       uint32_t X = Signed ? sextTo32(W.GPR[D][L], WD) : narrow(W.GPR[D][L], WD);
-      uint32_t Y = Signed ? sextTo32(W.GPR[Sx][L], WS) : narrow(W.GPR[Sx][L], WS);
+      uint32_t Y = Signed ? opndS(W.GPR[Sx][L], WS, WD) : opnd(W.GPR[Sx][L], WS, WD);
       W.GPR[D][L] = writeElem(W.GPR[D][L], aluRR(Op, X, Y), WD);
     });
     break;

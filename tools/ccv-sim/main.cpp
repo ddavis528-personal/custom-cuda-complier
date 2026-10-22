@@ -54,6 +54,8 @@ static cl::opt<bool> TestFpNoSat("ccv-test-fp-no-saturate", cl::Hidden,
 // name (§12.1's bounded nondeterminism). Default: the -warp index.
 static cl::opt<int> LaneContext("context", cl::init(-1),
     cl::desc("hardware warp context for srd #2 (default: the -warp index)"));
+static cl::opt<bool> TestMixedByValue("ccv-test-mixed-by-value", cl::Hidden,
+    cl::desc("read integer sources at their own width, to test that it is caught"));
 static cl::opt<bool> TestFpHostNaN("ccv-test-fp-host-nan", cl::Hidden,
     cl::desc("FP32 NaN results keep the host's bits, to test that it is caught"));
 static cl::opt<unsigned> NumThreads("threads", cl::init(32),
@@ -177,6 +179,7 @@ int main(int argc, char **argv) {
   nfp::TestFtz = TestFpFtz;
   nfp::TestNoSaturate = TestFpNoSat;
   nfp::TestHostNaN = TestFpHostNaN;
+  nfp::TestByValue = TestMixedByValue;
   if (!FpCases.empty()) {
     StringMap<unsigned> ByName;
     for (unsigned Op = 0, N = MII->getNumOpcodes(); Op != N; ++Op)

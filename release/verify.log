@@ -90,8 +90,8 @@ checked 380 instructions
   PASS  layernorm: 2 CTAs of 32 threads match the reference; 37 opcodes, 536 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
   narrow FP (CP-6)
   PASS  narrow FP: 487589 cases agree with the reference bit for bit (every 8- and 4-bit pair, every conversion point, every compare, F-FORMAT)
-  PASS  control -ccv-test-fp-ftz is caught: 9725 cases differ
-  PASS  control -ccv-test-fp-no-saturate is caught: 21394 cases differ
+  PASS  control -ccv-test-fp-ftz is caught: 10011 cases differ
+  PASS  control -ccv-test-fp-no-saturate is caught: 21161 cases differ
   CoreMark-derived workload (AR-20)
   PASS  CoreMark-derived: list, matrix and state on 32 lanes give CoreMark's CRCs, and the host's after 2 iterations (72be e714 1fd7 8e3a; 1538673 issue groups)
   PASS  control -ccv-test-hoist-past-calls is caught: did not run: error: MOV_P has no semantics in the simulator yet
@@ -116,7 +116,7 @@ checked 380 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 176 findings and 66 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 177 findings and 67 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -175,6 +175,9 @@ checked 380 instructions
 
   --- canonical NaN, compare format (O-66, O-65) ---
   PASS  canonical NaN at FP32 and FP16 (O-66), the compare's format bit (O-65), F-FORMAT at 32 bits
+
+  --- the mixed-width rule (O-67) ---
+  PASS  mixed widths read as raw fields at the operating width: shr, min.s, an FP16 add (O-67)
 
   --- the fault model (ISA v1.9 section 12) ---
   PASS  faults: F-ALIGN precise and predicate-gated, F-WIDTH ignores the predicate, F-ILLEGAL, F-FETCH, F-BARRIER
