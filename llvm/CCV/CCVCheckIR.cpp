@@ -169,20 +169,27 @@ bool llvm::checkCCVModule(Module &M, raw_ostream &Err) {
         if (auto *CI = dyn_cast<ICmpInst>(&I))
           if (CI->getOperand(0)->getType()->isPointerTy())
             report(I, "pointer comparison",
-                   "invariant 11: comparison would need both halves "
-                   "materialised and lowered to two compares -- see F-22",
+                   "CCVPointerPairs compares two pointers by their flat "
+                   "addresses (ISA v1.9 §5.7); this one is signed, or one side "
+                   "has no (rbase, roffset) pair to build the address from -- "
+                   "see F-22",
                    Problems);
 
         if (auto *PN = dyn_cast<PHINode>(&I))
           if (PN->getType()->isPointerTy())
             report(I, "pointer phi",
-                   "invariant 11: a pointer cannot live in a register across a "
-                   "control-flow merge -- see F-22",
+                   "CCVPointerPairs makes a pointer phi two i32 phis; this one "
+                   "has an incoming pointer with no (rbase, roffset) pair -- "
+                   "see F-22",
                    Problems);
 
         if (auto *CB = dyn_cast<CallBase>(&I)) {
+          // __ccv_frame_offset is CCVPointerPairs' own: it names a frame
+          // object to the backend and passes nothing at run time.
+          const Function *Callee = CB->getCalledFunction();
           if (CB->getIntrinsicID() == Intrinsic::not_intrinsic &&
-              !CB->isInlineAsm())
+              !CB->isInlineAsm() &&
+              !(Callee && Callee->getName() == "__ccv_frame_offset"))
             for (const Use &A : CB->args())
               if (A->getType()->isPointerTy()) {
                 report(I, "pointer passed across a call",

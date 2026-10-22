@@ -116,6 +116,7 @@ const char *CCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case CCVISD::LD_BASEOFF: return "CCVISD::LD_BASEOFF";
   case CCVISD::ST_BASEOFF: return "CCVISD::ST_BASEOFF";
   case CCVISD::CODEADDR: return "CCVISD::CODEADDR";
+  case CCVISD::FRAMEOFF: return "CCVISD::FRAMEOFF";
   default:          return nullptr;
   }
 }
@@ -723,9 +724,18 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
   }
 
   if (auto *ST = dyn_cast<StoreSDNode>(N)) {
-    if (ST->isTruncatingStore() || ST->isAtomic() ||
-        !IsWindowed(ST->getAddressSpace()))
+    if (ST->isAtomic() || !IsWindowed(ST->getAddressSpace()))
       return SDValue();
+    // A 16-bit store of a 32-bit value is a store of its low half at width
+    // 16, as `trunc i32 -> i16` is free. Left alone, it reached the type
+    // legalizer with its 64-bit address unmatched, which crashed rather than
+    // diagnosing (C's `ee_s16` fields; AR-20).
+    SDValue Val = ST->getValue();
+    if (ST->isTruncatingStore()) {
+      if (ST->getMemoryVT() != MVT::i16 || Val.getValueType() != MVT::i32)
+        return SDValue();
+      Val = DAG.getNode(ISD::TRUNCATE, DL, MVT::i16, Val);
+    }
     SDVTList VTs = DAG.getVTList(MVT::Other);
     SDValue Base, Idx;
     bool Scale = false;
@@ -734,25 +744,25 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
                      Scale, IdxDisp)) {
       SDValue D = DAG.getTargetConstant(IdxDisp, DL, MVT::i32);
       if (auto Slot = matchLaunchSlot(Base)) {        // O-45
-        SDValue Ops[] = {ST->getChain(), ST->getValue(),
+        SDValue Ops[] = {ST->getChain(), Val,
                          DAG.getTargetConstant(*Slot, DL, MVT::i32), Idx,
                          DAG.getTargetConstant(Scale, DL, MVT::i32), D};
         return DAG.getMemIntrinsicNode(CCVISD::ST_SLOTIDX, DL, VTs, Ops,
                                        ST->getMemoryVT(), ST->getMemOperand());
       }
-      SDValue Ops[] = {ST->getChain(), ST->getValue(), Base, Idx,
+      SDValue Ops[] = {ST->getChain(), Val, Base, Idx,
                        DAG.getTargetConstant(Scale, DL, MVT::i32), D};
       return DAG.getMemIntrinsicNode(CCVISD::ST_BASEIDX, DL, VTs, Ops,
                                      ST->getMemoryVT(), ST->getMemOperand());
     }
     if (matchBaseOff(DAG, DL, ST->getBasePtr(), Base, Idx)) {
-      SDValue Ops[] = {ST->getChain(), ST->getValue(), Base, Idx};
+      SDValue Ops[] = {ST->getChain(), Val, Base, Idx};
       return DAG.getMemIntrinsicNode(CCVISD::ST_BASEOFF, DL, VTs, Ops,
                                      ST->getMemoryVT(), ST->getMemOperand());
     }
     if (SDValue Disp; matchFrame(DAG, DL, ST->getBasePtr(), ST->getMemoryVT(),
                                  Base, Idx, Disp, Scale)) {
-      SDValue Ops[] = {ST->getChain(), ST->getValue(), Base, Idx,
+      SDValue Ops[] = {ST->getChain(), Val, Base, Idx,
                        DAG.getTargetConstant(Scale, DL, MVT::i32), Disp};
       return DAG.getMemIntrinsicNode(CCVISD::ST_FRAME, DL, VTs, Ops,
                                      ST->getMemoryVT(), ST->getMemOperand());
@@ -775,9 +785,12 @@ CCVTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
 
-SDValue CCVTargetLowering::LowerOperation(SDValue Op, SelectionDAG &) const {
-  report_fatal_error("CCV: unhandled custom lowering for " +
-                     Twine(Op.getOpcode()));
+SDValue CCVTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
+  std::string Node;
+  raw_string_ostream OS(Node);
+  Op->print(OS, &DAG);
+  report_fatal_error("CCV: unhandled custom lowering in " +
+                     DAG.getMachineFunction().getName() + ": " + OS.str());
 }
 
 SDValue CCVTargetLowering::LowerFormalArguments(
@@ -824,6 +837,13 @@ SDValue CCVTargetLowering::LowerFormalArguments(
   return Chain;
 }
 
+// Mutation control for tools/check-ptrlist.sh: a frame pointer's window taken
+// as R15 itself rather than the window below it, so it names the next
+// thread's frame.
+static cl::opt<bool> TestFrameWindowR15(
+    "ccv-test-frame-window-r15", cl::init(false), cl::Hidden,
+    cl::desc("give frame pointers R15's window, to test that it is caught"));
+
 // Mutation control for tools/check-calls.sh: a caller writes stack arguments
 // as if its callee's frame were at base 0, so they miss the callee's slots.
 static cl::opt<bool> TestStackArgsAtZero(
@@ -860,6 +880,35 @@ SDValue CCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
       report_fatal_error("CCV: an indirect call in " + MF.getName() +
                          " through a pointer that is not a code address "
                          "(F-21 step 5)");
+  }
+  // A pointer into the frame as a pair (CCVPointerPairs): the window below
+  // R15's, and the object's offset in it, which eliminateFrameIndex fills in.
+  if (G && G->getGlobal()->getName() == "__ccv_frame_window") {
+    SDValue R15 = DAG.getCopyFromReg(Chain, DL, CCV::R15, MVT::i32);
+    InVals.push_back(TestFrameWindowR15
+                         ? R15
+                         : DAG.getNode(ISD::ADD, DL, MVT::i32, R15,
+                                       DAG.getConstant(-1, DL, MVT::i32)));
+    return R15.getValue(1);
+  }
+  if (G && G->getGlobal()->getName() == "__ccv_frame_offset") {
+    // The i64 pointer argument arrives split into i32 halves, as any i64
+    // argument does here; the frame index is under the low one.
+    SDValue A = CLI.OutVals[0];
+    if (A.getOpcode() == ISD::EXTRACT_ELEMENT)
+      A = A.getOperand(0);
+    auto *FIN = dyn_cast<FrameIndexSDNode>(A);
+    if (!FIN) {
+      std::string Node;
+      raw_string_ostream OS(Node);
+      CLI.OutVals[0]->print(OS, &DAG);
+      report_fatal_error(Twine("CCV: a frame pointer that is not a frame "
+                               "object: ") + OS.str());
+    }
+    InVals.push_back(DAG.getNode(
+        CCVISD::FRAMEOFF, DL, MVT::i32,
+        DAG.getTargetFrameIndex(FIN->getIndex(), MVT::i32)));
+    return Chain;
   }
   if (G && G->getGlobal()->isDeclaration())
     report_fatal_error("CCV: a call to " + G->getGlobal()->getName() +

@@ -80,6 +80,17 @@ bool CCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
   // the scale-enable in between (§3). A local array indexed by a loop variable
   // selects the second (F-131), and assuming the first would have folded the
   // frame offset into the SCALE field -- silently, since both are immediates.
+  // A frame object's address as a pair's offset (CCVPointerPairs): the
+  // window is R15 - 1, so slot d is at 65536 + d in it.
+  if (I.getOpcode() == CCV::MOVI) {
+    int64_t D = MF.getFrameInfo().getObjectOffset(FI) -
+                int64_t(ccvFrameBase(MF.getFunction()));
+    if (D >= 0 || D < -65536)
+      report_fatal_error("CCV: a frame object outside the window below R15's");
+    I.getOperand(FIOperandNum).ChangeToImmediate(65536 + D);
+    return false;
+  }
+
   unsigned DispOp;
   switch (I.getOpcode()) {
   case CCV::LD_GLOBAL_IDX: case CCV::LD_GLOBAL_IDX_W16:

@@ -132,6 +132,13 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-ptrmem.sh || fail=1
 fi
 
+# F-22: pointers as values -- phis, selects, compares, NULL, a frame object's
+# address -- executed across a window boundary, with two controls.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  pointers as values (F-22)"
+  ./tools/check-ptrlist.sh || fail=1
+fi
+
 # O-60: forward progress between diverged lanes. A spin-wait on a lane at a
 # higher PC must hang under strict min-PC (the control) and finish under the
 # oracle's fairness rule.

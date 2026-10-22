@@ -124,6 +124,19 @@ Value *toCode(Value *V, IRBuilder<> &B, DenseMap<Value *, Value *> &Memo) {
 } // namespace
 
 void llvm::lowerCCVCodePointers(Module &M) {
+  // Device code is one closed module, so a device function nothing uses is
+  // dead. Left in, one whose callers all inlined it -- CoreMark's
+  // core_list_mergesort, given its comparator as a constant -- keeps an
+  // indirect call that no address-taken function remains to reach.
+  for (bool Changed = true; Changed;) {
+    Changed = false;
+    for (Function &F : make_early_inc_range(M))
+      if (!F.isDeclaration() && F.use_empty() && !ccvIsKernel(F)) {
+        F.eraseFromParent();
+        Changed = true;
+      }
+  }
+
   Tracer T;
   for (Function &F : M)
     if (addressTaken(F))

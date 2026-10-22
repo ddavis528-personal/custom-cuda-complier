@@ -357,6 +357,13 @@ def : Pat<(int_nvvm_cos_approx_f GPR:$a),   (COS_F32   GPR:$a, GPR:$a, GPR:$a)>;
 // pattern here -- widening a narrow register yields unspecified high bits
 // (F-65), so zext and sext need real instructions. Nothing emits them yet.
 def : Pat<(i16 (trunc GPR:$a)), (COPY GPR:$a)>;
+// An i16 constant is its 16-bit pattern materialised at 32 bits and read at
+// width 16, as a truncation is. Never selected until a C source's `ee_s16`
+// constants reached it (CoreMark, AR-20): CUDA's kernels widen first.
+def imm16_bits : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(N->getZExtValue() & 0xFFFF, SDLoc(N), MVT::i32);
+}]>;
+def : Pat<(i16 imm:$i), (COPY (MOVI (imm16_bits $i)))>;
 
 // And `zext i16 -> i32` is free in the other direction, because O-38 requires
 // a widening `chwidth` to clear the bits it exposes. The COPY is the width
