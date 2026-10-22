@@ -95,6 +95,11 @@ rather than element work, and Format C's `rd` is a register the compare never
 writes. Counting the latter made a 32-bit comparison read as narrow work once
 per loop iteration and overstated a published speedup (F-91).
 
+Narrow FP (CP-6) is exact: `NarrowFP.h` decodes every format of §4's table to
+sign × integer × 2^e and rounds once, saturating at 8 and 4 bits (O-53, O-56).
+FP32-only executions keep host arithmetic. `-fp-cases FILE` evaluates single
+lanes for `tools/check-narrow-fp.py`.
+
 `-warp W` runs warp W of a CTA of `-threads` threads: lane L is thread
 32W + L, and lanes [0, min(32, T - 32W)) are live. A CTA's warps share
 `.shared` and barriers, which one warp's run cannot model, so a barrier in a

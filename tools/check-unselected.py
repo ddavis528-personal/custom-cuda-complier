@@ -167,6 +167,17 @@ UNREACHABLE = {
     **{n: ("todo", "no bf16/half/FP8 type in the backend, so nothing forms the "
                    "packed operand; semantics pinned by check-dp-fp.sh; F-137")
        for n in "DP2_BF16 DP2_F16 DP4_E4M3 DP4_E5M2".split()},
+    # CP-6, stage 1: the rest of the FP block and of the conversion product,
+    # defined so the simulator and the assembler reach the whole of §4. The
+    # compiler forms none of them until CP-6's conversions and contraction.
+    **{n: ("todo", "defined for ccv-sim and ccv-as; lowering is CP-6's next "
+                   "stage (conversions, dp4 from the x4 types, contraction)")
+       for n in ("FADD_F1 FSUB_F1 FMUL_F1 FMIN_F1 FMAX_F1 FFMA_F1 FNEG_F1 "
+                 "FABS_F1").split() + [
+           f"CVT_D{d}_S{s}_R{r}{p}" for d in range(4) for s in range(4)
+           for r in range(4) for p in ("", "_P")
+           if not ((d, s, r) in {(0, 2, 0), (0, 3, 0), (2, 0, 1), (3, 0, 1), (2, 2, 0)}
+                   or (d >= 2 and s >= 2 and r != 0))]},
     # Sub-word pack/unpack. These address MEMORY packing -- a lane still holds
     # one element at every width (O-13, F-79) -- and nothing in the backend
     # forms a packed load. F-122.

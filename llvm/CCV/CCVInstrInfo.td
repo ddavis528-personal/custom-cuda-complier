@@ -209,6 +209,27 @@ def FNEG_F0 : FormatA<FpOpc<fpOp.FNEG, 0>.V, (outs GPR:$rd),
                       (ins GPR:$rs0, GPR:$rs1, GPR:$rs2), "fneg.f0 $rd, $rs0">;
 def FABS_F0 : FormatA<FpOpc<fpOp.FABS, 0>.V, (outs GPR:$rd),
                       (ins GPR:$rs0, GPR:$rs1, GPR:$rs2), "fabs.f0 $rd, $rs0">;
+// Format code 01's block, points 40-47: BF16 at 16 bits, E5M2 at 8, reserved
+// at 32 and 4 (F-FORMAT). Defined for the simulator and the assembler; nothing
+// selects them yet (CP-6).
+multiclass FpRR1<int op, string mnem> {
+  def NAME : FormatA<FpOpc<op, 1>.V, (outs GPR:$rd),
+                     (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                     mnem#".f1 $rd, $rs0, $rs1">;
+}
+defm FADD_F1 : FpRR1<fpOp.FADD, "fadd">;
+defm FSUB_F1 : FpRR1<fpOp.FSUB, "fsub">;
+defm FMUL_F1 : FpRR1<fpOp.FMUL, "fmul">;
+defm FMIN_F1 : FpRR1<fpOp.FMIN, "fmin">;
+defm FMAX_F1 : FpRR1<fpOp.FMAX, "fmax">;
+def FFMA_F1 : FormatA<FpOpc<fpOp.FFMA, 1>.V, (outs GPR:$rd),
+                      (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                      "ffma.f1 $rd, $rs0, $rs1, $rs2">;
+def FNEG_F1 : FormatA<FpOpc<fpOp.FNEG, 1>.V, (outs GPR:$rd),
+                      (ins GPR:$rs0, GPR:$rs1, GPR:$rs2), "fneg.f1 $rd, $rs0">;
+def FABS_F1 : FormatA<FpOpc<fpOp.FABS, 1>.V, (outs GPR:$rd),
+                      (ins GPR:$rs0, GPR:$rs1, GPR:$rs2), "fabs.f1 $rd, $rs0">;
+
 // §4 reserves 128-255 for conversions and 256+ for SFU. Both were empty, which
 // is why integer division fell back to a 32-iteration shift-subtract loop: the
 // float-reciprocal algorithm every GPU uses needs exactly these two things.
@@ -249,6 +270,28 @@ defm CVT_F32_S32 : Cvt<CvtOpc<fmtCode.FP0,  fmtCode.SINT, round.RN>.V, "cvt.f32.
 defm CVT_F32_U32 : Cvt<CvtOpc<fmtCode.FP0,  fmtCode.UINT, round.RN>.V, "cvt.f32.u32">;
 defm CVT_S32_F32 : Cvt<CvtOpc<fmtCode.SINT, fmtCode.FP0,  round.RZ>.V, "cvt.s32.f32">;
 defm CVT_U32_F32 : Cvt<CvtOpc<fmtCode.UINT, fmtCode.FP0,  round.RZ>.V, "cvt.u32.f32">;
+
+// Every other point of the product, so the simulator and the assembler reach the
+// whole block (CP-6). An integer-to-integer point is defined at `rn` only; the
+// other three round nothing and are reserved (F-ILLEGAL). The five above, and
+// CVT_SEXT below, keep their names. Mnemonics give the format codes, since the
+// widths come from the registers: fp0, fp1, s, u.
+foreach d = [0, 1, 2, 3] in
+  foreach s = [0, 1, 2, 3] in
+    foreach r = [0, 1, 2, 3] in {
+      defvar Named = !or(!and(!eq(d, 0), !eq(s, 2), !eq(r, 0)),
+                         !and(!eq(d, 0), !eq(s, 3), !eq(r, 0)),
+                         !and(!eq(d, 2), !eq(s, 0), !eq(r, 1)),
+                         !and(!eq(d, 3), !eq(s, 0), !eq(r, 1)),
+                         !and(!eq(d, 2), !eq(s, 2), !eq(r, 0)));
+      defvar IntInt = !and(!ge(d, 2), !ge(s, 2));
+      defvar Code = ["fp0", "fp1", "s", "u"];
+      defvar Rnd = ["rn", "rz", "rm", "rp"];
+      if !not(!or(Named, !and(IntInt, !ne(r, 0)))) then
+        defm CVT_D#d#_S#s#_R#r
+            : Cvt<CvtOpc<d, s, r>.V,
+                  "cvt."#!if(IntInt, "", Rnd[r]#".")#Code[d]#"."#Code[s]>;
+    }
 
 // Sign-extension, and O-34 already specified it without meaning to.
 //
