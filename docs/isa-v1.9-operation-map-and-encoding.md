@@ -2149,6 +2149,15 @@ struct would violate the rule. Scalars follow the pointers at their natural alig
 byte offset 24 (O-30), the module data window `W_d` at 28 (below), and the argument area from
 `OffArgs` = 32 (§3 Format D's slot rule). Everything else in the block is the launch ABI's.
 
+**Each CTA's `.local` windows are its own — normative (O-64).** The launch block is CTA-private:
+every CTA reads `LAUNCH_WINDOW`, and sees its own block there. So word 24 is per CTA. The
+launch mechanism writes each CTA a `local_base` such that its windows `[local_base,
+local_base + ntid)` overlap no other resident CTA's, of this context or any other. Frames
+are sized by the CTAs resident together, not by the grid. A base per CTA slot, reused as
+slots are, meets the rule. The prologue (O-30) is unchanged. The same holds for any per-CTA
+word the ABI adds, such as a spill window. Word 28, the module data window, is the same for
+every CTA of a module, by design (O-61).
+
 **The whole launch window is read-only (O-61).** `LAUNCH_BASE` is 64 KiB-aligned, and the
 launch block lies within the 64 KiB region `[LAUNCH_BASE, LAUNCH_BASE + 2^16)`, the addresses
 whose bits `[47:16]` equal `LAUNCH_WINDOW`. Each CTA sees its own block there. A store or
@@ -2931,6 +2940,21 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-64 — Each resident CTA's `.local` base is distinct — decided in 1.9.** TI-33. O-30 puts
+thread *t*'s frame at window `local_base + t`, with *t* the thread's index in its CTA. It
+called `local_base` CTA-wide but never said it differed between CTAs. With one value for every
+CTA, CTA 0's thread *t* and CTA 1's thread *t* share a frame whenever both are resident. On the
+skeleton, rope at two CTAs reloaded the other CTA's spill. `ccv-sim` runs one CTA at a time,
+so it never showed this. No mechanism is needed. §5.2 already makes the launch block
+CTA-private, and MIU already maps each CTA slot's view of `LAUNCH_WINDOW` to that CTA's block
+(`launch_block_addr`). So the rule is the launch mechanism's: write each resident CTA a
+`local_base` that overlaps no other's. What lost: the global thread index (sizes `.local` by
+the grid and adds a multiply-add to every prologue); and a hardware-supplied CTA base through
+`srd` (a new selector and a field from RAU, for what the CTA-private launch block already
+carries).
 
 ---
 
