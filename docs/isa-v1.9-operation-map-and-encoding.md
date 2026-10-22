@@ -2139,10 +2139,10 @@ writable ones.
   hoistable, then an ordinary Format D access.
 - **Constant part.** The constant globals occupy `[W_d << 16, (W_d << 16) + const_size)`, which
   is that launch's `.const` range: a store or atomic into it raises `F-RO` (O-51).
-  `const_size` is padded to a multiple of 4 bytes. With natural alignment (O-58) and no
-  transfer wider than 4 bytes, no access then straddles either bound. So a check of each
-  lane's effective address alone decides `F-RO` exactly, which §12.3's any-byte rule
-  requires.
+  `const_size` needs no padding. The base is 64 KiB-aligned, so with natural alignment (O-58)
+  no access straddles it. An access that straddles the limit has its first byte below it. So
+  `const_base ≤ addr < const_limit` on each lane's first byte decides §12.3's any-byte rule
+  exactly.
 - **Writable part.** Writable globals are shared by every launch of the module within its
   context, and never across contexts. This is CUDA's semantics. Their initial state is
   defined (invariant 12, O-38). Initialized globals take the image's values. Every other byte
