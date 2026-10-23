@@ -628,19 +628,39 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
   case ISD::INTRINSIC_VOID: {
     // __syncthreads() is an arrive followed by a wait on the same barrier
     // (O-12): arriving and blocking are separate operations here, because with
-    // per-thread PCs a thread arrives individually.
-    if (N->getConstantOperandVal(1) != Intrinsic::nvvm_barrier0)
+    // per-thread PCs a thread arrives individually. PTX's named barriers,
+    // `bar.sync a{, b}` (`__syncthreads()` is a = 0 with no b), are the same
+    // on barrier a, after `bar.init #a, b` (O-74): b lane arrivals complete a
+    // phase, and no b, or b = 1024 (only legal in a CTA of exactly 1024,
+    // where it is the same rule), is count 0, every live lane. Every use gets
+    // its own bar.init; CCVBarrierInit then keeps one at the entry, or none,
+    // wherever one count serves the whole kernel. CCVCheckIR has refused an
+    // a or b that is not a constant in range.
+    unsigned IID = N->getConstantOperandVal(1);
+    if (IID != Intrinsic::nvvm_barrier0 && IID != Intrinsic::nvvm_bar_sync &&
+        IID != Intrinsic::nvvm_barrier_sync && IID != Intrinsic::nvvm_barrier_n &&
+        IID != Intrinsic::nvvm_barrier_sync_cnt && IID != Intrinsic::nvvm_barrier)
       break;
+    const bool HasId = IID != Intrinsic::nvvm_barrier0;
+    const bool HasCount = IID == Intrinsic::nvvm_barrier_sync_cnt ||
+                          IID == Intrinsic::nvvm_barrier;
     // Format K payload: [13:8] is the 6-bit barrier ID, so the ID sits in
     // payload bits [5:0]. The compressed wait carries no phase -- O-27 puts
     // the epoch in hardware, so "wait until the arrival I just made has
     // retired" needs no operand. A wait on a phase this warp did not arrive
     // in is bar.wait.phase, a different instruction (Format E).
-    const unsigned BarrierID = 0;      // one CTA-wide barrier
+    const unsigned BarrierID = HasId ? N->getConstantOperandVal(2) : 0;
+    uint64_t Count = HasCount ? N->getConstantOperandVal(3) : 0;
+    if (Count == 1024)
+      Count = 0;
     SDValue Chain = N->getOperand(0);
+    SDNode *Init = CurDAG->getMachineNode(
+        CCV::BAR_INIT, DL, MVT::Other,
+        {CurDAG->getTargetConstant(BarrierID, DL, MVT::i32),
+         CurDAG->getTargetConstant(Count, DL, MVT::i32), Chain});
     SDNode *Arrive = CurDAG->getMachineNode(
         CCV::C_BAR_ARRIVE, DL, MVT::Other,
-        {CurDAG->getTargetConstant(BarrierID, DL, MVT::i32), Chain});
+        {CurDAG->getTargetConstant(BarrierID, DL, MVT::i32), SDValue(Init, 0)});
     ReplaceNode(N, CurDAG->getMachineNode(
                        CCV::C_BAR_WAIT, DL, MVT::Other,
                        {CurDAG->getTargetConstant(BarrierID, DL, MVT::i32),

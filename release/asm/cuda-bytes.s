@@ -196,28 +196,27 @@ LBB0_13:
 	add r1, r4
 	add r1, r3
 	add r1, r2
+	movi r2, 31
+	sub r2, r0
+	chwidth r2, 2
 	bar.arrive 0
 	bar.wait 0
-	ld.global r2, [r8 + 60]
-	mov r3, r0
-	shl r3, 4
-	add r2, r3
-	movi r3, 31
-	sub r0, r3, r0
-	chwidth r0, 2
-	ld.shared r0, [r0 + 0]
-	chwidth r0, 0
-	st.global r1, [#3, r2, 0, 0]
-	add r1, r2, 4
+	shl r0, 4
+	ld.global r3, [r8 + 60]
+	add r0, r3, r0
+	ld.shared r2, [r2 + 0]
+	chwidth r2, 0
+	st.global r1, [#3, r0, 0, 0]
+	add r1, r0, 4
 	st.global r5, [#3, r1, 0, 0]
 	chwidth r1, 2
 	ld.global r1, [r15, r7, 0, -16]
 	chwidth r1, 0
 	add r1, r6
-	add r3, r2, 8
+	add r3, r0, 8
 	st.global r1, [#3, r3, 0, 0]
-	add r1, r2, 12
-	st.global r0, [#3, r1, 0, 0]
+	add r0, 12
+	st.global r2, [#3, r0, 0, 0]
 	exit
 Lfunc_end0:
 	.size	_Z5bytesPKaPKhPhPiPKsPs, Lfunc_end0-_Z5bytesPKaPKhPhPiPKsPs

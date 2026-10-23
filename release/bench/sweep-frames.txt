@@ -10,6 +10,7 @@
   test/bench/vadd_loop.cu                 0         0          0
   test/cuda/argorder.cu                   0         0          0
   test/cuda/atomics.cu                    0         0          0
+  test/cuda/barcount.cu                  --
   test/cuda/bytes.cu                      4         7          7
   test/cuda/byval.cu                      0         0          0
   test/cuda/calls.cu                     12        54         54

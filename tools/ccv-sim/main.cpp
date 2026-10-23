@@ -94,6 +94,9 @@ static cl::opt<bool> WholeCta(
 static cl::opt<bool> TestWarpBarrier("ccv-test-cta-warp-barrier", cl::Hidden,
     cl::desc("with -cta, a barrier waits for its own warp only, to test that "
              "it is caught"));
+static cl::opt<bool> TestIgnoreCount("ccv-test-bar-ignore-count", cl::Hidden,
+    cl::desc("make bar.init a no-op, as before O-74, to test that it is "
+             "caught"));
 static cl::opt<uint64_t> CodeBase("code-base", cl::init(0x1000),
                                   cl::desc("load address for the kernel"));
 static cl::opt<uint64_t> Entry(
@@ -282,6 +285,7 @@ int main(int argc, char **argv) {
   if (WholeCta)
     I.Cta = &Warps;
   I.TestWarpBarrier = TestWarpBarrier;
+  I.TestIgnoreCount = TestIgnoreCount;
 
   std::vector<std::string> AllPokes;
   if (!DataImage.empty()) {

@@ -139,6 +139,12 @@ is 0 CTA, 1 device, 2 system, 3–7 reserved. Its ordering is 1 acquire, 2 relea
 acquire-release, and 0, which had no meaning, is sequentially consistent. No defined value
 changes; points and values that had no number now have one, or fault as reserved.
 
+### Barrier completion is written, including `bar.init`'s count (O-74; IS-22)
+
+The ISA named an expected arrival count on `bar.init` but never said what completes a barrier.
+It does now: every live lane by default, or n arrivals after `bar.init #id, n`, with `bar.init`
+applying at once. Arrivals pending at several IDs are legal. No encoding changes.
+
 ### Still open
 
 Nothing from IS-2, IS-12 or IS-16 remains open. The SFU bound table is written (O-70).
@@ -1581,6 +1587,32 @@ why this instruction exists alongside the compressed wait.
 in Format K. Initialization needs 32 bits because a barrier ID plus a 10-bit expected count
 is 16 bits of operand and the compressed forms have 8. `bar.wait.phase` needs 32 bits
 because it adds a predicate source and a qualifier to that same ID. See O-12 and O-27.
+
+**Barrier completion — normative (O-74).** Barrier state is per CTA and barrier ID, and each
+barrier advances through phases. An arrival is one lane: each lane of a `bar.arrive`'s issue
+mask is one arrival at its ID, in ascending lane order. A phase completes by one of two rules.
+
+- **Every live lane (the default).** An ID with no `bar.init` in the launch, or initialised with
+  count 0, completes a phase when every lane of the CTA that has not exited has arrived in it.
+  A lane's second arrival in the same phase changes nothing, and an exit can complete a phase
+  but never counts as an arrival. This is `__syncthreads()`, and PTX's `bar.sync` with no thread
+  count. A thread count equal to the CTA's 1024 threads is also this rule, since it differs only
+  where a thread has exited, which CUDA leaves undefined.
+- **A count.** After `bar.init #id, n` with n from 1 to 1023, a phase completes on the nth
+  arrival. Exits count for nothing, and every arrival counts, a lane's second included. Arrivals
+  past the nth, from the same instruction in ascending lane order or from later ones, are the
+  next phase's. This is PTX's `bar.arrive a, b` and mbarrier's phase count.
+
+`bar.init` applies at once. If the arrivals already made in the current phase meet the new
+count, the phase completes then; a `bar.init` at a phase boundary with nothing pending simply
+sets the next phase's count. A count no phase can reach, such as one above the CTA's thread
+count, never completes, and the waiting lanes hang. That is defined behaviour, not a fault.
+
+The compressed `bar.wait #id` holds each of its lanes until the phase that lane last arrived in
+has completed. `bar.wait.phase` holds its guarded lanes until the barrier's phase parity equals
+`ps`. A lane waits at one ID at a time. Nothing else restricts how barriers are used: a warp's
+lanes may have arrivals pending at several IDs at once, converged or diverged, and its groups
+may wait at different IDs. O-27's double buffer does the first in every iteration.
 
 **Fence:** no 32-bit form. Scope (3 bits) plus ordering (2 bits) is 5 bits of content,
 fully expressed in Format K. Fences are emitted around every barrier and atomic sequence,
@@ -3165,6 +3197,30 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-74 — What completes a barrier, and what `bar.init`'s count does — decided in 1.9.** IS-22,
+from TI-40; checked against PTX by CP (CP-32) and priced by AR (AR's revs 161–162). O-12 gave
+`bar.init` an expected arrival count and no meaning, and ccv-sim ignored it. Then O-27's
+warp-specialised case, a consumer that waits with `bar.wait.phase` on a barrier only producers
+arrive at, could never complete. Adopted: the every-live-lane rule by default, a count after
+`bar.init #id, n`, and `bar.init` applying at once (§3, Format E). The count's semantics are
+both PTX families': `bar.arrive a, b`, where each executing thread is one arrival, and
+mbarrier, whose excess arrivals carry into the next phase and whose parity wait is
+`bar.wait.phase`. PTX leaves excess arrivals on `bar.*` undefined, and invariant 12 needs one
+answer, so mbarrier's is taken. b = 1024 needs no eleventh bit: it is legal only in a
+1024-thread CTA, where it equals the default except after an exit, which CUDA leaves undefined.
+So the compiler emits count 0, and the 10-bit field stands. A `bar.init` while arrivals are
+pending was going to fault, since PTX leaves it undefined and so a fault costs CUDA nothing.
+But the check would be SYU's, and SYU has no fault path back to OOE (O-59), so the count applies
+at once instead. Against other warps' arrivals that is bounded nondeterminism. The same rows
+(TI-40) settled that a warp may have arrivals pending at several IDs, and diverged groups may
+wait at different IDs. That is legal CUDA from sm_70 and is ccv-sim's model, and a fault there
+could not be precise. AR's price for the exact SYU: 16 arrays of 32 × 32 bits for arrived lanes,
+plus about 8,640 flops, with a 10-bit saturating counter per (CTA, ID). What lost: the one-ID
+SYU (3,968 flops), which would have failed O-27's own double buffer; an 11-bit count field; and
+a fault on re-initialisation.
 
 ---
 

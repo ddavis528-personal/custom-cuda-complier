@@ -146,6 +146,13 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-cta.sh || fail=1
 fi
 
+# O-74: named barriers with a thread count, a warp-specialised producer/
+# consumer kernel on five warps, with a control.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  counted barriers (O-74)"
+  ./tools/check-barcount.sh || fail=1
+fi
+
 # IS-13 (2): 64-bit integers through 32-bit pairs, every operation executed
 # against C's semantics, with a control; and the add.cc/addc measurement.
 if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
