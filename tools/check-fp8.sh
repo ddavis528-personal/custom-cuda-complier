@@ -11,6 +11,12 @@
 # Controls, which must fail: ccv-llc -ccv-test-ptx-swap-x2 (an x2's elements
 # in the wrong halves), and ccv-sim -ccv-test-fp-no-saturate (overflow to NaN,
 # the rule O-53 rejected for these conversions).
+#
+# Stage 3: two dot products over __nv_fp8x4_*, which CCVFormFP8Dot makes one
+# dp4 each, against an exact sum rounded once (O-44). Its control is ccv-llc
+# -ccv-fp8-dot=false, which leaves the FP32 additions to round one by one; on
+# the case built for it (448^2 and three 2^-7 products) that is a different
+# number.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
@@ -24,6 +30,7 @@ build() {   # $1 = extra ccv-llc flag; leaves $TMP/f$2.bin and $TMP/f$2.o
 }
 build "" 0 || { echo "  FAIL  fp8.cu's IR did not compile"; exit 1; }
 build "-ccv-test-ptx-swap-x2" 1 || { echo "  FAIL  the swap control did not compile"; exit 1; }
+build "-ccv-fp8-dot=false" 2 || { echo "  FAIL  the dot control did not compile"; exit 1; }
 # Inline PTX CCV does not implement is refused by name, never emitted.
 sed 's/cvt\.f32\.f16 \$0, \$1;/mov.b16 $0, $1;/' "$TMP/l.ll" > "$TMP/bad.ll"
 bad=$(build/ccv-llc "$TMP/bad.ll" -o /dev/null 2>&1)
@@ -172,4 +179,77 @@ ns = check(f"{tmp}/f0.bin", ("-ccv-test-fp-no-saturate",))
 print(f"  PASS  control -ccv-test-fp-no-saturate is caught: {', '.join(sorted(ns))}" if ns
       else "  FAIL  control -ccv-test-fp-no-saturate still agreed"); fail |= not ns
 sys.exit(fail)
+PY
+[ $? -eq 0 ] || exit 1
+
+d=$(build/ccv-llc "$TMP/l.ll" -o - 2>/dev/null | grep -cE '^\s*dp4\.e(4m3|5m2)')
+if [ "$d" -ne 2 ]; then
+  echo "  FAIL  $d dp4.e4m3/e5m2 emitted for the two dot products"; exit 1
+fi
+python3 - "$TMP" <<'PY'
+import random, re, subprocess, sys
+sys.path.insert(0, "tools")
+import nfp_ref as R
+tmp = sys.argv[1]
+LAUNCH, O, A, B = 0x20000, 0x30000, 0x40000, 0x50000
+rng = random.Random(9)
+
+def syms(obj):
+    out = subprocess.run(["llvm-nm", obj], capture_output=True, text=True).stdout
+    return {l.split()[2]: int(l.split()[0], 16) for l in out.splitlines() if " T " in l}
+
+def run(k, name, xs, ys, accs):
+    got = []
+    for w in range(0, len(xs), 32):
+        n = min(32, len(xs) - w)
+        pokes = ["-poke", f"{hex(LAUNCH)}=32"]
+        for slot, base in ((0x20, O), (0x28, A), (0x30, B)):
+            pokes += ["-poke", f"{hex(LAUNCH + slot)}={base >> 16}"]
+        for i in range(n):
+            pokes += ["-poke", f"{hex(A + 4 * i)}={xs[w + i]}", "-poke", f"{hex(B + 4 * i)}={ys[w + i]}",
+                      "-poke", f"{hex(O + 4 * i)}={accs[w + i]}"]
+        peeks = [x for i in range(n) for x in ("-peek", hex(O + 4 * i))]
+        r = subprocess.run(["build/ccv-sim", f"{tmp}/f{k}.bin", "-entry", hex(syms(f"{tmp}/f{k}.o")[name]),
+                            "-threads", str(n), *pokes, *peeks], capture_output=True, text=True)
+        v = [int(x) for x in re.findall(r"= (\d+)", r.stdout)]
+        if len(v) != n:
+            return None
+        got += v
+    return got
+
+def word(fmt):
+    pool = [x for x in range(256) if R.decode(fmt, x).k != "nan"]
+    return sum(rng.choice(pool) << (8 * k) for k in range(4))
+
+# 448^2 + 3 x 2^-7: one rounding gives 200704.03125; four give 200704.
+crafted = (0x0404047E, 0x3838387E, 0)
+cases = {"dot_e4m3": ((2, 0), True), "dot_e5m2": ((2, 1), False)}
+bad, total, ctl = [], 0, []
+for name, (fmt, acc) in cases.items():
+    xs = [word(fmt) for _ in range(256)] + [crafted[0]]
+    ys = [word(fmt) for _ in range(256)] + [crafted[1]]
+    accs = [rng.getrandbits(32) & 0x3FFFFFFF if acc else 0 for _ in range(256)] + [0]
+    if fmt == (2, 1):                   # the crafted words are E4M3's
+        xs.pop(); ys.pop(); accs.pop()
+    want = [R.op(f"dp:{fmt[0]}:{fmt[1]}", 0, 0, 0, 0, 0, x, y, a if acc else 0x80000000)
+            for x, y, a in zip(xs, ys, accs)]
+    got = run(0, name, xs, ys, accs)
+    total += len(xs)
+    if got is None:
+        bad.append(f"{name}: did not run")
+    elif got != want:
+        i = next(i for i in range(len(xs)) if got[i] != want[i])
+        bad.append(f"{name}: {sum(g != w for g, w in zip(got, want))}/{len(xs)} differ; "
+                   f"first {xs[i]:#x}.{ys[i]:#x}+{accs[i]:#x} -> {got[i]:#x}, want {want[i]:#x}")
+    g2 = run(2, name, xs, ys, accs)
+    if g2 is not None and g2 != want:
+        ctl.append(name)
+for b in bad:
+    print(f"  FAIL  fp8 {b}")
+if bad:
+    sys.exit(1)
+print(f"  PASS  fp8 dot products: two dp4 emitted, {total} lanes exact-sum-once (O-44)")
+print(f"  PASS  control -ccv-fp8-dot=false is caught: {', '.join(ctl)}" if ctl
+      else "  FAIL  control -ccv-fp8-dot=false still agreed")
+sys.exit(0 if ctl else 1)
 PY

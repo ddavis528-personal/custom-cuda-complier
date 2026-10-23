@@ -19,6 +19,8 @@ exact rationals. Every case must agree bit for bit, F-FORMAT included:
     rounding midpoints; and integer sources at every width;
   - every FP compare (O-65), both format codes, register and unpredicated
     forms: every 8- and 4-bit pair, sampled 16- and 32-bit pairs, mixed widths;
+  - O-44's four FP dot products, exact sum and one rounding, on random and
+    extreme words and accumulators;
   - F-FORMAT for format code 1 at 32 and 4 bits, compares included.
 
 Controls, which must fail: ccv-sim -fp-cases with -ccv-test-fp-ftz (subnormal
@@ -192,6 +194,28 @@ def main():
         rel = rng.choice(RELS)
         add(setp(rel, code, rng.randrange(2)), (0, wa, wb, 0), (x, y, 0),
             (f"setp:{rel}", code, 0, wa, wb, 0, x, y, 0))
+
+    # O-44's dot products: exact sum, one rounding. Random words, words of
+    # specials and extremes, and accumulators far above and below the products.
+    DP = {"DP2_BF16": (1, 1), "DP2_F16": (1, 0), "DP4_E4M3": (2, 0), "DP4_E5M2": (2, 1)}
+    for opc, fmt in DP.items():
+        bits = R.FORMATS[fmt][0]
+        pool = edge(fmt)
+        word = lambda: sum((rng.choice(pool) if rng.random() < 0.4 else
+                            rng.getrandbits(bits)) << (bits * k) for k in range(32 // bits))
+        accs = edge((0, 0)) + [0x7F7FFFFF, 0x00000001, 0x4F800000, 0x2F800000]
+        for _ in range(2000 if QUICK else 20000):
+            z = rng.choice(accs) if rng.random() < 0.5 else rng.getrandbits(32)
+            x, y = word(), word()
+            add(opc, (0, 0, 0, 0), (x, y, z), (f"dp:{fmt[0]}:{fmt[1]}", 0, 0, 0, 0, 0, x, y, z))
+    # The case a long double sum gets wrong: 2^55 + 2^30 + 2^30 + 2^-32 lies
+    # just above FP32's midpoint 2^55 + 2^31 and rounds up; summed in 64 bits
+    # of mantissa the 2^-32 is gone, the tie rounds to even, and the result is
+    # 2^55. E5M2 0x78 is 2^15 and 0x01 is 2^-16; FP32 0x5B000000 is 2^55.
+    w = 0x78 | 0x78 << 8 | 0x01 << 16
+    add("DP4_E5M2", (0, 0, 0, 0), (w, w, 0x5B000000),
+        ("dp:2:1", 0, 0, 0, 0, 0, w, w, 0x5B000000))
+    assert R.op("dp:2:1", 0, 0, 0, 0, 0, w, w, 0x5B000000) == 0x5B000001
 
     # F-FORMAT: format code 1 at 32 and at 4 bits.
     for wc in (0, 3):

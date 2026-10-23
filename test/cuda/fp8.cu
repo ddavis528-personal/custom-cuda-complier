@@ -36,3 +36,14 @@ K(half_round_trip)(float *o, const float *a) {
   int i = threadIdx.x;
   o[i] = __half2float(__float2half(a[i]));
 }
+// CP-6, stage 3: an FP8 dot product written in FP32 is one dp4.
+K(dot_e4m3)(float *o, const __nv_fp8x4_e4m3 *a, const __nv_fp8x4_e4m3 *b) {
+  int i = threadIdx.x;
+  float4 x = float4(a[i]), y = float4(b[i]);
+  o[i] += x.x * y.x + x.y * y.y + x.z * y.z + x.w * y.w;
+}
+K(dot_e5m2)(float *o, const __nv_fp8x4_e5m2 *a, const __nv_fp8x4_e5m2 *b) {
+  int i = threadIdx.x;
+  float4 x = float4(a[i]), y = float4(b[i]);
+  o[i] = x.x * y.x + x.y * y.y + x.z * y.z + x.w * y.w;
+}
