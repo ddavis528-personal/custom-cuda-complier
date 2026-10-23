@@ -108,6 +108,24 @@ public:
     return false;
   }
 
+  /// F-ADDR (O-75): a .global effective address is the exact sum, and one
+  /// below 0 or at or above 2^48 maps nothing. Refused per lane and recorded,
+  /// as F-ALIGN is; Interp::step raises it after F-ALIGN and before F-RO
+  /// (§12.5). 0 is no limit: .shared wraps at 2^32 instead (O-75), and its
+  /// own fault, F-SHARED, needs the CTA's allocation, which ccv-sim does not
+  /// take.
+  uint64_t AddrLimit = 0;
+  uint32_t AddrLanes = 0;
+  uint64_t AddrAddr = 0;
+  bool addrOK(uint64_t Addr) {
+    if (!AddrLimit || Addr < AddrLimit)
+      return true;
+    if (!AddrLanes)
+      AddrAddr = Addr;
+    AddrLanes |= 1u << CurLane;
+    return false;
+  }
+
   /// F-RO (O-51, O-61; ISA v1.9 §5.2): a store any byte of which lies in
   /// read-only memory -- the whole launch window, and the module's .const
   /// range [ConstBase, ConstLimit) -- is refused per lane and recorded, as
@@ -146,7 +164,7 @@ public:
   /// field." So a load is 4, 2 or 1 bytes depending on the destination
   /// register's current width, and the 4-bit width has no byte transfer at all.
   uint32_t readN(uint64_t Addr, unsigned Bytes) {
-    if (!alignOK(Addr, Bytes)) {
+    if (!alignOK(Addr, Bytes) || !addrOK(Addr)) {
       if (Log) Log->push_back({Addr, Bytes, 0, false, true});
       return 0;
     }
@@ -157,7 +175,7 @@ public:
     return V;
   }
   void writeN(uint64_t Addr, uint32_t V, unsigned Bytes) {
-    if (!alignOK(Addr, Bytes) || !roOK(Addr, Bytes)) {
+    if (!alignOK(Addr, Bytes) || !addrOK(Addr) || !roOK(Addr, Bytes)) {
       if (Log) Log->push_back({Addr, Bytes, V, true, true});
       return;
     }

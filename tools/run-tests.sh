@@ -491,6 +491,32 @@ echo
 echo "  --- the fault model (ISA v1.9 section 12) ---"
 run_faults || fail=1
 run_ro || fail=1
+# F-ADDR (O-75): a .global address is the exact sum, and one outside
+# [0, 2^48) faults, per lane and precisely; the last word below 2^48 is
+# mapped. (.shared wraps at 2^32 instead: tools/check-barcount.sh.)
+run_addr() {
+  local bad=0 t want out rc
+  local mem="-poke 0xffffffffffc0=5 -poke 0xfffffffffffc=6 -peek 0xffffffffffc0 -peek 0xfffffffffffc"
+  for pair in "addr-high:FAULT F-ADDR  pc=0x1016  lanes=ffff0000  addr=0x1000000000000" \
+              "addr-neg:FAULT F-ADDR  pc=0x1004  lanes=ffffffff  addr=0xfffffffffffffffc"; do
+    t=${pair%%:*}; want=${pair#*:}
+    python3 "$AS" "$JSON" "test/faults/$t.s" "$TMP/f.bin" >/dev/null || { bad=1; continue; }
+    out=$("$SIM" "$TMP/f.bin" $mem 2>&1); rc=$?
+    if [ $rc -ne 3 ] || ! grep -qF "$want" <<< "$out"; then
+      echo "    $t: want '$want' (status 3), got status $rc: $out"; bad=1
+    elif ! grep -qF "[0xffffffffffc0] = 5" <<< "$out"; then
+      echo "    $t: not precise, a lane below 2^48 stored"; bad=1
+    fi
+  done
+  # The control: 2^48 - 4 is mapped, and the store lands.
+  python3 "$AS" "$JSON" test/faults/addr-limit.s "$TMP/f.bin" >/dev/null &&
+    out=$("$SIM" "$TMP/f.bin" $mem 2>&1) &&
+    grep -qF "[0xfffffffffffc] = 77" <<< "$out" ||
+    { echo "    addr-limit: the store below 2^48 did not land: $out"; bad=1; }
+  [ $bad -eq 0 ] && echo "  PASS  F-ADDR: a .global sum at or past 2^48, or below 0, faults per lane and precisely; 2^48 - 4 does not" \
+                 || { echo "  FAIL  F-ADDR"; return 1; }
+}
+run_addr || fail=1
 
 echo
 echo "  --- call and ret (F-21) ---"

@@ -145,6 +145,12 @@ The ISA named an expected arrival count on `bar.init` but never said what comple
 It does now: every live lane by default, or n arrivals after `bar.init #id, n`, with `bar.init`
 applying at once. Arrivals pending at several IDs are legal. No encoding changes.
 
+### An effective address's arithmetic is written (O-75; CP-33)
+
+`.shared` addresses wrap modulo 2^32, which compiled CUDA relies on. `.global` addresses are
+exact, and a sum outside [0, 2^48) is `F-ADDR`. Both were implied by §5.1 and ccv-sim, and
+neither was stated. No encoding changes.
+
 ### Still open
 
 Nothing from IS-2, IS-12 or IS-16 remains open. The SFU bound table is written (O-70).
@@ -2279,6 +2285,15 @@ reach from two 32-bit registers. `.shared` is flat 32-bit. The shift comes from 
 space, which is already in the opcode, so no format changes and no field moves — see §3,
 Format D.
 
+**The arithmetic of an effective address — normative (O-75).** `rbase` and `rindex` are
+unsigned 32-bit values and `disp` is signed. A `.shared` effective address is
+`(rbase + (rindex << scale) + disp) mod 2^32`: it wraps, and the wrapped address is the one
+`F-SHARED` checks. A `.global` effective address is the exact sum, with no wrap. A sum below 0
+or at or above 2^48 is not mapped, so it raises `F-ADDR`. This holds for every form that
+addresses these spaces: Format D in both forms, `ld.pred`/`st.pred` and Format M. *(Compiled
+code relies on the `.shared` wrap. LLVM's `.shared` pointers are 32 bits, so `buf[0][t - 64]`
+becomes the base `buf − 256`, which is `0xFFFFFF00`, plus `t × 4`. CP-33.)*
+
 **Why the shift is 16 and not 32.** With a 32-bit `rbase` and 32-bit `rindex` the reachable
 window is 4 GiB wide, placed at a multiple of 2^S:
 
@@ -3197,6 +3212,20 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-75 — `.shared` addresses wrap at 2^32; `.global` addresses are exact — decided in 1.9.**
+CP-33. §5.1 called `.shared` "flat 32-bit" and gave `.global`'s sum without saying what happens
+outside its range. Building O-74's producer/consumer test, CP found LLVM addressing `.shared`
+as a 32-bit base below the buffer plus an index: `buf[0][t - 64]` is `0xFFFFFF00 + t × 4`. That
+reaches the buffer only if the sum wraps. ccv-sim had added in 64 bits and read past 2^32, so
+every read returned 0. Adopted: `.shared` wraps modulo 2^32, which a 32-bit AGU adder does for
+free and which LLVM's address space assumes. `.global` takes the exact 48-bit sum with no wrap,
+and a sum outside [0, 2^48) is `F-ADDR`, which is how ccv-sim has always computed it. Wrapping
+`.global` at 2^48 would turn an out-of-range pointer into a silent access to the bottom of the
+address space. What lost: faulting a `.shared` sum that carries past 2^32, which would fault
+ordinary compiled code.
 
 ---
 

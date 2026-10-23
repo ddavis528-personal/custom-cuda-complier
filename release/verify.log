@@ -184,7 +184,7 @@ checked 418 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 195 findings and 74 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 196 findings and 75 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -258,6 +258,7 @@ checked 418 instructions
   --- the fault model (ISA v1.9 section 12) ---
   PASS  faults: F-ALIGN precise and predicate-gated, F-WIDTH ignores the predicate, F-ILLEGAL, F-FETCH, F-BARRIER
   PASS  F-RO: .const and the launch window, any byte, per lane and gated, precise; loads and the limit itself do not fault; the oracle records the faulting instruction and the state after it
+  PASS  F-ADDR: a .global sum at or past 2^48, or below 0, faults per lane and precisely; 2^48 - 4 does not
 
   --- call and ret (F-21) ---
   PASS  call/ret: value return, two link registers nested, divergent indirect

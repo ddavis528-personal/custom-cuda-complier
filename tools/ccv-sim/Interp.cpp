@@ -821,7 +821,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
 
   // CurLane lets the memories attribute an F-ALIGN to its lane.
   Mem.AlignLanes = Shared.AlignLanes = 0;
-  Mem.RoLanes = 0;
+  Mem.RoLanes = Mem.AddrLanes = 0;
   auto forEachLane = [&](auto &&Fn) {
     for (unsigned L = 0; L != kLanes; ++L)
       if (Mask & (1u << L)) {
@@ -1418,7 +1418,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
         // O-62: only the issuing group's lanes take the loaded bits; a lane
         // outside the issue mask is another thread, and keeps its own.
         uint32_t V = Mem.readN(A + 4 * P, 4);
-        if (Mem.AlignLanes)
+        if (Mem.AlignLanes || Mem.AddrLanes)
           break;
         W.Pred[P] = (W.Pred[P] & ~Mask) | (V & Mask);
         continue;
@@ -1428,12 +1428,13 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       // merge's, not a load: it is not logged.
       uint32_t Old = Mem.peek32(A + 4 * P);
       Mem.writeN(A + 4 * P, (Old & ~Mask) | (W.Pred[P] & Mask), 4);
-      if (Mem.AlignLanes || Mem.RoLanes)
+      if (Mem.AlignLanes || Mem.AddrLanes || Mem.RoLanes)
         break;
     }
     // A fault is the whole group's, at the access's address (§3, §12.6):
     // lane 0 forms the address, and the issue mask raises it.
     if (Mem.AlignLanes) Mem.AlignLanes = Mask;
+    if (Mem.AddrLanes)  Mem.AddrLanes = Mask;
     if (Mem.RoLanes)    Mem.RoLanes = Mask;
     break;
   }
@@ -1472,17 +1473,18 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       uint64_t A = localAddr(W, B + 4 * P, 0);
       if (Op == CCV::LD_PRED_LOCAL) {
         uint32_t V = Mem.readN(A, 4);
-        if (Mem.AlignLanes)
+        if (Mem.AlignLanes || Mem.AddrLanes)
           break;
         W.Pred[P] = (W.Pred[P] & ~Mask) | (V & Mask);
         continue;
       }
       uint32_t Old = Mem.peek32(A);
       Mem.writeN(A, (Old & ~Mask) | (W.Pred[P] & Mask), 4);
-      if (Mem.AlignLanes || Mem.RoLanes)
+      if (Mem.AlignLanes || Mem.AddrLanes || Mem.RoLanes)
         break;
     }
     if (Mem.AlignLanes) Mem.AlignLanes = Mask;
+    if (Mem.AddrLanes)  Mem.AddrLanes = Mask;
     if (Mem.RoLanes)    Mem.RoLanes = Mask;
     break;
   }
@@ -2038,7 +2040,15 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     F.FaultAddr = Mem.AlignLanes ? Mem.AlignAddr : Shared.AlignAddr;
     return F;
   }
-  // ---- F-RO (O-51, O-61): execute stage, per lane, after F-ALIGN ---------
+  // ---- F-ADDR (O-75): execute stage, per lane, after F-ALIGN --------------
+  if (Mem.AddrLanes) {
+    Result F{Result::Fault, 0};
+    F.Cause = "F-ADDR";
+    F.TakenMask = Mem.AddrLanes;
+    F.FaultAddr = Mem.AddrAddr;
+    return F;
+  }
+  // ---- F-RO (O-51, O-61): execute stage, per lane, after F-ADDR ----------
   if (Mem.RoLanes) {
     Result F{Result::Fault, 0};
     F.Cause = "F-RO";
