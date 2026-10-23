@@ -26,6 +26,12 @@ public:
   /// Barriers the CTA has allocated, at most 16 (O-59); an ID at or above it
   /// raises F-BARRIER.
   unsigned BarrierCount = 16;
+  /// CCV_LANE_CONTEXTS, the device's lane contexts (O-64): O-69's spill space
+  /// starts at window local_base + this. ccv-sim's default is the core's 32
+  /// warp contexts (CCV_PARKED_WARPS) of 32 lanes; -lane-contexts sets it.
+  unsigned LaneContexts = 1024;
+  /// O-69: lane L's byte B of the warp's interleaved spill frame.
+  uint64_t localAddr(const Warp &W, uint64_t B, unsigned L);
 
   struct Result {
     /// Return: each issuing lane's PC becomes its own lane of GPR `Target`.

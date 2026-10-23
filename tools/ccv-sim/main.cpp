@@ -59,6 +59,9 @@ static cl::opt<bool> TestMixedByValue("ccv-test-mixed-by-value", cl::Hidden,
 static cl::opt<unsigned> SfuErrorUlps("sfu-error-ulps", cl::init(0),
     cl::desc("move rcp.f32, rsqrt.f32 and sqrt.f32 results by up to N ulps, "
              "as an approximate SFU may (IS-12)"));
+static cl::opt<unsigned> LaneContexts("lane-contexts", cl::init(1024),
+    cl::desc("CCV_LANE_CONTEXTS: where O-69's spill space starts (default the "
+             "core's 32 warp contexts of 32 lanes)"));
 static cl::opt<bool> TestFpHostNaN("ccv-test-fp-host-nan", cl::Hidden,
     cl::desc("FP32 NaN results keep the host's bits, to test that it is caught"));
 static cl::opt<unsigned> NumThreads("threads", cl::init(32),
@@ -223,6 +226,7 @@ int main(int argc, char **argv) {
 
   Interp I;
   I.BarrierCount = std::min(unsigned(Barriers), 16u);
+  I.LaneContexts = LaneContexts;
   Warp W;
   W.CtaId = CtaId;
   W.WarpCtx = LaneContext >= 0 ? unsigned(LaneContext) : unsigned(WarpInCta);
