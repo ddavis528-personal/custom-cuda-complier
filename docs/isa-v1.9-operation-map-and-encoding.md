@@ -3103,6 +3103,18 @@ path back to OOE. No encoding changes: the field stays 6 bits, its top values re
 
 ---
 
+**O-71 — 64-bit integers are 32-bit pairs, and the carry-producing add stays unallocated —
+decided in 1.9.** IS-13 item 2. IS-13 proposed reviving §11's `add.cc` / `addc` on
+compatibility grounds, pending CP's measurement. CP made 64-bit integers compile and run as C
+computes them (CP-27, 17 operations checked on 32 lanes against C's semantics), then measured.
+On the first real 64-bit kernel the carry pair removes 4.9% of instructions, and register pairs
+cost 18.5% in spills. Multiplies gain nothing from a carry, since their cross terms are
+`mad.lo`. Two of the six scarce A″ points are not spent for 5% on hash and RNG code, with
+nothing on the corpus's GPU kernels. §11 records the trigger for revisiting. What lost: about 5%
+on 64-bit add-heavy code. No encoding changes.
+
+---
+
 **O-70 — The FP SFU set has normative error bounds — decided in 1.9.** IS-12, ruled in
 substance on 2026-10-20 and written now that CP has built against it (CP-22). §4 called SFU
 accuracy "implementation-defined and approximate", while O-31 specified it as correctly rounded,
@@ -4668,9 +4680,15 @@ because it reinterprets rather than converts, and the narrow write then lands in
   report aligned and unaligned kernels separately, since the two shapes differ by three live
   registers on the simplest kernel there is.
 
-- **Carry-producing add.** §4's integer range has 6 unallocated points in the low 32, which
-  is the A″-reachable range where a carry-out predicate destination would live. Only needed
-  if window-crossing pointer arithmetic (§5.1) shows up hot. Deferred pending codegen data.
+- **Carry-producing add — measured and deferred (O-71).** §4's integer range has 6
+  unallocated points in the low 32, the A″-reachable range where a carry-out predicate
+  destination would live. 64-bit integers are in scope as 32-bit pairs: an add or subtract is
+  4 instructions (`add`, `setp.lt.u`, `add`, a predicated `add` of ±1). CP measured `add.cc` /
+  `addc` on splitmix64 and FNV-1a (CP-27): they remove 4.9% of instructions, while the same
+  kernel spends 18.5% on spills, because each 64-bit value holds two of 16 GPRs. The points stay
+  free. **Re-measure trigger:** a corpus kernel class (a 64-bit-indexed reduction, multi-word
+  arithmetic, a 64-bit-keyed hash table) where carry pairs exceed 10% of dynamic
+  instructions, or window-crossing pointer arithmetic (§5.1) showing up hot.
 
 ---
 
