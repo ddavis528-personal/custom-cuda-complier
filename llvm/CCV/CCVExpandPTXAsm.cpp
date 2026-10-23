@@ -276,14 +276,16 @@ bool CCVExpandPTXAsm::runOnMachineFunction(MachineFunction &MF) {
       } else if (ToE2M1.match(T, &M)) {
         // CCVFoldFP4's: FP32 to E2M1 at chwidth 4, widened into the i32
         // result, which clears bits [31:4] (O-38).
+        unsigned Opc = CCV::CVT_D0_S0_R0_W4_32;
         Register N = vreg(CCV::GPR4RegClass);
-        cvt(CCV::CVT_D0_S0_R0_W4_32, N, op(M[2]));
+        cvt(Opc, N, op(M[2]));
         copy(op(M[1]), N);
       } else if (FromE2M1.match(T, &M)) {
         // And back: the i32 source narrowed to its low nibble.
         Register N = vreg(CCV::GPR4RegClass);
         copy(N, op(M[2]));
-        cvt(CCV::CVT_D0_S0_R0_W32_4, op(M[1]), N);
+        unsigned Opc = CCV::CVT_D0_S0_R0_W32_4;
+        cvt(Opc, op(M[1]), N);
       } else {
         report_fatal_error("CCV: inline PTX '" + Twine(T) +
                            "' is not one CCV implements (CP-6)");
