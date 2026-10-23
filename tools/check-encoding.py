@@ -108,10 +108,11 @@ def check_fp_dp_collision(insts):
     """
     out, seen = [], {}
     # A predicated twin shares its base's point by design (the tier rule), and
-    # so does a conversion's width variant, `<base>_W<dest>_<source>` (CP-6),
-    # which differs only in its operand classes.
+    # so does a width variant, `<base>_W8` or a conversion's
+    # `<base>_W<dest>_<source>` (CP-6), which differs only in operand classes.
     def strip_p(n):
         n = re.sub(r"_W\d+_\d+$", "", n) if n.startswith("CVT_") else n
+        n = re.sub(r"_W(8|16)$", "", n)          # FADD_W8 is FADD at chwidth 8
         return n[:-2] if n.endswith("_P") else n
     for name in sorted(insts):
         opc = format_a_opcode(insts[name]["Inst"])

@@ -198,7 +198,9 @@ static const CCVOperandInfo Operands_FABS_F0[] = {{4, false}, {4, false}, {4, fa
 static const CCVOperandInfo Operands_FABS_F1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FADD[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FADD_F1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_FADD_F1_W8[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FADD_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_FADD_W8[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FFMA_ACC_F0[] = {{4, false}, {0, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FFMA_ACC_F1[] = {{4, false}, {0, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FFMA_F0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
@@ -209,12 +211,16 @@ static const CCVOperandInfo Operands_FMIN[] = {{4, false}, {4, false}, {4, false
 static const CCVOperandInfo Operands_FMIN_F1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FMUL[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FMUL_F1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_FMUL_F1_W8[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FMUL_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_FMUL_W8[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FNEG_F0[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FNEG_F1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FSUB[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FSUB_F1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_FSUB_F1_W8[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_FSUB_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_FSUB_W8[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_LD_GLOBAL[] = {{4, false}, {4, false}, {13, true}};
 static const CCVOperandInfo Operands_LD_GLOBAL_IDX[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
 static const CCVOperandInfo Operands_LD_GLOBAL_IDX_W16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
@@ -588,7 +594,9 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"FABS_F1", 4, Operands_FABS_F1},
   {"FADD", 4, Operands_FADD},
   {"FADD_F1", 4, Operands_FADD_F1},
+  {"FADD_F1_W8", 4, Operands_FADD_F1_W8},
   {"FADD_P", 5, Operands_FADD_P},
+  {"FADD_W8", 4, Operands_FADD_W8},
   {"FFMA_ACC_F0", 4, Operands_FFMA_ACC_F0},
   {"FFMA_ACC_F1", 4, Operands_FFMA_ACC_F1},
   {"FFMA_F0", 4, Operands_FFMA_F0},
@@ -599,12 +607,16 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"FMIN_F1", 4, Operands_FMIN_F1},
   {"FMUL", 4, Operands_FMUL},
   {"FMUL_F1", 4, Operands_FMUL_F1},
+  {"FMUL_F1_W8", 4, Operands_FMUL_F1_W8},
   {"FMUL_P", 5, Operands_FMUL_P},
+  {"FMUL_W8", 4, Operands_FMUL_W8},
   {"FNEG_F0", 4, Operands_FNEG_F0},
   {"FNEG_F1", 4, Operands_FNEG_F1},
   {"FSUB", 4, Operands_FSUB},
   {"FSUB_F1", 4, Operands_FSUB_F1},
+  {"FSUB_F1_W8", 4, Operands_FSUB_F1_W8},
   {"FSUB_P", 5, Operands_FSUB_P},
+  {"FSUB_W8", 4, Operands_FSUB_W8},
   {"LD_GLOBAL", 3, Operands_LD_GLOBAL},
   {"LD_GLOBAL_IDX", 5, Operands_LD_GLOBAL_IDX},
   {"LD_GLOBAL_IDX_W16", 5, Operands_LD_GLOBAL_IDX_W16},
@@ -785,4 +797,4 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"XOR_P", 5, Operands_XOR_P},
   {"XOR_W16", 4, Operands_XOR_W16},
 };
-static const unsigned CCVNumInstOperands = 388;
+static const unsigned CCVNumInstOperands = 394;

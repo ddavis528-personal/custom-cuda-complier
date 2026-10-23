@@ -17,6 +17,14 @@
 # -ccv-fp8-dot=false, which leaves the FP32 additions to round one by one; on
 # the case built for it (448^2 and three 2^-7 products) that is a different
 # number.
+#
+# Stage 4: `__nv_fp8_e4m3(float(a) op float(b))` for add, subtract and
+# multiply is the native operation at chwidth 8 (§5.8). Checked on every byte
+# against a fixed spread of partners, against both readings -- the source's
+# (FP32, then a saturating conversion) and the native operation's -- which
+# §5.8 says agree. A mixed-format add has no native form and is checked too.
+# Its control is ccv-llc -ccv-test-fp8-wrong-format (E4M3's add in E5M2's
+# format code).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
@@ -31,6 +39,7 @@ build() {   # $1 = extra ccv-llc flag; leaves $TMP/f$2.bin and $TMP/f$2.o
 build "" 0 || { echo "  FAIL  fp8.cu's IR did not compile"; exit 1; }
 build "-ccv-test-ptx-swap-x2" 1 || { echo "  FAIL  the swap control did not compile"; exit 1; }
 build "-ccv-fp8-dot=false" 2 || { echo "  FAIL  the dot control did not compile"; exit 1; }
+build "-ccv-test-fp8-wrong-format" 3 || { echo "  FAIL  the format control did not compile"; exit 1; }
 # Inline PTX CCV does not implement is refused by name, never emitted.
 sed 's/cvt\.f32\.f16 \$0, \$1;/mov.b16 $0, $1;/' "$TMP/l.ll" > "$TMP/bad.ll"
 bad=$(build/ccv-llc "$TMP/bad.ll" -o /dev/null 2>&1)
@@ -252,4 +261,88 @@ print(f"  PASS  fp8 dot products: two dp4 emitted, {total} lanes exact-sum-once 
 print(f"  PASS  control -ccv-fp8-dot=false is caught: {', '.join(ctl)}" if ctl
       else "  FAIL  control -ccv-fp8-dot=false still agreed")
 sys.exit(0 if ctl else 1)
+PY
+[ $? -eq 0 ] || exit 1
+
+asm=$(build/ccv-llc "$TMP/l.ll" -o - 2>/dev/null)
+for k in add_e4m3:fadd.f0 sub_e5m2:fsub.f1 mul_e4m3:fmul.f0; do
+  body=$(sed -n "/^${k%%:*}:/,/^Lfunc/p" <<< "$asm")
+  if ! grep -qE "^\s*${k#*:} " <<< "$body" || grep -qE '^\s*cvt' <<< "$body"; then
+    echo "  FAIL  ${k%%:*} is not one native ${k#*:}:"; echo "$body" | head -20; exit 1
+  fi
+done
+python3 - "$TMP" <<'PY'
+import re, subprocess, sys
+sys.path.insert(0, "tools")
+import nfp_ref as R
+tmp = sys.argv[1]
+LAUNCH, O, A, B = 0x20000, 0x30000, 0x40000, 0x50000
+
+def syms(obj):
+    out = subprocess.run(["llvm-nm", obj], capture_output=True, text=True).stdout
+    return {l.split()[2]: int(l.split()[0], 16) for l in out.splitlines() if " T " in l}
+
+def run(k, name, xs, ys):
+    entry, got = syms(f"{tmp}/f{k}.o")[name], []
+    for w in range(0, len(xs), 32):
+        n = min(32, len(xs) - w)
+        pokes = ["-poke", f"{hex(LAUNCH)}=32"]
+        for slot, base in ((0x20, O), (0x28, A), (0x30, B)):
+            pokes += ["-poke", f"{hex(LAUNCH + slot)}={base >> 16}"]
+        for arr, base in ((xs, A), (ys, B)):
+            for q in range((n + 3) // 4):
+                v = sum(arr[w + 4 * q + j] << (8 * j) for j in range(4) if 4 * q + j < n)
+                pokes += ["-poke", f"{hex(base + 4 * q)}={v}"]
+        peeks = [x for q in range((n + 3) // 4) for x in ("-peek", hex(O + 4 * q))]
+        r = subprocess.run(["build/ccv-sim", f"{tmp}/f{k}.bin", "-entry", hex(entry),
+                            "-threads", str(n), *pokes, *peeks], capture_output=True, text=True)
+        v = [int(x) for x in re.findall(r"= (\d+)", r.stdout)]
+        if len(v) != (n + 3) // 4:
+            return None
+        got += [(v[j // 4] >> (8 * (j % 4))) & 0xFF for j in range(n)]
+    return got
+
+def neg(v): return R.V(v.k, not v.neg, v.q)
+OPS = {"+": lambda a, b: R.add(a, b), "-": lambda a, b: R.add(a, neg(b)),
+       "*": lambda a, b: R.mul(a, b)}
+NAT = {"+": "fadd", "-": "fsub", "*": "fmul"}
+def source(op, fa, fb, fo, x, y):     # FP32, then cvt.rn.satfinite
+    f = R.encode((0, 0), OPS[op](R.decode(fa, x), R.decode(fb, y)))
+    return R.encode(fo, R.decode((0, 0), f))
+
+partners = [0x00, 0x80, 0x01, 0x38, 0xB8, 0x3C, 0x7E, 0xFE, 0x7F, 0x7B, 0x7C, 0x40, 0x08]
+xs = [x for x in range(256) for _ in partners]
+ys = [p for _ in range(256) for p in partners]
+E4, E5 = (2, 0), (2, 1)
+kern = {"add_e4m3": ("+", E4, E4, E4), "sub_e5m2": ("-", E5, E5, E5),
+        "mul_e4m3": ("*", E4, E4, E4), "add_mixed": ("+", E4, E5, E4)}
+bad, agree = [], True
+for name, (op, fa, fb, fo) in kern.items():
+    want = [source(op, fa, fb, fo, x, y) for x, y in zip(xs, ys)]
+    if fa == fb == fo:                # §5.8: the source and native readings agree
+        nat = [R.op(NAT[op], fo[1], 2, 2, 2, 0, x, y, 0) for x, y in zip(xs, ys)]
+        if nat != want:
+            agree = False
+            i = next(i for i in range(len(xs)) if nat[i] != want[i])
+            bad.append(f"{name}: the native operation and the source differ at "
+                       f"{xs[i]:#x} {op} {ys[i]:#x} ({nat[i]:#x} vs {want[i]:#x}) -- §5.8's claim")
+    got = run(0, name, xs, ys)
+    if got is None:
+        bad.append(f"{name}: did not run")
+    elif got != want:
+        i = next(i for i in range(len(xs)) if got[i] != want[i])
+        bad.append(f"{name}: {sum(g != w for g, w in zip(got, want))}/{len(xs)} differ; "
+                   f"first {xs[i]:#x} {op} {ys[i]:#x} -> {got[i]:#x}, want {want[i]:#x}")
+for b in bad:
+    print(f"  FAIL  fp8 {b}")
+if bad:
+    sys.exit(1)
+print(f"  PASS  fp8 add, sub, mul: native at chwidth 8, {4 * len(xs)} lanes equal to "
+      f"FP32 then saturating conversion; the native reading agrees (§5.8)")
+c = run(3, "add_e4m3", xs, ys)
+want = [source("+", E4, E4, E4, x, y) for x, y in zip(xs, ys)]
+ok = c is not None and c != want
+print("  PASS  control -ccv-test-fp8-wrong-format is caught" if ok
+      else "  FAIL  control -ccv-test-fp8-wrong-format still agreed")
+sys.exit(0 if ok else 1)
 PY

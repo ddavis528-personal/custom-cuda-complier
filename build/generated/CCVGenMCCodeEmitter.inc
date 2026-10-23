@@ -486,7 +486,9 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(134218688),	// FABS_F1
     UINT64_C(134217728),	// FADD
     UINT64_C(134218240),	// FADD_F1
+    UINT64_C(134218240),	// FADD_F1_W8
     UINT64_C(1073741828),	// FADD_P
+    UINT64_C(134217728),	// FADD_W8
     UINT64_C(1),	// FFMA_ACC_F0
     UINT64_C(5),	// FFMA_ACC_F1
     UINT64_C(134217920),	// FFMA_F0
@@ -497,12 +499,16 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(134218496),	// FMIN_F1
     UINT64_C(134217856),	// FMUL
     UINT64_C(134218368),	// FMUL_F1
+    UINT64_C(134218368),	// FMUL_F1_W8
     UINT64_C(1073741956),	// FMUL_P
+    UINT64_C(134217856),	// FMUL_W8
     UINT64_C(134218112),	// FNEG_F0
     UINT64_C(134218624),	// FNEG_F1
     UINT64_C(134217792),	// FSUB
     UINT64_C(134218304),	// FSUB_F1
+    UINT64_C(134218304),	// FSUB_F1_W8
     UINT64_C(1073741892),	// FSUB_P
+    UINT64_C(134217792),	// FSUB_W8
     UINT64_C(32),	// LD_GLOBAL
     UINT64_C(288),	// LD_GLOBAL_IDX
     UINT64_C(288),	// LD_GLOBAL_IDX_W16
@@ -1058,6 +1064,8 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     case CCV::FABS_F1:
     case CCV::FADD:
     case CCV::FADD_F1:
+    case CCV::FADD_F1_W8:
+    case CCV::FADD_W8:
     case CCV::FFMA_F0:
     case CCV::FFMA_F1:
     case CCV::FMAX:
@@ -1066,10 +1074,14 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     case CCV::FMIN_F1:
     case CCV::FMUL:
     case CCV::FMUL_F1:
+    case CCV::FMUL_F1_W8:
+    case CCV::FMUL_W8:
     case CCV::FNEG_F0:
     case CCV::FNEG_F1:
     case CCV::FSUB:
     case CCV::FSUB_F1:
+    case CCV::FSUB_F1_W8:
+    case CCV::FSUB_W8:
     case CCV::LG2_F32:
     case CCV::MADLO:
     case CCV::MAX_S:
@@ -2063,6 +2075,8 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
     case CCV::FABS_F1:
     case CCV::FADD:
     case CCV::FADD_F1:
+    case CCV::FADD_F1_W8:
+    case CCV::FADD_W8:
     case CCV::FFMA_F0:
     case CCV::FFMA_F1:
     case CCV::FMAX:
@@ -2071,10 +2085,14 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
     case CCV::FMIN_F1:
     case CCV::FMUL:
     case CCV::FMUL_F1:
+    case CCV::FMUL_F1_W8:
+    case CCV::FMUL_W8:
     case CCV::FNEG_F0:
     case CCV::FNEG_F1:
     case CCV::FSUB:
     case CCV::FSUB_F1:
+    case CCV::FSUB_F1_W8:
+    case CCV::FSUB_W8:
     case CCV::LG2_F32:
     case CCV::MADLO:
     case CCV::MAX_S:

@@ -152,12 +152,13 @@ inline uint32_t encode(const Format &F, const Value &V, Round R) {
   if (Shift <= 0) {
     Q = V.M << -Shift;               // exact; the sticky lies below the LSB
     Gt = false;                      // below half an LSB, however small
-  } else if (Shift > 120) {
+  } else if (Shift > 128) {
     Q = 0;
-    Inexact = Inexact || V.M;        // far below half an LSB
+    Inexact = Inexact || V.M;        // M < 2^127, below half an LSB
   } else {
-    Q = V.M >> Shift;
-    u128 Rem = V.M & ((u128(1) << Shift) - 1);
+    // add() leaves M up to 127 bits wide, so the remainder can be all of it.
+    Q = Shift == 128 ? 0 : V.M >> Shift;
+    u128 Rem = Shift == 128 ? V.M : V.M & ((u128(1) << Shift) - 1);
     u128 Half = u128(1) << (Shift - 1);
     Gt = Rem > Half || (Rem == Half && V.Sticky);
     Eq = Rem == Half && !V.Sticky;

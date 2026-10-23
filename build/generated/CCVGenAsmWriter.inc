@@ -681,7 +681,9 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     37884317U,	// FABS_F1
     71438368U,	// FADD
     71438665U,	// FADD_F1
+    71438665U,	// FADD_F1_W8
     2078610U,	// FADD_P
+    71438368U,	// FADD_W8
     209850387U,	// FFMA_ACC_F0
     209850684U,	// FFMA_ACC_F1
     339873793U,	// FFMA_F0
@@ -692,12 +694,16 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     71438728U,	// FMIN_F1
     71438386U,	// FMUL
     71438719U,	// FMUL_F1
+    71438719U,	// FMUL_F1_W8
     2111378U,	// FMUL_P
+    71438386U,	// FMUL_W8
     37883945U,	// FNEG_F0
     37884278U,	// FNEG_F1
     71438346U,	// FSUB
     71438643U,	// FSUB_F1
+    71438643U,	// FSUB_F1_W8
     2144146U,	// FSUB_P
+    71438346U,	// FSUB_W8
     103584U,	// LD_GLOBAL
     21075104U,	// LD_GLOBAL_IDX
     21075104U,	// LD_GLOBAL_IDX_W16

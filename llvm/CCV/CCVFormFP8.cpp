@@ -1,6 +1,24 @@
-//===-- CCVFormFP8Dot.cpp - an FP8 dot product is one dp4 -----------------===//
+//===-- CCVFormFP8.cpp - FP8 arithmetic written in FP32, made native -------===//
 //
-// CP-6, stage 3. `__nv_fp8x4_e4m3` is one 32-bit word, the operand of
+// CUDA's FP8 types are storage types: a kernel computes by converting to
+// float, operating and converting back (§5.8). This pass recognises the two
+// shapes that have a native form and rewrites them, in CCV-internal asm
+// templates that CCVExpandPTXAsm selects, since LLVM 18 has no IR for either.
+//
+// STAGE 4: ONE OPERATION. `__nv_fp8_e4m3(float(a) + float(b))` is
+//
+//   cvt.rn.satfinite.e4m3x2.f32(fadd(cvt(a), cvt(b)), 0.0f)
+//
+// and §5.8 shows it is exactly `fadd.f0` at chwidth 8: for add, subtract and
+// multiply the FP32 result of two narrow values is exact (E4M3, E2M1) or its
+// one rounding is innocuous (E5M2), and the native operation rounds to
+// nearest even, keeps subnormals and saturates as the conversion does. So it
+// needs no leave from the source -- it is the same number -- and it becomes
+// `ccv.fadd.e4m3`. Operands and result are i16 whose low byte is the element,
+// as the PTX they replace has them; the high element converts +0.0, which is
+// 0x00. Both sources must be in the destination's format.
+//
+// STAGE 3: A DOT PRODUCT. `__nv_fp8x4_e4m3` is one 32-bit word, the operand of
 // `dp4.e4m3` (§5.8, O-44). CUDA has no dot-product function for it, so the
 // source is the obvious one:
 //
@@ -22,6 +40,9 @@
 // FP_CONTRACT -- an expression "evaluated as though it were a single
 // operation, thereby omitting rounding errors implied by the source code"
 // (C11 6.5p8). CUDA compiles with -ffp-contract=fast, so CUDA source has it.
+// §5.8 states this as the ISA's rule, value-changing in the last place where
+// the exact contractions are not, with -ccv-fp8-dot=false as the opt-out
+// (O-68).
 // The products themselves are exact in FP32 for both formats, so the only
 // roundings removed are the additions'.
 //
@@ -36,13 +57,19 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PatternMatch.h"
+#include "llvm/IR/ValueHandle.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Regex.h"
 #include "llvm/Transforms/Utils/Local.h"
 
 using namespace llvm;
 using namespace llvm::PatternMatch;
 
+static cl::opt<bool> FormArith(
+    "ccv-fp8-arith", cl::init(true), cl::Hidden,
+    cl::desc("make cvt.satfinite(op.f32(cvt a, cvt b)) a native FP8 add, "
+             "subtract or multiply (CP-6)"));
 static cl::opt<bool> FormDot(
     "ccv-fp8-dot", cl::init(true), cl::Hidden,
     cl::desc("contract an FP8 dot product written in FP32 into dp4.e4m3 or "
@@ -109,20 +136,87 @@ bool contracts(const Value *V) {
   return I && isa<FPMathOperator>(I) && I->hasAllowContract();
 }
 
-class CCVFormFP8Dot : public FunctionPass {
+/// Stage 4: a satfinite x2 conversion of +0.0 and one FP32 add, subtract or
+/// multiply of two FP8 elements of its format. Returns whether it rewrote.
+bool formArith(CallBase &C) {
+  static const Regex ToX2(
+      "^cvt\\.rn\\.satfinite\\.(e4m3|e5m2)x2\\.f32 \\$0, \\$([12]), \\$([12])$");
+  SmallVector<StringRef, 4> M;
+  auto T = asmText(&C);
+  if (!T || !ToX2.match(*T, &M) || M[2] == M[3])
+    return false;
+  // $1 and $2 are the call's arguments 0 and 1; the first-named is high.
+  Value *Hi = C.getArgOperand(M[2] == "1" ? 0 : 1);
+  Value *Lo = C.getArgOperand(M[3] == "1" ? 0 : 1);
+  auto *Z = dyn_cast<ConstantFP>(Hi);
+  if (!Z || !Z->isZero() || Z->isNegative())
+    return false;
+  auto *Op = dyn_cast<BinaryOperator>(Lo);
+  if (!Op || !Op->hasOneUse())
+    return false;
+  StringRef Name;
+  switch (Op->getOpcode()) {
+  case Instruction::FAdd: Name = "fadd"; break;
+  case Instruction::FSub: Name = "fsub"; break;
+  case Instruction::FMul: Name = "fmul"; break;
+  default: return false;
+  }
+  bool E5M2 = M[1] == "e5m2";
+  // Each source: the low element of an f16x2 conversion of an i16, in the
+  // destination's format. That i16's low byte is the FP8 value.
+  SmallVector<Value *, 2> Src;
+  for (Value *V : {Op->getOperand(0), Op->getOperand(1)}) {
+    auto T1 = asmText(V);
+    if (!T1 || *T1 != "cvt.f32.f16 $0, $1")
+      return false;
+    auto H = half(cast<CallBase>(V)->getArgOperand(0));
+    if (!H || H->second != 0)
+      return false;
+    auto T2 = asmText(H->first);
+    if (!T2 || *T2 != (E5M2 ? "cvt.rn.f16x2.e5m2x2 $0, $1"
+                            : "cvt.rn.f16x2.e4m3x2 $0, $1"))
+      return false;
+    Src.push_back(cast<CallBase>(H->first)->getArgOperand(0));
+  }
+  IRBuilder<> B(&C);
+  Type *I16 = B.getInt16Ty();
+  auto *Ty = FunctionType::get(I16, {I16, I16}, false);
+  auto *IA = InlineAsm::get(
+      Ty, ("ccv." + Name + (E5M2 ? ".e5m2" : ".e4m3") + " $0, $1, $2").str(),
+      "=h,h,h", /*hasSideEffects=*/false);
+  CallInst *N = B.CreateCall(Ty, IA, Src);
+  N->setDoesNotAccessMemory();
+  C.replaceAllUsesWith(N);
+  RecursivelyDeleteTriviallyDeadInstructions(&C);
+  return true;
+}
+
+class CCVFormFP8 : public FunctionPass {
 public:
   static char ID;
-  CCVFormFP8Dot() : FunctionPass(ID) {}
+  CCVFormFP8() : FunctionPass(ID) {}
   bool runOnFunction(Function &F) override;
-  StringRef getPassName() const override { return "CCV form FP8 dot"; }
+  StringRef getPassName() const override { return "CCV form FP8"; }
 };
 
-char CCVFormFP8Dot::ID = 0;
+char CCVFormFP8::ID = 0;
 
-bool CCVFormFP8Dot::runOnFunction(Function &F) {
-  if (!FormDot)
-    return false;
+bool CCVFormFP8::runOnFunction(Function &F) {
   bool Changed = false;
+  if (FormArith) {
+    // A rewrite can delete other asm calls (the sources' conversions), so the
+    // list holds weak handles.
+    SmallVector<WeakTrackingVH, 8> Calls;
+    for (Instruction &I : instructions(F))
+      if (auto *C = dyn_cast<CallBase>(&I))
+        if (C->isInlineAsm())
+          Calls.push_back(C);
+    for (WeakTrackingVH &H : Calls)
+      if (auto *C = dyn_cast_or_null<CallBase>(H))
+        Changed |= formArith(*C);
+  }
+  if (!FormDot)
+    return Changed;
   SmallVector<Instruction *, 8> Roots;
   for (Instruction &I : instructions(F))
     if (I.getOpcode() == Instruction::FAdd && I.getType()->isFloatTy() &&
@@ -206,5 +300,5 @@ bool CCVFormFP8Dot::runOnFunction(Function &F) {
 } // namespace
 
 namespace llvm {
-FunctionPass *createCCVFormFP8Dot() { return new CCVFormFP8Dot(); }
+FunctionPass *createCCVFormFP8() { return new CCVFormFP8(); }
 } // namespace llvm
