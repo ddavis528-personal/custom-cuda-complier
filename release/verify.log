@@ -1,8 +1,8 @@
   gen-register-info    ok (639 lines)
-  gen-instr-info       ok (5963 lines)
-  gen-emitter          ok (2850 lines)
+  gen-instr-info       ok (5972 lines)
+  gen-emitter          ok (2851 lines)
   gen-disassembler     ok (1674 lines)
-  gen-asm-writer       ok (2074 lines)
+  gen-asm-writer       ok (2077 lines)
   gen-dag-isel         ok (1837 lines)
   gen-callingconv      ok (92 lines)
 
@@ -72,8 +72,13 @@ checked 398 instructions
   PASS  ptrmem.cu: 32 pointers read from memory and 32 written, across 4 GiB (39 issue groups)
   PASS  control -ccv-test-no-ptr-carry is caught: 8 wrong; first: slots[3] = 0x0, want 0x100000000
   PASS  control -ccv-test-swap-ptr-halves is caught: 63 wrong; first: slots[0] = 0x10, want 0x50010
+  64-bit integers (IS-13)
+  PASS  int64.cu: 17 64-bit operations on 32 lanes, edge words included, as C computes them (5922 issue groups)
+  PASS  control -ccv-test-wide-load-sext is caught: 215 of 1088 words wrong; first: lane 1 x+y hi got 1, want 2147483649
+  PASS  hash64.cu: splitmix64 and FNV-1a on 32 lanes as Python computes them (612 issue groups)
+  INFO  hash64.cu, 612 instructions: 15 64-bit carries or borrows, which add.cc/addc would take 30 instructions out of (4.9%); 113 spill transfers (18.5%)
   pointers as values (F-22)
-  PASS  ptrlist.cu: lists built, reversed, walked and searched on 32 lanes across a window boundary (820 issue groups)
+  PASS  ptrlist.cu: lists built, reversed, walked and searched on 32 lanes across a window boundary (817 issue groups)
   PASS  control -ccv-test-raw-ptr-compare is caught: 16 of 32 lanes wrong; lane 16: [1308, 8, 160, 33], want [1308, 8, 160, 35]
   PASS  control -ccv-test-frame-window-r15 is caught: 32 of 32 lanes wrong; lane 0: [0, 0, 0, 35], want [28, 8, 0, 35]
   a module's data image (O-61)
@@ -85,7 +90,7 @@ checked 398 instructions
   PASS  control -ccv-test-bytes-at-32 is caught: did not run: FAULT F-ALIGN  pc=0x1044  lanes=eeeeeeee  addr=0x30001  cta=0 warp=0
   PASS  control -ccv-test-chwidth-defs-only is caught: did not run: FAULT F-ALIGN  pc=0x1196  lanes=ffffffff  addr=0xfffff1  cta=0 warp=0
   exported kernels (TI-30)
-  PASS  coremark-derived: 32 lanes give e714 e714 1fd7 8e3a; 62 opcodes, 783617 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
+  PASS  coremark-derived: 32 lanes give e714 e714 1fd7 8e3a; 63 opcodes, 782648 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
   PASS  rope: 2 CTAs of 32 threads match the reference; 32 opcodes, 354 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
   PASS  rope-diverged: 2 CTAs of 32 threads match the reference; 32 opcodes, 406 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
   PASS  layernorm: 2 CTAs of 32 threads match the reference; 37 opcodes, 536 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
@@ -103,7 +108,7 @@ checked 398 instructions
   PASS  fp8 add, sub, mul: native at chwidth 8, 13312 lanes equal to FP32 then saturating conversion; the native reading agrees (§5.8)
   PASS  control -ccv-test-fp8-wrong-format is caught
   CoreMark-derived workload (AR-20)
-  PASS  CoreMark-derived: list, matrix and state on 32 lanes give CoreMark's CRCs, and the host's after 2 iterations (72be e714 1fd7 8e3a; 1539469 issue groups)
+  PASS  CoreMark-derived: list, matrix and state on 32 lanes give CoreMark's CRCs, and the host's after 2 iterations (72be e714 1fd7 8e3a; 1537424 issue groups)
   PASS  control -ccv-test-hoist-past-calls is caught: did not run: error: SRD has no semantics in the simulator yet
   PASS  control -ccv-test-no-data-reloc is caught: 32 of 32 lanes wrong; lane 0: 0026 bd52 1fd7 6f31, want 72be e714 1fd7 8e3a
   PASS  control -ccv-test-narrow-in-place is caught: 32 of 32 lanes wrong; lane 0: 7795 88c3 4192 9e9e, want 72be e714 1fd7 8e3a
@@ -118,7 +123,7 @@ checked 398 instructions
   dp4 against a four-MAC reference
   PASS  dp4: 32 lanes correct against a four-MAC reference (1 dp4 instruction(s) emitted)
   every instruction has a production path
-  PASS  411 instructions, all with a production path (isel 83, pass 142, mc 1, declared 185)
+  PASS  412 instructions, all with a production path (isel 83, pass 143, mc 1, declared 185)
   the production-path gate catches its own cases
   PASS  removing the bra.short pattern (with insertBranch also removed) fails the check
   PASS  removing the immediate-compare mapping fails the check
@@ -126,7 +131,7 @@ checked 398 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 188 findings and 70 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 190 findings and 70 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -147,7 +152,7 @@ checked 398 instructions
 
   CCV instructions     : 398
   round trips          : 25472 (64 random operand sets each)
-  non-CCV opcodes      : 284 (LLVM pseudos and GlobalISel generics, no encoding)
+  non-CCV opcodes      : 285 (LLVM pseudos and GlobalISel generics, no encoding)
   unbuildable operands : 0
   failures             : 0
 
@@ -250,6 +255,7 @@ checked 398 instructions
   PASS  accepts sqrt-rcp.ll
   PASS  accepts switch-dense.ll
   PASS  accepts window-cross-block.ll
+  PASS  diagnoses atomic-rmw.ll
   PASS  diagnoses bad-addr-shape.ll
   PASS  diagnoses fp64.ll
   PASS  diagnoses ptr-compared.ll

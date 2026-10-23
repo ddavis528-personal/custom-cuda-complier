@@ -156,6 +156,19 @@ bool llvm::checkCCVModule(Module &M, raw_ostream &Err) {
                    "for the kernel's lifetime -- the launch block lives there",
                    Problems);
 
+        // --- an atomic read-modify-write (F-118, CP-26) -------------------
+        // Format M addresses .global as (rbase << 16) + an immediate, with no
+        // index register, so an atomic to a computed element -- every
+        // atomicAdd(&bins[i], ..) -- has no encoding; and nothing lowers the
+        // .shared forms yet. Before this rule, the type legalizer aborted.
+        if (isa<AtomicRMWInst>(I) || isa<AtomicCmpXchgInst>(I))
+          report(I, "atomic read-modify-write",
+                 "Format M's .global address is (rbase << 16) plus an "
+                 "immediate, with no index register, so an atomic to a "
+                 "computed address cannot be encoded (CP-26, raised with IS); "
+                 "the .shared forms are not lowered yet (F-118)",
+                 Problems);
+
         // --- a pointer that escapes an addressing mode --------------------
         // Invariant 11: there is no register to materialise one into, and the
         // ISA has no 64-bit instruction to operate on a pair (span is deferred,

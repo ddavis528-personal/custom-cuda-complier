@@ -141,10 +141,8 @@ _Z7ptrlistP4nodePi:
 	ld.global r15, [r15 + 24]
 	srd r14, 2
 	add r15, r14
-	srd r1, 0
-	mov r0, r1
-	mov r12, r1
-	st.local r12, [24]
+	srd r12, 0
+	mov r0, r12
 	shl r0, 7
 	movi r3, 2
 	ld.global r1, [r3 + 36]
@@ -225,7 +223,7 @@ _Z7ptrlistP4nodePi:
 	st.global r0, [#0, r2, 0, 8]
 	movi r5, 2
 	ld.global r5, [r5 + 44]
-	st.local r5, [28]
+	st.local r5, [24]
 	add r5, r0, 6
 	st.global r5, [#0, r2, 0, 104]
 	shr r3, r3, 31
@@ -245,18 +243,18 @@ _Z7ptrlistP4nodePi:
 	add r0, r6, r0
 	st.global r0, [#0, r2, 0, 100]
 	st.global r5, [#0, r2, 0, 96]
-	movi r10, 0
-	st.global r10, [#0, r2, 0, 116]
-	st.global r10, [#0, r2, 0, 112]
+	movi r8, 0
+	st.global r8, [#0, r2, 0, 116]
+	st.global r8, [#0, r2, 0, 112]
 	call r14, _Z7reverseP4node
 	movi r15, 2
 	ld.global r15, [r15 + 24]
 	srd r3, 2
 	add r15, r3
-	mov r12, r1
+	mov r10, r1
 	mov r11, r2
-	st.global r10, [r15 + -4]
-	st.global r10, [r15 + -8]
+	st.global r8, [r15 + -4]
+	st.global r8, [r15 + -8]
 	add r3, r15, -1
 	movi r4, 65528
 	call r14, _Z5tallyPK4nodeP3acc
@@ -264,11 +262,10 @@ _Z7ptrlistP4nodePi:
 	ld.global r15, [r15 + 24]
 	srd r3, 2
 	add r15, r3
-	ld.local r9, [24]
-	and r0, r9, 7
+	and r0, r12, 7
 	movi r1, 10
-	mad.lo r3, r9, r1, r0
-	mov r1, r12
+	mad.lo r3, r12, r1, r0
+	mov r1, r10
 	mov r2, r11
 	call r14, _Z4findP4nodei
 	movi r15, 2
@@ -277,8 +274,9 @@ _Z7ptrlistP4nodePi:
 	add r15, r3
 	mov r8, r1
 	mov r7, r2
-	st.local r12, [20]
-	mov r1, r12
+	f48 r9, 4294967295
+	st.local r10, [20]
+	mov r1, r10
 	mov r2, r11
 	f48 r3, 4294967295
 	call r14, _Z4findP4nodei
@@ -286,10 +284,9 @@ _Z7ptrlistP4nodePi:
 	ld.global r15, [r15 + 24]
 	srd r3, 2
 	add r15, r3
-	f48 r5, 4294967295
-	mov r0, r9
+	mov r0, r12
 	shl r0, 4
-	ld.local r3, [28]
+	ld.local r3, [24]
 	add r0, r3, r0
 	ld.global r3, [r15 + -8]
 	st.global r3, [#1, r0, 0, 0]
@@ -306,22 +303,22 @@ _Z7ptrlistP4nodePi:
 	shr r4, r8, 16
 	add r0, r4, r0
 	or r3, r0
-	mov r0, r9
+	mov r0, r12
 	shl r0, 2
-	shl r9, 3
+	shl r12, 3
 	setp.eq p0, r3, 0
 	@p0 bra LBB3_2
-	ld.global r5, [r8, r7, 0, 8]
+	ld.global r9, [r8, r7, 0, 8]
 LBB3_2:
 	shl r0, 2
 	movi r3, 2
 	ld.global r3, [r3 + 44]
 	add r0, r3, r0
 	add r3, r0, 8
-	st.global r5, [#1, r3, 0, 0]
-	shl r9, 4
+	st.global r9, [#1, r3, 0, 0]
+	shl r12, 4
 	ld.local r3, [12]
-	add r3, r9
+	add r3, r12
 	add r3, r3, 112
 	and r4, r13, r3
 	add r5, r13, r3
@@ -355,13 +352,13 @@ LBB3_2:
 	add r1, r2
 	or r1, r9, r1
 	setp.eq p0, r3, 0
-	setp.eq p1, r1, 0
-	movi r1, 1
 	movi r2, 0
-	@p1 mov r2, r1
-	@p0 mov r10, r1
-	shl r10, 1
-	or r1, r10, r2
+	@p0 add r2, r2, 1
+	setp.eq p0, r1, 0
+	movi r1, 0
+	@p0 add r1, r1, 1
+	shl r2, 1
+	or r1, r2, r1
 	shl r7, 2
 	add r2, r7, 32
 	and r2, r2, 60

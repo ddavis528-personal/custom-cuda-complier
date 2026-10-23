@@ -27,7 +27,9 @@
   test/cuda/gemv.cu                       0         0          0
   test/cuda/gemv8.cu                      0         0          0
   test/cuda/globals.cu                    0         0          0
+  test/cuda/hash64.cu                     0         0          0
   test/cuda/igemm.cu                      0         0          0
+  test/cuda/int64.cu                      0         0          0
   test/cuda/ptrlist.cu                    2         9          9
   test/cuda/ptrmem.cu                     0         0          0
   test/cuda/reduce.cu                     0         0          0
@@ -37,7 +39,7 @@
   test/cuda/vadd-aligned.cu               0         0          0
   test/cuda/vadd.cu                       0         0          0
   test/coremark-derived                  37       109         97
-  frame words: 0: 32, 1-32: 3, 33-64: 1, >64: 0 of 36 kernels
+  frame words: 0: 34, 1-32: 3, 33-64: 1, >64: 0 of 38 kernels
 
   frame instructions by kind (static), and functions with a frame object
   kernel                              spill  args  object  fns  w/obj
@@ -46,7 +48,7 @@
   test/cuda/ptrlist.cu                    5     0       4    4      1
   test/coremark-derived                  50     3      56   13      2
   total (kernels with a frame)           78    15      86
-  functions in the corpus: 69, with a frame object: 8
+  functions in the corpus: 71, with a frame object: 8
 
   issued, at each kernel's launch (dynamic)
   kernel                 issue   memops   frame  +lane reg  st idx  idx/mem
@@ -62,11 +64,11 @@
   sgemm                    514      251       0          2       0     0.0%
   rope                     177       53       5          2       0     0.0%
   layernorm                268       93       0          0       1     1.1%
-  coremark-derived      783617   103923    9377       7066   18157    17.5%
-  total                 785219   104557    9383       7071   18159    17.4%
+  coremark-derived      782648   104905    9692       6634   18157    17.3%
+  total                 784250   105539    9698       6639   18159    17.2%
 
   frame traffic by kind, issued (IS-19)
   kernel               spill   args  object  via ptr
   gemv                     1      0       0        0
   rope                     5      0       0        0
-  coremark-derived      9339      8      30      135
+  coremark-derived      9654      8      30      135

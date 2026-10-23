@@ -487,8 +487,9 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     5357U,	// PSEUDO_CALL
     103378U,	// PSEUDO_LD_PRED
     37885712U,	// PSEUDO_NARROW
+    8562626U,	// PSEUDO_PADDI
     71439192U,	// PSEUDO_PAND
-    10178U,	// PSEUDO_PMOV
+    206786U,	// PSEUDO_PMOV
     71439208U,	// PSEUDO_POR
     71439200U,	// PSEUDO_PXOR
     5606U,	// PSEUDO_RET
@@ -497,186 +498,186 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     71439255U,	// ADD
     71439255U,	// ADDI
     71439255U,	// ADDI48
-    209893316U,	// ADDI_P
-    12765124U,	// ADDI_PP
+    214087620U,	// ADDI_P
+    16959428U,	// ADDI_PP
     71439255U,	// ADDI_W16
-    209893316U,	// ADD_P
-    12765124U,	// ADD_PP
+    214087620U,	// ADD_P
+    16959428U,	// ADD_PP
     71439255U,	// ADD_W16
     71439337U,	// AND
     71439337U,	// ANDI
-    210884U,	// ANDI_P
+    243652U,	// ANDI_P
     71439611U,	// ANDN
     71439611U,	// ANDNI
-    243652U,	// ANDNI_P
-    210884U,	// AND_P
+    276420U,	// ANDNI_P
+    243652U,	// AND_P
     71439337U,	// AND_W16
     100766863U,	// ATOM_ADD_G
-    276420U,	// BALLOT
+    309188U,	// BALLOT
     37885440U,	// BAR_INIT
-    317380U,	// BAR_WAIT_PHASE
+    350148U,	// BAR_WAIT_PHASE
     4975U,	// BRA
-    350148U,	// BRA_PRED
+    382916U,	// BRA_PRED
     37885700U,	// BREV
     37885167U,	// CALL
-    378820U,	// CAS_G
+    411588U,	// CAS_G
     37885050U,	// CHWIDTH_MULTI
     37885737U,	// CLZ
     37884661U,	// COS_F32
     37884006U,	// CVT_D0_S0_R0
-    407492U,	// CVT_D0_S0_R0_P
+    440260U,	// CVT_D0_S0_R0_P
     37884006U,	// CVT_D0_S0_R0_W16_32
     37884006U,	// CVT_D0_S0_R0_W16_8
     37884006U,	// CVT_D0_S0_R0_W32_16
     37884006U,	// CVT_D0_S0_R0_W32_8
     37884006U,	// CVT_D0_S0_R0_W8_32
     37884038U,	// CVT_D0_S0_R1
-    440260U,	// CVT_D0_S0_R1_P
+    473028U,	// CVT_D0_S0_R1_P
     37883990U,	// CVT_D0_S0_R2
-    473028U,	// CVT_D0_S0_R2_P
+    505796U,	// CVT_D0_S0_R2_P
     37884022U,	// CVT_D0_S0_R3
-    505796U,	// CVT_D0_S0_R3_P
+    538564U,	// CVT_D0_S0_R3_P
     37884375U,	// CVT_D0_S1_R0
-    538564U,	// CVT_D0_S1_R0_P
+    571332U,	// CVT_D0_S1_R0_P
     37884375U,	// CVT_D0_S1_R0_W16_8
     37884375U,	// CVT_D0_S1_R0_W32_8
     37884407U,	// CVT_D0_S1_R1
-    571332U,	// CVT_D0_S1_R1_P
+    604100U,	// CVT_D0_S1_R1_P
     37884359U,	// CVT_D0_S1_R2
-    604100U,	// CVT_D0_S1_R2_P
+    636868U,	// CVT_D0_S1_R2_P
     37884391U,	// CVT_D0_S1_R3
-    636868U,	// CVT_D0_S1_R3_P
+    669636U,	// CVT_D0_S1_R3_P
     37885298U,	// CVT_D0_S2_R1
-    669636U,	// CVT_D0_S2_R1_P
+    702404U,	// CVT_D0_S2_R1_P
     37885270U,	// CVT_D0_S2_R2
-    702404U,	// CVT_D0_S2_R2_P
+    735172U,	// CVT_D0_S2_R2_P
     37885284U,	// CVT_D0_S2_R3
-    735172U,	// CVT_D0_S2_R3_P
+    767940U,	// CVT_D0_S2_R3_P
     37885544U,	// CVT_D0_S3_R1
-    767940U,	// CVT_D0_S3_R1_P
+    800708U,	// CVT_D0_S3_R1_P
     37885516U,	// CVT_D0_S3_R2
-    800708U,	// CVT_D0_S3_R2_P
+    833476U,	// CVT_D0_S3_R2_P
     37885530U,	// CVT_D0_S3_R3
-    833476U,	// CVT_D0_S3_R3_P
+    866244U,	// CVT_D0_S3_R3_P
     37884070U,	// CVT_D1_S0_R0
-    866244U,	// CVT_D1_S0_R0_P
+    899012U,	// CVT_D1_S0_R0_P
     37884070U,	// CVT_D1_S0_R0_W8_32
     37884102U,	// CVT_D1_S0_R1
-    899012U,	// CVT_D1_S0_R1_P
+    931780U,	// CVT_D1_S0_R1_P
     37884054U,	// CVT_D1_S0_R2
-    931780U,	// CVT_D1_S0_R2_P
+    964548U,	// CVT_D1_S0_R2_P
     37884086U,	// CVT_D1_S0_R3
-    964548U,	// CVT_D1_S0_R3_P
+    997316U,	// CVT_D1_S0_R3_P
     37884439U,	// CVT_D1_S1_R0
-    997316U,	// CVT_D1_S1_R0_P
+    1030084U,	// CVT_D1_S1_R0_P
     37884471U,	// CVT_D1_S1_R1
-    1030084U,	// CVT_D1_S1_R1_P
+    1062852U,	// CVT_D1_S1_R1_P
     37884423U,	// CVT_D1_S1_R2
-    1062852U,	// CVT_D1_S1_R2_P
+    1095620U,	// CVT_D1_S1_R2_P
     37884455U,	// CVT_D1_S1_R3
-    1095620U,	// CVT_D1_S1_R3_P
+    1128388U,	// CVT_D1_S1_R3_P
     37885326U,	// CVT_D1_S2_R0
-    1128388U,	// CVT_D1_S2_R0_P
+    1161156U,	// CVT_D1_S2_R0_P
     37885354U,	// CVT_D1_S2_R1
-    1161156U,	// CVT_D1_S2_R1_P
+    1193924U,	// CVT_D1_S2_R1_P
     37885312U,	// CVT_D1_S2_R2
-    1193924U,	// CVT_D1_S2_R2_P
+    1226692U,	// CVT_D1_S2_R2_P
     37885340U,	// CVT_D1_S2_R3
-    1226692U,	// CVT_D1_S2_R3_P
+    1259460U,	// CVT_D1_S2_R3_P
     37885572U,	// CVT_D1_S3_R0
-    1259460U,	// CVT_D1_S3_R0_P
+    1292228U,	// CVT_D1_S3_R0_P
     37885600U,	// CVT_D1_S3_R1
-    1292228U,	// CVT_D1_S3_R1_P
+    1324996U,	// CVT_D1_S3_R1_P
     37885558U,	// CVT_D1_S3_R2
-    1324996U,	// CVT_D1_S3_R2_P
+    1357764U,	// CVT_D1_S3_R2_P
     37885586U,	// CVT_D1_S3_R3
-    1357764U,	// CVT_D1_S3_R3_P
+    1390532U,	// CVT_D1_S3_R3_P
     37884132U,	// CVT_D2_S0_R0
-    1390532U,	// CVT_D2_S0_R0_P
+    1423300U,	// CVT_D2_S0_R0_P
     37884118U,	// CVT_D2_S0_R2
-    1423300U,	// CVT_D2_S0_R2_P
+    1456068U,	// CVT_D2_S0_R2_P
     37884146U,	// CVT_D2_S0_R3
-    1456068U,	// CVT_D2_S0_R3_P
+    1488836U,	// CVT_D2_S0_R3_P
     37884501U,	// CVT_D2_S1_R0
-    1488836U,	// CVT_D2_S1_R0_P
+    1521604U,	// CVT_D2_S1_R0_P
     37884529U,	// CVT_D2_S1_R1
-    1521604U,	// CVT_D2_S1_R1_P
+    1554372U,	// CVT_D2_S1_R1_P
     37884487U,	// CVT_D2_S1_R2
-    1554372U,	// CVT_D2_S1_R2_P
+    1587140U,	// CVT_D2_S1_R2_P
     37884515U,	// CVT_D2_S1_R3
-    1587140U,	// CVT_D2_S1_R3_P
+    1619908U,	// CVT_D2_S1_R3_P
     37885653U,	// CVT_D2_S3_R0
-    1619908U,	// CVT_D2_S3_R0_P
+    1652676U,	// CVT_D2_S3_R0_P
     37884174U,	// CVT_D3_S0_R0
-    1652676U,	// CVT_D3_S0_R0_P
+    1685444U,	// CVT_D3_S0_R0_P
     37884160U,	// CVT_D3_S0_R2
-    1685444U,	// CVT_D3_S0_R2_P
+    1718212U,	// CVT_D3_S0_R2_P
     37884188U,	// CVT_D3_S0_R3
-    1718212U,	// CVT_D3_S0_R3_P
+    1750980U,	// CVT_D3_S0_R3_P
     37884557U,	// CVT_D3_S1_R0
-    1750980U,	// CVT_D3_S1_R0_P
+    1783748U,	// CVT_D3_S1_R0_P
     37884585U,	// CVT_D3_S1_R1
-    1783748U,	// CVT_D3_S1_R1_P
+    1816516U,	// CVT_D3_S1_R1_P
     37884543U,	// CVT_D3_S1_R2
-    1816516U,	// CVT_D3_S1_R2_P
+    1849284U,	// CVT_D3_S1_R2_P
     37884571U,	// CVT_D3_S1_R3
-    1849284U,	// CVT_D3_S1_R3_P
+    1882052U,	// CVT_D3_S1_R3_P
     37885385U,	// CVT_D3_S2_R0
-    1882052U,	// CVT_D3_S2_R0_P
+    1914820U,	// CVT_D3_S2_R0_P
     37885684U,	// CVT_D3_S3_R0
-    1914820U,	// CVT_D3_S3_R0_P
+    1947588U,	// CVT_D3_S3_R0_P
     37884681U,	// CVT_F32_S32
-    1947588U,	// CVT_F32_S32_P
+    1980356U,	// CVT_F32_S32_P
     37884694U,	// CVT_F32_U32
-    1980356U,	// CVT_F32_U32_P
+    2013124U,	// CVT_F32_U32_P
     37884599U,	// CVT_S32_F32
-    2013124U,	// CVT_S32_F32_P
+    2045892U,	// CVT_S32_F32_P
     37885472U,	// CVT_SEXT
     37884612U,	// CVT_U32_F32
-    2045892U,	// CVT_U32_F32_P
+    2078660U,	// CVT_U32_F32_P
     37885401U,	// C_ABS
-    42079127U,	// C_ADD
-    42079127U,	// C_ADDI
-    42079209U,	// C_AND
-    42079209U,	// C_ANDI
-    42079483U,	// C_ANDN
+    46273431U,	// C_ADD
+    46273431U,	// C_ADDI
+    46273513U,	// C_AND
+    46273513U,	// C_ANDI
+    46273787U,	// C_ANDN
     5141U,	// C_BAR_ARRIVE
     5622U,	// C_BAR_WAIT
     5684U,	// C_BRA
     37885032U,	// C_CHWIDTH
     2109U,	// C_EXIT
-    42079126U,	// C_FADD
+    46273430U,	// C_FADD
     5107U,	// C_FENCE
-    42080026U,	// C_FMAX
-    42079489U,	// C_FMIN
-    42079477U,	// C_FMUL
-    16880800U,	// C_LD_GLOBAL
-    42079698U,	// C_MAX_S
-    42079997U,	// C_MAX_U
-    42079682U,	// C_MIN_S
-    42079950U,	// C_MIN_U
+    46274330U,	// C_FMAX
+    46273793U,	// C_FMIN
+    46273781U,	// C_FMUL
+    21075104U,	// C_LD_GLOBAL
+    46274002U,	// C_MAX_S
+    46274301U,	// C_MAX_U
+    46273986U,	// C_MIN_S
+    46274254U,	// C_MIN_U
     37885707U,	// C_MOV
-    42079523U,	// C_MUL_LO
+    46273827U,	// C_MUL_LO
     37885027U,	// C_NEG
     37885487U,	// C_NOT
-    42079564U,	// C_OR
-    42079564U,	// C_ORI
+    46273868U,	// C_OR
+    46273868U,	// C_ORI
     5651U,	// C_RECONV
     5608U,	// C_RET
-    42079464U,	// C_SHL
-    42079464U,	// C_SHLI
-    42079558U,	// C_SHR
-    42079558U,	// C_SHRI
-    42079092U,	// C_SRA
-    42079092U,	// C_SRAI
-    16880811U,	// C_ST_GLOBAL
-    42079097U,	// C_SUB
-    42079097U,	// C_SUBI
-    42079569U,	// C_XOR
-    42079569U,	// C_XORI
+    46273768U,	// C_SHL
+    46273768U,	// C_SHLI
+    46273862U,	// C_SHR
+    46273862U,	// C_SHRI
+    46273396U,	// C_SRA
+    46273396U,	// C_SRAI
+    21075115U,	// C_ST_GLOBAL
+    46273401U,	// C_SUB
+    46273401U,	// C_SUBI
+    46273873U,	// C_XOR
+    46273873U,	// C_XORI
     339874633U,	// DP2_BF16
     339874624U,	// DP2_F16
-    209851262U,	// DP4_ACC
+    214045566U,	// DP4_ACC
     339874614U,	// DP4_E4M3
     339874604U,	// DP4_E5M2
     339875294U,	// DP4_SS
@@ -686,10 +687,10 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     71438368U,	// FADD
     71438665U,	// FADD_F1
     71438665U,	// FADD_F1_W8
-    2078660U,	// FADD_P
+    2111428U,	// FADD_P
     71438368U,	// FADD_W8
-    209850387U,	// FFMA_ACC_F0
-    209850684U,	// FFMA_ACC_F1
+    214044691U,	// FFMA_ACC_F0
+    214044988U,	// FFMA_ACC_F1
     339873793U,	// FFMA_F0
     339874090U,	// FFMA_F1
     71438413U,	// FMAX
@@ -699,50 +700,50 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     71438386U,	// FMUL
     71438719U,	// FMUL_F1
     71438719U,	// FMUL_F1_W8
-    2111428U,	// FMUL_P
+    2144196U,	// FMUL_P
     71438386U,	// FMUL_W8
     37883945U,	// FNEG_F0
     37884278U,	// FNEG_F1
     71438346U,	// FSUB
     71438643U,	// FSUB_F1
     71438643U,	// FSUB_F1_W8
-    2144196U,	// FSUB_P
+    2176964U,	// FSUB_P
     71438346U,	// FSUB_W8
     103584U,	// LD_GLOBAL
-    21075104U,	// LD_GLOBAL_IDX
-    21075104U,	// LD_GLOBAL_IDX_W16
-    21075104U,	// LD_GLOBAL_IDX_W8
-    2176964U,	// LD_GLOBAL_P
-    2200736U,	// LD_GLOBAL_SLOT
-    2200736U,	// LD_GLOBAL_SLOT_W16
-    2200736U,	// LD_GLOBAL_SLOT_W8
+    25269408U,	// LD_GLOBAL_IDX
+    25269408U,	// LD_GLOBAL_IDX_W16
+    25269408U,	// LD_GLOBAL_IDX_W8
+    2209732U,	// LD_GLOBAL_P
+    2233504U,	// LD_GLOBAL_SLOT
+    2233504U,	// LD_GLOBAL_SLOT_W16
+    2233504U,	// LD_GLOBAL_SLOT_W8
     103584U,	// LD_GLOBAL_W16
     103584U,	// LD_GLOBAL_W8
-    16880852U,	// LD_LOCAL
+    21075156U,	// LD_LOCAL
     103380U,	// LD_PRED_G
-    16880822U,	// LD_PRED_LOCAL
+    21075126U,	// LD_PRED_LOCAL
     103324U,	// LD_PRED_S
     103356U,	// LD_SHARED
-    21074876U,	// LD_SHARED_IDX
+    25269180U,	// LD_SHARED_IDX
     103356U,	// LD_SHARED_W16
     103356U,	// LD_SHARED_W8
     37884625U,	// LG2_F32
     339875099U,	// MADLO
-    2242500U,	// MADLO_P
-    209851271U,	// MAD_ACC
+    2275268U,	// MADLO_P
+    214045575U,	// MAD_ACC
     71439826U,	// MAX_S
-    2275268U,	// MAX_S_P
+    2308036U,	// MAX_S_P
     71439826U,	// MAX_S_W16
     71440125U,	// MAX_U
-    2308036U,	// MAX_U_P
+    2340804U,	// MAX_U_P
     71439810U,	// MIN_S
-    2340804U,	// MIN_S_P
+    2373572U,	// MIN_S_P
     71439810U,	// MIN_S_W16
     71440078U,	// MIN_U
-    2373572U,	// MIN_U_P
+    2406340U,	// MIN_U_P
     37885065U,	// MOVI
     37884755U,	// MOVI48
-    2410436U,	// MOV_P
+    214980U,	// MOV_P
     71439651U,	// MULI
     2439108U,	// MULI_P
     71439800U,	// MUL_HI_S
@@ -756,7 +757,7 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     2537412U,	// ORI_P
     2537412U,	// OR_P
     71439692U,	// OR_W16
-    209851507U,	// PACKI
+    214045811U,	// PACKI
     71440160U,	// PACKI_Z
     71439336U,	// PAND
     37885706U,	// PMOV
@@ -772,79 +773,79 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     2639812U,	// SETP_EQ
     2672580U,	// SETP_EQ_F
     2705348U,	// SETP_EQ_F1
-    209850769U,	// SETP_EQ_F1_NP
+    214045073U,	// SETP_EQ_F1_NP
     2672580U,	// SETP_EQ_F_I
-    209851458U,	// SETP_EQ_F_NP
-    209851458U,	// SETP_EQ_F_NPI
+    214045762U,	// SETP_EQ_F_NP
+    214045762U,	// SETP_EQ_F_NPI
     2639812U,	// SETP_EQ_I
-    209851709U,	// SETP_EQ_NP
-    209851709U,	// SETP_EQ_NPI
+    214046013U,	// SETP_EQ_NP
+    214046013U,	// SETP_EQ_NPI
     2738116U,	// SETP_GE
     2770884U,	// SETP_GE_F
     2803652U,	// SETP_GE_F1
-    209850706U,	// SETP_GE_F1_NP
+    214045010U,	// SETP_GE_F1_NP
     2770884U,	// SETP_GE_F_I
-    209851425U,	// SETP_GE_F_NP
-    209851425U,	// SETP_GE_F_NPI
+    214045729U,	// SETP_GE_F_NP
+    214045729U,	// SETP_GE_F_NPI
     2738116U,	// SETP_GE_I
-    209851386U,	// SETP_GE_NP
-    209851386U,	// SETP_GE_NPI
+    214045690U,	// SETP_GE_NP
+    214045690U,	// SETP_GE_NPI
     2836420U,	// SETP_GE_U
     2836420U,	// SETP_GE_U_I
-    209852078U,	// SETP_GE_U_NP
-    209852078U,	// SETP_GE_U_NPI
+    214046382U,	// SETP_GE_U_NP
+    214046382U,	// SETP_GE_U_NPI
     2869188U,	// SETP_GT
     2901956U,	// SETP_GT_F
     2934724U,	// SETP_GT_F1
-    209850790U,	// SETP_GT_F1_NP
+    214045094U,	// SETP_GT_F1_NP
     2901956U,	// SETP_GT_F_I
-    209851469U,	// SETP_GT_F_NP
-    209851469U,	// SETP_GT_F_NPI
+    214045773U,	// SETP_GT_F_NP
+    214045773U,	// SETP_GT_F_NPI
     2869188U,	// SETP_GT_I
-    209851885U,	// SETP_GT_NP
-    209851885U,	// SETP_GT_NPI
+    214046189U,	// SETP_GT_NP
+    214046189U,	// SETP_GT_NPI
     2967492U,	// SETP_GT_U
     2967492U,	// SETP_GT_U_I
-    209852126U,	// SETP_GT_U_NP
-    209852126U,	// SETP_GT_U_NPI
+    214046430U,	// SETP_GT_U_NP
+    214046430U,	// SETP_GT_U_NPI
     3000260U,	// SETP_LE
     3033028U,	// SETP_LE_F
     3065796U,	// SETP_LE_F1
-    209850718U,	// SETP_LE_F1_NP
+    214045022U,	// SETP_LE_F1_NP
     3033028U,	// SETP_LE_F_I
-    209851436U,	// SETP_LE_F_NP
-    209851436U,	// SETP_LE_F_NPI
+    214045740U,	// SETP_LE_F_NP
+    214045740U,	// SETP_LE_F_NPI
     3000260U,	// SETP_LE_I
-    209851395U,	// SETP_LE_NP
-    209851395U,	// SETP_LE_NPI
+    214045699U,	// SETP_LE_NP
+    214045699U,	// SETP_LE_NPI
     3098564U,	// SETP_LE_U
     3098564U,	// SETP_LE_U_I
-    209852089U,	// SETP_LE_U_NP
-    209852089U,	// SETP_LE_U_NPI
+    214046393U,	// SETP_LE_U_NP
+    214046393U,	// SETP_LE_U_NPI
     3131332U,	// SETP_LT
     3164100U,	// SETP_LT_F
     3196868U,	// SETP_LT_F1
-    209850802U,	// SETP_LT_F1_NP
+    214045106U,	// SETP_LT_F1_NP
     3164100U,	// SETP_LT_F_I
-    209851480U,	// SETP_LT_F_NP
-    209851480U,	// SETP_LT_F_NPI
+    214045784U,	// SETP_LT_F_NP
+    214045784U,	// SETP_LT_F_NPI
     3131332U,	// SETP_LT_I
-    209851914U,	// SETP_LT_NP
-    209851914U,	// SETP_LT_NPI
+    214046218U,	// SETP_LT_NP
+    214046218U,	// SETP_LT_NPI
     3229636U,	// SETP_LT_U
     3229636U,	// SETP_LT_U_I
-    209852137U,	// SETP_LT_U_NP
-    209852137U,	// SETP_LT_U_NPI
+    214046441U,	// SETP_LT_U_NP
+    214046441U,	// SETP_LT_U_NPI
     3262404U,	// SETP_NE
     3295172U,	// SETP_NE_F
     3327940U,	// SETP_NE_F1
-    209850730U,	// SETP_NE_F1_NP
+    214045034U,	// SETP_NE_F1_NP
     3295172U,	// SETP_NE_F_I
-    209851447U,	// SETP_NE_F_NP
-    209851447U,	// SETP_NE_F_NPI
+    214045751U,	// SETP_NE_F_NP
+    214045751U,	// SETP_NE_F_NPI
     3262404U,	// SETP_NE_I
-    209851404U,	// SETP_NE_NP
-    209851404U,	// SETP_NE_NPI
+    214045708U,	// SETP_NE_NP
+    214045708U,	// SETP_NE_NPI
     3356612U,	// SHFL_IDX
     71439592U,	// SHL
     71439592U,	// SHLI
@@ -862,20 +863,20 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     3454916U,	// SRA_P
     37884910U,	// SRD
     103595U,	// ST_GLOBAL
-    21075115U,	// ST_GLOBAL_IDX
-    21075115U,	// ST_GLOBAL_IDX_W16
-    21075115U,	// ST_GLOBAL_IDX_W8
-    2200747U,	// ST_GLOBAL_SLOT
-    2200747U,	// ST_GLOBAL_SLOT_W16
-    2200747U,	// ST_GLOBAL_SLOT_W8
+    25269419U,	// ST_GLOBAL_IDX
+    25269419U,	// ST_GLOBAL_IDX_W16
+    25269419U,	// ST_GLOBAL_IDX_W8
+    2233515U,	// ST_GLOBAL_SLOT
+    2233515U,	// ST_GLOBAL_SLOT_W16
+    2233515U,	// ST_GLOBAL_SLOT_W8
     103595U,	// ST_GLOBAL_W16
     103595U,	// ST_GLOBAL_W8
-    16880862U,	// ST_LOCAL
+    21075166U,	// ST_LOCAL
     103391U,	// ST_PRED_G
-    16880837U,	// ST_PRED_LOCAL
+    21075141U,	// ST_PRED_LOCAL
     103340U,	// ST_PRED_S
     103367U,	// ST_SHARED
-    21074887U,	// ST_SHARED_IDX
+    25269191U,	// ST_SHARED_IDX
     103367U,	// ST_SHARED_W16
     103367U,	// ST_SHARED_W8
     71439225U,	// SUB
@@ -926,13 +927,8 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 0, O);
     break;
   case 2:
-    // PSEUDO_PMOV
+    // PSEUDO_PADDI, PSEUDO_PMOV
     printOperand(MI, 2, O);
-    O << " mov ";
-    printOperand(MI, 0, O);
-    O << ", ";
-    printOperand(MI, 3, O);
-    return;
     break;
   case 3:
     // ADDI_P, ADD_P, ANDI_P, ANDNI_P, AND_P, BALLOT, CVT_D0_S0_R0_P, CVT_D0_...
@@ -979,12 +975,20 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     O << ", ";
     break;
   case 5:
-    // ADDI_P, ADDI_PP, ADD_P, ADD_PP
+    // PSEUDO_PADDI, ADDI_P, ADDI_PP, ADD_P, ADD_PP
     O << " add ";
     printOperand(MI, 0, O);
     O << ", ";
     break;
   case 6:
+    // PSEUDO_PMOV, MOV_P
+    O << " mov ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 3, O);
+    return;
+    break;
+  case 7:
     // ANDI_P, AND_P
     O << " and ";
     printOperand(MI, 0, O);
@@ -994,7 +998,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 7:
+  case 8:
     // ANDNI_P
     O << " andn ";
     printOperand(MI, 0, O);
@@ -1004,7 +1008,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 8:
+  case 9:
     // BALLOT
     O << " ballot ";
     printOperand(MI, 0, O);
@@ -1012,7 +1016,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 9:
+  case 10:
     // BAR_WAIT_PHASE
     O << " bar.wait.phase ";
     printOperand(MI, 1, O);
@@ -1020,13 +1024,13 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 10:
+  case 11:
     // BRA_PRED
     O << " bra ";
     printOperand(MI, 1, O);
     return;
     break;
-  case 11:
+  case 12:
     // CAS_G
     O << " cas.global ";
     printOperand(MI, 0, O);
@@ -1042,7 +1046,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 1, O);
     return;
     break;
-  case 12:
+  case 13:
     // CVT_D0_S0_R0_P
     O << " cvt.rn.fp0.fp0 ";
     printOperand(MI, 0, O);
@@ -1050,7 +1054,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 13:
+  case 14:
     // CVT_D0_S0_R1_P
     O << " cvt.rz.fp0.fp0 ";
     printOperand(MI, 0, O);
@@ -1058,7 +1062,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 14:
+  case 15:
     // CVT_D0_S0_R2_P
     O << " cvt.rm.fp0.fp0 ";
     printOperand(MI, 0, O);
@@ -1066,7 +1070,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 15:
+  case 16:
     // CVT_D0_S0_R3_P
     O << " cvt.rp.fp0.fp0 ";
     printOperand(MI, 0, O);
@@ -1074,7 +1078,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 16:
+  case 17:
     // CVT_D0_S1_R0_P
     O << " cvt.rn.fp0.fp1 ";
     printOperand(MI, 0, O);
@@ -1082,7 +1086,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 17:
+  case 18:
     // CVT_D0_S1_R1_P
     O << " cvt.rz.fp0.fp1 ";
     printOperand(MI, 0, O);
@@ -1090,7 +1094,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 18:
+  case 19:
     // CVT_D0_S1_R2_P
     O << " cvt.rm.fp0.fp1 ";
     printOperand(MI, 0, O);
@@ -1098,7 +1102,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 19:
+  case 20:
     // CVT_D0_S1_R3_P
     O << " cvt.rp.fp0.fp1 ";
     printOperand(MI, 0, O);
@@ -1106,7 +1110,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 20:
+  case 21:
     // CVT_D0_S2_R1_P
     O << " cvt.rz.fp0.s ";
     printOperand(MI, 0, O);
@@ -1114,7 +1118,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 21:
+  case 22:
     // CVT_D0_S2_R2_P
     O << " cvt.rm.fp0.s ";
     printOperand(MI, 0, O);
@@ -1122,7 +1126,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 22:
+  case 23:
     // CVT_D0_S2_R3_P
     O << " cvt.rp.fp0.s ";
     printOperand(MI, 0, O);
@@ -1130,7 +1134,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 23:
+  case 24:
     // CVT_D0_S3_R1_P
     O << " cvt.rz.fp0.u ";
     printOperand(MI, 0, O);
@@ -1138,7 +1142,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 24:
+  case 25:
     // CVT_D0_S3_R2_P
     O << " cvt.rm.fp0.u ";
     printOperand(MI, 0, O);
@@ -1146,7 +1150,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 25:
+  case 26:
     // CVT_D0_S3_R3_P
     O << " cvt.rp.fp0.u ";
     printOperand(MI, 0, O);
@@ -1154,7 +1158,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 26:
+  case 27:
     // CVT_D1_S0_R0_P
     O << " cvt.rn.fp1.fp0 ";
     printOperand(MI, 0, O);
@@ -1162,7 +1166,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 27:
+  case 28:
     // CVT_D1_S0_R1_P
     O << " cvt.rz.fp1.fp0 ";
     printOperand(MI, 0, O);
@@ -1170,7 +1174,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 28:
+  case 29:
     // CVT_D1_S0_R2_P
     O << " cvt.rm.fp1.fp0 ";
     printOperand(MI, 0, O);
@@ -1178,7 +1182,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 29:
+  case 30:
     // CVT_D1_S0_R3_P
     O << " cvt.rp.fp1.fp0 ";
     printOperand(MI, 0, O);
@@ -1186,7 +1190,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 30:
+  case 31:
     // CVT_D1_S1_R0_P
     O << " cvt.rn.fp1.fp1 ";
     printOperand(MI, 0, O);
@@ -1194,7 +1198,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 31:
+  case 32:
     // CVT_D1_S1_R1_P
     O << " cvt.rz.fp1.fp1 ";
     printOperand(MI, 0, O);
@@ -1202,7 +1206,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 32:
+  case 33:
     // CVT_D1_S1_R2_P
     O << " cvt.rm.fp1.fp1 ";
     printOperand(MI, 0, O);
@@ -1210,7 +1214,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 33:
+  case 34:
     // CVT_D1_S1_R3_P
     O << " cvt.rp.fp1.fp1 ";
     printOperand(MI, 0, O);
@@ -1218,7 +1222,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 34:
+  case 35:
     // CVT_D1_S2_R0_P
     O << " cvt.rn.fp1.s ";
     printOperand(MI, 0, O);
@@ -1226,7 +1230,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 35:
+  case 36:
     // CVT_D1_S2_R1_P
     O << " cvt.rz.fp1.s ";
     printOperand(MI, 0, O);
@@ -1234,7 +1238,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 36:
+  case 37:
     // CVT_D1_S2_R2_P
     O << " cvt.rm.fp1.s ";
     printOperand(MI, 0, O);
@@ -1242,7 +1246,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 37:
+  case 38:
     // CVT_D1_S2_R3_P
     O << " cvt.rp.fp1.s ";
     printOperand(MI, 0, O);
@@ -1250,7 +1254,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 38:
+  case 39:
     // CVT_D1_S3_R0_P
     O << " cvt.rn.fp1.u ";
     printOperand(MI, 0, O);
@@ -1258,7 +1262,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 39:
+  case 40:
     // CVT_D1_S3_R1_P
     O << " cvt.rz.fp1.u ";
     printOperand(MI, 0, O);
@@ -1266,7 +1270,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 40:
+  case 41:
     // CVT_D1_S3_R2_P
     O << " cvt.rm.fp1.u ";
     printOperand(MI, 0, O);
@@ -1274,7 +1278,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 41:
+  case 42:
     // CVT_D1_S3_R3_P
     O << " cvt.rp.fp1.u ";
     printOperand(MI, 0, O);
@@ -1282,7 +1286,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 42:
+  case 43:
     // CVT_D2_S0_R0_P
     O << " cvt.rn.s.fp0 ";
     printOperand(MI, 0, O);
@@ -1290,7 +1294,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 43:
+  case 44:
     // CVT_D2_S0_R2_P
     O << " cvt.rm.s.fp0 ";
     printOperand(MI, 0, O);
@@ -1298,7 +1302,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 44:
+  case 45:
     // CVT_D2_S0_R3_P
     O << " cvt.rp.s.fp0 ";
     printOperand(MI, 0, O);
@@ -1306,7 +1310,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 45:
+  case 46:
     // CVT_D2_S1_R0_P
     O << " cvt.rn.s.fp1 ";
     printOperand(MI, 0, O);
@@ -1314,7 +1318,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 46:
+  case 47:
     // CVT_D2_S1_R1_P
     O << " cvt.rz.s.fp1 ";
     printOperand(MI, 0, O);
@@ -1322,7 +1326,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 47:
+  case 48:
     // CVT_D2_S1_R2_P
     O << " cvt.rm.s.fp1 ";
     printOperand(MI, 0, O);
@@ -1330,7 +1334,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 48:
+  case 49:
     // CVT_D2_S1_R3_P
     O << " cvt.rp.s.fp1 ";
     printOperand(MI, 0, O);
@@ -1338,7 +1342,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 49:
+  case 50:
     // CVT_D2_S3_R0_P
     O << " cvt.s.u ";
     printOperand(MI, 0, O);
@@ -1346,7 +1350,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 50:
+  case 51:
     // CVT_D3_S0_R0_P
     O << " cvt.rn.u.fp0 ";
     printOperand(MI, 0, O);
@@ -1354,7 +1358,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 51:
+  case 52:
     // CVT_D3_S0_R2_P
     O << " cvt.rm.u.fp0 ";
     printOperand(MI, 0, O);
@@ -1362,7 +1366,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 52:
+  case 53:
     // CVT_D3_S0_R3_P
     O << " cvt.rp.u.fp0 ";
     printOperand(MI, 0, O);
@@ -1370,7 +1374,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 53:
+  case 54:
     // CVT_D3_S1_R0_P
     O << " cvt.rn.u.fp1 ";
     printOperand(MI, 0, O);
@@ -1378,7 +1382,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 54:
+  case 55:
     // CVT_D3_S1_R1_P
     O << " cvt.rz.u.fp1 ";
     printOperand(MI, 0, O);
@@ -1386,7 +1390,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 55:
+  case 56:
     // CVT_D3_S1_R2_P
     O << " cvt.rm.u.fp1 ";
     printOperand(MI, 0, O);
@@ -1394,7 +1398,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 56:
+  case 57:
     // CVT_D3_S1_R3_P
     O << " cvt.rp.u.fp1 ";
     printOperand(MI, 0, O);
@@ -1402,7 +1406,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 57:
+  case 58:
     // CVT_D3_S2_R0_P
     O << " cvt.u.s ";
     printOperand(MI, 0, O);
@@ -1410,7 +1414,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 58:
+  case 59:
     // CVT_D3_S3_R0_P
     O << " cvt.u.u ";
     printOperand(MI, 0, O);
@@ -1418,7 +1422,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 59:
+  case 60:
     // CVT_F32_S32_P
     O << " cvt.f32.s32 ";
     printOperand(MI, 0, O);
@@ -1426,7 +1430,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 60:
+  case 61:
     // CVT_F32_U32_P
     O << " cvt.f32.u32 ";
     printOperand(MI, 0, O);
@@ -1434,7 +1438,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 61:
+  case 62:
     // CVT_S32_F32_P
     O << " cvt.s32.f32 ";
     printOperand(MI, 0, O);
@@ -1442,7 +1446,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 62:
+  case 63:
     // CVT_U32_F32_P
     O << " cvt.u32.f32 ";
     printOperand(MI, 0, O);
@@ -1450,7 +1454,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 63:
+  case 64:
     // FADD_P
     O << " fadd.f0 ";
     printOperand(MI, 0, O);
@@ -1460,7 +1464,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 64:
+  case 65:
     // FMUL_P
     O << " fmul.f0 ";
     printOperand(MI, 0, O);
@@ -1470,7 +1474,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 65:
+  case 66:
     // FSUB_P
     O << " fsub.f0 ";
     printOperand(MI, 0, O);
@@ -1480,7 +1484,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 66:
+  case 67:
     // LD_GLOBAL_P
     O << " ld.global ";
     printOperand(MI, 0, O);
@@ -1491,7 +1495,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     O << ']';
     return;
     break;
-  case 67:
+  case 68:
     // LD_GLOBAL_SLOT, LD_GLOBAL_SLOT_W16, LD_GLOBAL_SLOT_W8, ST_GLOBAL_SLOT,...
     O << ", [#";
     printOperand(MI, 1, O);
@@ -1504,7 +1508,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     O << ']';
     return;
     break;
-  case 68:
+  case 69:
     // MADLO_P
     O << " mad.lo ";
     printOperand(MI, 0, O);
@@ -1516,7 +1520,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 4, O);
     return;
     break;
-  case 69:
+  case 70:
     // MAX_S_P
     O << " max.s ";
     printOperand(MI, 0, O);
@@ -1526,7 +1530,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 70:
+  case 71:
     // MAX_U_P
     O << " max.u ";
     printOperand(MI, 0, O);
@@ -1536,7 +1540,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 71:
+  case 72:
     // MIN_S_P
     O << " min.s ";
     printOperand(MI, 0, O);
@@ -1546,20 +1550,12 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 72:
+  case 73:
     // MIN_U_P
     O << " min.u ";
     printOperand(MI, 0, O);
     O << ", ";
     printOperand(MI, 2, O);
-    O << ", ";
-    printOperand(MI, 3, O);
-    return;
-    break;
-  case 73:
-    // MOV_P
-    O << " mov ";
-    printOperand(MI, 0, O);
     O << ", ";
     printOperand(MI, 3, O);
     return;
@@ -1921,7 +1917,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
   }
 
 
-  // Fragment 2 encoded into 3 bits for 6 unique commands.
+  // Fragment 2 encoded into 3 bits for 7 unique commands.
   switch ((Bits >> 22) & 7) {
   default: llvm_unreachable("Invalid command number.");
   case 0:
@@ -1933,10 +1929,17 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 1, O);
     break;
   case 2:
+    // PSEUDO_PADDI
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 3, O);
+    return;
+    break;
+  case 3:
     // ADDI_P, ADD_P, C_ADD, C_ADDI, C_AND, C_ANDI, C_ANDN, C_FADD, C_FMAX, C...
     printOperand(MI, 2, O);
     break;
-  case 3:
+  case 4:
     // ADDI_PP, ADD_PP
     printOperand(MI, 3, O);
     O << ", ";
@@ -1945,12 +1948,12 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 1, O);
     return;
     break;
-  case 4:
+  case 5:
     // C_LD_GLOBAL, C_ST_GLOBAL, LD_LOCAL, LD_PRED_LOCAL, ST_LOCAL, ST_PRED_L...
     O << ']';
     return;
     break;
-  case 5:
+  case 6:
     // LD_GLOBAL_IDX, LD_GLOBAL_IDX_W16, LD_GLOBAL_IDX_W8, LD_SHARED_IDX, ST_...
     O << ", ";
     printOperand(MI, 2, O);

@@ -39,6 +39,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/IntegerDivision.h"
 
 using namespace llvm;
 
@@ -336,6 +337,15 @@ bool expand(BinaryOperator *BO) {
     BO->eraseFromParent();
     return true;
   }
+  // 64-bit (IS-13): there is no 64-bit divide and no library to call, so
+  // LLVM's own shift-subtract expansion, inline. Correct, not fast: a 64-bit
+  // divide in a kernel is rare, and this is what makes it compile at all.
+  if (BO->getType()->isIntegerTy(64)) {
+    if (BO->getOpcode() == Instruction::SDiv ||
+        BO->getOpcode() == Instruction::UDiv)
+      return expandDivision(BO);
+    return expandRemainder(BO);
+  }
   if (!BO->getType()->isIntegerTy(32))
     return false;
   IRBuilder<> B(BO);
@@ -382,7 +392,10 @@ bool runOnFn(Function &F) {
       // for a power of two, a magic-number multiply otherwise. Leaving them
       // alone costs nothing and takes `transpose` from 79 instructions to 60.
       // tools/check-divconst.sh holds both the answers and the size.
-      if (isa<ConstantInt>(BO->getOperand(1)))
+      // At 64 bits the combiner's magic multiply needs a 64-bit mul.hi, which
+      // is itself a libcall here, so every 64-bit divide is expanded.
+      if (isa<ConstantInt>(BO->getOperand(1)) &&
+          !BO->getType()->isIntegerTy(64))
         break;
       Work.push_back(BO);
       break;

@@ -1,6 +1,6 @@
 # coremark-derived: test/coremark-derived, compiled; ccv-as source, reassembled
 # byte for byte by tools/ccv-dis.py --check. Load at ccv-sim's -code-base
-# (0x1000: function pointers are absolute); the kernel's entry is 0x3a68.
+# (0x1000: function pointers are absolute); the kernel's entry is 0x3a44.
         ST_LOCAL         R14, 44   # 0x0000
         ST_LOCAL         R4, 32   # 0x0004
         C_MOV            R14, R3   # 0x0008
@@ -667,217 +667,218 @@ L08ec:  C_CHWIDTH        R13, 0   # 0x08ec
         ST_LOCAL         R14, 48   # 0x08f4
         ST_LOCAL         R6, 52   # 0x08f8
         ST_LOCAL         R5, 56   # 0x08fc
-        ST_LOCAL         R3, 24   # 0x0900
+        ST_LOCAL         R3, 28   # 0x0900
         C_MOV            R0, R1   # 0x0904
-        MOVI             R3, 1   # 0x0906
-        SETP_LT_U_NP     P0, R1, R3, R4   # 0x090a
-        MOVI             R7, 1   # 0x090e
-        MOV_P            R7, 0, R4, R4, R4   # 0x0912
-        SETP_EQ_NPI      P0, R1, R0, 0   # 0x0916
-        BRA_PRED         0, L093e   # 0x091a
-        MOVI48           R8, 4294967295   # 0x091e
-        MOVI             R4, 8   # 0x0924
-L0928:  ADDI             R5, R8, 2   # 0x0928
-        MUL_LO           R5, R4, R5, R5   # 0x092c
-        SETP_LT_U_NP     P0, R5, R5, R0   # 0x0930
-        C_ADDI           R4, 8   # 0x0934
-        C_ADDI           R8, 1   # 0x0936
-        BRA_PRED         0, L0928   # 0x0938
-        C_BRA            L0944   # 0x093c
-L093e:  MOVI48           R8, 4294967295   # 0x093e
-L0944:  SHLI             R1, R2, 16   # 0x0944
-        LD_LOCAL         R0, 24   # 0x0948
-        ADD              R0, R1, R0, R1   # 0x094c
-        C_NEG            R4, R0   # 0x0950
-        C_ANDI           R4, 3   # 0x0952
-        ST_LOCAL         R4, 32   # 0x0954
-        ADD              R4, R0, R4, R0   # 0x0958
-        MUL_LO           R5, R8, R8, R8   # 0x095c
-        C_SHLI           R5, 1   # 0x0960
-        ST_LOCAL         R5, 28   # 0x0962
-        ADD              R5, R4, R5, R4   # 0x0966
-        MOVI             R10, 0   # 0x096a
-        SETP_LT_U_NP     P0, R5, R5, R4   # 0x096e
-        MOVI             R5, 0   # 0x0972
-        MOV_P            R5, 0, R3, R3, R3   # 0x0976
-        SETP_LT_U_NP     P0, R4, R4, R0   # 0x097a
-        MOVI             R4, 0   # 0x097e
-        MOV_P            R4, 0, R3, R3, R3   # 0x0982
-        ST_LOCAL         R1, 60   # 0x0986
-        SETP_LT_U_NP     P0, R0, R0, R1   # 0x098a
-        MOVI             R0, 0   # 0x098e
-        MOV_P            R0, 0, R3, R3, R3   # 0x0992
-        SETP_EQ_NPI      P0, R0, R8, 0   # 0x0996
-        BRA_PRED         0, L0b42   # 0x099a
-        C_CHWIDTH        R0, 1   # 0x099e
-        LD_LOCAL         R1, 24   # 0x09a0
-        SUB              R0, R10, R1, R10   # 0x09a4
-        C_CHWIDTH        R0, 0   # 0x09a8
-        C_ANDI           R0, 3   # 0x09aa
-        ADD              R9, R1, R0, R1   # 0x09ac
-        MOVI             R4, 1   # 0x09b0
-        C_MOV            R11, R8   # 0x09b4
-        C_SHLI           R11, 1   # 0x09b6
-        ANDI             R12, R8, -2   # 0x09b8
-        ANDI             R14, R8, 1   # 0x09bc
-        LD_LOCAL         R0, 28   # 0x09c0
-        ADD              R0, R9, R0, R9   # 0x09c4
-        MOVI             R6, 255   # 0x09c8
-        MOVI             R13, 0   # 0x09cc
-        ST_LOCAL         R8, 36   # 0x09d0
-        ST_LOCAL         R11, 40   # 0x09d4
-        ST_LOCAL         R14, 44   # 0x09d8
-        C_BRA            L09f2   # 0x09dc
-L09de:  CHWIDTH_MULTI    32, 0   # 0x09de
-        C_ADD            R0, R11   # 0x09e2
-        C_ADD            R9, R11   # 0x09e4
-        C_ADD            R10, R8   # 0x09e6
-        C_ADDI           R13, 1   # 0x09e8
-        SETP_NE_NP       P0, R1, R13, R8   # 0x09ea
-        BRA_PRED         4, L0b42   # 0x09ee
-L09f2:  C_CHWIDTH        R15, 0   # 0x09f2
-        MOVI             R15, 0   # 0x09f4
-        SETP_EQ_NPI      P0, R3, R8, 1   # 0x09f8
-        BRA_PRED         0, L0ade   # 0x09fc
-        ST_LOCAL         R13, 20   # 0x0a00
-        ST_LOCAL         R10, 16   # 0x0a04
-        MOVI             R3, 0   # 0x0a08
-        C_MOV            R10, R4   # 0x0a0c
-        C_SHLI           R10, 1   # 0x0a0e
-        MOVI             R15, 0   # 0x0a10
-        ST_LOCAL         R0, 12   # 0x0a14
-        C_MOV            R0, R9   # 0x0a18
-        C_MOV            R9, R4   # 0x0a1a
-        MOVI             R4, 255   # 0x0a1c
-        MOVI48           R6, 4294901760   # 0x0a20
-L0a26:  C_CHWIDTH        R5, 0   # 0x0a26
-        ADD              R13, R9, R15, R9   # 0x0a28
-        MUL_LO           R11, R7, R13, R13   # 0x0a2c
-        SRAI             R8, R11, 31   # 0x0a30
-        SHRI             R8, R8, 16   # 0x0a34
-        MADLO            R7, R7, R13, R8   # 0x0a38
-        C_AND            R7, R6   # 0x0a3c
-        SUB              R7, R11, R7, R11   # 0x0a3e
-        LD_LOCAL         R1, 12   # 0x0a42
-        ADD              R8, R1, R3, R1   # 0x0a46
-        ADD              R11, R13, R7, R13   # 0x0a4a
-        C_CHWIDTH        R11, 1   # 0x0a4e
-        ST_GLOBAL_IDX    R11, R2, R8, 0, 0   # 0x0a50
-        C_CHWIDTH        R11, 0   # 0x0a54
-        ADDI             R11, R13, 1   # 0x0a56
-        MUL_LO           R5, R7, R11, R11   # 0x0a5a
-        SRAI             R1, R5, 31   # 0x0a5e
-        SHRI             R1, R1, 16   # 0x0a62
-        MAD_ACC          R1, R7, R11   # 0x0a66
-        ADD              R11, R0, R3, R0   # 0x0a68
-        C_MOV            R14, R12   # 0x0a6c
-        ADD              R12, R10, R3, R10   # 0x0a6e
-        ADD              R7, R12, R7, R12   # 0x0a72
-        C_CHWIDTH        R7, 1   # 0x0a76
-        AND              R7, R7, R4, R7   # 0x0a78
-        ST_GLOBAL_IDX    R7, R2, R11, 0, 0   # 0x0a7c
-        C_CHWIDTH        R7, 0   # 0x0a80
-        C_AND            R1, R6   # 0x0a82
-        SUB              R7, R5, R1, R5   # 0x0a84
-        ADDI             R1, R8, 2   # 0x0a88
-        ADD              R5, R13, R7, R13   # 0x0a8c
-        C_CHWIDTH        R5, 1   # 0x0a90
-        ADDI             R5, R5, 1   # 0x0a92
-        ST_GLOBAL_IDX    R5, R2, R1, 0, 0   # 0x0a96
-        ADD              R1, R12, R7, R12   # 0x0a9a
-        C_MOV            R12, R14   # 0x0a9e
-        ADDI             R5, R1, 2   # 0x0aa0
-        AND              R5, R5, R4, R5   # 0x0aa4
-        ADDI             R1, R11, 2   # 0x0aa8
-        ST_GLOBAL_IDX    R5, R2, R1, 0, 0   # 0x0aac
+        MOVI             R7, 1   # 0x0906
+        SETP_LT_U_NP     P0, R1, R7, R4   # 0x090a
+        MOV_P            R7, 0, R4, R4, R4   # 0x090e
+        SETP_EQ_NPI      P0, R1, R0, 0   # 0x0912
+        BRA_PRED         0, L093a   # 0x0916
+        MOVI48           R9, 4294967295   # 0x091a
+        MOVI             R3, 8   # 0x0920
+L0924:  ADDI             R4, R9, 2   # 0x0924
+        MUL_LO           R4, R3, R4, R4   # 0x0928
+        SETP_LT_U_NP     P0, R4, R4, R0   # 0x092c
+        C_ADDI           R3, 8   # 0x0930
+        C_ADDI           R9, 1   # 0x0932
+        BRA_PRED         0, L0924   # 0x0934
+        C_BRA            L0940   # 0x0938
+L093a:  MOVI48           R9, 4294967295   # 0x093a
+L0940:  SHLI             R1, R2, 16   # 0x0940
+        LD_LOCAL         R0, 28   # 0x0944
+        ADD              R0, R1, R0, R1   # 0x0948
+        ST_LOCAL         R1, 60   # 0x094c
+        SETP_LT_U_NP     P0, R3, R0, R1   # 0x0950
+        SHRI             R3, R2, 16   # 0x0954
+        ST_LOCAL         R3, 64   # 0x0958
+        ADDI_P           R3, 0, R3, 1   # 0x095c
+        C_NEG            R4, R0   # 0x0960
+        ANDI             R1, R4, 3   # 0x0962
+        ST_LOCAL         R1, 36   # 0x0966
+        ADD              R4, R0, R1, R0   # 0x096a
+        SETP_LT_U_NP     P0, R0, R4, R0   # 0x096e
+        ADDI_P           R3, 0, R3, 1   # 0x0972
+        MUL_LO           R1, R9, R9, R9   # 0x0976
+        SHRI             R0, R1, 31   # 0x097a
+        ADD              R0, R3, R0, R3   # 0x097e
+        C_SHLI           R1, 1   # 0x0982
+        ST_LOCAL         R1, 32   # 0x0984
+        ADD              R3, R4, R1, R4   # 0x0988
+        SETP_LT_U_NP     P0, R3, R3, R4   # 0x098c
+        ADDI_P           R0, 0, R0, 1   # 0x0990
+        SETP_EQ_NPI      P0, R0, R9, 0   # 0x0994
+        BRA_PRED         0, L0b44   # 0x0998
+        C_CHWIDTH        R0, 1   # 0x099c
+        MOVI             R11, 0   # 0x099e
+        LD_LOCAL         R1, 28   # 0x09a2
+        SUB              R0, R11, R1, R11   # 0x09a6
+        C_CHWIDTH        R0, 0   # 0x09aa
+        C_ANDI           R0, 3   # 0x09ac
+        ADD              R10, R1, R0, R1   # 0x09ae
+        MOVI             R4, 1   # 0x09b2
+        C_MOV            R12, R9   # 0x09b6
+        C_SHLI           R12, 1   # 0x09b8
+        ANDI             R13, R9, -2   # 0x09ba
+        ANDI             R0, R9, 1   # 0x09be
+        ST_LOCAL         R0, 16   # 0x09c2
+        LD_LOCAL         R0, 32   # 0x09c6
+        ADD              R5, R10, R0, R10   # 0x09ca
+        MOVI             R6, 255   # 0x09ce
+        MOVI             R14, 0   # 0x09d2
+        ST_LOCAL         R9, 40   # 0x09d6
+        ST_LOCAL         R12, 44   # 0x09da
+        C_BRA            L09f0   # 0x09de
+L09e0:  C_ADD            R5, R12   # 0x09e0
+        C_ADD            R10, R12   # 0x09e2
+        C_ADD            R11, R9   # 0x09e4
+        C_ADDI           R14, 1   # 0x09e6
+        SETP_NE_NP       P0, R1, R14, R9   # 0x09e8
+        BRA_PRED         4, L0b44   # 0x09ec
+L09f0:  SETP_EQ_NPI      P0, R3, R9, 1   # 0x09f0
+        BRA_PRED         4, L09fe   # 0x09f4
+        MOVI             R8, 0   # 0x09f8
+        C_BRA            L0ad6   # 0x09fc
+L09fe:  ST_LOCAL         R14, 24   # 0x09fe
+        ST_LOCAL         R11, 20   # 0x0a02
+        MOVI             R3, 0   # 0x0a06
+        C_MOV            R11, R4   # 0x0a0a
+        C_SHLI           R11, 1   # 0x0a0c
+        MOVI             R8, 0   # 0x0a0e
+        MOVI             R15, 255   # 0x0a12
+        MOVI48           R6, 4294901760   # 0x0a16
+        ST_LOCAL         R10, 12   # 0x0a1c
+L0a20:  C_MOV            R10, R4   # 0x0a20
+        ADD              R4, R10, R8, R10   # 0x0a22
+        MUL_LO           R12, R7, R4, R4   # 0x0a26
+        SRAI             R9, R12, 31   # 0x0a2a
+        SHRI             R9, R9, 16   # 0x0a2e
+        MADLO            R7, R7, R4, R9   # 0x0a32
+        C_AND            R7, R6   # 0x0a36
+        SUB              R7, R12, R7, R12   # 0x0a38
+        ADD              R9, R5, R3, R5   # 0x0a3c
+        ADD              R12, R4, R7, R4   # 0x0a40
+        C_CHWIDTH        R12, 1   # 0x0a44
+        ST_GLOBAL_IDX    R12, R2, R9, 0, 0   # 0x0a46
+        C_CHWIDTH        R12, 0   # 0x0a4a
+        ADDI             R12, R4, 1   # 0x0a4c
+        C_MOV            R14, R5   # 0x0a50
+        MUL_LO           R5, R7, R12, R12   # 0x0a52
+        SRAI             R1, R5, 31   # 0x0a56
+        SHRI             R1, R1, 16   # 0x0a5a
+        MAD_ACC          R1, R7, R12   # 0x0a5e
+        LD_LOCAL         R0, 12   # 0x0a60
+        ADD              R12, R0, R3, R0   # 0x0a64
+        C_MOV            R0, R13   # 0x0a68
+        ADD              R13, R11, R3, R11   # 0x0a6a
+        ADD              R7, R13, R7, R13   # 0x0a6e
+        C_CHWIDTH        R7, 1   # 0x0a72
+        AND              R7, R7, R15, R7   # 0x0a74
+        ST_GLOBAL_IDX    R7, R2, R12, 0, 0   # 0x0a78
+        C_CHWIDTH        R7, 0   # 0x0a7c
+        C_AND            R1, R6   # 0x0a7e
+        SUB              R7, R5, R1, R5   # 0x0a80
+        C_CHWIDTH        R5, 1   # 0x0a84
+        ADDI             R1, R9, 2   # 0x0a86
+        C_ADD            R4, R7   # 0x0a8a
+        ADDI             R5, R4, 1   # 0x0a8c
+        C_MOV            R4, R10   # 0x0a90
+        ST_GLOBAL_IDX    R5, R2, R1, 0, 0   # 0x0a92
+        ADD              R1, R13, R7, R13   # 0x0a96
+        C_MOV            R13, R0   # 0x0a9a
+        ADDI             R5, R1, 2   # 0x0a9c
+        AND              R5, R5, R15, R5   # 0x0aa0
+        ADDI             R1, R12, 2   # 0x0aa4
+        ST_GLOBAL_IDX    R5, R2, R1, 0, 0   # 0x0aa8
+        C_CHWIDTH        R5, 0   # 0x0aac
+        C_MOV            R5, R14   # 0x0aae
         C_ADDI           R3, 4   # 0x0ab0
-        C_ADDI           R15, 2   # 0x0ab2
-        SETP_NE_NP       P0, R1, R12, R15   # 0x0ab4
-        BRA_PRED         0, L0a26   # 0x0ab8
-        C_ADD            R9, R15   # 0x0abc
-        LD_LOCAL         R8, 36   # 0x0abe
-        LD_LOCAL         R10, 16   # 0x0ac2
-        LD_LOCAL         R11, 40   # 0x0ac6
-        LD_LOCAL         R14, 44   # 0x0aca
-        MOVI             R6, 255   # 0x0ace
-        C_MOV            R4, R9   # 0x0ad2
-        C_MOV            R9, R0   # 0x0ad4
-        LD_LOCAL         R0, 12   # 0x0ad6
-        LD_LOCAL         R13, 20   # 0x0ada
-L0ade:  SETP_EQ_NPI      P0, R1, R14, 0   # 0x0ade
-        BRA_PRED         0, L09de   # 0x0ae2
-        C_CHWIDTH        R5, 0   # 0x0ae6
-        MUL_LO           R1, R13, R8, R8   # 0x0ae8
-        MUL_LO           R3, R7, R4, R4   # 0x0aec
-        SRAI             R5, R3, 31   # 0x0af0
-        SHRI             R5, R5, 16   # 0x0af4
-        MAD_ACC          R5, R7, R4   # 0x0af8
-        MOVI48           R7, 4294901760   # 0x0afa
-        C_AND            R5, R7   # 0x0b00
-        SUB              R7, R3, R5, R3   # 0x0b02
-        LD_LOCAL         R3, 24   # 0x0b06
-        LD_LOCAL         R5, 32   # 0x0b0a
-        C_ADD            R3, R5   # 0x0b0e
-        ADD              R1, R15, R1, R15   # 0x0b10
-        C_SHLI           R1, 1   # 0x0b14
-        ADD              R1, R3, R1, R3   # 0x0b16
-        LD_LOCAL         R3, 28   # 0x0b1a
-        ADD              R3, R1, R3, R1   # 0x0b1e
-        ADD              R5, R7, R4, R7   # 0x0b22
-        C_MOV            R15, R5   # 0x0b26
-        C_CHWIDTH        R15, 1   # 0x0b28
-        ST_GLOBAL_IDX    R15, R2, R3, 0, 0   # 0x0b2a
-        ADD              R3, R5, R4, R5   # 0x0b2e
-        C_CHWIDTH        R5, 1   # 0x0b32
-        AND              R5, R3, R6, R3   # 0x0b34
-        ST_GLOBAL_IDX    R5, R2, R1, 0, 0   # 0x0b38
-        C_ADDI           R4, 1   # 0x0b3c
-        BRA              L09de   # 0x0b3e
-L0b42:  C_CHWIDTH        R15, 0   # 0x0b42
-        LD_LOCAL         R0, 24   # 0x0b44
-        LD_LOCAL         R1, 32   # 0x0b48
+        C_ADDI           R8, 2   # 0x0ab2
+        SETP_NE_NP       P0, R1, R13, R8   # 0x0ab4
+        BRA_PRED         0, L0a20   # 0x0ab8
+        C_ADD            R4, R8   # 0x0abc
+        LD_LOCAL         R9, 40   # 0x0abe
+        LD_LOCAL         R11, 20   # 0x0ac2
+        LD_LOCAL         R12, 44   # 0x0ac6
+        MOVI             R6, 255   # 0x0aca
+        LD_LOCAL         R10, 12   # 0x0ace
+        LD_LOCAL         R14, 24   # 0x0ad2
+L0ad6:  LD_LOCAL         R0, 16   # 0x0ad6
+        SETP_EQ_NPI      P0, R1, R0, 0   # 0x0ada
+        BRA_PRED         0, L09e0   # 0x0ade
+        MUL_LO           R1, R14, R9, R9   # 0x0ae2
+        MUL_LO           R3, R7, R4, R4   # 0x0ae6
+        MOVI48           R0, 4294901760   # 0x0aea
+        C_MOV            R15, R4   # 0x0af0
+        SRAI             R4, R3, 31   # 0x0af2
+        SHRI             R4, R4, 16   # 0x0af6
+        MAD_ACC          R4, R7, R15   # 0x0afa
+        C_AND            R4, R0   # 0x0afc
+        SUB              R7, R3, R4, R3   # 0x0afe
+        LD_LOCAL         R3, 28   # 0x0b02
+        LD_LOCAL         R4, 36   # 0x0b06
+        C_ADD            R3, R4   # 0x0b0a
+        ADD              R1, R8, R1, R8   # 0x0b0c
+        C_SHLI           R1, 1   # 0x0b10
+        ADD              R1, R3, R1, R3   # 0x0b12
+        LD_LOCAL         R3, 32   # 0x0b16
+        ADD              R3, R1, R3, R1   # 0x0b1a
+        ADD              R4, R7, R15, R7   # 0x0b1e
+        C_MOV            R0, R5   # 0x0b22
+        C_MOV            R5, R4   # 0x0b24
+        C_CHWIDTH        R5, 1   # 0x0b26
+        ST_GLOBAL_IDX    R5, R2, R3, 0, 0   # 0x0b28
+        ADD              R3, R4, R15, R4   # 0x0b2c
+        C_MOV            R4, R15   # 0x0b30
+        AND              R5, R3, R6, R3   # 0x0b32
+        ST_GLOBAL_IDX    R5, R2, R1, 0, 0   # 0x0b36
+        C_CHWIDTH        R5, 0   # 0x0b3a
+        C_MOV            R5, R0   # 0x0b3c
+        C_ADDI           R4, 1   # 0x0b3e
+        BRA              L09e0   # 0x0b40
+L0b44:  LD_LOCAL         R0, 28   # 0x0b44
+        LD_LOCAL         R1, 36   # 0x0b48
         C_ADD            R0, R1   # 0x0b4c
-        LD_LOCAL         R14, 60   # 0x0b4e
-        ADD              R1, R14, R0, R14   # 0x0b52
-        OR               R3, R14, R0, R14   # 0x0b56
-        C_ANDN           R3, R1   # 0x0b5a
-        AND              R4, R14, R0, R14   # 0x0b5c
-        OR               R3, R4, R3, R4   # 0x0b60
-        LD_LOCAL         R4, 28   # 0x0b64
-        C_ADD            R0, R4   # 0x0b68
-        ADD              R4, R0, R4, R0   # 0x0b6a
-        ADD              R5, R14, R4, R14   # 0x0b6e
-        C_NEG            R5, R5   # 0x0b72
-        C_ANDI           R5, 3   # 0x0b74
-        C_ADD            R4, R5   # 0x0b76
-        ADD              R5, R14, R0, R14   # 0x0b78
-        OR               R6, R14, R0, R14   # 0x0b7c
-        C_ANDN           R6, R5   # 0x0b80
-        AND              R0, R14, R0, R14   # 0x0b82
-        C_OR             R0, R6   # 0x0b86
-        LD_LOCAL         R6, 52   # 0x0b88
-        LD_LOCAL         R7, 56   # 0x0b8c
-        ST_GLOBAL_IDX    R1, R7, R6, 0, 8   # 0x0b90
-        ST_GLOBAL_IDX    R5, R7, R6, 0, 16   # 0x0b94
-        SHRI             R1, R3, 31   # 0x0b98
-        SHRI             R2, R2, 16   # 0x0b9c
+        LD_LOCAL         R7, 60   # 0x0b4e
+        ADD              R1, R7, R0, R7   # 0x0b52
+        OR               R2, R7, R0, R7   # 0x0b56
+        C_ANDN           R2, R1   # 0x0b5a
+        AND              R3, R7, R0, R7   # 0x0b5c
+        OR               R2, R3, R2, R3   # 0x0b60
+        LD_LOCAL         R3, 32   # 0x0b64
+        C_ADD            R0, R3   # 0x0b68
+        ADD              R3, R0, R3, R0   # 0x0b6a
+        ADD              R4, R7, R3, R7   # 0x0b6e
+        C_NEG            R4, R4   # 0x0b72
+        C_ANDI           R4, 3   # 0x0b74
+        C_ADD            R3, R4   # 0x0b76
+        ADD              R4, R7, R0, R7   # 0x0b78
+        OR               R5, R7, R0, R7   # 0x0b7c
+        C_ANDN           R5, R4   # 0x0b80
+        AND              R0, R7, R0, R7   # 0x0b82
+        C_OR             R0, R5   # 0x0b86
+        LD_LOCAL         R5, 52   # 0x0b88
+        LD_LOCAL         R6, 56   # 0x0b8c
+        ST_GLOBAL_IDX    R1, R6, R5, 0, 8   # 0x0b90
+        ST_GLOBAL_IDX    R4, R6, R5, 0, 16   # 0x0b94
+        SHRI             R1, R2, 31   # 0x0b98
+        LD_LOCAL         R2, 64   # 0x0b9c
         ADD              R1, R2, R1, R2   # 0x0ba0
-        ST_GLOBAL_IDX    R1, R7, R6, 0, 12   # 0x0ba4
+        ST_GLOBAL_IDX    R1, R6, R5, 0, 12   # 0x0ba4
         SHRI             R0, R0, 31   # 0x0ba8
         ADD              R0, R2, R0, R2   # 0x0bac
-        ST_GLOBAL_IDX    R0, R7, R6, 0, 20   # 0x0bb0
-        ADD              R0, R14, R4, R14   # 0x0bb4
-        ST_GLOBAL_IDX    R0, R7, R6, 0, 24   # 0x0bb8
-        OR               R1, R14, R4, R14   # 0x0bbc
+        ST_GLOBAL_IDX    R0, R6, R5, 0, 20   # 0x0bb0
+        ADD              R0, R7, R3, R7   # 0x0bb4
+        ST_GLOBAL_IDX    R0, R6, R5, 0, 24   # 0x0bb8
+        OR               R1, R7, R3, R7   # 0x0bbc
         ANDN             R0, R1, R0, R1   # 0x0bc0
-        AND              R1, R14, R4, R14   # 0x0bc4
+        AND              R1, R7, R3, R7   # 0x0bc4
         OR               R0, R1, R0, R1   # 0x0bc8
         SHRI             R0, R0, 31   # 0x0bcc
         ADD              R0, R2, R0, R2   # 0x0bd0
-        ST_GLOBAL_IDX    R0, R7, R6, 0, 28   # 0x0bd4
-        ST_GLOBAL_IDX    R8, R7, R6, 0, 0   # 0x0bd8
+        ST_GLOBAL_IDX    R0, R6, R5, 0, 28   # 0x0bd4
+        ST_GLOBAL_IDX    R9, R6, R5, 0, 0   # 0x0bd8
         LD_LOCAL         R14, 48   # 0x0bdc
-        C_MOV            R1, R8   # 0x0be0
+        C_MOV            R1, R9   # 0x0be0
         C_RET            224   # 0x0be2
         ST_LOCAL         R14, 12   # 0x0be4
         MOVI             R0, 0   # 0x0be8
@@ -2178,923 +2179,924 @@ L18d4:  LD_GLOBAL        R1, R15, -36   # 0x18d4
         MOVI             R1, 65535   # 0x1c92
         AND              R1, R0, R1, R0   # 0x1c96
         C_RET            224   # 0x1c9a
-        ST_LOCAL         R8, 72   # 0x1c9c
-        ST_LOCAL         R9, 76   # 0x1ca0
-        ST_LOCAL         R10, 80   # 0x1ca4
-        ST_LOCAL         R11, 84   # 0x1ca8
-        ST_LOCAL         R12, 88   # 0x1cac
-        ST_LOCAL         R13, 92   # 0x1cb0
+        ST_LOCAL         R8, 76   # 0x1c9c
+        ST_LOCAL         R9, 80   # 0x1ca0
+        ST_LOCAL         R10, 84   # 0x1ca4
+        ST_LOCAL         R11, 88   # 0x1ca8
+        ST_LOCAL         R12, 92   # 0x1cac
+        ST_LOCAL         R13, 96   # 0x1cb0
         C_MOV            R15, R14   # 0x1cb4
         LD_GLOBAL_IDX    R0, R1, R2, 0, 20   # 0x1cb6
         SHLI             R10, R0, 16   # 0x1cba
-        LD_GLOBAL_IDX    R13, R1, R2, 0, 16   # 0x1cbe
-        SHRI             R0, R13, 16   # 0x1cc2
-        ST_LOCAL         R0, 68   # 0x1cc6
-        LD_GLOBAL_IDX    R0, R1, R2, 0, 12   # 0x1cca
-        SHLI             R0, R0, 16   # 0x1cce
-        LD_GLOBAL_IDX    R7, R1, R2, 0, 8   # 0x1cd2
-        SHRI             R5, R7, 16   # 0x1cd6
-        C_OR             R0, R5   # 0x1cda
-        LD_GLOBAL_IDX    R5, R1, R2, 0, 28   # 0x1cdc
-        SHLI             R14, R5, 16   # 0x1ce0
-        LD_GLOBAL_IDX    R5, R1, R2, 0, 24   # 0x1ce4
-        SHRI             R6, R5, 16   # 0x1ce8
-        OR               R6, R14, R6, R14   # 0x1cec
-        ST_LOCAL         R6, 16   # 0x1cf0
-        MOVI             R6, 65535   # 0x1cf4
-        AND              R14, R7, R6, R7   # 0x1cf8
-        C_CHWIDTH        R7, 1   # 0x1cfc
-        AND              R11, R5, R6, R5   # 0x1cfe
-        LD_GLOBAL_IDX    R8, R1, R2, 0, 0   # 0x1d02
-        MOVI             R2, 0   # 0x1d06
-        MOVI             R1, 61440   # 0x1d0a
-        C_MOV            R5, R3   # 0x1d0e
-        OR               R7, R3, R1, R3   # 0x1d10
-        SETP_EQ_NPI      P0, R1, R8, 0   # 0x1d14
-        ANDI             R12, R8, -2   # 0x1d18
-        ANDI             R1, R8, 1   # 0x1d1c
-        ST_LOCAL         R1, 24   # 0x1d20
-        ADDI             R1, R8, -1   # 0x1d24
-        ST_LOCAL         R1, 20   # 0x1d28
-        CVT_SEXT         R1, R7, R7, R7   # 0x1d2c
-        ST_LOCAL         R1, 32   # 0x1d30
-        ANDI             R9, R8, -4   # 0x1d34
-        ST_LOCAL         R9, 48   # 0x1d38
-        ST_LOCAL         R15, 56   # 0x1d3c
-        ST_LOCAL         R5, 60   # 0x1d40
-        ST_LOCAL         R4, 64   # 0x1d44
-        ST_LOCAL         R11, 12   # 0x1d48
-        ST_LOCAL         R10, 40   # 0x1d4c
-        ST_LOCAL         R13, 52   # 0x1d50
-        BRA_PRED         0, L2072   # 0x1d54
-        ANDI             R1, R8, 3   # 0x1d58
-        MOVI             R6, 0   # 0x1d5c
-        C_MOV            R4, R5   # 0x1d60
-        C_BRA            L1d74   # 0x1d62
-L1d64:  CHWIDTH_MULTI    32768, 0   # 0x1d64
-        C_ADD            R2, R8   # 0x1d68
-        C_ADDI           R6, 1   # 0x1d6a
-        SETP_NE_NP       P0, R3, R6, R8   # 0x1d6c
-        BRA_PRED         4, L1e0e   # 0x1d70
-L1d74:  MOVI             R3, 0   # 0x1d74
-        LD_LOCAL         R5, 20   # 0x1d78
-        SETP_LT_U_NPI    P0, R5, R5, 3   # 0x1d7c
-        BRA_PRED         0, L1dda   # 0x1d80
-L1d84:  CHWIDTH_MULTI    32896, 1   # 0x1d84
-        ADD              R5, R2, R3, R2   # 0x1d88
-        C_SHLI           R5, 1   # 0x1d8c
-        ADD              R5, R14, R5, R14   # 0x1d8e
-        LD_GLOBAL_IDX    R7, R0, R5, 0, 0   # 0x1d92
-        ADD              R7, R7, R4, R7   # 0x1d96
-        ST_GLOBAL_IDX    R7, R0, R5, 0, 0   # 0x1d9a
-        C_CHWIDTH        R7, 0   # 0x1d9e
-        ADDI             R7, R5, 2   # 0x1da0
-        LD_GLOBAL_IDX    R15, R0, R7, 0, 0   # 0x1da4
-        ADD              R15, R15, R4, R15   # 0x1da8
-        ST_GLOBAL_IDX    R15, R0, R7, 0, 0   # 0x1dac
-        ADDI             R7, R5, 4   # 0x1db0
-        LD_GLOBAL_IDX    R15, R0, R7, 0, 0   # 0x1db4
-        ADD              R15, R15, R4, R15   # 0x1db8
-        ST_GLOBAL_IDX    R15, R0, R7, 0, 0   # 0x1dbc
-        C_CHWIDTH        R7, 1   # 0x1dc0
-        C_ADDI           R5, 6   # 0x1dc2
-        LD_GLOBAL_IDX    R7, R0, R5, 0, 0   # 0x1dc4
-        ADD              R7, R7, R4, R7   # 0x1dc8
-        ST_GLOBAL_IDX    R7, R0, R5, 0, 0   # 0x1dcc
-        C_ADDI           R3, 4   # 0x1dd0
-        SETP_NE_NP       P0, R5, R9, R3   # 0x1dd2
-        BRA_PRED         0, L1d84   # 0x1dd6
-L1dda:  SETP_EQ_NPI      P0, R5, R1, 0   # 0x1dda
-        BRA_PRED         0, L1d64   # 0x1dde
-        C_ADD            R3, R2   # 0x1de2
-        C_MOV            R5, R1   # 0x1de4
-L1de6:  C_CHWIDTH        R15, 1   # 0x1de6
-        C_CHWIDTH        R7, 0   # 0x1de8
-        C_MOV            R7, R3   # 0x1dea
-        C_SHLI           R7, 1   # 0x1dec
-        ADD              R7, R14, R7, R14   # 0x1dee
-        LD_GLOBAL_IDX    R15, R0, R7, 0, 0   # 0x1df2
-        ADD              R15, R15, R4, R15   # 0x1df6
-        ST_GLOBAL_IDX    R15, R0, R7, 0, 0   # 0x1dfa
-        C_ADDI           R3, 1   # 0x1dfe
-        ADDI             R5, R5, -1   # 0x1e00
-        SETP_NE_NPI      P0, R7, R5, 0   # 0x1e04
-        BRA_PRED         0, L1de6   # 0x1e08
-        C_BRA            L1d64   # 0x1e0c
-L1e0e:  C_CHWIDTH        R4, 1   # 0x1e0e
-        MOVI             R2, 0   # 0x1e10
-        CVT_SEXT         R6, R4, R4, R4   # 0x1e14
-        C_CHWIDTH        R4, 0   # 0x1e18
-        MOVI             R15, 0   # 0x1e1a
-        LD_LOCAL         R4, 16   # 0x1e1e
-        ST_LOCAL         R1, 28   # 0x1e22
-        C_BRA            L1e38   # 0x1e26
-L1e28:  CHWIDTH_MULTI    8192, 0   # 0x1e28
-        C_ADD            R2, R8   # 0x1e2c
-        C_ADDI           R15, 1   # 0x1e2e
-        SETP_NE_NP       P0, R3, R15, R8   # 0x1e30
-        BRA_PRED         4, L1f32   # 0x1e34
-L1e38:  LD_LOCAL         R3, 20   # 0x1e38
-        SETP_LT_U_NPI    P0, R3, R3, 3   # 0x1e3c
-        MOVI             R5, 0   # 0x1e40
-        LD_LOCAL         R1, 48   # 0x1e44
-        BRA_PRED         0, L1eec   # 0x1e48
-L1e4c:  C_CHWIDTH        R13, 1   # 0x1e4c
-        C_CHWIDTH        R7, 0   # 0x1e4e
-        ADD              R3, R2, R5, R2   # 0x1e50
-        C_MOV            R7, R3   # 0x1e54
-        C_SHLI           R7, 2   # 0x1e56
-        ADD              R7, R11, R7, R11   # 0x1e58
-        C_MOV            R9, R3   # 0x1e5c
-        C_SHLI           R9, 1   # 0x1e5e
-        ADD              R9, R14, R9, R14   # 0x1e60
-        LD_GLOBAL_IDX    R13, R0, R9, 0, 0   # 0x1e64
-        CVT_SEXT         R9, R13, R13, R13   # 0x1e68
-        C_MUL_LO         R9, R6   # 0x1e6c
-        ST_GLOBAL_IDX    R9, R4, R7, 0, 0   # 0x1e6e
-        ADDI             R7, R3, 1   # 0x1e72
-        C_MOV            R9, R7   # 0x1e76
-        C_SHLI           R9, 2   # 0x1e78
-        ADD              R9, R11, R9, R11   # 0x1e7a
-        C_SHLI           R7, 1   # 0x1e7e
-        ADD              R7, R14, R7, R14   # 0x1e80
-        C_CHWIDTH        R7, 1   # 0x1e84
-        LD_GLOBAL_IDX    R7, R0, R7, 0, 0   # 0x1e86
-        CVT_SEXT         R10, R7, R7, R7   # 0x1e8a
-        C_CHWIDTH        R7, 0   # 0x1e8e
-        MUL_LO           R7, R10, R6, R6   # 0x1e90
-        ST_GLOBAL_IDX    R7, R4, R9, 0, 0   # 0x1e94
-        ADDI             R7, R3, 2   # 0x1e98
-        C_MOV            R9, R7   # 0x1e9c
-        C_SHLI           R9, 2   # 0x1e9e
-        ADD              R9, R11, R9, R11   # 0x1ea0
-        C_SHLI           R7, 1   # 0x1ea4
-        ADD              R7, R14, R7, R14   # 0x1ea6
-        C_CHWIDTH        R7, 1   # 0x1eaa
-        LD_GLOBAL_IDX    R7, R0, R7, 0, 0   # 0x1eac
-        CVT_SEXT         R10, R7, R7, R7   # 0x1eb0
-        C_CHWIDTH        R7, 0   # 0x1eb4
-        MUL_LO           R7, R10, R6, R6   # 0x1eb6
-        ST_GLOBAL_IDX    R7, R4, R9, 0, 0   # 0x1eba
-        C_ADDI           R3, 3   # 0x1ebe
-        C_MOV            R7, R3   # 0x1ec0
-        C_SHLI           R7, 2   # 0x1ec2
-        ADD              R7, R11, R7, R11   # 0x1ec4
-        C_SHLI           R3, 1   # 0x1ec8
-        ADD              R3, R14, R3, R14   # 0x1eca
-        C_CHWIDTH        R3, 1   # 0x1ece
-        LD_GLOBAL_IDX    R3, R0, R3, 0, 0   # 0x1ed0
-        CVT_SEXT         R9, R3, R3, R3   # 0x1ed4
-        C_CHWIDTH        R3, 0   # 0x1ed8
-        MUL_LO           R3, R9, R6, R6   # 0x1eda
-        ST_GLOBAL_IDX    R3, R4, R7, 0, 0   # 0x1ede
-        C_ADDI           R5, 4   # 0x1ee2
-        SETP_NE_NP       P0, R3, R1, R5   # 0x1ee4
-        BRA_PRED         0, L1e4c   # 0x1ee8
-L1eec:  LD_LOCAL         R1, 28   # 0x1eec
-        SETP_EQ_NPI      P0, R3, R1, 0   # 0x1ef0
-        BRA_PRED         0, L1e28   # 0x1ef4
-        ADD              R3, R5, R2, R5   # 0x1ef8
-        C_MOV            R5, R1   # 0x1efc
-L1efe:  C_CHWIDTH        R13, 1   # 0x1efe
-        C_CHWIDTH        R7, 0   # 0x1f00
-        C_MOV            R7, R3   # 0x1f02
-        C_SHLI           R7, 2   # 0x1f04
-        ADD              R7, R11, R7, R11   # 0x1f06
-        C_MOV            R9, R3   # 0x1f0a
-        C_SHLI           R9, 1   # 0x1f0c
-        ADD              R9, R14, R9, R14   # 0x1f0e
-        LD_GLOBAL_IDX    R13, R0, R9, 0, 0   # 0x1f12
-        CVT_SEXT         R9, R13, R13, R13   # 0x1f16
-        C_MUL_LO         R9, R6   # 0x1f1a
-        ST_GLOBAL_IDX    R9, R4, R7, 0, 0   # 0x1f1c
-        C_ADDI           R3, 1   # 0x1f20
-        ADDI             R5, R5, -1   # 0x1f22
-        SETP_NE_NPI      P0, R7, R5, 0   # 0x1f26
-        BRA_PRED         0, L1efe   # 0x1f2a
-        BRA              L1e28   # 0x1f2e
-L1f32:  MOVI             R1, 0   # 0x1f32
-        ST_LOCAL         R1, 44   # 0x1f36
-        MOVI             R2, 0   # 0x1f3a
+        LD_GLOBAL_IDX    R0, R1, R2, 0, 16   # 0x1cbe
+        ST_LOCAL         R0, 40   # 0x1cc2
+        SHRI             R0, R0, 16   # 0x1cc6
+        ST_LOCAL         R0, 68   # 0x1cca
+        LD_GLOBAL_IDX    R0, R1, R2, 0, 12   # 0x1cce
+        SHLI             R0, R0, 16   # 0x1cd2
+        LD_GLOBAL_IDX    R7, R1, R2, 0, 8   # 0x1cd6
+        SHRI             R5, R7, 16   # 0x1cda
+        C_OR             R0, R5   # 0x1cde
+        LD_GLOBAL_IDX    R5, R1, R2, 0, 28   # 0x1ce0
+        SHLI             R14, R5, 16   # 0x1ce4
+        LD_GLOBAL_IDX    R5, R1, R2, 0, 24   # 0x1ce8
+        SHRI             R6, R5, 16   # 0x1cec
+        OR               R6, R14, R6, R14   # 0x1cf0
+        ST_LOCAL         R6, 16   # 0x1cf4
+        MOVI             R6, 65535   # 0x1cf8
+        AND              R14, R7, R6, R7   # 0x1cfc
+        AND              R11, R5, R6, R5   # 0x1d00
+        C_CHWIDTH        R6, 1   # 0x1d04
+        LD_GLOBAL_IDX    R8, R1, R2, 0, 0   # 0x1d06
+        MOVI             R2, 0   # 0x1d0a
+        MOVI             R1, 61440   # 0x1d0e
+        C_MOV            R5, R3   # 0x1d12
+        OR               R6, R3, R1, R3   # 0x1d14
+        SETP_EQ_NPI      P0, R1, R8, 0   # 0x1d18
+        ANDI             R12, R8, -2   # 0x1d1c
+        ANDI             R1, R8, 1   # 0x1d20
+        ST_LOCAL         R1, 28   # 0x1d24
+        ADDI             R1, R8, -1   # 0x1d28
+        ST_LOCAL         R1, 24   # 0x1d2c
+        CVT_SEXT         R1, R6, R6, R6   # 0x1d30
+        ST_LOCAL         R1, 32   # 0x1d34
+        ANDI             R9, R8, -4   # 0x1d38
+        ST_LOCAL         R9, 44   # 0x1d3c
+        ST_LOCAL         R15, 52   # 0x1d40
+        ST_LOCAL         R5, 56   # 0x1d44
+        ST_LOCAL         R4, 60   # 0x1d48
+        ST_LOCAL         R10, 36   # 0x1d4c
+        BRA_PRED         0, L2048   # 0x1d50
+        C_CHWIDTH        R6, 0   # 0x1d54
+        ANDI             R1, R8, 3   # 0x1d56
+        MOVI             R6, 0   # 0x1d5a
+        C_MOV            R7, R5   # 0x1d5e
+        LD_LOCAL         R3, 16   # 0x1d60
+        C_BRA            L1d76   # 0x1d64
+L1d66:  CHWIDTH_MULTI    32768, 0   # 0x1d66
+        C_ADD            R2, R8   # 0x1d6a
+        C_ADDI           R6, 1   # 0x1d6c
+        SETP_NE_NP       P0, R3, R6, R8   # 0x1d6e
+        BRA_PRED         4, L1e10   # 0x1d72
+L1d76:  MOVI             R3, 0   # 0x1d76
+        LD_LOCAL         R5, 24   # 0x1d7a
+        SETP_LT_U_NPI    P0, R5, R5, 3   # 0x1d7e
+        BRA_PRED         0, L1ddc   # 0x1d82
+L1d86:  CHWIDTH_MULTI    40960, 1   # 0x1d86
+        ADD              R5, R2, R3, R2   # 0x1d8a
+        C_SHLI           R5, 1   # 0x1d8e
+        ADD              R5, R14, R5, R14   # 0x1d90
+        LD_GLOBAL_IDX    R15, R0, R5, 0, 0   # 0x1d94
+        ADD              R15, R15, R7, R15   # 0x1d98
+        ST_GLOBAL_IDX    R15, R0, R5, 0, 0   # 0x1d9c
+        C_CHWIDTH        R15, 0   # 0x1da0
+        ADDI             R15, R5, 2   # 0x1da2
+        LD_GLOBAL_IDX    R13, R0, R15, 0, 0   # 0x1da6
+        ADD              R13, R13, R7, R13   # 0x1daa
+        ST_GLOBAL_IDX    R13, R0, R15, 0, 0   # 0x1dae
+        ADDI             R15, R5, 4   # 0x1db2
+        LD_GLOBAL_IDX    R13, R0, R15, 0, 0   # 0x1db6
+        ADD              R13, R13, R7, R13   # 0x1dba
+        ST_GLOBAL_IDX    R13, R0, R15, 0, 0   # 0x1dbe
+        C_CHWIDTH        R15, 1   # 0x1dc2
+        C_ADDI           R5, 6   # 0x1dc4
+        LD_GLOBAL_IDX    R15, R0, R5, 0, 0   # 0x1dc6
+        ADD              R15, R15, R7, R15   # 0x1dca
+        ST_GLOBAL_IDX    R15, R0, R5, 0, 0   # 0x1dce
+        C_ADDI           R3, 4   # 0x1dd2
+        SETP_NE_NP       P0, R5, R9, R3   # 0x1dd4
+        BRA_PRED         0, L1d86   # 0x1dd8
+L1ddc:  SETP_EQ_NPI      P0, R5, R1, 0   # 0x1ddc
+        BRA_PRED         0, L1d66   # 0x1de0
+        C_ADD            R3, R2   # 0x1de4
+        C_MOV            R5, R1   # 0x1de6
+L1de8:  C_CHWIDTH        R13, 1   # 0x1de8
+        C_CHWIDTH        R15, 0   # 0x1dea
+        C_MOV            R15, R3   # 0x1dec
+        C_SHLI           R15, 1   # 0x1dee
+        ADD              R15, R14, R15, R14   # 0x1df0
+        LD_GLOBAL_IDX    R13, R0, R15, 0, 0   # 0x1df4
+        ADD              R13, R13, R7, R13   # 0x1df8
+        ST_GLOBAL_IDX    R13, R0, R15, 0, 0   # 0x1dfc
+        C_ADDI           R3, 1   # 0x1e00
+        ADDI             R5, R5, -1   # 0x1e02
+        SETP_NE_NPI      P0, R15, R5, 0   # 0x1e06
+        BRA_PRED         0, L1de8   # 0x1e0a
+        C_BRA            L1d66   # 0x1e0e
+L1e10:  MOVI             R2, 0   # 0x1e10
+        C_MOV            R3, R7   # 0x1e14
+        C_CHWIDTH        R3, 1   # 0x1e16
+        C_MOV            R4, R7   # 0x1e18
+        C_CHWIDTH        R4, 1   # 0x1e1a
+        C_MOV            R5, R7   # 0x1e1c
+        C_CHWIDTH        R7, 0   # 0x1e1e
+        C_CHWIDTH        R5, 1   # 0x1e20
+        CVT_SEXT         R6, R3, R4, R5   # 0x1e22
+        CHWIDTH_MULTI    56, 0   # 0x1e26
+        MOVI             R15, 0   # 0x1e2a
+        C_BRA            L1e40   # 0x1e2e
+L1e30:  CHWIDTH_MULTI    8192, 0   # 0x1e30
+        C_ADD            R2, R8   # 0x1e34
+        C_ADDI           R15, 1   # 0x1e36
+        SETP_NE_NP       P0, R3, R15, R8   # 0x1e38
+        BRA_PRED         4, L1f2c   # 0x1e3c
+L1e40:  LD_LOCAL         R3, 24   # 0x1e40
+        SETP_LT_U_NPI    P0, R3, R3, 3   # 0x1e44
+        MOVI             R5, 0   # 0x1e48
+        LD_LOCAL         R7, 44   # 0x1e4c
+        BRA_PRED         0, L1eea   # 0x1e50
+L1e54:  C_CHWIDTH        R13, 1   # 0x1e54
+        ADD              R3, R2, R5, R2   # 0x1e56
+        C_MOV            R9, R3   # 0x1e5a
+        C_SHLI           R9, 2   # 0x1e5c
+        ADD              R9, R11, R9, R11   # 0x1e5e
+        C_MOV            R10, R3   # 0x1e62
+        C_SHLI           R10, 1   # 0x1e64
+        ADD              R10, R14, R10, R14   # 0x1e66
+        LD_GLOBAL_IDX    R13, R0, R10, 0, 0   # 0x1e6a
+        CVT_SEXT         R10, R13, R13, R13   # 0x1e6e
+        C_MUL_LO         R10, R6   # 0x1e72
+        LD_LOCAL         R4, 16   # 0x1e74
+        ST_GLOBAL_IDX    R10, R4, R9, 0, 0   # 0x1e78
+        ADDI             R9, R3, 1   # 0x1e7c
+        C_MOV            R10, R9   # 0x1e80
+        C_SHLI           R10, 2   # 0x1e82
+        ADD              R10, R11, R10, R11   # 0x1e84
+        C_SHLI           R9, 1   # 0x1e88
+        ADD              R9, R14, R9, R14   # 0x1e8a
+        LD_GLOBAL_IDX    R13, R0, R9, 0, 0   # 0x1e8e
+        CVT_SEXT         R9, R13, R13, R13   # 0x1e92
+        C_MUL_LO         R9, R6   # 0x1e96
+        ST_GLOBAL_IDX    R9, R4, R10, 0, 0   # 0x1e98
+        ADDI             R9, R3, 2   # 0x1e9c
+        C_MOV            R10, R9   # 0x1ea0
+        C_SHLI           R10, 2   # 0x1ea2
+        ADD              R10, R11, R10, R11   # 0x1ea4
+        C_SHLI           R9, 1   # 0x1ea8
+        ADD              R9, R14, R9, R14   # 0x1eaa
+        LD_GLOBAL_IDX    R13, R0, R9, 0, 0   # 0x1eae
+        CVT_SEXT         R9, R13, R13, R13   # 0x1eb2
+        C_MUL_LO         R9, R6   # 0x1eb6
+        ST_GLOBAL_IDX    R9, R4, R10, 0, 0   # 0x1eb8
+        C_ADDI           R3, 3   # 0x1ebc
+        C_MOV            R9, R3   # 0x1ebe
+        C_SHLI           R9, 2   # 0x1ec0
+        ADD              R9, R11, R9, R11   # 0x1ec2
+        C_SHLI           R3, 1   # 0x1ec6
+        ADD              R3, R14, R3, R14   # 0x1ec8
+        C_CHWIDTH        R3, 1   # 0x1ecc
+        LD_GLOBAL_IDX    R3, R0, R3, 0, 0   # 0x1ece
+        CVT_SEXT         R10, R3, R3, R3   # 0x1ed2
+        C_CHWIDTH        R3, 0   # 0x1ed6
+        MUL_LO           R3, R10, R6, R6   # 0x1ed8
+        ST_GLOBAL_IDX    R3, R4, R9, 0, 0   # 0x1edc
+        C_ADDI           R5, 4   # 0x1ee0
+        SETP_NE_NP       P0, R3, R7, R5   # 0x1ee2
+        BRA_PRED         0, L1e54   # 0x1ee6
+L1eea:  SETP_EQ_NPI      P0, R3, R1, 0   # 0x1eea
+        BRA_PRED         0, L1e30   # 0x1eee
+        ADD              R3, R5, R2, R5   # 0x1ef2
+        C_MOV            R5, R1   # 0x1ef6
+L1ef8:  C_CHWIDTH        R13, 1   # 0x1ef8
+        C_MOV            R9, R3   # 0x1efa
+        C_SHLI           R9, 2   # 0x1efc
+        ADD              R9, R11, R9, R11   # 0x1efe
+        C_MOV            R10, R3   # 0x1f02
+        C_SHLI           R10, 1   # 0x1f04
+        ADD              R10, R14, R10, R14   # 0x1f06
+        LD_GLOBAL_IDX    R13, R0, R10, 0, 0   # 0x1f0a
+        CVT_SEXT         R10, R13, R13, R13   # 0x1f0e
+        C_MUL_LO         R10, R6   # 0x1f12
+        LD_LOCAL         R4, 16   # 0x1f14
+        ST_GLOBAL_IDX    R10, R4, R9, 0, 0   # 0x1f18
+        C_ADDI           R3, 1   # 0x1f1c
+        ADDI             R5, R5, -1   # 0x1f1e
+        SETP_NE_NPI      P0, R9, R5, 0   # 0x1f22
+        BRA_PRED         0, L1ef8   # 0x1f26
+        C_BRA            L1e30   # 0x1f2a
+L1f2c:  MOVI             R1, 0   # 0x1f2c
+        C_MOV            R5, R1   # 0x1f30
+        MOVI             R7, 0   # 0x1f32
+        MOVI             R9, 0   # 0x1f36
+        MOVI             R15, 0   # 0x1f3a
         MOVI             R13, 0   # 0x1f3e
-        MOVI             R10, 0   # 0x1f42
-        MOVI             R15, 0   # 0x1f46
-        C_BRA            L1f5c   # 0x1f4a
-L1f4c:  LD_LOCAL         R2, 28   # 0x1f4c
-        C_ADD            R2, R8   # 0x1f50
-        C_ADDI           R13, 1   # 0x1f52
-        SETP_NE_NP       P0, R1, R13, R8   # 0x1f54
-        BRA_PRED         4, L207c   # 0x1f58
-L1f5c:  ST_LOCAL         R13, 36   # 0x1f5c
-        ST_LOCAL         R2, 28   # 0x1f60
-        LD_LOCAL         R1, 20   # 0x1f64
-        SETP_EQ_NPI      P0, R3, R1, 0   # 0x1f68
-        BRA_PRED         0, L1ffa   # 0x1f6c
-        C_CHWIDTH        R7, 0   # 0x1f70
-        MOVI             R7, 0   # 0x1f72
-        C_MOV            R3, R10   # 0x1f76
-        LD_LOCAL         R2, 32   # 0x1f78
-        LD_LOCAL         R9, 44   # 0x1f7c
-        MOVI             R11, 10   # 0x1f80
-        LD_LOCAL         R13, 28   # 0x1f84
-L1f88:  C_CHWIDTH        R9, 1   # 0x1f88
-        C_CHWIDTH        R5, 0   # 0x1f8a
-        ADD              R5, R13, R7, R13   # 0x1f8c
-        C_SHLI           R5, 2   # 0x1f90
-        LD_LOCAL         R1, 12   # 0x1f92
-        C_ADD            R5, R1   # 0x1f96
-        ADDI             R10, R5, 4   # 0x1f98
-        LD_GLOBAL_IDX    R10, R4, R10, 0, 0   # 0x1f9c
-        LD_GLOBAL_IDX    R5, R4, R5, 0, 0   # 0x1fa0
-        SETP_LT_NP       P0, R3, R3, R5   # 0x1fa4
-        SETP_LT_NP       P1, R3, R5, R10   # 0x1fa8
-        MOVI             R3, 0   # 0x1fac
-        MOVI             R6, 1   # 0x1fb0
-        MOV_P            R3, 1, R6, R6, R6   # 0x1fb4
-        MOVI             R1, 0   # 0x1fb8
-        MOV_P            R1, 0, R6, R6, R6   # 0x1fbc
-        C_ADD            R5, R15   # 0x1fc0
-        SETP_LT_NP       P0, R15, R2, R5   # 0x1fc2
-        MOV_P            R1, 0, R11, R11, R11   # 0x1fc6
-        MOVI             R6, 0   # 0x1fca
-        MOV_P            R5, 0, R6, R6, R6   # 0x1fce
-        ADD              R15, R10, R5, R10   # 0x1fd2
-        SETP_LT_NP       P0, R5, R2, R15   # 0x1fd6
-        C_CHWIDTH        R5, 1   # 0x1fda
-        MOV_P            R3, 0, R11, R11, R11   # 0x1fdc
-        MOV_P            R15, 0, R6, R6, R6   # 0x1fe0
-        ADD              R5, R1, R9, R1   # 0x1fe4
-        ADD              R9, R3, R5, R3   # 0x1fe8
-        C_ADDI           R7, 2   # 0x1fec
-        SETP_NE_NP       P0, R1, R12, R7   # 0x1fee
-        C_MOV            R3, R10   # 0x1ff2
-        BRA_PRED         0, L1f88   # 0x1ff4
-        C_BRA            L2004   # 0x1ff8
-L1ffa:  C_CHWIDTH        R7, 0   # 0x1ffa
-        MOVI             R7, 0   # 0x1ffc
-        LD_LOCAL         R9, 44   # 0x2000
-L2004:  C_CHWIDTH        R9, 0   # 0x2004
-        ST_LOCAL         R9, 44   # 0x2006
-        LD_LOCAL         R1, 24   # 0x200a
-        SETP_EQ_NPI      P0, R1, R1, 0   # 0x200e
-        MOVI             R9, 0   # 0x2012
-        MOVI             R2, 1   # 0x2016
-        MOVI             R6, 10   # 0x201a
-        LD_LOCAL         R11, 12   # 0x201e
-        LD_LOCAL         R13, 36   # 0x2022
-        BRA_PRED         0, L1f4c   # 0x2026
-        MUL_LO           R1, R13, R8, R8   # 0x202a
-        ADD              R1, R7, R1, R7   # 0x202e
-        C_SHLI           R1, 2   # 0x2032
-        ADD              R1, R11, R1, R11   # 0x2034
-        LD_GLOBAL_IDX    R1, R4, R1, 0, 0   # 0x2038
-        SETP_LT_NP       P0, R3, R10, R1   # 0x203c
-        MOVI             R3, 0   # 0x2040
-        MOV_P            R3, 0, R2, R2, R2   # 0x2044
-        ADD              R15, R1, R15, R1   # 0x2048
-        LD_LOCAL         R2, 32   # 0x204c
-        SETP_LT_NP       P0, R5, R2, R15   # 0x2050
-        MOV_P            R15, 0, R9, R9, R9   # 0x2054
-        MOV_P            R3, 0, R6, R6, R6   # 0x2058
-        LD_LOCAL         R2, 44   # 0x205c
-        C_CHWIDTH        R2, 1   # 0x2060
-        ADD              R2, R3, R2, R3   # 0x2062
-        C_CHWIDTH        R2, 0   # 0x2066
-        ST_LOCAL         R2, 44   # 0x2068
-        C_MOV            R10, R1   # 0x206c
-        BRA              L1f4c   # 0x206e
-L2072:  C_MOV            R1, R2   # 0x2072
-        ST_LOCAL         R1, 44   # 0x2074
-        LD_LOCAL         R4, 16   # 0x2078
-L207c:  CHWIDTH_MULTI    32, 0   # 0x207c
-        LD_LOCAL         R1, 40   # 0x2080
-        LD_LOCAL         R2, 68   # 0x2084
-        OR               R15, R1, R2, R1   # 0x2088
-        LD_LOCAL         R1, 52   # 0x208c
-        MOVI             R2, 65535   # 0x2090
-        AND              R10, R1, R2, R1   # 0x2094
-        MOVI             R1, 0   # 0x2098
-        SETP_EQ_NPI      P0, R2, R8, 0   # 0x209c
-        BRA_PRED         0, L22ac   # 0x20a0
-        MOVI             R9, 0   # 0x20a4
-        C_BRA            L20c6   # 0x20a8
-L20aa:  CHWIDTH_MULTI    8224, 0   # 0x20aa
-        C_MOV            R2, R9   # 0x20ae
-        C_SHLI           R2, 2   # 0x20b0
-        ADD              R2, R11, R2, R11   # 0x20b2
-        ST_GLOBAL_IDX    R6, R4, R2, 0, 0   # 0x20b6
-        C_ADD            R1, R8   # 0x20ba
-        C_ADDI           R9, 1   # 0x20bc
-        SETP_NE_NP       P0, R2, R9, R8   # 0x20be
-        BRA_PRED         4, L2176   # 0x20c2
-L20c6:  ST_LOCAL         R9, 28   # 0x20c6
-        LD_LOCAL         R2, 20   # 0x20ca
-        SETP_EQ_NPI      P0, R3, R2, 0   # 0x20ce
-        BRA_PRED         0, L2132   # 0x20d2
-        MOVI             R5, 0   # 0x20d6
-        MOVI             R6, 0   # 0x20da
-L20de:  C_CHWIDTH        R13, 1   # 0x20de
-        C_CHWIDTH        R7, 0   # 0x20e0
-        ADD              R3, R1, R5, R1   # 0x20e2
-        C_SHLI           R3, 1   # 0x20e6
-        C_ADD            R3, R14   # 0x20e8
-        C_MOV            R7, R5   # 0x20ea
-        C_SHLI           R7, 1   # 0x20ec
-        C_ADD            R7, R10   # 0x20ee
-        LD_GLOBAL_IDX    R13, R15, R7, 0, 0   # 0x20f0
-        CVT_SEXT         R9, R13, R13, R13   # 0x20f4
-        LD_GLOBAL_IDX    R13, R0, R3, 0, 0   # 0x20f8
-        CVT_SEXT         R2, R13, R13, R13   # 0x20fc
-        MADLO            R2, R9, R2, R6   # 0x2100
-        C_CHWIDTH        R6, 1   # 0x2104
-        C_ADDI           R3, 2   # 0x2106
-        LD_GLOBAL_IDX    R6, R0, R3, 0, 0   # 0x2108
-        ADDI             R3, R7, 2   # 0x210c
-        C_CHWIDTH        R7, 1   # 0x2110
-        LD_GLOBAL_IDX    R7, R15, R3, 0, 0   # 0x2112
-        CVT_SEXT         R3, R7, R7, R7   # 0x2116
-        C_CHWIDTH        R7, 0   # 0x211a
-        CVT_SEXT         R7, R6, R6, R6   # 0x211c
-        C_CHWIDTH        R6, 0   # 0x2120
-        MADLO            R6, R3, R7, R2   # 0x2122
-        C_ADDI           R5, 2   # 0x2126
-        SETP_NE_NP       P0, R2, R12, R5   # 0x2128
-        BRA_PRED         0, L20de   # 0x212c
-        C_BRA            L213a   # 0x2130
-L2132:  MOVI             R5, 0   # 0x2132
-        MOVI             R6, 0   # 0x2136
-L213a:  LD_LOCAL         R2, 24   # 0x213a
-        SETP_EQ_NPI      P0, R2, R2, 0   # 0x213e
-        LD_LOCAL         R9, 28   # 0x2142
-        BRA_PRED         0, L20aa   # 0x2146
-        C_CHWIDTH        R7, 1   # 0x214a
-        MUL_LO           R2, R9, R8, R8   # 0x214c
-        ADD              R2, R5, R2, R5   # 0x2150
-        C_SHLI           R2, 1   # 0x2154
-        ADD              R2, R14, R2, R14   # 0x2156
-        LD_GLOBAL_IDX    R7, R0, R2, 0, 0   # 0x215a
-        C_SHLI           R5, 1   # 0x215e
-        ADD              R2, R10, R5, R10   # 0x2160
-        C_CHWIDTH        R5, 1   # 0x2164
-        LD_GLOBAL_IDX    R5, R15, R2, 0, 0   # 0x2166
-        CVT_SEXT         R2, R5, R5, R5   # 0x216a
-        CVT_SEXT         R3, R7, R7, R7   # 0x216e
-        MAD_ACC          R6, R2, R3   # 0x2172
-        C_BRA            L20aa   # 0x2174
-L2176:  MOVI             R1, 0   # 0x2176
-        C_MOV            R5, R1   # 0x217a
-        MOVI             R3, 0   # 0x217c
-        ST_LOCAL         R1, 40   # 0x2180
-        MOVI             R6, 0   # 0x2184
-        MOVI             R13, 0   # 0x2188
-        C_BRA            L21a6   # 0x218c
-L218e:  LD_LOCAL         R3, 28   # 0x218e
-        C_ADD            R3, R8   # 0x2192
-        LD_LOCAL         R2, 40   # 0x2194
-        C_ADDI           R2, 1   # 0x2198
-        ST_LOCAL         R2, 40   # 0x219a
-        SETP_NE_NP       P0, R2, R2, R8   # 0x219e
-        BRA_PRED         4, L22ae   # 0x21a2
-L21a6:  ST_LOCAL         R3, 28   # 0x21a6
-        LD_LOCAL         R2, 20   # 0x21aa
-        SETP_EQ_NPI      P0, R2, R2, 0   # 0x21ae
-        BRA_PRED         0, L224c   # 0x21b2
-        MOVI             R2, 0   # 0x21b6
-        C_MOV            R3, R6   # 0x21ba
-        LD_LOCAL         R1, 32   # 0x21bc
-        LD_LOCAL         R1, 28   # 0x21c0
-L21c4:  CHWIDTH_MULTI    160, 0   # 0x21c4
-        ST_LOCAL         R5, 36   # 0x21c8
-        LD_LOCAL         R1, 28   # 0x21cc
-        C_ADD            R1, R2   # 0x21d0
-        C_SHLI           R1, 2   # 0x21d2
-        LD_LOCAL         R5, 12   # 0x21d4
-        ADD              R5, R1, R5, R1   # 0x21d8
-        ADDI             R1, R5, 4   # 0x21dc
-        LD_GLOBAL_IDX    R6, R4, R1, 0, 0   # 0x21e0
-        LD_GLOBAL_IDX    R5, R4, R5, 0, 0   # 0x21e4
-        SETP_LT_NP       P0, R3, R3, R5   # 0x21e8
-        SETP_LT_NP       P1, R3, R5, R6   # 0x21ec
-        MOVI             R3, 0   # 0x21f0
-        MOVI             R11, 1   # 0x21f4
-        MOV_P            R3, 1, R11, R11, R11   # 0x21f8
-        MOVI             R7, 0   # 0x21fc
-        MOV_P            R7, 0, R11, R11, R11   # 0x2200
-        C_ADD            R5, R13   # 0x2204
-        LD_LOCAL         R1, 32   # 0x2206
-        SETP_LT_NP       P0, R13, R1, R5   # 0x220a
-        MOVI             R9, 10   # 0x220e
-        MOV_P            R7, 0, R9, R9, R9   # 0x2212
-        C_CHWIDTH        R7, 1   # 0x2216
-        MOVI             R11, 0   # 0x2218
-        MOV_P            R5, 0, R11, R11, R11   # 0x221c
-        ADD              R13, R6, R5, R6   # 0x2220
-        SETP_LT_NP       P0, R5, R1, R13   # 0x2224
-        C_CHWIDTH        R5, 1   # 0x2228
-        MOV_P            R3, 0, R9, R9, R9   # 0x222a
-        MOV_P            R13, 0, R11, R11, R11   # 0x222e
-        LD_LOCAL         R1, 36   # 0x2232
-        ADD              R7, R7, R1, R7   # 0x2236
-        ADD              R5, R3, R7, R3   # 0x223a
-        C_ADDI           R2, 2   # 0x223e
-        SETP_NE_NP       P0, R3, R12, R2   # 0x2240
-        C_MOV            R3, R6   # 0x2244
-        BRA_PRED         0, L21c4   # 0x2246
-        C_BRA            L2250   # 0x224a
-L224c:  MOVI             R2, 0   # 0x224c
-L2250:  C_CHWIDTH        R7, 0   # 0x2250
-        LD_LOCAL         R3, 24   # 0x2252
-        SETP_EQ_NPI      P0, R3, R3, 0   # 0x2256
-        MOVI             R9, 0   # 0x225a
-        LD_LOCAL         R11, 12   # 0x225e
-        MOVI             R7, 1   # 0x2262
-        BRA_PRED         0, L218e   # 0x2266
-        C_CHWIDTH        R5, 1   # 0x226a
-        LD_LOCAL         R3, 40   # 0x226c
-        C_MUL_LO         R3, R8   # 0x2270
-        C_ADD            R2, R3   # 0x2272
-        C_SHLI           R2, 2   # 0x2274
-        ADD              R2, R11, R2, R11   # 0x2276
-        LD_GLOBAL_IDX    R2, R4, R2, 0, 0   # 0x227a
-        SETP_LT_NP       P0, R1, R6, R2   # 0x227e
-        MOVI             R1, 0   # 0x2282
-        MOV_P            R1, 0, R7, R7, R7   # 0x2286
-        ADD              R13, R2, R13, R2   # 0x228a
-        LD_LOCAL         R3, 32   # 0x228e
-        SETP_LT_NP       P0, R3, R3, R13   # 0x2292
-        MOV_P            R13, 0, R9, R9, R9   # 0x2296
-        MOVI             R3, 10   # 0x229a
-        MOV_P            R1, 0, R3, R3, R3   # 0x229e
-        ADD              R5, R1, R5, R1   # 0x22a2
-        C_MOV            R6, R2   # 0x22a6
-        BRA              L218e   # 0x22a8
-L22ac:  C_MOV            R5, R1   # 0x22ac
-L22ae:  CHWIDTH_MULTI    160, 0   # 0x22ae
-        ST_LOCAL         R5, 36   # 0x22b2
-        MOVI             R1, 0   # 0x22b6
-        SETP_EQ_NPI      P0, R2, R8, 0   # 0x22ba
-        C_MOV            R2, R8   # 0x22be
-        C_SHLI           R2, 1   # 0x22c0
-        C_MOV            R4, R8   # 0x22c2
-        BRA_PRED         0, L2518   # 0x22c4
-        LD_LOCAL         R3, 48   # 0x22c8
-        MOVI             R5, 0   # 0x22cc
-        C_BRA            L22e6   # 0x22d0
-L22d2:  CHWIDTH_MULTI    128, 0   # 0x22d2
-        C_ADD            R1, R8   # 0x22d6
-        LD_LOCAL         R5, 40   # 0x22d8
-        C_ADDI           R5, 1   # 0x22dc
-        SETP_NE_NP       P0, R3, R5, R8   # 0x22de
-        BRA_PRED         4, L23d2   # 0x22e2
-L22e6:  ST_LOCAL         R5, 40   # 0x22e6
-        MUL_LO           R3, R5, R8, R8   # 0x22ea
-        ST_LOCAL         R3, 28   # 0x22ee
-        MOVI             R11, 0   # 0x22f2
-        C_BRA            L231e   # 0x22f6
-L22f8:  C_CHWIDTH        R6, 0   # 0x22f8
-        LD_LOCAL         R3, 28   # 0x22fa
-        ADD              R3, R11, R3, R11   # 0x22fe
-        C_SHLI           R3, 2   # 0x2302
-        LD_LOCAL         R6, 12   # 0x2304
-        ADD              R3, R6, R3, R6   # 0x2308
-        LD_LOCAL         R6, 16   # 0x230c
-        ST_GLOBAL_IDX    R5, R6, R3, 0, 0   # 0x2310
-        C_ADDI           R11, 1   # 0x2314
-        SETP_NE_NP       P0, R3, R11, R8   # 0x2316
-        BRA_PRED         4, L22d2   # 0x231a
-L231e:  LD_LOCAL         R3, 20   # 0x231e
-        SETP_EQ_NPI      P0, R3, R3, 0   # 0x2322
-        MOVI             R13, 0   # 0x2326
-        MOVI             R5, 0   # 0x232a
-        BRA_PRED         0, L2394   # 0x232e
-        C_MOV            R9, R11   # 0x2332
-L2334:  C_CHWIDTH        R7, 0   # 0x2334
-        ADD              R6, R1, R13, R1   # 0x2336
-        C_SHLI           R6, 1   # 0x233a
-        C_ADD            R6, R14   # 0x233c
-        C_MOV            R3, R9   # 0x233e
-        C_SHLI           R3, 1   # 0x2340
-        ADD              R3, R10, R3, R10   # 0x2342
-        C_CHWIDTH        R3, 1   # 0x2346
-        LD_GLOBAL_IDX    R3, R15, R3, 0, 0   # 0x2348
-        CVT_SEXT         R8, R3, R3, R3   # 0x234c
-        LD_GLOBAL_IDX    R3, R0, R6, 0, 0   # 0x2350
-        CVT_SEXT         R7, R3, R3, R3   # 0x2354
-        C_CHWIDTH        R3, 0   # 0x2358
-        MADLO            R3, R8, R7, R5   # 0x235a
-        C_CHWIDTH        R7, 1   # 0x235e
-        C_MOV            R8, R4   # 0x2360
-        ADDI             R5, R6, 2   # 0x2362
-        C_CHWIDTH        R6, 1   # 0x2366
-        LD_GLOBAL_IDX    R7, R0, R5, 0, 0   # 0x2368
-        ADD              R5, R8, R9, R8   # 0x236c
-        C_SHLI           R5, 1   # 0x2370
-        ADD              R5, R10, R5, R10   # 0x2372
-        LD_GLOBAL_IDX    R6, R15, R5, 0, 0   # 0x2376
-        CVT_SEXT         R5, R6, R6, R6   # 0x237a
-        C_CHWIDTH        R6, 0   # 0x237e
-        CVT_SEXT         R6, R7, R7, R7   # 0x2380
-        MADLO            R5, R5, R6, R3   # 0x2384
-        C_ADD            R9, R2   # 0x2388
-        C_ADDI           R13, 2   # 0x238a
-        SETP_NE_NP       P0, R3, R12, R13   # 0x238c
-        BRA_PRED         0, L2334   # 0x2390
-L2394:  LD_LOCAL         R3, 24   # 0x2394
-        SETP_EQ_NPI      P0, R3, R3, 0   # 0x2398
-        BRA_PRED         0, L22f8   # 0x239c
-        CHWIDTH_MULTI    192, 1   # 0x23a0
-        MADLO            R3, R13, R8, R11   # 0x23a4
-        C_SHLI           R3, 1   # 0x23a8
-        ADD              R3, R10, R3, R10   # 0x23aa
-        LD_GLOBAL_IDX    R7, R15, R3, 0, 0   # 0x23ae
-        LD_LOCAL         R3, 28   # 0x23b2
-        ADD              R3, R13, R3, R13   # 0x23b6
-        C_SHLI           R3, 1   # 0x23ba
-        ADD              R3, R14, R3, R14   # 0x23bc
-        LD_GLOBAL_IDX    R6, R0, R3, 0, 0   # 0x23c0
-        CVT_SEXT         R3, R7, R7, R7   # 0x23c4
-        C_CHWIDTH        R7, 0   # 0x23c8
-        CVT_SEXT         R7, R6, R6, R6   # 0x23ca
-        MAD_ACC          R5, R3, R7   # 0x23ce
-        C_BRA            L22f8   # 0x23d0
-L23d2:  MOVI             R1, 0   # 0x23d2
-        C_MOV            R7, R1   # 0x23d6
-        MOVI             R5, 0   # 0x23d8
-        ST_LOCAL         R1, 28   # 0x23dc
-        MOVI             R11, 0   # 0x23e0
-        LD_LOCAL         R3, 48   # 0x23e4
-        C_BRA            L23fe   # 0x23e8
-L23ea:  C_ADD            R5, R8   # 0x23ea
-        LD_LOCAL         R3, 28   # 0x23ec
-        C_ADDI           R3, 1   # 0x23f0
-        ST_LOCAL         R3, 28   # 0x23f2
-        SETP_NE_NP       P0, R3, R3, R8   # 0x23f6
-        BRA_PRED         4, L251a   # 0x23fa
-L23fe:  LD_LOCAL         R3, 20   # 0x23fe
-        SETP_EQ_NPI      P0, R3, R3, 0   # 0x2402
-        BRA_PRED         0, L24aa   # 0x2406
-        MOVI             R6, 0   # 0x240a
-        C_MOV            R3, R11   # 0x240e
-        LD_LOCAL         R8, 16   # 0x2410
-        LD_LOCAL         R8, 12   # 0x2414
-        LD_LOCAL         R8, 32   # 0x2418
-L241c:  C_CHWIDTH        R7, 0   # 0x241c
-        ST_LOCAL         R7, 40   # 0x241e
-        C_MOV            R7, R5   # 0x2422
-        ADD              R5, R7, R6, R7   # 0x2424
-        C_SHLI           R5, 2   # 0x2428
-        LD_LOCAL         R8, 12   # 0x242a
-        C_ADD            R5, R8   # 0x242e
-        ADDI             R8, R5, 4   # 0x2430
-        LD_LOCAL         R9, 16   # 0x2434
-        LD_GLOBAL_IDX    R11, R9, R8, 0, 0   # 0x2438
-        LD_GLOBAL_IDX    R5, R9, R5, 0, 0   # 0x243c
-        SETP_LT_NP       P0, R3, R3, R5   # 0x2440
-        SETP_LT_NP       P1, R3, R5, R11   # 0x2444
+        C_BRA            L1f50   # 0x1f42
+L1f44:  C_ADD            R7, R8   # 0x1f44
+        C_ADDI           R9, 1   # 0x1f46
+        SETP_NE_NP       P0, R3, R9, R8   # 0x1f48
+        BRA_PRED         4, L2050   # 0x1f4c
+L1f50:  ST_LOCAL         R9, 12   # 0x1f50
+        LD_LOCAL         R3, 24   # 0x1f54
+        SETP_EQ_NPI      P0, R3, R3, 0   # 0x1f58
+        BRA_PRED         0, L1fea   # 0x1f5c
+        MOVI             R10, 0   # 0x1f60
+        LD_LOCAL         R2, 32   # 0x1f64
+L1f68:  C_CHWIDTH        R5, 0   # 0x1f68
+        ADD              R3, R7, R10, R7   # 0x1f6a
+        C_SHLI           R3, 2   # 0x1f6e
+        C_ADD            R3, R11   # 0x1f70
+        C_MOV            R6, R5   # 0x1f72
+        LD_LOCAL         R4, 16   # 0x1f74
+        LD_GLOBAL_IDX    R5, R4, R3, 0, 0   # 0x1f78
+        SETP_LT_NP       P0, R1, R1, R5   # 0x1f7c
+        C_MOV            R9, R11   # 0x1f80
+        C_MOV            R11, R7   # 0x1f82
+        MOVI             R7, 0   # 0x1f84
+        ADDI_P           R7, 0, R7, 1   # 0x1f88
+        ADD              R15, R5, R15, R5   # 0x1f8c
+        LD_LOCAL         R2, 32   # 0x1f90
+        SETP_LT_NP       P0, R1, R2, R15   # 0x1f94
+        MOVI             R1, 10   # 0x1f98
+        MOV_P            R7, 0, R1, R1, R1   # 0x1f9c
+        C_CHWIDTH        R7, 1   # 0x1fa0
+        MOV_P            R15, 0, R13, R13, R13   # 0x1fa2
+        ADDI             R1, R3, 4   # 0x1fa6
+        LD_GLOBAL_IDX    R1, R4, R1, 0, 0   # 0x1faa
+        SETP_LT_NP       P0, R3, R5, R1   # 0x1fae
+        MOVI             R3, 0   # 0x1fb2
+        ADDI_P           R3, 0, R3, 1   # 0x1fb6
+        ADD              R15, R1, R15, R1   # 0x1fba
+        SETP_LT_NP       P0, R5, R2, R15   # 0x1fbe
+        C_CHWIDTH        R5, 1   # 0x1fc2
+        MOVI             R2, 10   # 0x1fc4
+        MOV_P            R3, 0, R2, R2, R2   # 0x1fc8
+        MOV_P            R15, 0, R13, R13, R13   # 0x1fcc
+        ADD              R7, R7, R6, R7   # 0x1fd0
+        ADD              R5, R3, R7, R3   # 0x1fd4
+        C_CHWIDTH        R7, 0   # 0x1fd8
+        C_MOV            R7, R11   # 0x1fda
+        C_MOV            R11, R9   # 0x1fdc
+        C_ADDI           R10, 2   # 0x1fde
+        SETP_NE_NP       P0, R3, R12, R10   # 0x1fe0
+        BRA_PRED         0, L1f68   # 0x1fe4
+        C_BRA            L1fee   # 0x1fe8
+L1fea:  MOVI             R10, 0   # 0x1fea
+L1fee:  LD_LOCAL         R3, 28   # 0x1fee
+        SETP_EQ_NPI      P0, R3, R3, 0   # 0x1ff2
+        MOVI             R2, 0   # 0x1ff6
+        MOVI             R6, 10   # 0x1ffa
+        LD_LOCAL         R9, 12   # 0x1ffe
+        BRA_PRED         0, L1f44   # 0x2002
+        C_CHWIDTH        R5, 1   # 0x2006
+        MUL_LO           R3, R9, R8, R8   # 0x2008
+        ADD              R3, R10, R3, R10   # 0x200c
+        C_SHLI           R3, 2   # 0x2010
+        ADD              R3, R11, R3, R11   # 0x2012
+        LD_LOCAL         R4, 16   # 0x2016
+        LD_GLOBAL_IDX    R3, R4, R3, 0, 0   # 0x201a
+        SETP_LT_NP       P0, R1, R1, R3   # 0x201e
+        ADD              R15, R3, R15, R3   # 0x2022
+        LD_LOCAL         R1, 32   # 0x2026
+        SETP_LT_NP       P1, R1, R1, R15   # 0x202a
+        MOV_P            R15, 1, R2, R2, R2   # 0x202e
+        MOVI             R1, 0   # 0x2032
+        ADDI_P           R1, 0, R1, 1   # 0x2036
+        MOV_P            R1, 1, R6, R6, R6   # 0x203a
+        ADD              R5, R1, R5, R1   # 0x203e
+        C_MOV            R1, R3   # 0x2042
+        BRA              L1f44   # 0x2044
+L2048:  C_MOV            R1, R2   # 0x2048
+        C_MOV            R5, R1   # 0x204a
+        LD_LOCAL         R1, 16   # 0x204c
+L2050:  C_CHWIDTH        R5, 0   # 0x2050
+        ST_LOCAL         R5, 64   # 0x2052
+        LD_LOCAL         R1, 36   # 0x2056
+        LD_LOCAL         R2, 68   # 0x205a
+        OR               R15, R1, R2, R1   # 0x205e
+        LD_LOCAL         R1, 40   # 0x2062
+        MOVI             R2, 65535   # 0x2066
+        AND              R10, R1, R2, R1   # 0x206a
+        MOVI             R1, 0   # 0x206e
+        SETP_EQ_NPI      P0, R2, R8, 0   # 0x2072
+        ST_LOCAL         R11, 20   # 0x2076
+        BRA_PRED         0, L2288   # 0x207a
+        MOVI             R9, 0   # 0x207e
+        C_BRA            L20a4   # 0x2082
+L2084:  CHWIDTH_MULTI    8224, 0   # 0x2084
+        C_MOV            R2, R9   # 0x2088
+        C_SHLI           R2, 2   # 0x208a
+        ADD              R2, R11, R2, R11   # 0x208c
+        LD_LOCAL         R3, 16   # 0x2090
+        ST_GLOBAL_IDX    R6, R3, R2, 0, 0   # 0x2094
+        C_ADD            R1, R8   # 0x2098
+        C_ADDI           R9, 1   # 0x209a
+        SETP_NE_NP       P0, R2, R9, R8   # 0x209c
+        BRA_PRED         4, L2158   # 0x20a0
+L20a4:  ST_LOCAL         R9, 12   # 0x20a4
+        LD_LOCAL         R2, 24   # 0x20a8
+        SETP_EQ_NPI      P0, R3, R2, 0   # 0x20ac
+        BRA_PRED         0, L2112   # 0x20b0
+        C_CHWIDTH        R6, 0   # 0x20b4
+        MOVI             R5, 0   # 0x20b6
+        MOVI             R6, 0   # 0x20ba
+L20be:  C_CHWIDTH        R13, 1   # 0x20be
+        C_CHWIDTH        R7, 0   # 0x20c0
+        ADD              R3, R1, R5, R1   # 0x20c2
+        C_SHLI           R3, 1   # 0x20c6
+        C_ADD            R3, R14   # 0x20c8
+        C_MOV            R7, R5   # 0x20ca
+        C_SHLI           R7, 1   # 0x20cc
+        C_ADD            R7, R10   # 0x20ce
+        LD_GLOBAL_IDX    R13, R15, R7, 0, 0   # 0x20d0
+        CVT_SEXT         R9, R13, R13, R13   # 0x20d4
+        LD_GLOBAL_IDX    R13, R0, R3, 0, 0   # 0x20d8
+        CVT_SEXT         R2, R13, R13, R13   # 0x20dc
+        MADLO            R2, R9, R2, R6   # 0x20e0
+        C_CHWIDTH        R6, 1   # 0x20e4
+        C_ADDI           R3, 2   # 0x20e6
+        LD_GLOBAL_IDX    R6, R0, R3, 0, 0   # 0x20e8
+        ADDI             R3, R7, 2   # 0x20ec
+        C_CHWIDTH        R7, 1   # 0x20f0
+        LD_GLOBAL_IDX    R7, R15, R3, 0, 0   # 0x20f2
+        CVT_SEXT         R3, R7, R7, R7   # 0x20f6
+        C_CHWIDTH        R7, 0   # 0x20fa
+        CVT_SEXT         R7, R6, R6, R6   # 0x20fc
+        C_CHWIDTH        R6, 0   # 0x2100
+        MADLO            R6, R3, R7, R2   # 0x2102
+        C_ADDI           R5, 2   # 0x2106
+        SETP_NE_NP       P0, R2, R12, R5   # 0x2108
+        BRA_PRED         0, L20be   # 0x210c
+        C_BRA            L211c   # 0x2110
+L2112:  C_CHWIDTH        R6, 0   # 0x2112
+        MOVI             R5, 0   # 0x2114
+        MOVI             R6, 0   # 0x2118
+L211c:  LD_LOCAL         R2, 28   # 0x211c
+        SETP_EQ_NPI      P0, R2, R2, 0   # 0x2120
+        LD_LOCAL         R9, 12   # 0x2124
+        BRA_PRED         0, L2084   # 0x2128
+        C_CHWIDTH        R7, 1   # 0x212c
+        MUL_LO           R2, R9, R8, R8   # 0x212e
+        ADD              R2, R5, R2, R5   # 0x2132
+        C_SHLI           R2, 1   # 0x2136
+        ADD              R2, R14, R2, R14   # 0x2138
+        LD_GLOBAL_IDX    R7, R0, R2, 0, 0   # 0x213c
+        C_SHLI           R5, 1   # 0x2140
+        ADD              R2, R10, R5, R10   # 0x2142
+        C_CHWIDTH        R5, 1   # 0x2146
+        LD_GLOBAL_IDX    R5, R15, R2, 0, 0   # 0x2148
+        CVT_SEXT         R2, R5, R5, R5   # 0x214c
+        CVT_SEXT         R3, R7, R7, R7   # 0x2150
+        MAD_ACC          R6, R2, R3   # 0x2154
+        C_BRA            L2084   # 0x2156
+L2158:  MOVI             R1, 0   # 0x2158
+        C_MOV            R5, R1   # 0x215c
+        MOVI             R3, 0   # 0x215e
+        MOVI             R9, 0   # 0x2162
+        MOVI             R13, 0   # 0x2166
+        ST_LOCAL         R14, 48   # 0x216a
+        C_BRA            L2184   # 0x216e
+L2170:  LD_LOCAL         R3, 12   # 0x2170
+        C_ADD            R3, R8   # 0x2174
+        C_ADDI           R9, 1   # 0x2176
+        SETP_NE_NP       P0, R2, R9, R8   # 0x2178
+        LD_LOCAL         R14, 48   # 0x217c
+        BRA_PRED         4, L228a   # 0x2180
+L2184:  ST_LOCAL         R9, 36   # 0x2184
+        ST_LOCAL         R3, 12   # 0x2188
+        LD_LOCAL         R2, 24   # 0x218c
+        SETP_EQ_NPI      P0, R3, R2, 0   # 0x2190
+        BRA_PRED         0, L2224   # 0x2194
+        MOVI             R6, 0   # 0x2198
+        LD_LOCAL         R2, 32   # 0x219c
+        LD_LOCAL         R2, 12   # 0x21a0
+L21a4:  CHWIDTH_MULTI    160, 0   # 0x21a4
+        LD_LOCAL         R2, 12   # 0x21a8
+        ADD              R3, R2, R6, R2   # 0x21ac
+        C_SHLI           R3, 2   # 0x21b0
+        LD_LOCAL         R2, 20   # 0x21b2
+        C_ADD            R3, R2   # 0x21b6
+        C_MOV            R9, R5   # 0x21b8
+        LD_LOCAL         R4, 16   # 0x21ba
+        LD_GLOBAL_IDX    R5, R4, R3, 0, 0   # 0x21be
+        SETP_LT_NP       P0, R1, R1, R5   # 0x21c2
+        MOVI             R2, 0   # 0x21c6
+        ADDI_P           R2, 0, R2, 1   # 0x21ca
+        ADD              R13, R5, R13, R5   # 0x21ce
+        LD_LOCAL         R14, 32   # 0x21d2
+        SETP_LT_NP       P0, R1, R14, R13   # 0x21d6
+        MOVI             R7, 10   # 0x21da
+        MOV_P            R2, 0, R7, R7, R7   # 0x21de
+        MOVI             R11, 0   # 0x21e2
+        MOV_P            R13, 0, R11, R11, R11   # 0x21e6
+        ADDI             R1, R3, 4   # 0x21ea
+        LD_GLOBAL_IDX    R1, R4, R1, 0, 0   # 0x21ee
+        SETP_LT_NP       P0, R3, R5, R1   # 0x21f2
+        MOVI             R3, 0   # 0x21f6
+        ADDI_P           R3, 0, R3, 1   # 0x21fa
+        ADD              R13, R1, R13, R1   # 0x21fe
+        SETP_LT_NP       P0, R5, R14, R13   # 0x2202
+        C_CHWIDTH        R5, 1   # 0x2206
+        MOV_P            R3, 0, R7, R7, R7   # 0x2208
+        MOV_P            R13, 0, R11, R11, R11   # 0x220c
+        ADD              R5, R2, R9, R2   # 0x2210
+        ADD              R5, R3, R5, R3   # 0x2214
+        C_ADDI           R6, 2   # 0x2218
+        SETP_NE_NP       P0, R2, R12, R6   # 0x221a
+        BRA_PRED         0, L21a4   # 0x221e
+        C_BRA            L2228   # 0x2222
+L2224:  MOVI             R6, 0   # 0x2224
+L2228:  C_CHWIDTH        R7, 0   # 0x2228
+        LD_LOCAL         R2, 28   # 0x222a
+        SETP_EQ_NPI      P0, R2, R2, 0   # 0x222e
+        MOVI             R3, 0   # 0x2232
+        LD_LOCAL         R11, 20   # 0x2236
+        MOVI             R7, 10   # 0x223a
+        LD_LOCAL         R9, 36   # 0x223e
+        BRA_PRED         0, L2170   # 0x2242
+        C_CHWIDTH        R5, 1   # 0x2246
+        MUL_LO           R2, R9, R8, R8   # 0x2248
+        ADD              R2, R6, R2, R6   # 0x224c
+        C_SHLI           R2, 2   # 0x2250
+        ADD              R2, R11, R2, R11   # 0x2252
+        LD_LOCAL         R4, 16   # 0x2256
+        LD_GLOBAL_IDX    R2, R4, R2, 0, 0   # 0x225a
+        SETP_LT_NP       P0, R1, R1, R2   # 0x225e
+        ADD              R13, R2, R13, R2   # 0x2262
+        LD_LOCAL         R1, 32   # 0x2266
+        SETP_LT_NP       P1, R1, R1, R13   # 0x226a
+        MOV_P            R13, 1, R3, R3, R3   # 0x226e
+        MOVI             R1, 0   # 0x2272
+        ADDI_P           R1, 0, R1, 1   # 0x2276
+        MOV_P            R1, 1, R7, R7, R7   # 0x227a
+        ADD              R5, R1, R5, R1   # 0x227e
+        C_MOV            R1, R2   # 0x2282
+        BRA              L2170   # 0x2284
+L2288:  C_MOV            R5, R1   # 0x2288
+L228a:  C_CHWIDTH        R5, 0   # 0x228a
+        ST_LOCAL         R5, 68   # 0x228c
+        MOVI             R1, 0   # 0x2290
+        SETP_EQ_NPI      P0, R2, R8, 0   # 0x2294
+        C_MOV            R2, R8   # 0x2298
+        C_SHLI           R2, 1   # 0x229a
+        ST_LOCAL         R8, 12   # 0x229c
+        BRA_PRED         0, L24ec   # 0x22a0
+        LD_LOCAL         R3, 44   # 0x22a4
+        MOVI             R5, 0   # 0x22a8
+        C_BRA            L22c2   # 0x22ac
+L22ae:  CHWIDTH_MULTI    128, 0   # 0x22ae
+        C_ADD            R1, R8   # 0x22b2
+        LD_LOCAL         R5, 40   # 0x22b4
+        C_ADDI           R5, 1   # 0x22b8
+        SETP_NE_NP       P0, R3, R5, R8   # 0x22ba
+        BRA_PRED         4, L23b2   # 0x22be
+L22c2:  ST_LOCAL         R5, 40   # 0x22c2
+        MUL_LO           R3, R5, R8, R8   # 0x22c6
+        ST_LOCAL         R3, 36   # 0x22ca
+        MOVI             R11, 0   # 0x22ce
+        C_BRA            L22fa   # 0x22d2
+L22d4:  C_CHWIDTH        R6, 0   # 0x22d4
+        LD_LOCAL         R3, 36   # 0x22d6
+        ADD              R3, R11, R3, R11   # 0x22da
+        C_SHLI           R3, 2   # 0x22de
+        LD_LOCAL         R6, 20   # 0x22e0
+        ADD              R3, R6, R3, R6   # 0x22e4
+        LD_LOCAL         R6, 16   # 0x22e8
+        ST_GLOBAL_IDX    R5, R6, R3, 0, 0   # 0x22ec
+        C_ADDI           R11, 1   # 0x22f0
+        SETP_NE_NP       P0, R3, R11, R8   # 0x22f2
+        BRA_PRED         4, L22ae   # 0x22f6
+L22fa:  LD_LOCAL         R3, 24   # 0x22fa
+        SETP_EQ_NPI      P0, R3, R3, 0   # 0x22fe
+        MOVI             R13, 0   # 0x2302
+        MOVI             R5, 0   # 0x2306
+        BRA_PRED         0, L2374   # 0x230a
+        C_MOV            R9, R11   # 0x230e
+L2310:  CHWIDTH_MULTI    192, 0   # 0x2310
+        ADD              R6, R1, R13, R1   # 0x2314
+        C_SHLI           R6, 1   # 0x2318
+        C_ADD            R6, R14   # 0x231a
+        C_MOV            R3, R9   # 0x231c
+        C_SHLI           R3, 1   # 0x231e
+        ADD              R3, R10, R3, R10   # 0x2320
+        C_CHWIDTH        R3, 1   # 0x2324
+        LD_GLOBAL_IDX    R3, R15, R3, 0, 0   # 0x2326
+        CVT_SEXT         R8, R3, R3, R3   # 0x232a
+        LD_GLOBAL_IDX    R3, R0, R6, 0, 0   # 0x232e
+        CVT_SEXT         R7, R3, R3, R3   # 0x2332
+        C_CHWIDTH        R3, 0   # 0x2336
+        MADLO            R3, R8, R7, R5   # 0x2338
+        C_CHWIDTH        R7, 1   # 0x233c
+        LD_LOCAL         R8, 12   # 0x233e
+        ADDI             R5, R6, 2   # 0x2342
+        C_CHWIDTH        R6, 1   # 0x2346
+        LD_GLOBAL_IDX    R7, R0, R5, 0, 0   # 0x2348
+        ADD              R5, R8, R9, R8   # 0x234c
+        C_SHLI           R5, 1   # 0x2350
+        ADD              R5, R10, R5, R10   # 0x2352
+        LD_GLOBAL_IDX    R6, R15, R5, 0, 0   # 0x2356
+        CVT_SEXT         R5, R6, R6, R6   # 0x235a
+        C_CHWIDTH        R6, 0   # 0x235e
+        CVT_SEXT         R6, R7, R7, R7   # 0x2360
+        MADLO            R5, R5, R6, R3   # 0x2364
+        C_ADD            R9, R2   # 0x2368
+        C_ADDI           R13, 2   # 0x236a
+        SETP_NE_NP       P0, R3, R12, R13   # 0x236c
+        BRA_PRED         0, L2310   # 0x2370
+L2374:  LD_LOCAL         R3, 28   # 0x2374
+        SETP_EQ_NPI      P0, R3, R3, 0   # 0x2378
+        BRA_PRED         0, L22d4   # 0x237c
+        CHWIDTH_MULTI    192, 1   # 0x2380
+        MADLO            R3, R13, R8, R11   # 0x2384
+        C_SHLI           R3, 1   # 0x2388
+        ADD              R3, R10, R3, R10   # 0x238a
+        LD_GLOBAL_IDX    R7, R15, R3, 0, 0   # 0x238e
+        LD_LOCAL         R3, 36   # 0x2392
+        ADD              R3, R13, R3, R13   # 0x2396
+        C_SHLI           R3, 1   # 0x239a
+        ADD              R3, R14, R3, R14   # 0x239c
+        LD_GLOBAL_IDX    R6, R0, R3, 0, 0   # 0x23a0
+        CVT_SEXT         R3, R7, R7, R7   # 0x23a4
+        C_CHWIDTH        R7, 0   # 0x23a8
+        CVT_SEXT         R7, R6, R6, R6   # 0x23aa
+        MAD_ACC          R5, R3, R7   # 0x23ae
+        C_BRA            L22d4   # 0x23b0
+L23b2:  MOVI             R1, 0   # 0x23b2
+        C_MOV            R7, R1   # 0x23b6
+        MOVI             R5, 0   # 0x23b8
+        ST_LOCAL         R1, 36   # 0x23bc
+        MOVI             R9, 0   # 0x23c0
+        LD_LOCAL         R3, 44   # 0x23c4
+        C_BRA            L23de   # 0x23c8
+L23ca:  C_ADD            R5, R8   # 0x23ca
+        LD_LOCAL         R3, 36   # 0x23cc
+        C_ADDI           R3, 1   # 0x23d0
+        ST_LOCAL         R3, 36   # 0x23d2
+        SETP_NE_NP       P0, R3, R3, R8   # 0x23d6
+        BRA_PRED         4, L24f2   # 0x23da
+L23de:  LD_LOCAL         R3, 24   # 0x23de
+        SETP_EQ_NPI      P0, R3, R3, 0   # 0x23e2
+        BRA_PRED         0, L2480   # 0x23e6
+        MOVI             R13, 0   # 0x23ea
+        LD_LOCAL         R3, 16   # 0x23ee
+        LD_LOCAL         R3, 20   # 0x23f2
+        LD_LOCAL         R3, 32   # 0x23f6
+L23fa:  C_CHWIDTH        R7, 0   # 0x23fa
+        ADD              R3, R5, R13, R5   # 0x23fc
+        C_SHLI           R3, 2   # 0x2400
+        LD_LOCAL         R6, 20   # 0x2402
+        C_ADD            R3, R6   # 0x2406
+        C_MOV            R11, R7   # 0x2408
+        C_MOV            R7, R5   # 0x240a
+        LD_LOCAL         R4, 16   # 0x240c
+        LD_GLOBAL_IDX    R5, R4, R3, 0, 0   # 0x2410
+        SETP_LT_NP       P0, R1, R1, R5   # 0x2414
+        MOVI             R8, 0   # 0x2418
+        ADDI_P           R8, 0, R8, 1   # 0x241c
+        ADD              R9, R5, R9, R5   # 0x2420
+        LD_LOCAL         R6, 32   # 0x2424
+        SETP_LT_NP       P0, R1, R6, R9   # 0x2428
+        MOVI             R1, 10   # 0x242c
+        MOV_P            R8, 0, R1, R1, R1   # 0x2430
+        MOVI             R1, 0   # 0x2434
+        MOV_P            R9, 0, R1, R1, R1   # 0x2438
+        ADDI             R1, R3, 4   # 0x243c
+        LD_GLOBAL_IDX    R1, R4, R1, 0, 0   # 0x2440
+        SETP_LT_NP       P0, R3, R5, R1   # 0x2444
         MOVI             R3, 0   # 0x2448
-        MOVI             R9, 1   # 0x244c
-        MOV_P            R3, 1, R9, R9, R9   # 0x2450
-        MOVI             R8, 0   # 0x2454
-        MOV_P            R8, 0, R9, R9, R9   # 0x2458
-        ADD              R1, R5, R1, R5   # 0x245c
-        LD_LOCAL         R13, 32   # 0x2460
-        SETP_LT_NP       P0, R5, R13, R1   # 0x2464
-        MOVI             R5, 10   # 0x2468
-        MOV_P            R8, 0, R5, R5, R5   # 0x246c
-        MOVI             R9, 0   # 0x2470
-        MOV_P            R1, 0, R9, R9, R9   # 0x2474
-        ADD              R1, R11, R1, R11   # 0x2478
-        SETP_LT_NP       P0, R5, R13, R1   # 0x247c
-        MOVI             R5, 10   # 0x2480
-        MOV_P            R3, 0, R5, R5, R5   # 0x2484
-        C_MOV            R5, R7   # 0x2488
-        MOV_P            R1, 0, R9, R9, R9   # 0x248a
-        LD_LOCAL         R7, 40   # 0x248e
-        C_CHWIDTH        R7, 1   # 0x2492
-        ADD              R7, R8, R7, R8   # 0x2494
-        ADD              R7, R3, R7, R3   # 0x2498
-        C_ADDI           R6, 2   # 0x249c
-        SETP_NE_NP       P0, R3, R12, R6   # 0x249e
-        C_MOV            R3, R11   # 0x24a2
-        BRA_PRED         0, L241c   # 0x24a4
-        C_BRA            L24b2   # 0x24a8
-L24aa:  MOVI             R6, 0   # 0x24aa
-        LD_LOCAL         R3, 12   # 0x24ae
-L24b2:  LD_LOCAL         R3, 24   # 0x24b2
-        SETP_EQ_NPI      P0, R3, R3, 0   # 0x24b6
-        C_MOV            R8, R4   # 0x24ba
-        LD_LOCAL         R9, 12   # 0x24bc
-        MOVI             R13, 0   # 0x24c0
-        BRA_PRED         0, L23ea   # 0x24c4
-        C_CHWIDTH        R7, 1   # 0x24c8
-        LD_LOCAL         R3, 28   # 0x24ca
-        C_MUL_LO         R3, R8   # 0x24ce
-        ADD              R3, R6, R3, R6   # 0x24d0
-        C_SHLI           R3, 2   # 0x24d4
-        ADD              R3, R9, R3, R9   # 0x24d6
-        C_MOV            R9, R5   # 0x24da
-        LD_LOCAL         R5, 16   # 0x24dc
-        LD_GLOBAL_IDX    R3, R5, R3, 0, 0   # 0x24e0
-        SETP_LT_NP       P0, R5, R11, R3   # 0x24e4
-        MOVI             R5, 0   # 0x24e8
-        MOVI             R6, 1   # 0x24ec
-        MOV_P            R5, 0, R6, R6, R6   # 0x24f0
-        ADD              R1, R3, R1, R3   # 0x24f4
-        LD_LOCAL         R6, 32   # 0x24f8
-        SETP_LT_NP       P0, R6, R6, R1   # 0x24fc
-        MOV_P            R1, 0, R13, R13, R13   # 0x2500
-        MOVI             R6, 10   # 0x2504
-        MOV_P            R5, 0, R6, R6, R6   # 0x2508
-        ADD              R7, R5, R7, R5   # 0x250c
-        C_MOV            R5, R9   # 0x2510
-        C_MOV            R11, R3   # 0x2512
-        BRA              L23ea   # 0x2514
-L2518:  C_MOV            R7, R1   # 0x2518
-L251a:  C_CHWIDTH        R7, 0   # 0x251a
-        MOVI             R1, 0   # 0x251c
-        SETP_EQ_NPI      P0, R3, R8, 0   # 0x2520
-        ST_LOCAL         R7, 40   # 0x2524
-        BRA_PRED         0, L2778   # 0x2528
-        LD_LOCAL         R3, 48   # 0x252c
-        MOVI             R5, 0   # 0x2530
-        C_BRA            L2546   # 0x2534
-L2536:  C_ADD            R1, R8   # 0x2536
-        LD_LOCAL         R5, 52   # 0x2538
-        C_ADDI           R5, 1   # 0x253c
-        SETP_NE_NP       P0, R3, R5, R8   # 0x253e
-        BRA_PRED         4, L264a   # 0x2542
-L2546:  ST_LOCAL         R5, 52   # 0x2546
-        MUL_LO           R3, R5, R8, R8   # 0x254a
-        ST_LOCAL         R3, 28   # 0x254e
-        MOVI             R3, 0   # 0x2552
-        C_BRA            L257c   # 0x2556
-L2558:  LD_LOCAL         R5, 28   # 0x2558
-        ADD              R5, R3, R5, R3   # 0x255c
-        C_SHLI           R5, 2   # 0x2560
-        LD_LOCAL         R7, 12   # 0x2562
-        ADD              R5, R7, R5, R7   # 0x2566
-        LD_LOCAL         R7, 16   # 0x256a
-        ST_GLOBAL_IDX    R6, R7, R5, 0, 0   # 0x256e
-        C_ADDI           R3, 1   # 0x2572
-        SETP_NE_NP       P0, R5, R3, R8   # 0x2574
-        BRA_PRED         4, L2536   # 0x2578
-L257c:  LD_LOCAL         R5, 20   # 0x257c
-        SETP_EQ_NPI      P0, R5, R5, 0   # 0x2580
-        MOVI             R5, 0   # 0x2584
-        MOVI             R6, 0   # 0x2588
-        C_MOV            R9, R8   # 0x258c
-        BRA_PRED         0, L2602   # 0x258e
-        C_MOV            R13, R3   # 0x2592
-L2594:  C_CHWIDTH        R7, 1   # 0x2594
-        ADD              R8, R1, R5, R1   # 0x2596
-        C_SHLI           R8, 1   # 0x259a
-        C_ADD            R8, R14   # 0x259c
-        C_MOV            R11, R13   # 0x259e
-        C_SHLI           R11, 1   # 0x25a0
-        ADD              R11, R10, R11, R10   # 0x25a2
-        C_CHWIDTH        R11, 1   # 0x25a6
-        LD_GLOBAL_IDX    R11, R15, R11, 0, 0   # 0x25a8
-        C_CHWIDTH        R11, 0   # 0x25ac
-        LD_GLOBAL_IDX    R7, R0, R8, 0, 0   # 0x25ae
-        C_CHWIDTH        R7, 0   # 0x25b2
-        MUL_LO           R7, R11, R7, R7   # 0x25b4
-        C_MOV            R11, R7   # 0x25b8
-        C_SHRI           R11, 5   # 0x25ba
-        ANDI             R11, R11, 127   # 0x25bc
-        C_SHRI           R7, 2   # 0x25c0
-        C_ANDI           R7, 15   # 0x25c2
-        MAD_ACC          R6, R7, R11   # 0x25c4
-        ADDI             R7, R8, 2   # 0x25c6
-        C_CHWIDTH        R7, 1   # 0x25ca
-        LD_GLOBAL_IDX    R7, R0, R7, 0, 0   # 0x25cc
-        C_CHWIDTH        R7, 0   # 0x25d0
-        ADD              R8, R9, R13, R9   # 0x25d2
-        C_SHLI           R8, 1   # 0x25d6
-        ADD              R8, R10, R8, R10   # 0x25d8
-        C_CHWIDTH        R8, 1   # 0x25dc
-        LD_GLOBAL_IDX    R8, R15, R8, 0, 0   # 0x25de
-        C_CHWIDTH        R8, 0   # 0x25e2
-        MUL_LO           R7, R8, R7, R7   # 0x25e4
-        C_MOV            R8, R7   # 0x25e8
-        C_SHRI           R8, 5   # 0x25ea
-        ANDI             R8, R8, 127   # 0x25ec
-        C_SHRI           R7, 2   # 0x25f0
-        C_ANDI           R7, 15   # 0x25f2
-        MAD_ACC          R6, R7, R8   # 0x25f4
-        C_ADD            R13, R2   # 0x25f6
-        C_ADDI           R5, 2   # 0x25f8
-        SETP_NE_NP       P0, R7, R12, R5   # 0x25fa
-        BRA_PRED         0, L2594   # 0x25fe
-L2602:  LD_LOCAL         R7, 24   # 0x2602
-        SETP_EQ_NPI      P0, R7, R7, 0   # 0x2606
-        C_MOV            R8, R9   # 0x260a
-        BRA_PRED         0, L2558   # 0x260c
-        MADLO            R7, R5, R8, R3   # 0x2610
-        C_SHLI           R7, 1   # 0x2614
-        ADD              R7, R10, R7, R10   # 0x2616
-        C_CHWIDTH        R7, 1   # 0x261a
-        LD_GLOBAL_IDX    R7, R15, R7, 0, 0   # 0x261c
-        C_CHWIDTH        R7, 0   # 0x2620
-        LD_LOCAL         R9, 28   # 0x2622
-        C_ADD            R5, R9   # 0x2626
-        C_SHLI           R5, 1   # 0x2628
-        ADD              R5, R14, R5, R14   # 0x262a
-        C_CHWIDTH        R5, 1   # 0x262e
-        LD_GLOBAL_IDX    R5, R0, R5, 0, 0   # 0x2630
-        C_CHWIDTH        R5, 0   # 0x2634
-        MUL_LO           R5, R7, R5, R5   # 0x2636
-        C_MOV            R7, R5   # 0x263a
-        C_SHRI           R7, 5   # 0x263c
-        ANDI             R7, R7, 127   # 0x263e
-        C_SHRI           R5, 2   # 0x2642
-        C_ANDI           R5, 15   # 0x2644
-        MAD_ACC          R6, R5, R7   # 0x2646
-        C_BRA            L2558   # 0x2648
-L264a:  MOVI             R1, 0   # 0x264a
-        C_MOV            R15, R1   # 0x264e
-        MOVI             R7, 0   # 0x2650
-        MOVI             R11, 0   # 0x2654
-        MOVI             R10, 0   # 0x2658
-        MOVI             R13, 0   # 0x265c
-        LD_LOCAL         R2, 48   # 0x2660
-        C_BRA            L2672   # 0x2664
-L2666:  C_ADD            R7, R8   # 0x2666
-        C_ADDI           R11, 1   # 0x2668
-        SETP_NE_NP       P0, R2, R11, R8   # 0x266a
-        BRA_PRED         4, L277a   # 0x266e
-L2672:  ST_LOCAL         R11, 28   # 0x2672
-        LD_LOCAL         R2, 20   # 0x2676
-        SETP_EQ_NPI      P0, R2, R2, 0   # 0x267a
-        BRA_PRED         0, L270e   # 0x267e
-        MOVI             R2, 0   # 0x2682
-        C_MOV            R3, R10   # 0x2686
-        LD_LOCAL         R11, 16   # 0x2688
-        LD_LOCAL         R1, 12   # 0x268c
-        LD_LOCAL         R6, 32   # 0x2690
-        MOVI             R1, 10   # 0x2694
-L2698:  C_CHWIDTH        R15, 1   # 0x2698
-        ADD              R5, R7, R2, R7   # 0x269a
-        C_SHLI           R5, 2   # 0x269e
-        LD_LOCAL         R8, 12   # 0x26a0
-        C_ADD            R5, R8   # 0x26a4
-        C_MOV            R9, R7   # 0x26a6
-        ADDI             R7, R5, 4   # 0x26a8
-        LD_GLOBAL_IDX    R10, R11, R7, 0, 0   # 0x26ac
-        LD_GLOBAL_IDX    R5, R11, R5, 0, 0   # 0x26b0
-        SETP_LT_NP       P0, R3, R3, R5   # 0x26b4
-        SETP_LT_NP       P1, R3, R5, R10   # 0x26b8
-        MOVI             R3, 0   # 0x26bc
-        MOVI             R8, 1   # 0x26c0
-        MOV_P            R3, 1, R8, R8, R8   # 0x26c4
-        MOVI             R7, 0   # 0x26c8
-        MOV_P            R7, 0, R8, R8, R8   # 0x26cc
-        C_ADD            R5, R13   # 0x26d0
-        SETP_LT_NP       P0, R8, R6, R5   # 0x26d2
-        MOV_P            R7, 0, R1, R1, R1   # 0x26d6
-        C_CHWIDTH        R7, 1   # 0x26da
-        MOVI             R8, 0   # 0x26dc
-        MOV_P            R5, 0, R8, R8, R8   # 0x26e0
-        ADD              R13, R10, R5, R10   # 0x26e4
-        SETP_LT_NP       P0, R5, R6, R13   # 0x26e8
-        MOV_P            R3, 0, R1, R1, R1   # 0x26ec
-        MOV_P            R13, 0, R8, R8, R8   # 0x26f0
-        ADD              R7, R7, R15, R7   # 0x26f4
-        ADD              R15, R3, R7, R3   # 0x26f8
-        C_CHWIDTH        R7, 0   # 0x26fc
-        C_MOV            R7, R9   # 0x26fe
-        C_ADDI           R2, 2   # 0x2700
-        SETP_NE_NP       P0, R3, R12, R2   # 0x2702
-        C_MOV            R3, R10   # 0x2706
-        BRA_PRED         0, L2698   # 0x2708
-        C_BRA            L2716   # 0x270c
-L270e:  MOVI             R2, 0   # 0x270e
-        LD_LOCAL         R1, 12   # 0x2712
-L2716:  LD_LOCAL         R3, 24   # 0x2716
-        SETP_EQ_NPI      P0, R3, R3, 0   # 0x271a
-        C_MOV            R8, R4   # 0x271e
-        LD_LOCAL         R9, 12   # 0x2720
-        MOVI             R1, 0   # 0x2724
-        MOVI             R5, 1   # 0x2728
-        MOVI             R6, 10   # 0x272c
-        LD_LOCAL         R11, 28   # 0x2730
-        BRA_PRED         0, L2666   # 0x2734
-        C_CHWIDTH        R15, 1   # 0x2738
-        MUL_LO           R3, R11, R8, R8   # 0x273a
-        C_ADD            R2, R3   # 0x273e
-        C_SHLI           R2, 2   # 0x2740
-        ADD              R2, R9, R2, R9   # 0x2742
-        LD_LOCAL         R3, 16   # 0x2746
-        LD_GLOBAL_IDX    R2, R3, R2, 0, 0   # 0x274a
-        SETP_LT_NP       P0, R3, R10, R2   # 0x274e
-        MOVI             R3, 0   # 0x2752
-        MOV_P            R3, 0, R5, R5, R5   # 0x2756
-        ADD              R13, R2, R13, R2   # 0x275a
-        LD_LOCAL         R5, 32   # 0x275e
-        SETP_LT_NP       P0, R5, R5, R13   # 0x2762
-        MOV_P            R13, 0, R1, R1, R1   # 0x2766
-        MOV_P            R3, 0, R6, R6, R6   # 0x276a
-        ADD              R15, R3, R15, R3   # 0x276e
-        C_MOV            R10, R2   # 0x2772
-        BRA              L2666   # 0x2774
-L2778:  C_MOV            R15, R1   # 0x2778
-L277a:  C_MOV            R1, R8   # 0x277a
-        LD_LOCAL         R2, 64   # 0x277c
-        C_MOV            R8, R2   # 0x2780
-        SETP_EQ_NPI      P0, R1, R1, 0   # 0x2782
-        LD_LOCAL         R9, 60   # 0x2786
-        LD_LOCAL         R1, 44   # 0x278a
-        BRA_PRED         0, L2850   # 0x278e
-        MOVI             R10, 0   # 0x2792
-        ANDI             R2, R4, 3   # 0x2796
-        MOVI             R5, 0   # 0x279a
-        C_BRA            L27b2   # 0x279e
-L27a0:  CHWIDTH_MULTI    8192, 0   # 0x27a0
-        C_MOV            R3, R4   # 0x27a4
-        C_ADD            R10, R3   # 0x27a6
-        C_ADDI           R5, 1   # 0x27a8
-        SETP_NE_NP       P0, R3, R5, R3   # 0x27aa
-        BRA_PRED         4, L2850   # 0x27ae
-L27b2:  LD_LOCAL         R3, 20   # 0x27b2
-        SETP_LT_U_NPI    P0, R3, R3, 3   # 0x27b6
-        MOVI             R3, 0   # 0x27ba
-        LD_LOCAL         R11, 48   # 0x27be
-        BRA_PRED         0, L281c   # 0x27c2
-L27c6:  CHWIDTH_MULTI    8320, 1   # 0x27c6
-        ADD              R6, R10, R3, R10   # 0x27ca
-        C_SHLI           R6, 1   # 0x27ce
-        ADD              R6, R14, R6, R14   # 0x27d0
-        LD_GLOBAL_IDX    R7, R0, R6, 0, 0   # 0x27d4
-        SUB              R7, R7, R9, R7   # 0x27d8
-        ST_GLOBAL_IDX    R7, R0, R6, 0, 0   # 0x27dc
-        C_CHWIDTH        R7, 0   # 0x27e0
-        ADDI             R7, R6, 2   # 0x27e2
-        LD_GLOBAL_IDX    R13, R0, R7, 0, 0   # 0x27e6
-        SUB              R13, R13, R9, R13   # 0x27ea
-        ST_GLOBAL_IDX    R13, R0, R7, 0, 0   # 0x27ee
-        ADDI             R7, R6, 4   # 0x27f2
-        LD_GLOBAL_IDX    R13, R0, R7, 0, 0   # 0x27f6
-        SUB              R13, R13, R9, R13   # 0x27fa
-        ST_GLOBAL_IDX    R13, R0, R7, 0, 0   # 0x27fe
-        C_CHWIDTH        R7, 1   # 0x2802
-        C_ADDI           R6, 6   # 0x2804
-        LD_GLOBAL_IDX    R7, R0, R6, 0, 0   # 0x2806
-        SUB              R7, R7, R9, R7   # 0x280a
-        ST_GLOBAL_IDX    R7, R0, R6, 0, 0   # 0x280e
-        C_ADDI           R3, 4   # 0x2812
-        SETP_NE_NP       P0, R6, R11, R3   # 0x2814
-        BRA_PRED         0, L27c6   # 0x2818
-L281c:  SETP_EQ_NPI      P0, R6, R2, 0   # 0x281c
-        BRA_PRED         0, L27a0   # 0x2820
-        C_ADD            R3, R10   # 0x2824
-        C_MOV            R6, R2   # 0x2826
-L2828:  C_CHWIDTH        R13, 1   # 0x2828
-        C_CHWIDTH        R7, 0   # 0x282a
-        C_MOV            R7, R3   # 0x282c
-        C_SHLI           R7, 1   # 0x282e
-        ADD              R7, R14, R7, R14   # 0x2830
-        LD_GLOBAL_IDX    R13, R0, R7, 0, 0   # 0x2834
-        SUB              R13, R13, R9, R13   # 0x2838
-        ST_GLOBAL_IDX    R13, R0, R7, 0, 0   # 0x283c
-        C_ADDI           R3, 1   # 0x2840
-        ADDI             R6, R6, -1   # 0x2842
-        SETP_NE_NPI      P0, R7, R6, 0   # 0x2846
-        BRA_PRED         0, L2828   # 0x284a
-        C_BRA            L27a0   # 0x284e
-L2850:  CHWIDTH_MULTI    32896, 0   # 0x2850
-        MOVI             R2, 0   # 0x2854
-        CALL             R14, 129275   # 0x2858
-        C_MOV            R2, R1   # 0x285c
-        LD_LOCAL         R1, 36   # 0x285e
-        CALL             R14, 129270   # 0x2862
-        C_MOV            R2, R1   # 0x2866
-        LD_LOCAL         R1, 40   # 0x2868
-        CALL             R14, 129265   # 0x286c
-        C_MOV            R2, R1   # 0x2870
-        C_MOV            R1, R15   # 0x2872
-        CALL             R14, 129261   # 0x2874
-        C_MOV            R2, R8   # 0x2878
-        CALL             R14, 129258   # 0x287a
-        LD_LOCAL         R14, 56   # 0x287e
-        LD_LOCAL         R13, 92   # 0x2882
-        LD_LOCAL         R12, 88   # 0x2886
-        LD_LOCAL         R11, 84   # 0x288a
-        LD_LOCAL         R10, 80   # 0x288e
-        LD_LOCAL         R9, 76   # 0x2892
-        LD_LOCAL         R8, 72   # 0x2896
-        C_RET            224   # 0x289a
-        C_CHWIDTH        R0, 1   # 0x289c
-        XOR              R0, R2, R1, R2   # 0x289e
-        C_CHWIDTH        R0, 0   # 0x28a2
-        C_ANDI           R0, 1   # 0x28a4
-        SETP_NE_NPI      P0, R0, R0, 0   # 0x28a6
-        MOVI             R0, 40961   # 0x28aa
-        SHRI             R2, R2, 1   # 0x28ae
+        ADDI_P           R3, 0, R3, 1   # 0x244c
+        ADD              R9, R1, R9, R1   # 0x2450
+        SETP_LT_NP       P0, R5, R6, R9   # 0x2454
+        MOVI             R5, 10   # 0x2458
+        MOV_P            R3, 0, R5, R5, R5   # 0x245c
+        C_MOV            R5, R7   # 0x2460
+        C_CHWIDTH        R7, 1   # 0x2462
+        MOVI             R4, 0   # 0x2464
+        MOV_P            R9, 0, R4, R4, R4   # 0x2468
+        ADD              R7, R8, R11, R8   # 0x246c
+        ADD              R7, R3, R7, R3   # 0x2470
+        C_ADDI           R13, 2   # 0x2474
+        SETP_NE_NP       P0, R3, R12, R13   # 0x2476
+        BRA_PRED         0, L23fa   # 0x247a
+        C_BRA            L2488   # 0x247e
+L2480:  MOVI             R13, 0   # 0x2480
+        LD_LOCAL         R3, 20   # 0x2484
+L2488:  LD_LOCAL         R3, 28   # 0x2488
+        SETP_EQ_NPI      P0, R3, R3, 0   # 0x248c
+        LD_LOCAL         R8, 12   # 0x2490
+        LD_LOCAL         R6, 20   # 0x2494
+        MOVI             R11, 0   # 0x2498
+        BRA_PRED         0, L23ca   # 0x249c
+        C_CHWIDTH        R7, 1   # 0x24a0
+        LD_LOCAL         R3, 36   # 0x24a2
+        C_MUL_LO         R3, R8   # 0x24a6
+        ADD              R3, R13, R3, R13   # 0x24a8
+        C_SHLI           R3, 2   # 0x24ac
+        ADD              R3, R6, R3, R6   # 0x24ae
+        C_MOV            R6, R5   # 0x24b2
+        LD_LOCAL         R5, 16   # 0x24b4
+        LD_GLOBAL_IDX    R3, R5, R3, 0, 0   # 0x24b8
+        MOVI             R5, 10   # 0x24bc
+        SETP_LT_NP       P0, R1, R1, R3   # 0x24c0
+        ADD              R9, R3, R9, R3   # 0x24c4
+        LD_LOCAL         R1, 32   # 0x24c8
+        SETP_LT_NP       P1, R1, R1, R9   # 0x24cc
+        MOV_P            R9, 1, R11, R11, R11   # 0x24d0
+        MOVI             R1, 0   # 0x24d4
+        ADDI_P           R1, 0, R1, 1   # 0x24d8
+        MOV_P            R1, 1, R5, R5, R5   # 0x24dc
+        C_MOV            R5, R6   # 0x24e0
+        ADD              R7, R1, R7, R1   # 0x24e2
+        C_MOV            R1, R3   # 0x24e6
+        BRA              L23ca   # 0x24e8
+L24ec:  CHWIDTH_MULTI    64, 0   # 0x24ec
+        C_MOV            R7, R1   # 0x24f0
+L24f2:  C_CHWIDTH        R7, 0   # 0x24f2
+        MOVI             R6, 0   # 0x24f4
+        SETP_EQ_NPI      P0, R1, R8, 0   # 0x24f8
+        ST_LOCAL         R7, 72   # 0x24fc
+        BRA_PRED         0, L2750   # 0x2500
+        LD_LOCAL         R1, 44   # 0x2504
+        MOVI             R3, 0   # 0x2508
+        C_BRA            L251e   # 0x250c
+L250e:  C_ADD            R6, R8   # 0x250e
+        LD_LOCAL         R3, 40   # 0x2510
+        C_ADDI           R3, 1   # 0x2514
+        SETP_NE_NP       P0, R1, R3, R8   # 0x2516
+        BRA_PRED         4, L2624   # 0x251a
+L251e:  ST_LOCAL         R3, 40   # 0x251e
+        MUL_LO           R1, R3, R8, R8   # 0x2522
+        ST_LOCAL         R1, 36   # 0x2526
+        MOVI             R3, 0   # 0x252a
+        C_BRA            L2554   # 0x252e
+L2530:  LD_LOCAL         R1, 36   # 0x2530
+        ADD              R5, R3, R1, R3   # 0x2534
+        C_SHLI           R5, 2   # 0x2538
+        LD_LOCAL         R1, 20   # 0x253a
+        ADD              R5, R1, R5, R1   # 0x253e
+        LD_LOCAL         R1, 16   # 0x2542
+        ST_GLOBAL_IDX    R9, R1, R5, 0, 0   # 0x2546
+        C_ADDI           R3, 1   # 0x254a
+        SETP_NE_NP       P0, R5, R3, R8   # 0x254c
+        BRA_PRED         4, L250e   # 0x2550
+L2554:  LD_LOCAL         R1, 24   # 0x2554
+        SETP_EQ_NPI      P0, R5, R1, 0   # 0x2558
+        MOVI             R5, 0   # 0x255c
+        MOVI             R9, 0   # 0x2560
+        C_MOV            R1, R8   # 0x2564
+        BRA_PRED         0, L25dc   # 0x2566
+        C_MOV            R13, R3   # 0x256a
+L256c:  C_CHWIDTH        R7, 1   # 0x256c
+        ADD              R8, R6, R5, R6   # 0x256e
+        C_SHLI           R8, 1   # 0x2572
+        C_ADD            R8, R14   # 0x2574
+        C_MOV            R11, R13   # 0x2576
+        C_SHLI           R11, 1   # 0x2578
+        ADD              R11, R10, R11, R10   # 0x257a
+        C_CHWIDTH        R11, 1   # 0x257e
+        LD_GLOBAL_IDX    R11, R15, R11, 0, 0   # 0x2580
+        C_CHWIDTH        R11, 0   # 0x2584
+        LD_GLOBAL_IDX    R7, R0, R8, 0, 0   # 0x2586
+        C_CHWIDTH        R7, 0   # 0x258a
+        MUL_LO           R7, R11, R7, R7   # 0x258c
+        C_MOV            R11, R7   # 0x2590
+        C_SHRI           R11, 5   # 0x2592
+        ANDI             R11, R11, 127   # 0x2594
+        C_SHRI           R7, 2   # 0x2598
+        C_ANDI           R7, 15   # 0x259a
+        MADLO            R7, R7, R11, R9   # 0x259c
+        C_ADDI           R8, 2   # 0x25a0
+        C_CHWIDTH        R8, 1   # 0x25a2
+        LD_GLOBAL_IDX    R8, R0, R8, 0, 0   # 0x25a4
+        C_CHWIDTH        R8, 0   # 0x25a8
+        ADD              R9, R1, R13, R1   # 0x25aa
+        C_SHLI           R9, 1   # 0x25ae
+        ADD              R9, R10, R9, R10   # 0x25b0
+        C_CHWIDTH        R9, 1   # 0x25b4
+        LD_GLOBAL_IDX    R9, R15, R9, 0, 0   # 0x25b6
+        C_CHWIDTH        R9, 0   # 0x25ba
+        MUL_LO           R8, R9, R8, R8   # 0x25bc
+        C_MOV            R9, R8   # 0x25c0
+        C_SHRI           R9, 5   # 0x25c2
+        ANDI             R9, R9, 127   # 0x25c4
+        C_SHRI           R8, 2   # 0x25c8
+        C_ANDI           R8, 15   # 0x25ca
+        MADLO            R9, R8, R9, R7   # 0x25cc
+        C_ADD            R13, R2   # 0x25d0
+        C_ADDI           R5, 2   # 0x25d2
+        SETP_NE_NP       P0, R7, R12, R5   # 0x25d4
+        BRA_PRED         0, L256c   # 0x25d8
+L25dc:  LD_LOCAL         R7, 28   # 0x25dc
+        SETP_EQ_NPI      P0, R7, R7, 0   # 0x25e0
+        C_MOV            R8, R1   # 0x25e4
+        BRA_PRED         0, L2530   # 0x25e6
+        MADLO            R7, R5, R8, R3   # 0x25ea
+        C_SHLI           R7, 1   # 0x25ee
+        ADD              R7, R10, R7, R10   # 0x25f0
+        C_CHWIDTH        R7, 1   # 0x25f4
+        LD_GLOBAL_IDX    R7, R15, R7, 0, 0   # 0x25f6
+        C_CHWIDTH        R7, 0   # 0x25fa
+        LD_LOCAL         R1, 36   # 0x25fc
+        C_ADD            R5, R1   # 0x2600
+        C_SHLI           R5, 1   # 0x2602
+        ADD              R5, R14, R5, R14   # 0x2604
+        C_CHWIDTH        R5, 1   # 0x2608
+        LD_GLOBAL_IDX    R5, R0, R5, 0, 0   # 0x260a
+        C_CHWIDTH        R5, 0   # 0x260e
+        MUL_LO           R5, R7, R5, R5   # 0x2610
+        C_MOV            R7, R5   # 0x2614
+        C_SHRI           R7, 5   # 0x2616
+        ANDI             R7, R7, 127   # 0x2618
+        C_SHRI           R5, 2   # 0x261c
+        C_ANDI           R5, 15   # 0x261e
+        MAD_ACC          R9, R5, R7   # 0x2620
+        C_BRA            L2530   # 0x2622
+L2624:  MOVI             R1, 0   # 0x2624
+        C_MOV            R15, R1   # 0x2628
+        MOVI             R5, 0   # 0x262a
+        MOVI             R11, 0   # 0x262e
+        MOVI             R13, 0   # 0x2632
+        MOVI             R1, 0   # 0x2636
+        LD_LOCAL         R2, 44   # 0x263a
+        MOVI             R4, 0   # 0x263e
+        C_BRA            L2650   # 0x2642
+L2644:  C_ADD            R5, R8   # 0x2644
+        C_ADDI           R11, 1   # 0x2646
+        SETP_NE_NP       P0, R3, R11, R8   # 0x2648
+        BRA_PRED         4, L2752   # 0x264c
+L2650:  ST_LOCAL         R11, 36   # 0x2650
+        LD_LOCAL         R3, 24   # 0x2654
+        SETP_EQ_NPI      P0, R3, R3, 0   # 0x2658
+        BRA_PRED         0, L26e0   # 0x265c
+        MOVI             R10, 0   # 0x2660
+        LD_LOCAL         R11, 16   # 0x2664
+        LD_LOCAL         R2, 20   # 0x2668
+        LD_LOCAL         R9, 32   # 0x266c
+        MOVI             R2, 10   # 0x2670
+L2674:  C_CHWIDTH        R15, 1   # 0x2674
+        ADD              R3, R5, R10, R5   # 0x2676
+        C_SHLI           R3, 2   # 0x267a
+        LD_LOCAL         R6, 20   # 0x267c
+        C_ADD            R3, R6   # 0x2680
+        C_MOV            R6, R5   # 0x2682
+        LD_GLOBAL_IDX    R5, R11, R3, 0, 0   # 0x2684
+        SETP_LT_NP       P0, R7, R13, R5   # 0x2688
+        C_CHWIDTH        R7, 0   # 0x268c
+        MOVI             R7, 0   # 0x268e
+        ADDI_P           R7, 0, R7, 1   # 0x2692
+        ADD              R1, R5, R1, R5   # 0x2696
+        SETP_LT_NP       P0, R8, R9, R1   # 0x269a
+        MOV_P            R7, 0, R2, R2, R2   # 0x269e
+        C_CHWIDTH        R7, 1   # 0x26a2
+        MOV_P            R1, 0, R4, R4, R4   # 0x26a4
+        C_ADDI           R3, 4   # 0x26a8
+        LD_GLOBAL_IDX    R13, R11, R3, 0, 0   # 0x26aa
+        SETP_LT_NP       P0, R3, R5, R13   # 0x26ae
+        MOVI             R3, 0   # 0x26b2
+        ADDI_P           R3, 0, R3, 1   # 0x26b6
+        ADD              R1, R13, R1, R13   # 0x26ba
+        SETP_LT_NP       P0, R5, R9, R1   # 0x26be
+        C_MOV            R5, R6   # 0x26c2
+        MOV_P            R3, 0, R2, R2, R2   # 0x26c4
+        MOV_P            R1, 0, R4, R4, R4   # 0x26c8
+        ADD              R7, R7, R15, R7   # 0x26cc
+        ADD              R15, R3, R7, R3   # 0x26d0
+        C_ADDI           R10, 2   # 0x26d4
+        SETP_NE_NP       P0, R3, R12, R10   # 0x26d6
+        BRA_PRED         0, L2674   # 0x26da
+        C_BRA            L26e8   # 0x26de
+L26e0:  MOVI             R10, 0   # 0x26e0
+        LD_LOCAL         R2, 20   # 0x26e4
+L26e8:  C_CHWIDTH        R7, 0   # 0x26e8
+        LD_LOCAL         R3, 28   # 0x26ea
+        SETP_EQ_NPI      P0, R3, R3, 0   # 0x26ee
+        LD_LOCAL         R8, 12   # 0x26f2
+        LD_LOCAL         R2, 20   # 0x26f6
+        MOVI             R6, 0   # 0x26fa
+        MOVI             R7, 10   # 0x26fe
+        LD_LOCAL         R11, 36   # 0x2702
+        BRA_PRED         0, L2644   # 0x2706
+        C_CHWIDTH        R15, 1   # 0x270a
+        MUL_LO           R3, R11, R8, R8   # 0x270c
+        ADD              R3, R10, R3, R10   # 0x2710
+        C_SHLI           R3, 2   # 0x2714
+        ADD              R3, R2, R3, R2   # 0x2716
+        C_MOV            R9, R5   # 0x271a
+        LD_LOCAL         R5, 16   # 0x271c
+        LD_GLOBAL_IDX    R3, R5, R3, 0, 0   # 0x2720
+        SETP_LT_NP       P0, R5, R13, R3   # 0x2724
+        ADD              R1, R3, R1, R3   # 0x2728
+        LD_LOCAL         R2, 32   # 0x272c
+        SETP_LT_NP       P1, R5, R2, R1   # 0x2730
+        MOV_P            R1, 1, R6, R6, R6   # 0x2734
+        MOVI             R5, 0   # 0x2738
+        ADDI_P           R5, 0, R5, 1   # 0x273c
+        MOV_P            R5, 1, R7, R7, R7   # 0x2740
+        ADD              R15, R5, R15, R5   # 0x2744
+        C_MOV            R5, R9   # 0x2748
+        C_MOV            R13, R3   # 0x274a
+        BRA              L2644   # 0x274c
+L2750:  C_MOV            R15, R6   # 0x2750
+L2752:  C_MOV            R1, R8   # 0x2752
+        LD_LOCAL         R2, 60   # 0x2754
+        C_MOV            R8, R2   # 0x2758
+        SETP_EQ_NPI      P0, R1, R1, 0   # 0x275a
+        LD_LOCAL         R9, 56   # 0x275e
+        LD_LOCAL         R10, 44   # 0x2762
+        BRA_PRED         0, L2828   # 0x2766
+        MOVI             R1, 0   # 0x276a
+        LD_LOCAL         R2, 12   # 0x276e
+        C_ANDI           R2, 3   # 0x2772
+        MOVI             R5, 0   # 0x2774
+        C_BRA            L278e   # 0x2778
+L277a:  CHWIDTH_MULTI    8192, 0   # 0x277a
+        LD_LOCAL         R3, 12   # 0x277e
+        C_ADD            R1, R3   # 0x2782
+        C_ADDI           R5, 1   # 0x2784
+        SETP_NE_NP       P0, R3, R5, R3   # 0x2786
+        BRA_PRED         4, L2828   # 0x278a
+L278e:  LD_LOCAL         R3, 24   # 0x278e
+        SETP_LT_U_NPI    P0, R3, R3, 3   # 0x2792
+        MOVI             R3, 0   # 0x2796
+        BRA_PRED         0, L27f4   # 0x279a
+L279e:  CHWIDTH_MULTI    8320, 1   # 0x279e
+        ADD              R6, R1, R3, R1   # 0x27a2
+        C_SHLI           R6, 1   # 0x27a6
+        ADD              R6, R14, R6, R14   # 0x27a8
+        LD_GLOBAL_IDX    R7, R0, R6, 0, 0   # 0x27ac
+        SUB              R7, R7, R9, R7   # 0x27b0
+        ST_GLOBAL_IDX    R7, R0, R6, 0, 0   # 0x27b4
+        C_CHWIDTH        R7, 0   # 0x27b8
+        ADDI             R7, R6, 2   # 0x27ba
+        LD_GLOBAL_IDX    R13, R0, R7, 0, 0   # 0x27be
+        SUB              R13, R13, R9, R13   # 0x27c2
+        ST_GLOBAL_IDX    R13, R0, R7, 0, 0   # 0x27c6
+        ADDI             R7, R6, 4   # 0x27ca
+        LD_GLOBAL_IDX    R13, R0, R7, 0, 0   # 0x27ce
+        SUB              R13, R13, R9, R13   # 0x27d2
+        ST_GLOBAL_IDX    R13, R0, R7, 0, 0   # 0x27d6
+        C_CHWIDTH        R7, 1   # 0x27da
+        C_ADDI           R6, 6   # 0x27dc
+        LD_GLOBAL_IDX    R7, R0, R6, 0, 0   # 0x27de
+        SUB              R7, R7, R9, R7   # 0x27e2
+        ST_GLOBAL_IDX    R7, R0, R6, 0, 0   # 0x27e6
+        C_ADDI           R3, 4   # 0x27ea
+        SETP_NE_NP       P0, R6, R10, R3   # 0x27ec
+        BRA_PRED         0, L279e   # 0x27f0
+L27f4:  SETP_EQ_NPI      P0, R6, R2, 0   # 0x27f4
+        BRA_PRED         0, L277a   # 0x27f8
+        C_ADD            R3, R1   # 0x27fc
+        C_MOV            R6, R2   # 0x27fe
+L2800:  C_CHWIDTH        R13, 1   # 0x2800
+        C_CHWIDTH        R7, 0   # 0x2802
+        C_MOV            R7, R3   # 0x2804
+        C_SHLI           R7, 1   # 0x2806
+        ADD              R7, R14, R7, R14   # 0x2808
+        LD_GLOBAL_IDX    R13, R0, R7, 0, 0   # 0x280c
+        SUB              R13, R13, R9, R13   # 0x2810
+        ST_GLOBAL_IDX    R13, R0, R7, 0, 0   # 0x2814
+        C_ADDI           R3, 1   # 0x2818
+        ADDI             R6, R6, -1   # 0x281a
+        SETP_NE_NPI      P0, R7, R6, 0   # 0x281e
+        BRA_PRED         0, L2800   # 0x2822
+        C_BRA            L277a   # 0x2826
+L2828:  CHWIDTH_MULTI    32896, 0   # 0x2828
+        LD_LOCAL         R1, 64   # 0x282c
+        MOVI             R2, 0   # 0x2830
+        CALL             R14, 129293   # 0x2834
+        C_MOV            R2, R1   # 0x2838
+        LD_LOCAL         R1, 68   # 0x283a
+        CALL             R14, 129288   # 0x283e
+        C_MOV            R2, R1   # 0x2842
+        LD_LOCAL         R1, 72   # 0x2844
+        CALL             R14, 129283   # 0x2848
+        C_MOV            R2, R1   # 0x284c
+        C_MOV            R1, R15   # 0x284e
+        CALL             R14, 129279   # 0x2850
+        C_MOV            R2, R8   # 0x2854
+        CALL             R14, 129276   # 0x2856
+        LD_LOCAL         R14, 52   # 0x285a
+        LD_LOCAL         R13, 96   # 0x285e
+        LD_LOCAL         R12, 92   # 0x2862
+        LD_LOCAL         R11, 88   # 0x2866
+        LD_LOCAL         R10, 84   # 0x286a
+        LD_LOCAL         R9, 80   # 0x286e
+        LD_LOCAL         R8, 76   # 0x2872
+        C_RET            224   # 0x2876
+        C_CHWIDTH        R0, 1   # 0x2878
+        XOR              R0, R2, R1, R2   # 0x287a
+        C_CHWIDTH        R0, 0   # 0x287e
+        C_ANDI           R0, 1   # 0x2880
+        SETP_NE_NPI      P0, R0, R0, 0   # 0x2882
+        MOVI             R0, 40961   # 0x2886
+        SHRI             R2, R2, 1   # 0x288a
+        C_MOV            R3, R2   # 0x288e
+        C_CHWIDTH        R2, 1   # 0x2890
+        XOR              R2, R2, R0, R2   # 0x2892
+        C_CHWIDTH        R2, 0   # 0x2896
+        MOV_P            R3, 0, R2, R2, R2   # 0x2898
+        SHRI             R2, R1, 1   # 0x289c
+        C_CHWIDTH        R2, 1   # 0x28a0
+        XOR              R2, R2, R3, R2   # 0x28a2
+        C_CHWIDTH        R2, 0   # 0x28a6
+        C_ANDI           R2, 1   # 0x28a8
+        SETP_NE_NPI      P0, R2, R2, 0   # 0x28aa
+        SHRI             R2, R3, 1   # 0x28ae
         C_MOV            R3, R2   # 0x28b2
         C_CHWIDTH        R2, 1   # 0x28b4
         XOR              R2, R2, R0, R2   # 0x28b6
         C_CHWIDTH        R2, 0   # 0x28ba
         MOV_P            R3, 0, R2, R2, R2   # 0x28bc
-        SHRI             R2, R1, 1   # 0x28c0
+        SHRI             R2, R1, 2   # 0x28c0
         C_CHWIDTH        R2, 1   # 0x28c4
         XOR              R2, R2, R3, R2   # 0x28c6
         C_CHWIDTH        R2, 0   # 0x28ca
@@ -3106,7 +3108,7 @@ L2850:  CHWIDTH_MULTI    32896, 0   # 0x2850
         XOR              R2, R2, R0, R2   # 0x28da
         C_CHWIDTH        R2, 0   # 0x28de
         MOV_P            R3, 0, R2, R2, R2   # 0x28e0
-        SHRI             R2, R1, 2   # 0x28e4
+        SHRI             R2, R1, 3   # 0x28e4
         C_CHWIDTH        R2, 1   # 0x28e8
         XOR              R2, R2, R3, R2   # 0x28ea
         C_CHWIDTH        R2, 0   # 0x28ee
@@ -3118,7 +3120,7 @@ L2850:  CHWIDTH_MULTI    32896, 0   # 0x2850
         XOR              R2, R2, R0, R2   # 0x28fe
         C_CHWIDTH        R2, 0   # 0x2902
         MOV_P            R3, 0, R2, R2, R2   # 0x2904
-        SHRI             R2, R1, 3   # 0x2908
+        SHRI             R2, R1, 4   # 0x2908
         C_CHWIDTH        R2, 1   # 0x290c
         XOR              R2, R2, R3, R2   # 0x290e
         C_CHWIDTH        R2, 0   # 0x2912
@@ -3130,7 +3132,7 @@ L2850:  CHWIDTH_MULTI    32896, 0   # 0x2850
         XOR              R2, R2, R0, R2   # 0x2922
         C_CHWIDTH        R2, 0   # 0x2926
         MOV_P            R3, 0, R2, R2, R2   # 0x2928
-        SHRI             R2, R1, 4   # 0x292c
+        SHRI             R2, R1, 5   # 0x292c
         C_CHWIDTH        R2, 1   # 0x2930
         XOR              R2, R2, R3, R2   # 0x2932
         C_CHWIDTH        R2, 0   # 0x2936
@@ -3142,7 +3144,7 @@ L2850:  CHWIDTH_MULTI    32896, 0   # 0x2850
         XOR              R2, R2, R0, R2   # 0x2946
         C_CHWIDTH        R2, 0   # 0x294a
         MOV_P            R3, 0, R2, R2, R2   # 0x294c
-        SHRI             R2, R1, 5   # 0x2950
+        SHRI             R2, R1, 6   # 0x2950
         C_CHWIDTH        R2, 1   # 0x2954
         XOR              R2, R2, R3, R2   # 0x2956
         C_CHWIDTH        R2, 0   # 0x295a
@@ -3154,44 +3156,44 @@ L2850:  CHWIDTH_MULTI    32896, 0   # 0x2850
         XOR              R2, R2, R0, R2   # 0x296a
         C_CHWIDTH        R2, 0   # 0x296e
         MOV_P            R3, 0, R2, R2, R2   # 0x2970
-        SHRI             R2, R1, 6   # 0x2974
+        MOVI             R2, 128   # 0x2974
         C_CHWIDTH        R2, 1   # 0x2978
-        XOR              R2, R2, R3, R2   # 0x297a
+        AND              R2, R1, R2, R1   # 0x297a
         C_CHWIDTH        R2, 0   # 0x297e
-        C_ANDI           R2, 1   # 0x2980
-        SETP_NE_NPI      P0, R2, R2, 0   # 0x2982
-        SHRI             R2, R3, 1   # 0x2986
-        C_MOV            R3, R2   # 0x298a
-        C_CHWIDTH        R2, 1   # 0x298c
-        XOR              R2, R2, R0, R2   # 0x298e
-        C_CHWIDTH        R2, 0   # 0x2992
-        MOV_P            R3, 0, R2, R2, R2   # 0x2994
-        MOVI             R2, 128   # 0x2998
-        C_CHWIDTH        R2, 1   # 0x299c
-        AND              R2, R1, R2, R1   # 0x299e
-        C_CHWIDTH        R2, 0   # 0x29a2
-        SHRI             R2, R2, 7   # 0x29a4
-        ANDI             R4, R3, 1   # 0x29a8
-        SETP_EQ_NP       P0, R2, R2, R4   # 0x29ac
-        SHRI             R2, R3, 1   # 0x29b0
+        SHRI             R2, R2, 7   # 0x2980
+        ANDI             R4, R3, 1   # 0x2984
+        SETP_EQ_NP       P0, R2, R2, R4   # 0x2988
+        SHRI             R2, R3, 1   # 0x298c
+        C_MOV            R3, R2   # 0x2990
+        C_CHWIDTH        R2, 1   # 0x2992
+        XOR              R2, R2, R0, R2   # 0x2994
+        C_CHWIDTH        R2, 0   # 0x2998
+        MOV_P            R2, 0, R3, R3, R3   # 0x299a
+        SHRI             R3, R1, 8   # 0x299e
+        C_CHWIDTH        R3, 1   # 0x29a2
+        XOR              R3, R2, R3, R2   # 0x29a4
+        C_CHWIDTH        R3, 0   # 0x29a8
+        C_ANDI           R3, 1   # 0x29aa
+        SETP_NE_NPI      P0, R3, R3, 0   # 0x29ac
+        SHRI             R2, R2, 1   # 0x29b0
         C_MOV            R3, R2   # 0x29b4
         C_CHWIDTH        R2, 1   # 0x29b6
         XOR              R2, R2, R0, R2   # 0x29b8
         C_CHWIDTH        R2, 0   # 0x29bc
-        MOV_P            R2, 0, R3, R3, R3   # 0x29be
-        SHRI             R3, R1, 8   # 0x29c2
-        C_CHWIDTH        R3, 1   # 0x29c6
-        XOR              R3, R2, R3, R2   # 0x29c8
-        C_CHWIDTH        R3, 0   # 0x29cc
-        C_ANDI           R3, 1   # 0x29ce
-        SETP_NE_NPI      P0, R3, R3, 0   # 0x29d0
-        SHRI             R2, R2, 1   # 0x29d4
+        MOV_P            R3, 0, R2, R2, R2   # 0x29be
+        SHRI             R2, R1, 9   # 0x29c2
+        C_CHWIDTH        R2, 1   # 0x29c6
+        XOR              R2, R2, R3, R2   # 0x29c8
+        C_CHWIDTH        R2, 0   # 0x29cc
+        C_ANDI           R2, 1   # 0x29ce
+        SETP_NE_NPI      P0, R2, R2, 0   # 0x29d0
+        SHRI             R2, R3, 1   # 0x29d4
         C_MOV            R3, R2   # 0x29d8
         C_CHWIDTH        R2, 1   # 0x29da
         XOR              R2, R2, R0, R2   # 0x29dc
         C_CHWIDTH        R2, 0   # 0x29e0
         MOV_P            R3, 0, R2, R2, R2   # 0x29e2
-        SHRI             R2, R1, 9   # 0x29e6
+        SHRI             R2, R1, 10   # 0x29e6
         C_CHWIDTH        R2, 1   # 0x29ea
         XOR              R2, R2, R3, R2   # 0x29ec
         C_CHWIDTH        R2, 0   # 0x29f0
@@ -3203,7 +3205,7 @@ L2850:  CHWIDTH_MULTI    32896, 0   # 0x2850
         XOR              R2, R2, R0, R2   # 0x2a00
         C_CHWIDTH        R2, 0   # 0x2a04
         MOV_P            R3, 0, R2, R2, R2   # 0x2a06
-        SHRI             R2, R1, 10   # 0x2a0a
+        SHRI             R2, R1, 11   # 0x2a0a
         C_CHWIDTH        R2, 1   # 0x2a0e
         XOR              R2, R2, R3, R2   # 0x2a10
         C_CHWIDTH        R2, 0   # 0x2a14
@@ -3215,7 +3217,7 @@ L2850:  CHWIDTH_MULTI    32896, 0   # 0x2850
         XOR              R2, R2, R0, R2   # 0x2a24
         C_CHWIDTH        R2, 0   # 0x2a28
         MOV_P            R3, 0, R2, R2, R2   # 0x2a2a
-        SHRI             R2, R1, 11   # 0x2a2e
+        SHRI             R2, R1, 12   # 0x2a2e
         C_CHWIDTH        R2, 1   # 0x2a32
         XOR              R2, R2, R3, R2   # 0x2a34
         C_CHWIDTH        R2, 0   # 0x2a38
@@ -3227,7 +3229,7 @@ L2850:  CHWIDTH_MULTI    32896, 0   # 0x2850
         XOR              R2, R2, R0, R2   # 0x2a48
         C_CHWIDTH        R2, 0   # 0x2a4c
         MOV_P            R3, 0, R2, R2, R2   # 0x2a4e
-        SHRI             R2, R1, 12   # 0x2a52
+        SHRI             R2, R1, 13   # 0x2a52
         C_CHWIDTH        R2, 1   # 0x2a56
         XOR              R2, R2, R3, R2   # 0x2a58
         C_CHWIDTH        R2, 0   # 0x2a5c
@@ -3239,7 +3241,7 @@ L2850:  CHWIDTH_MULTI    32896, 0   # 0x2850
         XOR              R2, R2, R0, R2   # 0x2a6c
         C_CHWIDTH        R2, 0   # 0x2a70
         MOV_P            R3, 0, R2, R2, R2   # 0x2a72
-        SHRI             R2, R1, 13   # 0x2a76
+        SHRI             R2, R1, 14   # 0x2a76
         C_CHWIDTH        R2, 1   # 0x2a7a
         XOR              R2, R2, R3, R2   # 0x2a7c
         C_CHWIDTH        R2, 0   # 0x2a80
@@ -3249,1424 +3251,1412 @@ L2850:  CHWIDTH_MULTI    32896, 0   # 0x2850
         C_MOV            R3, R2   # 0x2a8c
         C_CHWIDTH        R2, 1   # 0x2a8e
         XOR              R2, R2, R0, R2   # 0x2a90
-        C_CHWIDTH        R2, 0   # 0x2a94
-        MOV_P            R3, 0, R2, R2, R2   # 0x2a96
-        SHRI             R2, R1, 14   # 0x2a9a
-        C_CHWIDTH        R2, 1   # 0x2a9e
-        XOR              R2, R2, R3, R2   # 0x2aa0
-        C_CHWIDTH        R2, 0   # 0x2aa4
-        C_ANDI           R2, 1   # 0x2aa6
-        SETP_NE_NPI      P0, R2, R2, 0   # 0x2aa8
-        SHRI             R2, R3, 1   # 0x2aac
-        C_MOV            R3, R2   # 0x2ab0
-        C_CHWIDTH        R2, 1   # 0x2ab2
-        XOR              R2, R2, R0, R2   # 0x2ab4
-        C_CHWIDTH        R0, 1   # 0x2ab8
-        C_CHWIDTH        R2, 0   # 0x2aba
-        MOV_P            R3, 0, R2, R2, R2   # 0x2abc
-        SHRI             R1, R1, 15   # 0x2ac0
-        ANDI             R2, R3, 1   # 0x2ac4
-        SETP_EQ_NP       P0, R1, R1, R2   # 0x2ac8
-        SHRI             R1, R3, 1   # 0x2acc
-        C_MOV            R2, R1   # 0x2ad0
-        XOR              R0, R1, R0, R1   # 0x2ad2
-        C_CHWIDTH        R0, 0   # 0x2ad6
-        MOV_P            R0, 0, R2, R2, R2   # 0x2ad8
-        MOVI             R1, 65535   # 0x2adc
-        AND              R1, R0, R1, R0   # 0x2ae0
-        C_RET            224   # 0x2ae4
-        C_CHWIDTH        R6, 1   # 0x2ae6
-        MOVI             R15, 2   # 0x2ae8
-        LD_GLOBAL        R15, R15, 24   # 0x2aec
-        SRD              R0, 2   # 0x2af0
-        C_ADD            R15, R0   # 0x2af2
-        ST_LOCAL         R8, 172   # 0x2af4
-        ST_LOCAL         R9, 176   # 0x2af8
-        ST_LOCAL         R10, 180   # 0x2afc
-        ST_LOCAL         R11, 184   # 0x2b00
-        ST_LOCAL         R12, 188   # 0x2b04
-        ST_LOCAL         R13, 192   # 0x2b08
-        ST_LOCAL         R14, 160   # 0x2b0c
-        ST_LOCAL         R2, 108   # 0x2b10
-        C_MOV            R13, R1   # 0x2b14
-        LD_GLOBAL_IDX    R0, R13, R2, 0, 60   # 0x2b16
-        SHLI             R0, R0, 16   # 0x2b1a
-        LD_GLOBAL_IDX    R1, R13, R2, 0, 56   # 0x2b1e
-        SHRI             R4, R1, 16   # 0x2b22
-        OR               R8, R0, R4, R0   # 0x2b26
-        MOVI             R0, 65535   # 0x2b2a
-        C_AND            R1, R0   # 0x2b2e
-        LD_GLOBAL_IDX    R6, R13, R2, 0, 4   # 0x2b30
-        C_MOV            R5, R3   # 0x2b34
-        CVT_SEXT         R2, R6, R6, R6   # 0x2b36
-        SETP_LT_NPI      P0, R2, R2, 1   # 0x2b3a
-        BRA_PRED         0, L2e7a   # 0x2b3e
-        CHWIDTH_MULTI    16416, 1   # 0x2b42
-        ST_LOCAL         R3, 104   # 0x2b46
-        MOVI             R2, 0   # 0x2b4a
-        ADDI             R14, R6, 255   # 0x2b4e
-        C_CHWIDTH        R14, 0   # 0x2b52
-        ST_LOCAL         R14, 112   # 0x2b54
-        C_MOV            R7, R2   # 0x2b58
-        ST_LOCAL         R2, 96   # 0x2b5a
-        ST_LOCAL         R2, 100   # 0x2b5e
-        C_BRA            L2bde   # 0x2b62
-L2b64:  C_CHWIDTH        R12, 1   # 0x2b64
-        C_MOV            R4, R8   # 0x2b66
-        C_MOV            R14, R1   # 0x2b68
-        LD_GLOBAL_IDX    R3, R4, R14, 0, 0   # 0x2b6a
-        LD_GLOBAL_IDX    R4, R4, R14, 0, 4   # 0x2b6e
-        SHLI             R4, R4, 16   # 0x2b72
-        SHRI             R14, R3, 16   # 0x2b76
-        C_OR             R4, R14   # 0x2b7a
-        C_AND            R3, R0   # 0x2b7c
-        LD_GLOBAL_IDX    R14, R4, R3, 0, 8   # 0x2b7e
-        LD_GLOBAL_IDX    R3, R4, R3, 0, 12   # 0x2b82
-        SHLI             R3, R3, 16   # 0x2b86
-        SHRI             R4, R14, 16   # 0x2b8a
-        C_OR             R3, R4   # 0x2b8e
-        C_CHWIDTH        R3, 1   # 0x2b90
-        AND              R4, R14, R0, R14   # 0x2b92
-        LD_GLOBAL_IDX    R3, R3, R4, 0, 0   # 0x2b96
-        C_CHWIDTH        R3, 0   # 0x2b9a
-        SHRI             R3, R3, 8   # 0x2b9c
-        MOVI             R4, 1   # 0x2ba0
-        AND              R12, R3, R4, R3   # 0x2ba4
-        LD_LOCAL         R14, 100   # 0x2ba8
-        C_CHWIDTH        R14, 1   # 0x2bac
-        ADDI             R14, R14, 1   # 0x2bae
-        C_CHWIDTH        R14, 0   # 0x2bb2
-        ST_LOCAL         R14, 100   # 0x2bb4
-L2bb8:  C_CHWIDTH        R6, 0   # 0x2bb8
-        CHWIDTH_MULTI    172, 1   # 0x2bba
-        ADD              R7, R12, R7, R12   # 0x2bbe
-        XOR              R3, R5, R0, R5   # 0x2bc2
-        C_CHWIDTH        R3, 0   # 0x2bc6
-        SHRI             R3, R3, 15   # 0x2bc8
-        ADD              R5, R5, R3, R5   # 0x2bcc
-        ADDI             R2, R2, 1   # 0x2bd0
-        C_CHWIDTH        R2, 0   # 0x2bd4
-        SETP_NE_NP       P0, R3, R2, R6   # 0x2bd6
-        BRA_PRED         4, L2e3e   # 0x2bda
-L2bde:  C_CHWIDTH        R12, 0   # 0x2bde
-        C_MOV            R12, R8   # 0x2be0
-        SHLI             R4, R12, 16   # 0x2be2
-        C_MOV            R10, R1   # 0x2be6
-        AND              R14, R4, R10, R4   # 0x2be8
-        ADD              R9, R4, R10, R4   # 0x2bec
-        C_OR             R4, R10   # 0x2bf0
-        C_ANDN           R4, R9   # 0x2bf2
-        OR               R4, R14, R4, R14   # 0x2bf4
-        SHRI             R4, R4, 31   # 0x2bf8
-        SHRI             R14, R12, 16   # 0x2bfc
-        ADD              R4, R14, R4, R14   # 0x2c00
-        OR               R11, R9, R4, R9   # 0x2c04
-        CVT_SEXT         R4, R5, R5, R5   # 0x2c08
-        MOVI48           R3, 4294967295   # 0x2c0c
-        SETP_LT_NP       P0, R4, R3, R4   # 0x2c12
-        BRA_PRED         4, L2c7a   # 0x2c16
-        MOVI             R9, 0   # 0x2c1a
-        SETP_EQ_NPI      P0, R4, R11, 0   # 0x2c1e
-        BRA_PRED         0, L2ce0   # 0x2c22
-        C_MOV            R12, R8   # 0x2c26
-        C_MOV            R10, R1   # 0x2c28
-L2c2a:  C_CHWIDTH        R5, 0   # 0x2c2a
-        LD_GLOBAL_IDX    R4, R12, R10, 0, 8   # 0x2c2c
-        LD_GLOBAL_IDX    R14, R12, R10, 0, 12   # 0x2c30
-        SHLI             R14, R14, 16   # 0x2c34
-        SHRI             R3, R4, 16   # 0x2c38
-        OR               R3, R14, R3, R14   # 0x2c3c
-        C_CHWIDTH        R3, 1   # 0x2c40
-        C_AND            R4, R0   # 0x2c42
-        LD_GLOBAL_IDX    R3, R3, R4, 0, 2   # 0x2c44
-        C_CHWIDTH        R3, 0   # 0x2c48
-        SETP_EQ_NP       P0, R3, R3, R5   # 0x2c4a
-        BRA_PRED         0, L2d50   # 0x2c4e
-        LD_GLOBAL_IDX    R3, R12, R10, 0, 4   # 0x2c52
-        LD_GLOBAL_IDX    R4, R12, R10, 0, 0   # 0x2c56
-        SHRI             R14, R4, 16   # 0x2c5a
-        SHLI             R10, R3, 16   # 0x2c5e
-        OR               R12, R10, R14, R10   # 0x2c62
-        C_AND            R3, R0   # 0x2c66
-        OR               R3, R4, R3, R4   # 0x2c68
-        AND              R10, R4, R0, R4   # 0x2c6c
-        SETP_EQ_NPI      P0, R3, R3, 0   # 0x2c70
-        BRA_PRED         4, L2c2a   # 0x2c74
-        C_BRA            L2ce0   # 0x2c78
-L2c7a:  MOVI             R9, 0   # 0x2c7a
-        SETP_EQ_NPI      P0, R4, R11, 0   # 0x2c7e
-        BRA_PRED         0, L2ce0   # 0x2c82
-L2c86:  LD_GLOBAL_IDX    R3, R12, R10, 0, 8   # 0x2c86
-        LD_GLOBAL_IDX    R4, R12, R10, 0, 12   # 0x2c8a
-        SHLI             R4, R4, 16   # 0x2c8e
-        SHRI             R14, R3, 16   # 0x2c92
-        C_OR             R4, R14   # 0x2c96
-        C_CHWIDTH        R14, 1   # 0x2c98
-        C_AND            R3, R0   # 0x2c9a
-        LD_GLOBAL_IDX    R14, R4, R3, 0, 0   # 0x2c9c
-        XOR              R14, R14, R2, R14   # 0x2ca0
-        MOVI             R3, 255   # 0x2ca4
-        C_CHWIDTH        R3, 1   # 0x2ca8
-        AND              R3, R14, R3, R14   # 0x2caa
-        C_CHWIDTH        R3, 0   # 0x2cae
-        SETP_EQ_NPI      P0, R3, R3, 0   # 0x2cb0
-        BRA_PRED         0, L2d50   # 0x2cb4
-        C_CHWIDTH        R14, 0   # 0x2cb8
-        LD_GLOBAL_IDX    R3, R12, R10, 0, 4   # 0x2cba
-        LD_GLOBAL_IDX    R4, R12, R10, 0, 0   # 0x2cbe
-        SHRI             R14, R4, 16   # 0x2cc2
-        SHLI             R10, R3, 16   # 0x2cc6
-        OR               R12, R10, R14, R10   # 0x2cca
-        C_AND            R3, R0   # 0x2cce
-        OR               R3, R4, R3, R4   # 0x2cd0
-        AND              R10, R4, R0, R4   # 0x2cd4
-        SETP_NE_NPI      P0, R3, R3, 0   # 0x2cd8
-        BRA_PRED         0, L2c86   # 0x2cdc
-L2ce0:  MOVI             R10, 0   # 0x2ce0
-        SETP_EQ_NPI      P0, R3, R11, 0   # 0x2ce4
-        BRA_PRED         0, L2d5a   # 0x2ce8
-L2cec:  MOVI             R11, 0   # 0x2cec
-        MOVI             R4, 0   # 0x2cf0
-L2cf4:  C_CHWIDTH        R14, 0   # 0x2cf4
-        C_MOV            R14, R1   # 0x2cf6
-        C_MOV            R12, R8   # 0x2cf8
-        SHLI             R3, R11, 16   # 0x2cfa
-        AND              R1, R3, R4, R3   # 0x2cfe
-        ADD              R8, R3, R4, R3   # 0x2d02
-        C_OR             R3, R4   # 0x2d06
-        C_ANDN           R3, R8   # 0x2d08
-        OR               R3, R1, R3, R1   # 0x2d0a
-        SHRI             R3, R3, 31   # 0x2d0e
-        SHRI             R4, R11, 16   # 0x2d12
-        ADD              R3, R4, R3, R4   # 0x2d16
-        LD_GLOBAL_IDX    R4, R12, R14, 0, 0   # 0x2d1a
-        ST_GLOBAL_IDX    R8, R12, R14, 0, 0   # 0x2d1e
-        LD_GLOBAL_IDX    R1, R12, R14, 0, 4   # 0x2d22
-        ST_GLOBAL_IDX    R3, R12, R14, 0, 4   # 0x2d26
-        SHRI             R3, R4, 16   # 0x2d2a
-        SHLI             R11, R1, 16   # 0x2d2e
-        OR               R8, R11, R3, R11   # 0x2d32
-        AND              R3, R1, R0, R1   # 0x2d36
-        OR               R3, R4, R3, R4   # 0x2d3a
-        AND              R1, R4, R0, R4   # 0x2d3e
-        SETP_NE_NPI      P0, R3, R3, 0   # 0x2d42
-        C_MOV            R11, R12   # 0x2d46
-        C_MOV            R4, R14   # 0x2d48
-        BRA_PRED         0, L2cf4   # 0x2d4a
-        C_BRA            L2d64   # 0x2d4e
-L2d50:  C_MOV            R9, R12   # 0x2d50
-        SETP_EQ_NPI      P0, R3, R11, 0   # 0x2d52
-        BRA_PRED         4, L2cec   # 0x2d56
-L2d5a:  C_CHWIDTH        R14, 0   # 0x2d5a
-        MOVI             R12, 0   # 0x2d5c
-        MOVI             R14, 0   # 0x2d60
-L2d64:  C_MOV            R1, R14   # 0x2d64
-        C_MOV            R8, R12   # 0x2d66
-        SHLI             R3, R9, 16   # 0x2d68
-        AND              R4, R3, R10, R3   # 0x2d6c
-        ADD              R14, R3, R10, R3   # 0x2d70
-        C_OR             R3, R10   # 0x2d74
-        C_ANDN           R3, R14   # 0x2d76
-        OR               R3, R4, R3, R4   # 0x2d78
-        SHRI             R3, R3, 31   # 0x2d7c
-        SHRI             R4, R9, 16   # 0x2d80
-        ADD              R3, R4, R3, R4   # 0x2d84
-        OR               R3, R14, R3, R14   # 0x2d88
-        SETP_NE_NPI      P0, R3, R3, 0   # 0x2d8c
-        BRA_PRED         4, L2b64   # 0x2d90
-        LD_GLOBAL_IDX    R3, R9, R10, 0, 12   # 0x2d94
-        SHLI             R3, R3, 16   # 0x2d98
-        LD_GLOBAL_IDX    R4, R9, R10, 0, 8   # 0x2d9c
-        SHRI             R14, R4, 16   # 0x2da0
-        C_OR             R3, R14   # 0x2da4
-        C_CHWIDTH        R3, 1   # 0x2da6
-        C_AND            R4, R0   # 0x2da8
-        LD_GLOBAL_IDX    R3, R3, R4, 0, 0   # 0x2daa
-        C_CHWIDTH        R3, 0   # 0x2dae
-        LD_GLOBAL_IDX    R14, R9, R10, 0, 4   # 0x2db0
-        LD_GLOBAL_IDX    R4, R9, R10, 0, 0   # 0x2db4
-        SHRI             R11, R3, 9   # 0x2db8
-        C_CHWIDTH        R3, 1   # 0x2dbc
-        AND              R3, R3, R11, R3   # 0x2dbe
-        AND              R11, R14, R0, R14   # 0x2dc2
-        OR               R11, R4, R11, R4   # 0x2dc6
-        MOVI             R12, 1   # 0x2dca
-        C_CHWIDTH        R12, 1   # 0x2dce
-        AND              R12, R3, R12, R3   # 0x2dd0
-        C_CHWIDTH        R3, 0   # 0x2dd4
-        LD_LOCAL         R3, 96   # 0x2dd6
-        C_CHWIDTH        R3, 1   # 0x2dda
-        ADDI             R3, R3, 1   # 0x2ddc
-        C_CHWIDTH        R3, 0   # 0x2de0
-        ST_LOCAL         R3, 96   # 0x2de2
-        SETP_EQ_NPI      P0, R3, R11, 0   # 0x2de6
-        BRA_PRED         0, L2bb8   # 0x2dea
-        SHRI             R3, R4, 16   # 0x2dee
-        SHLI             R14, R14, 16   # 0x2df2
-        OR               R3, R14, R3, R14   # 0x2df6
-        C_CHWIDTH        R14, 1   # 0x2dfa
-        C_AND            R4, R0   # 0x2dfc
-        LD_GLOBAL_IDX    R14, R3, R4, 0, 4   # 0x2dfe
-        C_CHWIDTH        R14, 0   # 0x2e02
-        LD_GLOBAL_IDX    R11, R3, R4, 0, 0   # 0x2e04
-        ST_GLOBAL_IDX    R11, R9, R10, 0, 0   # 0x2e08
-        ST_GLOBAL_IDX    R14, R9, R10, 0, 4   # 0x2e0c
-        C_CHWIDTH        R14, 1   # 0x2e10
-        C_MOV            R10, R8   # 0x2e12
-        C_MOV            R11, R1   # 0x2e14
-        LD_GLOBAL_IDX    R14, R10, R11, 0, 4   # 0x2e16
-        C_CHWIDTH        R14, 0   # 0x2e1a
-        LD_GLOBAL_IDX    R9, R10, R11, 0, 0   # 0x2e1c
-        ST_GLOBAL_IDX    R9, R3, R4, 0, 0   # 0x2e20
-        ST_GLOBAL_IDX    R14, R3, R4, 0, 4   # 0x2e24
-        SHRI             R14, R3, 16   # 0x2e28
-        ST_GLOBAL_IDX    R14, R10, R11, 0, 4   # 0x2e2c
-        SHLI             R3, R3, 16   # 0x2e30
-        C_OR             R3, R4   # 0x2e34
-        ST_GLOBAL_IDX    R3, R10, R11, 0, 0   # 0x2e36
-        BRA              L2bb8   # 0x2e3a
-L2e3e:  CHWIDTH_MULTI    32, 0   # 0x2e3e
-        C_CHWIDTH        R2, 1   # 0x2e42
-        MOVI             R0, 255   # 0x2e44
-        LD_LOCAL         R14, 112   # 0x2e48
-        AND              R2, R14, R0, R14   # 0x2e4c
-        CHWIDTH_MULTI    4, 0   # 0x2e50
-        LD_LOCAL         R0, 96   # 0x2e54
-        SHLI             R0, R0, 2   # 0x2e58
-        LD_LOCAL         R14, 100   # 0x2e5c
-        C_CHWIDTH        R14, 1   # 0x2e60
-        SUB              R14, R0, R14, R0   # 0x2e62
-        C_CHWIDTH        R0, 1   # 0x2e66
-        ADD              R0, R14, R7, R14   # 0x2e68
-        CHWIDTH_MULTI    16513, 0   # 0x2e6c
-        ST_LOCAL         R0, 156   # 0x2e70
-        LD_LOCAL         R3, 104   # 0x2e74
-        C_BRA            L2e88   # 0x2e78
-L2e7a:  CHWIDTH_MULTI    64, 0   # 0x2e7a
-        MOVI             R0, 0   # 0x2e7e
-        C_MOV            R2, R0   # 0x2e82
-        ST_LOCAL         R2, 156   # 0x2e84
-L2e88:  CHWIDTH_MULTI    4096, 0   # 0x2e88
-        ST_LOCAL         R5, 164   # 0x2e8c
-        C_MOV            R14, R3   # 0x2e90
-        C_CHWIDTH        R14, 1   # 0x2e92
-        C_MOV            R7, R3   # 0x2e94
-        C_CHWIDTH        R7, 1   # 0x2e96
-        C_MOV            R6, R3   # 0x2e98
-        C_CHWIDTH        R6, 1   # 0x2e9a
-        CVT_SEXT         R0, R14, R7, R6   # 0x2e9c
-        SETP_LT_NPI      P0, R0, R0, 1   # 0x2ea0
-        ST_LOCAL         R2, 168   # 0x2ea4
-        BRA_PRED         0, L3488   # 0x2ea8
-        CHWIDTH_MULTI    192, 0   # 0x2eac
-        MOVI             R0, 1   # 0x2eb0
-        ST_LOCAL         R0, 144   # 0x2eb4
-        MOVI             R12, 65535   # 0x2eb8
-        C_MOV            R7, R8   # 0x2ebc
-        C_MOV            R6, R1   # 0x2ebe
-        ST_LOCAL         R13, 132   # 0x2ec0
-        C_BRA            L2ef4   # 0x2ec4
-L2ec6:  MOVI             R0, 0   # 0x2ec6
-        ST_GLOBAL_IDX    R0, R10, R11, 0, 4   # 0x2eca
-        ST_GLOBAL_IDX    R0, R10, R11, 0, 0   # 0x2ece
-        LD_LOCAL         R0, 144   # 0x2ed2
-        C_SHLI           R0, 1   # 0x2ed6
-        ST_LOCAL         R0, 144   # 0x2ed8
-        LD_LOCAL         R0, 152   # 0x2edc
-        SETP_NE_NPI      P0, R0, R0, 0   # 0x2ee0
-        LD_LOCAL         R8, 140   # 0x2ee4
-        C_MOV            R7, R8   # 0x2ee8
-        LD_LOCAL         R9, 136   # 0x2eea
-        C_MOV            R6, R9   # 0x2eee
-        BRA_PRED         4, L348e   # 0x2ef0
-L2ef4:  MOVI             R5, 0   # 0x2ef4
-        MOVI             R10, 0   # 0x2ef8
-        MOVI             R11, 0   # 0x2efc
-        MOVI             R0, 0   # 0x2f00
-        ST_LOCAL         R0, 140   # 0x2f04
-        ST_LOCAL         R0, 136   # 0x2f08
-        C_BRA            L2f1a   # 0x2f0c
-L2f0e:  SETP_EQ_NPI      P0, R0, R0, 0   # 0x2f0e
-        LD_LOCAL         R5, 148   # 0x2f12
-        BRA_PRED         0, L2ec6   # 0x2f16
-L2f1a:  LD_LOCAL         R4, 144   # 0x2f1a
-        SETP_LT_NPI      P0, R0, R4, 1   # 0x2f1e
-        BRA_PRED         0, L2f60   # 0x2f22
-        MOVI             R2, 0   # 0x2f26
-        C_MOV            R0, R7   # 0x2f2a
-        C_MOV            R1, R6   # 0x2f2c
-L2f2e:  LD_GLOBAL_IDX    R3, R0, R1, 0, 4   # 0x2f2e
-        LD_GLOBAL_IDX    R1, R0, R1, 0, 0   # 0x2f32
-        AND              R0, R3, R12, R3   # 0x2f36
-        OR               R0, R1, R0, R1   # 0x2f3a
-        SETP_NE_NPI      P0, R0, R0, 0   # 0x2f3e
-        BRA_PRED         4, L2f6a   # 0x2f42
-        SHRI             R0, R1, 16   # 0x2f46
-        SHLI             R3, R3, 16   # 0x2f4a
-        OR               R0, R3, R0, R3   # 0x2f4e
-        C_AND            R1, R12   # 0x2f52
-        C_ADDI           R2, 1   # 0x2f54
-        SETP_EQ_NP       P0, R3, R4, R2   # 0x2f56
-        BRA_PRED         4, L2f2e   # 0x2f5a
-        C_BRA            L2f76   # 0x2f5e
-L2f60:  MOVI             R4, 0   # 0x2f60
-        C_MOV            R0, R7   # 0x2f64
-        C_MOV            R1, R6   # 0x2f66
-        C_BRA            L2f76   # 0x2f68
-L2f6a:  MOVI             R0, 0   # 0x2f6a
-        ADDI             R4, R2, 1   # 0x2f6e
-        MOVI             R1, 0   # 0x2f72
-L2f76:  ST_LOCAL         R5, 152   # 0x2f76
-        ADDI             R2, R5, 1   # 0x2f7a
-        ST_LOCAL         R2, 148   # 0x2f7e
-        C_MOV            R9, R7   # 0x2f82
-        C_MOV            R8, R6   # 0x2f84
-        C_MOV            R7, R0   # 0x2f86
-        C_MOV            R6, R1   # 0x2f88
-        LD_LOCAL         R0, 144   # 0x2f8a
-        ST_LOCAL         R0, 100   # 0x2f8e
-        C_BRA            L2fac   # 0x2f92
-L2f94:  ST_LOCAL         R4, 140   # 0x2f94
-        ST_LOCAL         R5, 136   # 0x2f98
-L2f9c:  C_MOV            R9, R1   # 0x2f9c
-        C_MOV            R8, R3   # 0x2f9e
-        C_MOV            R7, R0   # 0x2fa0
-        C_MOV            R6, R2   # 0x2fa2
-        C_MOV            R10, R4   # 0x2fa4
-        C_MOV            R11, R5   # 0x2fa6
-        LD_LOCAL         R4, 96   # 0x2fa8
-L2fac:  MOVI             R0, 0   # 0x2fac
-        SETP_LT_NP       P0, R0, R0, R4   # 0x2fb0
-        BRA_PRED         0, L2ff0   # 0x2fb4
-        SHLI             R0, R7, 16   # 0x2fb8
-        AND              R1, R0, R6, R0   # 0x2fbc
-        ADD              R2, R0, R6, R0   # 0x2fc0
-        C_OR             R0, R6   # 0x2fc4
-        C_ANDN           R0, R2   # 0x2fc6
-        OR               R0, R1, R0, R1   # 0x2fc8
-        SHRI             R0, R0, 31   # 0x2fcc
-        SHRI             R1, R7, 16   # 0x2fd0
-        ADD              R0, R1, R0, R1   # 0x2fd4
-        OR               R0, R2, R0, R2   # 0x2fd8
-        LD_LOCAL         R1, 100   # 0x2fdc
-        SETP_LT_NPI      P0, R1, R1, 1   # 0x2fe0
-        BRA_PRED         0, L2f0e   # 0x2fe4
-        SETP_EQ_NPI      P0, R1, R0, 0   # 0x2fe8
-        BRA_PRED         0, L2f0e   # 0x2fec
-L2ff0:  SETP_NE_NPI      P0, R0, R4, 0   # 0x2ff0
-        BRA_PRED         4, L3140   # 0x2ff4
-        LD_LOCAL         R0, 100   # 0x2ff8
-        SETP_EQ_NPI      P0, R0, R0, 0   # 0x2ffc
-        BRA_PRED         0, L3408   # 0x3000
-        SHLI             R0, R7, 16   # 0x3004
-        AND              R1, R0, R6, R0   # 0x3008
-        ADD              R2, R0, R6, R0   # 0x300c
-        C_OR             R0, R6   # 0x3010
-        C_ANDN           R0, R2   # 0x3012
-        OR               R0, R1, R0, R1   # 0x3014
-        SHRI             R0, R0, 31   # 0x3018
-        SHRI             R1, R7, 16   # 0x301c
-        ADD              R0, R1, R0, R1   # 0x3020
-        OR               R0, R2, R0, R2   # 0x3024
-        SETP_NE_NPI      P0, R0, R0, 0   # 0x3028
-        BRA_PRED         4, L3408   # 0x302c
-        C_CHWIDTH        R14, 0   # 0x3030
-        LD_GLOBAL_IDX    R5, R7, R6, 0, 8   # 0x3032
-        LD_GLOBAL_IDX    R14, R7, R6, 0, 12   # 0x3036
-        LD_GLOBAL_IDX    R0, R9, R8, 0, 8   # 0x303a
-        LD_GLOBAL_IDX    R1, R9, R8, 0, 12   # 0x303e
-        SHLI             R1, R1, 16   # 0x3042
-        SHRI             R2, R0, 16   # 0x3046
-        C_OR             R1, R2   # 0x304a
-        AND              R2, R0, R12, R0   # 0x304c
-        C_CHWIDTH        R12, 1   # 0x3050
-        LD_GLOBAL_IDX    R12, R1, R2, 0, 0   # 0x3052
-        MOVI             R0, 128   # 0x3056
-        C_CHWIDTH        R0, 1   # 0x305a
-        AND              R0, R12, R0, R12   # 0x305c
-        C_CHWIDTH        R0, 0   # 0x3060
-        SETP_EQ_NPI      P0, R0, R0, 0   # 0x3062
-        ST_LOCAL         R4, 96   # 0x3066
-        ST_LOCAL         R6, 104   # 0x306a
-        BRA_PRED         4, L3162   # 0x306e
-        ST_LOCAL         R2, 128   # 0x3072
-        ST_LOCAL         R1, 124   # 0x3076
-        ST_LOCAL         R14, 120   # 0x307a
-        ST_LOCAL         R5, 116   # 0x307e
-        MOVI             R0, 7   # 0x3082
-        C_CHWIDTH        R0, 1   # 0x3086
-        AND              R0, R12, R0, R12   # 0x3088
-        CHWIDTH_MULTI    4097, 0   # 0x308c
-        SHRI             R1, R12, 3   # 0x3090
-        C_CHWIDTH        R1, 1   # 0x3094
-        MOVI             R2, 15   # 0x3096
-        AND              R1, R1, R2, R1   # 0x309a
-        C_CHWIDTH        R1, 0   # 0x309e
-        MULI             R1, R1, 17   # 0x30a0
-        C_MOV            R3, R1   # 0x30a4
-        SETP_EQ_NPI      P0, R1, R0, 1   # 0x30a6
-        BRA_PRED         0, L3172   # 0x30aa
-        SETP_NE_NPI      P0, R0, R0, 0   # 0x30ae
-        C_MOV            R5, R12   # 0x30b2
-        BRA_PRED         0, L31be   # 0x30b4
-        CHWIDTH_MULTI    48, 1   # 0x30b8
-        ST_LOCAL         R7, 112   # 0x30bc
-        MOVI             R0, 34   # 0x30c0
-        SETP_LT_U_NP     P0, R0, R0, R3   # 0x30c4
-        C_CHWIDTH        R0, 1   # 0x30c8
-        MOVI             R6, 34   # 0x30ca
-        MOV_P            R6, 0, R3, R3, R3   # 0x30ce
-        C_MOV            R2, R13   # 0x30d2
-        LD_LOCAL         R13, 108   # 0x30d4
-        LD_GLOBAL_IDX    R0, R2, R13, 0, 96   # 0x30d8
-        C_CHWIDTH        R0, 0   # 0x30dc
-        LD_GLOBAL_IDX    R1, R2, R13, 0, 40   # 0x30de
-        LD_GLOBAL_IDX    R5, R2, R13, 0, 2   # 0x30e2
-        C_CHWIDTH        R5, 0   # 0x30e6
-        LD_GLOBAL_IDX    R4, R2, R13, 0, 0   # 0x30e8
-        C_CHWIDTH        R4, 0   # 0x30ec
-        LD_GLOBAL_IDX    R3, R2, R13, 0, 32   # 0x30ee
-        LD_GLOBAL_IDX    R2, R2, R13, 0, 36   # 0x30f2
-        ST_GLOBAL        R0, R15, -4   # 0x30f6
-        SHLI             R0, R2, 16   # 0x30fa
-        SHRI             R2, R3, 16   # 0x30fe
-        OR               R2, R0, R2, R0   # 0x3102
-        MOVI             R0, 65535   # 0x3106
-        C_AND            R3, R0   # 0x310a
-        CALL             R14, 127099   # 0x310c
-        C_CHWIDTH        R0, 1   # 0x3110
-        MOVI             R15, 2   # 0x3112
-        LD_GLOBAL        R15, R15, 24   # 0x3116
-        SRD              R3, 2   # 0x311a
-        C_ADD            R15, R3   # 0x311c
-        C_MOV            R2, R13   # 0x311e
-        LD_LOCAL         R13, 132   # 0x3120
-        LD_GLOBAL_IDX    R0, R13, R2, 0, 102   # 0x3124
-        C_CHWIDTH        R0, 0   # 0x3128
-        C_MOV            R5, R1   # 0x312a
-        SETP_NE_NPI      P0, R0, R0, 0   # 0x312c
-        BRA_PRED         0, L31ba   # 0x3130
-        C_MOV            R0, R5   # 0x3134
-        C_CHWIDTH        R0, 1   # 0x3136
-        ST_GLOBAL_IDX    R0, R13, R2, 0, 102   # 0x3138
-        C_CHWIDTH        R0, 0   # 0x313c
-        C_BRA            L31ba   # 0x313e
-L3140:  LD_GLOBAL_IDX    R1, R7, R6, 0, 0   # 0x3140
-        LD_GLOBAL_IDX    R0, R7, R6, 0, 4   # 0x3144
-        SHLI             R0, R0, 16   # 0x3148
-        SHRI             R2, R1, 16   # 0x314c
-        C_OR             R0, R2   # 0x3150
-        AND              R2, R1, R12, R1   # 0x3152
-        MOVI             R1, 0   # 0x3156
-        ST_LOCAL         R1, 96   # 0x315a
-        BRA              L33f2   # 0x315e
-L3162:  C_CHWIDTH        R3, 1   # 0x3162
-        MOVI             R0, 127   # 0x3164
-        AND              R3, R12, R0, R12   # 0x3168
-        MOVI             R2, 128   # 0x316c
-        C_BRA            L3222   # 0x3170
-L3172:  C_CHWIDTH        R4, 1   # 0x3172
-        ST_LOCAL         R7, 112   # 0x3174
-        C_MOV            R1, R13   # 0x3178
-        LD_LOCAL         R13, 108   # 0x317a
-        LD_GLOBAL_IDX    R4, R1, R13, 0, 96   # 0x317e
-        C_CHWIDTH        R4, 0   # 0x3182
-        ADDI             R2, R13, 64   # 0x3184
-        CALL             R14, 128392   # 0x3188
-        C_CHWIDTH        R0, 1   # 0x318c
-        MOVI             R15, 2   # 0x318e
-        LD_GLOBAL        R15, R15, 24   # 0x3192
-        SRD              R3, 2   # 0x3196
-        C_ADD            R15, R3   # 0x3198
-        C_MOV            R2, R13   # 0x319a
-        LD_LOCAL         R13, 132   # 0x319c
-        LD_GLOBAL_IDX    R0, R13, R2, 0, 100   # 0x31a0
-        C_CHWIDTH        R0, 0   # 0x31a4
-        C_MOV            R5, R1   # 0x31a6
-        SETP_NE_NPI      P0, R0, R0, 0   # 0x31a8
-        BRA_PRED         0, L31ba   # 0x31ac
-        C_MOV            R0, R5   # 0x31b0
-        C_CHWIDTH        R0, 1   # 0x31b2
-        ST_GLOBAL_IDX    R0, R13, R2, 0, 100   # 0x31b4
-        C_CHWIDTH        R0, 0   # 0x31b8
-L31ba:  LD_LOCAL         R7, 112   # 0x31ba
-L31be:  C_CHWIDTH        R2, 1   # 0x31be
-        LD_LOCAL         R6, 108   # 0x31c0
-        LD_GLOBAL_IDX    R2, R13, R6, 0, 96   # 0x31c4
-        C_CHWIDTH        R2, 0   # 0x31c8
-        C_MOV            R1, R5   # 0x31ca
-        CALL             R14, 129894   # 0x31cc
-        CHWIDTH_MULTI    16386, 1   # 0x31d0
-        MOVI             R15, 2   # 0x31d4
-        LD_GLOBAL        R15, R15, 24   # 0x31d8
-        SRD              R3, 2   # 0x31dc
-        C_ADD            R15, R3   # 0x31de
-        C_CHWIDTH        R3, 1   # 0x31e0
-        ST_GLOBAL_IDX    R1, R13, R6, 0, 96   # 0x31e2
-        C_CHWIDTH        R1, 0   # 0x31e6
-        MOVI             R0, 127   # 0x31e8
-        AND              R3, R5, R0, R5   # 0x31ec
-        MOVI             R0, 65280   # 0x31f0
-        AND              R14, R12, R0, R12   # 0x31f4
-        OR               R14, R14, R3, R14   # 0x31f8
-        MOVI             R2, 128   # 0x31fc
-        OR               R14, R14, R2, R14   # 0x3200
-        LD_LOCAL         R0, 124   # 0x3204
-        LD_LOCAL         R1, 128   # 0x3208
-        ST_GLOBAL_IDX    R14, R0, R1, 0, 0   # 0x320c
-        C_CHWIDTH        R14, 0   # 0x3210
-        LD_LOCAL         R6, 104   # 0x3212
-        LD_LOCAL         R4, 96   # 0x3216
-        LD_LOCAL         R5, 116   # 0x321a
-        LD_LOCAL         R14, 120   # 0x321e
-L3222:  C_CHWIDTH        R12, 1   # 0x3222
-        SHLI             R0, R14, 16   # 0x3224
-        SHRI             R1, R5, 16   # 0x3228
-        OR               R1, R0, R1, R0   # 0x322c
-        MOVI             R0, 65535   # 0x3230
-        C_AND            R5, R0   # 0x3234
-        C_CHWIDTH        R0, 1   # 0x3236
-        LD_GLOBAL_IDX    R12, R1, R5, 0, 0   # 0x3238
-        AND              R0, R12, R2, R12   # 0x323c
-        C_CHWIDTH        R0, 0   # 0x3240
-        SETP_EQ_NPI      P0, R0, R0, 0   # 0x3242
-        BRA_PRED         4, L3316   # 0x3246
-        C_CHWIDTH        R3, 0   # 0x324a
-        ST_LOCAL         R5, 124   # 0x324c
-        ST_LOCAL         R1, 120   # 0x3250
-        ST_LOCAL         R3, 116   # 0x3254
-        MOVI             R0, 7   # 0x3258
-        C_CHWIDTH        R0, 1   # 0x325c
-        AND              R0, R12, R0, R12   # 0x325e
-        CHWIDTH_MULTI    4097, 0   # 0x3262
-        SHRI             R1, R12, 3   # 0x3266
-        C_CHWIDTH        R1, 1   # 0x326a
-        MOVI             R2, 15   # 0x326c
-        AND              R1, R1, R2, R1   # 0x3270
-        C_CHWIDTH        R1, 0   # 0x3274
-        MULI             R1, R1, 17   # 0x3276
-        C_MOV            R3, R1   # 0x327a
-        SETP_EQ_NPI      P0, R1, R0, 1   # 0x327c
-        BRA_PRED         0, L3322   # 0x3280
-        SETP_NE_NPI      P0, R0, R0, 0   # 0x3284
-        C_MOV            R5, R12   # 0x3288
-        BRA_PRED         0, L336e   # 0x328a
-        CHWIDTH_MULTI    48, 1   # 0x328e
-        ST_LOCAL         R7, 112   # 0x3292
-        MOVI             R0, 34   # 0x3296
-        SETP_LT_U_NP     P0, R0, R0, R3   # 0x329a
-        C_CHWIDTH        R0, 1   # 0x329e
-        MOVI             R6, 34   # 0x32a0
-        MOV_P            R6, 0, R3, R3, R3   # 0x32a4
-        C_MOV            R2, R13   # 0x32a8
-        LD_LOCAL         R13, 108   # 0x32aa
-        LD_GLOBAL_IDX    R0, R2, R13, 0, 96   # 0x32ae
-        C_CHWIDTH        R0, 0   # 0x32b2
-        LD_GLOBAL_IDX    R1, R2, R13, 0, 40   # 0x32b4
-        LD_GLOBAL_IDX    R5, R2, R13, 0, 2   # 0x32b8
-        C_CHWIDTH        R5, 0   # 0x32bc
-        LD_GLOBAL_IDX    R4, R2, R13, 0, 0   # 0x32be
-        C_CHWIDTH        R4, 0   # 0x32c2
-        LD_GLOBAL_IDX    R3, R2, R13, 0, 32   # 0x32c4
-        LD_GLOBAL_IDX    R2, R2, R13, 0, 36   # 0x32c8
-        ST_GLOBAL        R0, R15, -4   # 0x32cc
-        SHLI             R0, R2, 16   # 0x32d0
-        SHRI             R2, R3, 16   # 0x32d4
-        OR               R2, R0, R2, R0   # 0x32d8
-        MOVI             R0, 65535   # 0x32dc
-        C_AND            R3, R0   # 0x32e0
-        CALL             R14, 126864   # 0x32e2
-        C_CHWIDTH        R0, 1   # 0x32e6
-        MOVI             R15, 2   # 0x32e8
-        LD_GLOBAL        R15, R15, 24   # 0x32ec
-        SRD              R3, 2   # 0x32f0
-        C_ADD            R15, R3   # 0x32f2
-        C_MOV            R2, R13   # 0x32f4
-        LD_LOCAL         R13, 132   # 0x32f6
-        LD_GLOBAL_IDX    R0, R13, R2, 0, 102   # 0x32fa
-        C_CHWIDTH        R0, 0   # 0x32fe
-        C_MOV            R5, R1   # 0x3300
-        SETP_NE_NPI      P0, R0, R0, 0   # 0x3302
-        BRA_PRED         0, L336a   # 0x3306
-        C_MOV            R0, R5   # 0x330a
-        C_CHWIDTH        R0, 1   # 0x330c
-        ST_GLOBAL_IDX    R0, R13, R2, 0, 102   # 0x330e
-        C_CHWIDTH        R0, 0   # 0x3312
-        C_BRA            L336a   # 0x3314
-L3316:  MOVI             R0, 127   # 0x3316
-        C_CHWIDTH        R0, 1   # 0x331a
-        AND              R0, R12, R0, R12   # 0x331c
-        C_BRA            L33cc   # 0x3320
-L3322:  C_CHWIDTH        R4, 1   # 0x3322
-        ST_LOCAL         R7, 112   # 0x3324
-        C_MOV            R1, R13   # 0x3328
-        LD_LOCAL         R13, 108   # 0x332a
-        LD_GLOBAL_IDX    R4, R1, R13, 0, 96   # 0x332e
-        C_CHWIDTH        R4, 0   # 0x3332
-        ADDI             R2, R13, 64   # 0x3334
-        CALL             R14, 128176   # 0x3338
-        C_CHWIDTH        R0, 1   # 0x333c
-        MOVI             R15, 2   # 0x333e
-        LD_GLOBAL        R15, R15, 24   # 0x3342
-        SRD              R3, 2   # 0x3346
-        C_ADD            R15, R3   # 0x3348
-        C_MOV            R2, R13   # 0x334a
-        LD_LOCAL         R13, 132   # 0x334c
-        LD_GLOBAL_IDX    R0, R13, R2, 0, 100   # 0x3350
-        C_CHWIDTH        R0, 0   # 0x3354
-        C_MOV            R5, R1   # 0x3356
-        SETP_NE_NPI      P0, R0, R0, 0   # 0x3358
-        BRA_PRED         0, L336a   # 0x335c
-        C_MOV            R0, R5   # 0x3360
-        C_CHWIDTH        R0, 1   # 0x3362
-        ST_GLOBAL_IDX    R0, R13, R2, 0, 100   # 0x3364
-        C_CHWIDTH        R0, 0   # 0x3368
-L336a:  LD_LOCAL         R7, 112   # 0x336a
-L336e:  C_CHWIDTH        R2, 1   # 0x336e
-        LD_LOCAL         R6, 108   # 0x3370
-        LD_GLOBAL_IDX    R2, R13, R6, 0, 96   # 0x3374
-        C_CHWIDTH        R2, 0   # 0x3378
-        C_MOV            R1, R5   # 0x337a
-        CALL             R14, 129678   # 0x337c
-        CHWIDTH_MULTI    16386, 1   # 0x3380
-        MOVI             R15, 2   # 0x3384
-        LD_GLOBAL        R15, R15, 24   # 0x3388
-        SRD              R3, 2   # 0x338c
-        C_ADD            R15, R3   # 0x338e
-        ST_GLOBAL_IDX    R1, R13, R6, 0, 96   # 0x3390
-        C_CHWIDTH        R1, 0   # 0x3394
-        MOVI             R0, 127   # 0x3396
-        C_CHWIDTH        R0, 1   # 0x339a
-        AND              R0, R5, R0, R5   # 0x339c
-        MOVI             R1, 65280   # 0x33a0
-        AND              R14, R12, R1, R12   # 0x33a4
-        OR               R14, R14, R0, R14   # 0x33a8
-        MOVI             R1, 128   # 0x33ac
-        OR               R14, R14, R1, R14   # 0x33b0
-        LD_LOCAL         R1, 120   # 0x33b4
-        LD_LOCAL         R2, 124   # 0x33b8
-        ST_GLOBAL_IDX    R14, R1, R2, 0, 0   # 0x33bc
-        LD_LOCAL         R6, 104   # 0x33c0
-        LD_LOCAL         R4, 96   # 0x33c4
-        LD_LOCAL         R3, 116   # 0x33c8
-L33cc:  CHWIDTH_MULTI    4105, 0   # 0x33cc
-        SETP_LT_U_NP     P0, R0, R0, R3   # 0x33d0
-        MOVI             R12, 65535   # 0x33d4
-        BRA_PRED         4, L3408   # 0x33d8
-        LD_GLOBAL_IDX    R1, R7, R6, 0, 0   # 0x33dc
-        LD_GLOBAL_IDX    R0, R7, R6, 0, 4   # 0x33e0
-        SHLI             R0, R0, 16   # 0x33e4
-        SHRI             R2, R1, 16   # 0x33e8
-        C_OR             R0, R2   # 0x33ec
-        AND              R2, R1, R12, R1   # 0x33ee
-L33f2:  LD_LOCAL         R1, 100   # 0x33f2
-        ADDI             R1, R1, -1   # 0x33f6
-        ST_LOCAL         R1, 100   # 0x33fa
-        C_MOV            R1, R9   # 0x33fe
-        C_MOV            R3, R8   # 0x3400
-        C_MOV            R4, R7   # 0x3402
-        C_MOV            R5, R6   # 0x3404
-        C_BRA            L342e   # 0x3406
-L3408:  LD_GLOBAL_IDX    R0, R9, R8, 0, 0   # 0x3408
-        LD_GLOBAL_IDX    R1, R9, R8, 0, 4   # 0x340c
-        SHLI             R1, R1, 16   # 0x3410
-        SHRI             R2, R0, 16   # 0x3414
-        C_OR             R1, R2   # 0x3418
-        AND              R3, R0, R12, R0   # 0x341a
-        ADDI             R4, R4, -1   # 0x341e
-        ST_LOCAL         R4, 96   # 0x3422
-        C_MOV            R0, R7   # 0x3426
-        C_MOV            R2, R6   # 0x3428
-        C_MOV            R4, R9   # 0x342a
-        C_MOV            R5, R8   # 0x342c
-L342e:  C_CHWIDTH        R14, 0   # 0x342e
-        SHLI             R6, R10, 16   # 0x3430
-        AND              R7, R6, R11, R6   # 0x3434
-        ADD              R14, R6, R11, R6   # 0x3438
-        C_OR             R6, R11   # 0x343c
-        C_ANDN           R6, R14   # 0x343e
-        OR               R6, R7, R6, R7   # 0x3440
-        SHRI             R6, R6, 31   # 0x3444
-        SHRI             R7, R10, 16   # 0x3448
-        ADD              R6, R7, R6, R7   # 0x344c
-        OR               R6, R14, R6, R14   # 0x3450
-        SETP_EQ_NPI      P0, R6, R6, 0   # 0x3454
-        BRA_PRED         0, L2f94   # 0x3458
-        SHLI             R6, R4, 16   # 0x345c
-        ADD              R7, R6, R5, R6   # 0x3460
-        ST_GLOBAL_IDX    R7, R10, R11, 0, 0   # 0x3464
-        OR               R14, R6, R5, R6   # 0x3468
-        ANDN             R7, R14, R7, R14   # 0x346c
-        C_AND            R6, R5   # 0x3470
-        C_OR             R6, R7   # 0x3472
-        SHRI             R6, R6, 31   # 0x3474
-        SHRI             R7, R4, 16   # 0x3478
-        ADD              R6, R7, R6, R7   # 0x347c
-        ST_GLOBAL_IDX    R6, R10, R11, 0, 4   # 0x3480
-        BRA              L2f9c   # 0x3484
-L3488:  CHWIDTH_MULTI    64, 0   # 0x3488
-        C_MOV            R9, R1   # 0x348c
-L348e:  CHWIDTH_MULTI    16512, 0   # 0x348e
-        LD_GLOBAL_IDX    R1, R8, R9, 0, 0   # 0x3492
-        LD_GLOBAL_IDX    R0, R8, R9, 0, 4   # 0x3496
-        SHLI             R0, R0, 16   # 0x349a
-        SHRI             R2, R1, 16   # 0x349e
-        OR               R3, R0, R2, R0   # 0x34a2
-        MOVI             R0, 65535   # 0x34a6
-        AND              R4, R1, R0, R1   # 0x34aa
-        LD_GLOBAL_IDX    R1, R3, R4, 0, 4   # 0x34ae
-        SHLI             R1, R1, 16   # 0x34b2
-        LD_GLOBAL_IDX    R2, R3, R4, 0, 0   # 0x34b6
-        SHRI             R5, R2, 16   # 0x34ba
-        OR               R6, R1, R5, R1   # 0x34be
-        C_CHWIDTH        R5, 1   # 0x34c2
-        AND              R7, R2, R0, R2   # 0x34c4
-        LD_GLOBAL_IDX    R5, R6, R7, 0, 12   # 0x34c8
-        C_CHWIDTH        R5, 0   # 0x34cc
-        LD_GLOBAL_IDX    R2, R6, R7, 0, 8   # 0x34ce
-        LD_GLOBAL_IDX    R1, R3, R4, 0, 8   # 0x34d2
-        ST_GLOBAL_IDX    R2, R3, R4, 0, 8   # 0x34d6
-        LD_GLOBAL_IDX    R2, R3, R4, 0, 12   # 0x34da
-        ST_GLOBAL_IDX    R5, R3, R4, 0, 12   # 0x34de
-        AND              R5, R2, R0, R2   # 0x34e2
-        ST_GLOBAL_IDX    R5, R6, R7, 0, 12   # 0x34e6
-        C_CHWIDTH        R5, 1   # 0x34ea
-        ST_GLOBAL_IDX    R1, R6, R7, 0, 8   # 0x34ec
-        LD_GLOBAL_IDX    R5, R6, R7, 0, 4   # 0x34f0
-        C_CHWIDTH        R5, 0   # 0x34f4
-        LD_GLOBAL_IDX    R14, R6, R7, 0, 0   # 0x34f6
-        ST_GLOBAL_IDX    R14, R3, R4, 0, 0   # 0x34fa
-        ST_GLOBAL_IDX    R5, R3, R4, 0, 4   # 0x34fe
-        LD_LOCAL         R10, 164   # 0x3502
-        C_MOV            R4, R10   # 0x3506
-        C_CHWIDTH        R4, 1   # 0x3508
-        C_MOV            R5, R10   # 0x350a
-        C_CHWIDTH        R5, 1   # 0x350c
-        C_MOV            R11, R10   # 0x350e
-        C_CHWIDTH        R11, 1   # 0x3510
-        CVT_SEXT         R3, R4, R5, R11   # 0x3512
-        CHWIDTH_MULTI    2096, 0   # 0x3516
-        MOVI48           R4, 4294967295   # 0x351a
-        SETP_LT_NP       P0, R3, R4, R3   # 0x3520
-        MOVI             R3, 0   # 0x3524
-        ST_GLOBAL_IDX    R3, R6, R7, 0, 4   # 0x3528
-        ST_GLOBAL_IDX    R3, R6, R7, 0, 0   # 0x352c
-        C_MOV            R13, R8   # 0x3530
-        ST_LOCAL         R9, 136   # 0x3532
-        BRA_PRED         4, L3586   # 0x3536
-L353a:  LD_GLOBAL_IDX    R3, R8, R9, 0, 8   # 0x353a
-        LD_GLOBAL_IDX    R4, R8, R9, 0, 12   # 0x353e
-        SHLI             R4, R4, 16   # 0x3542
-        SHRI             R5, R3, 16   # 0x3546
-        C_OR             R4, R5   # 0x354a
-        C_AND            R3, R0   # 0x354c
-        C_CHWIDTH        R3, 1   # 0x354e
-        LD_GLOBAL_IDX    R3, R4, R3, 0, 2   # 0x3550
-        C_CHWIDTH        R3, 0   # 0x3554
-        SETP_EQ_NP       P0, R3, R3, R10   # 0x3556
-        BRA_PRED         0, L35de   # 0x355a
-        LD_GLOBAL_IDX    R3, R8, R9, 0, 4   # 0x355e
-        LD_GLOBAL_IDX    R4, R8, R9, 0, 0   # 0x3562
-        SHRI             R5, R4, 16   # 0x3566
-        SHLI             R14, R3, 16   # 0x356a
-        OR               R8, R14, R5, R14   # 0x356e
-        C_AND            R3, R0   # 0x3572
-        OR               R3, R4, R3, R4   # 0x3574
-        AND              R9, R4, R0, R4   # 0x3578
-        SETP_EQ_NPI      P0, R3, R3, 0   # 0x357c
-        BRA_PRED         4, L353a   # 0x3580
-        C_BRA            L35d6   # 0x3584
-L3586:  LD_LOCAL         R10, 168   # 0x3586
-L358a:  LD_GLOBAL_IDX    R3, R8, R9, 0, 8   # 0x358a
-        LD_GLOBAL_IDX    R4, R8, R9, 0, 12   # 0x358e
-        SHLI             R4, R4, 16   # 0x3592
-        SHRI             R5, R3, 16   # 0x3596
-        C_OR             R4, R5   # 0x359a
-        C_AND            R3, R0   # 0x359c
-        C_CHWIDTH        R3, 2   # 0x359e
-        LD_GLOBAL_IDX    R3, R4, R3, 0, 0   # 0x35a0
-        C_CHWIDTH        R3, 0   # 0x35a4
-        C_AND            R3, R0   # 0x35a6
-        SETP_EQ_NP       P0, R3, R3, R10   # 0x35a8
-        BRA_PRED         0, L35de   # 0x35ac
-        LD_GLOBAL_IDX    R3, R8, R9, 0, 4   # 0x35b0
-        LD_GLOBAL_IDX    R4, R8, R9, 0, 0   # 0x35b4
-        SHRI             R5, R4, 16   # 0x35b8
-        SHLI             R14, R3, 16   # 0x35bc
-        OR               R8, R14, R5, R14   # 0x35c0
-        C_AND            R3, R0   # 0x35c4
-        OR               R3, R4, R3, R4   # 0x35c6
-        AND              R9, R4, R0, R4   # 0x35ca
-        SETP_NE_NPI      P0, R3, R3, 0   # 0x35ce
-        BRA_PRED         0, L358a   # 0x35d2
-L35d6:  MOVI             R8, 0   # 0x35d6
-        MOVI             R9, 0   # 0x35da
-L35de:  SHLI             R2, R2, 16   # 0x35de
-        SHRI             R3, R1, 16   # 0x35e2
-        SHLI             R4, R8, 16   # 0x35e6
-        AND              R5, R4, R9, R4   # 0x35ea
-        ADD              R14, R4, R9, R4   # 0x35ee
-        C_OR             R4, R9   # 0x35f2
-        C_ANDN           R4, R14   # 0x35f4
-        OR               R4, R5, R4, R5   # 0x35f6
-        SHRI             R4, R4, 31   # 0x35fa
-        SHRI             R5, R8, 16   # 0x35fe
-        ADD              R4, R5, R4, R5   # 0x3602
-        OR               R4, R14, R4, R14   # 0x3606
-        SETP_NE_NPI      P0, R4, R4, 0   # 0x360a
-        BRA_PRED         0, L3634   # 0x360e
-        C_MOV            R5, R13   # 0x3612
-        LD_LOCAL         R14, 136   # 0x3614
-        LD_GLOBAL_IDX    R4, R5, R14, 0, 0   # 0x3618
-        LD_GLOBAL_IDX    R5, R5, R14, 0, 4   # 0x361c
-        SHLI             R5, R5, 16   # 0x3620
-        SHRI             R14, R4, 16   # 0x3624
-        OR               R8, R5, R14, R5   # 0x3628
-        MOVI             R5, 65535   # 0x362c
-        AND              R9, R4, R5, R4   # 0x3630
-L3634:  OR               R10, R2, R3, R2   # 0x3634
-        AND              R11, R1, R0, R1   # 0x3638
-        SHLI             R0, R8, 16   # 0x363c
-        AND              R1, R0, R9, R0   # 0x3640
-        ADD              R2, R0, R9, R0   # 0x3644
-        C_OR             R0, R9   # 0x3648
-        C_ANDN           R0, R2   # 0x364a
-        OR               R0, R1, R0, R1   # 0x364c
-        SHRI             R0, R0, 31   # 0x3650
-        SHRI             R1, R8, 16   # 0x3654
-        ADD              R0, R1, R0, R1   # 0x3658
-        OR               R0, R2, R0, R2   # 0x365c
-        SETP_EQ_NPI      P0, R0, R0, 0   # 0x3660
-        BRA_PRED         0, L36ce   # 0x3664
-        C_CHWIDTH        R5, 1   # 0x3668
-        C_MOV            R1, R13   # 0x366a
-        LD_LOCAL         R2, 136   # 0x366c
-        LD_GLOBAL_IDX    R0, R1, R2, 0, 8   # 0x3670
-        LD_GLOBAL_IDX    R1, R1, R2, 0, 12   # 0x3674
-        SHLI             R1, R1, 16   # 0x3678
-        SHRI             R2, R0, 16   # 0x367c
-        C_OR             R1, R2   # 0x3680
-        MOVI             R12, 65535   # 0x3682
-        C_AND            R0, R12   # 0x3686
-        LD_GLOBAL_IDX    R5, R1, R0, 0, 0   # 0x3688
-        LD_LOCAL         R2, 156   # 0x368c
-L3690:  C_CHWIDTH        R5, 0   # 0x3690
-        C_MOV            R1, R5   # 0x3692
-        CALL             R14, 127453   # 0x3694
-        MOVI             R15, 2   # 0x3698
-        LD_GLOBAL        R15, R15, 24   # 0x369c
-        SRD              R3, 2   # 0x36a0
-        C_ADD            R15, R3   # 0x36a2
-        LD_GLOBAL_IDX    R0, R8, R9, 0, 4   # 0x36a4
-        LD_GLOBAL_IDX    R2, R8, R9, 0, 0   # 0x36a8
-        SHRI             R3, R2, 16   # 0x36ac
-        SHLI             R4, R0, 16   # 0x36b0
-        OR               R8, R4, R3, R4   # 0x36b4
-        C_AND            R0, R12   # 0x36b8
-        OR               R0, R2, R0, R2   # 0x36ba
-        AND              R9, R2, R12, R2   # 0x36be
-        C_MOV            R2, R1   # 0x36c2
-        SETP_NE_NPI      P0, R0, R0, 0   # 0x36c4
-        BRA_PRED         0, L3690   # 0x36c8
-        C_BRA            L36d2   # 0x36cc
-L36ce:  LD_LOCAL         R2, 156   # 0x36ce
-L36d2:  C_CHWIDTH        R3, 1   # 0x36d2
-        ST_LOCAL         R2, 156   # 0x36d4
-        LD_LOCAL         R5, 136   # 0x36d8
-        LD_GLOBAL_IDX    R1, R13, R5, 0, 0   # 0x36dc
-        LD_GLOBAL_IDX    R0, R13, R5, 0, 4   # 0x36e0
-        SHLI             R0, R0, 16   # 0x36e4
-        SHRI             R2, R1, 16   # 0x36e8
-        OR               R2, R0, R2, R0   # 0x36ec
-        MOVI             R0, 65535   # 0x36f0
-        C_AND            R1, R0   # 0x36f4
-        LD_GLOBAL_IDX    R3, R2, R1, 0, 12   # 0x36f6
-        C_CHWIDTH        R3, 0   # 0x36fa
-        LD_GLOBAL_IDX    R4, R2, R1, 0, 8   # 0x36fc
-        ST_GLOBAL_IDX    R4, R6, R7, 0, 8   # 0x3700
-        ST_GLOBAL_IDX    R3, R6, R7, 0, 12   # 0x3704
-        SHRI             R3, R10, 16   # 0x3708
-        ST_GLOBAL_IDX    R3, R2, R1, 0, 12   # 0x370c
-        SHLI             R3, R10, 16   # 0x3710
-        C_OR             R3, R11   # 0x3714
-        ST_GLOBAL_IDX    R3, R2, R1, 0, 8   # 0x3716
-        C_CHWIDTH        R3, 1   # 0x371a
-        LD_GLOBAL_IDX    R3, R2, R1, 0, 4   # 0x371c
-        C_CHWIDTH        R3, 0   # 0x3720
-        LD_GLOBAL_IDX    R4, R2, R1, 0, 0   # 0x3722
-        ST_GLOBAL_IDX    R4, R6, R7, 0, 0   # 0x3726
-        ST_GLOBAL_IDX    R3, R6, R7, 0, 4   # 0x372a
-        SHLI             R3, R6, 16   # 0x372e
-        C_OR             R3, R7   # 0x3732
-        SHRI             R4, R6, 16   # 0x3734
-        ST_GLOBAL_IDX    R4, R2, R1, 0, 4   # 0x3738
-        ST_GLOBAL_IDX    R3, R2, R1, 0, 0   # 0x373c
-        C_MOV            R1, R13   # 0x3740
-        C_MOV            R13, R5   # 0x3742
-        MOVI             R9, 1   # 0x3744
-        MOVI             R3, 0   # 0x3748
-        C_BRA            L3770   # 0x374c
-L374e:  ST_GLOBAL_IDX    R3, R2, R4, 0, 4   # 0x374e
-        ST_GLOBAL_IDX    R3, R2, R4, 0, 0   # 0x3752
-        C_SHLI           R9, 1   # 0x3756
-        LD_LOCAL         R1, 104   # 0x3758
-        SETP_NE_NPI      P0, R1, R1, 0   # 0x375c
-        LD_LOCAL         R4, 96   # 0x3760
-        C_MOV            R1, R4   # 0x3764
-        LD_LOCAL         R5, 100   # 0x3766
-        C_MOV            R13, R5   # 0x376a
-        BRA_PRED         4, L39bc   # 0x376c
-L3770:  MOVI             R6, 0   # 0x3770
-        MOVI             R2, 0   # 0x3774
-        MOVI             R4, 0   # 0x3778
-        MOVI             R5, 0   # 0x377c
-        ST_LOCAL         R5, 96   # 0x3780
-        ST_LOCAL         R5, 100   # 0x3784
-        ST_LOCAL         R9, 112   # 0x3788
-        C_BRA            L379e   # 0x378c
-L378e:  SETP_EQ_NPI      P0, R5, R6, 0   # 0x378e
-        LD_LOCAL         R9, 112   # 0x3792
-        LD_LOCAL         R6, 108   # 0x3796
-        BRA_PRED         0, L374e   # 0x379a
-L379e:  ST_LOCAL         R6, 104   # 0x379e
-        SETP_LT_NPI      P0, R5, R9, 1   # 0x37a2
-        BRA_PRED         0, L37e6   # 0x37a6
-        MOVI             R5, 0   # 0x37aa
-        C_MOV            R6, R1   # 0x37ae
-        C_MOV            R7, R13   # 0x37b0
-L37b2:  LD_GLOBAL_IDX    R14, R6, R7, 0, 4   # 0x37b2
-        LD_GLOBAL_IDX    R7, R6, R7, 0, 0   # 0x37b6
-        AND              R6, R14, R0, R14   # 0x37ba
-        OR               R6, R7, R6, R7   # 0x37be
-        SETP_NE_NPI      P0, R6, R6, 0   # 0x37c2
-        BRA_PRED         4, L37f0   # 0x37c6
-        SHRI             R6, R7, 16   # 0x37ca
-        SHLI             R14, R14, 16   # 0x37ce
-        OR               R6, R14, R6, R14   # 0x37d2
-        C_AND            R7, R0   # 0x37d6
-        C_ADDI           R5, 1   # 0x37d8
-        SETP_EQ_NP       P0, R14, R9, R5   # 0x37da
-        BRA_PRED         4, L37b2   # 0x37de
-        C_MOV            R8, R9   # 0x37e2
-        C_BRA            L37fc   # 0x37e4
-L37e6:  MOVI             R8, 0   # 0x37e6
-        C_MOV            R6, R1   # 0x37ea
-        C_MOV            R7, R13   # 0x37ec
-        C_BRA            L37fc   # 0x37ee
-L37f0:  MOVI             R6, 0   # 0x37f0
-        ADDI             R8, R5, 1   # 0x37f4
-        MOVI             R7, 0   # 0x37f8
-L37fc:  LD_LOCAL         R5, 104   # 0x37fc
-        C_ADDI           R5, 1   # 0x3800
-        ST_LOCAL         R5, 108   # 0x3802
-        C_MOV            R5, R1   # 0x3806
-        C_MOV            R14, R13   # 0x3808
-        C_MOV            R1, R6   # 0x380a
-        C_MOV            R13, R7   # 0x380c
-        C_BRA            L3822   # 0x380e
-L3810:  ST_LOCAL         R6, 96   # 0x3810
-        ST_LOCAL         R7, 100   # 0x3814
-L3818:  C_MOV            R5, R11   # 0x3818
-        C_MOV            R14, R10   # 0x381a
-        C_MOV            R1, R12   # 0x381c
-        C_MOV            R2, R6   # 0x381e
-        C_MOV            R4, R7   # 0x3820
-L3822:  SETP_LT_NP       P0, R6, R3, R8   # 0x3822
-        BRA_PRED         0, L385e   # 0x3826
-        SHLI             R6, R1, 16   # 0x382a
-        AND              R7, R6, R13, R6   # 0x382e
-        ADD              R10, R6, R13, R6   # 0x3832
-        C_OR             R6, R13   # 0x3836
-        C_ANDN           R6, R10   # 0x3838
-        OR               R6, R7, R6, R7   # 0x383a
-        SHRI             R6, R6, 31   # 0x383e
-        SHRI             R7, R1, 16   # 0x3842
-        ADD              R6, R7, R6, R7   # 0x3846
-        OR               R6, R10, R6, R10   # 0x384a
-        SETP_LT_NPI      P0, R7, R9, 1   # 0x384e
-        BRA_PRED         0, L378e   # 0x3852
-        SETP_EQ_NPI      P0, R7, R6, 0   # 0x3856
-        BRA_PRED         0, L378e   # 0x385a
-L385e:  SETP_NE_NPI      P0, R6, R8, 0   # 0x385e
-        BRA_PRED         4, L393e   # 0x3862
-        SETP_EQ_NPI      P0, R6, R9, 0   # 0x3866
-        BRA_PRED         0, L3916   # 0x386a
-        SHLI             R6, R1, 16   # 0x386e
-        AND              R7, R6, R13, R6   # 0x3872
-        ADD              R10, R6, R13, R6   # 0x3876
-        C_OR             R6, R13   # 0x387a
-        C_ANDN           R6, R10   # 0x387c
-        OR               R6, R7, R6, R7   # 0x387e
-        SHRI             R6, R6, 31   # 0x3882
-        SHRI             R7, R1, 16   # 0x3886
-        ADD              R6, R7, R6, R7   # 0x388a
-        OR               R6, R10, R6, R10   # 0x388e
-        SETP_NE_NPI      P0, R6, R6, 0   # 0x3892
-        BRA_PRED         4, L3916   # 0x3896
-        C_CHWIDTH        R12, 2   # 0x389a
-        LD_GLOBAL_IDX    R6, R5, R14, 0, 8   # 0x389c
-        LD_GLOBAL_IDX    R7, R5, R14, 0, 12   # 0x38a0
-        SHLI             R7, R7, 16   # 0x38a4
-        SHRI             R10, R6, 16   # 0x38a8
-        C_OR             R7, R10   # 0x38ac
-        LD_GLOBAL_IDX    R10, R1, R13, 0, 8   # 0x38ae
-        LD_GLOBAL_IDX    R11, R1, R13, 0, 12   # 0x38b2
-        C_AND            R6, R0   # 0x38b6
-        LD_GLOBAL_IDX    R12, R7, R6, 0, 1   # 0x38b8
-        ST_GLOBAL_IDX    R12, R7, R6, 0, 0   # 0x38bc
-        C_CHWIDTH        R7, 1   # 0x38c0
-        C_CHWIDTH        R12, 0   # 0x38c2
-        SHLI             R11, R11, 16   # 0x38c4
-        SHRI             R12, R10, 16   # 0x38c8
-        C_OR             R11, R12   # 0x38cc
-        C_CHWIDTH        R12, 2   # 0x38ce
-        C_AND            R10, R0   # 0x38d0
-        LD_GLOBAL_IDX    R12, R11, R10, 0, 1   # 0x38d2
-        ST_GLOBAL_IDX    R12, R11, R10, 0, 0   # 0x38d6
-        LD_GLOBAL_IDX    R7, R7, R6, 0, 2   # 0x38da
-        C_CHWIDTH        R6, 1   # 0x38de
-        LD_GLOBAL_IDX    R6, R11, R10, 0, 2   # 0x38e0
-        CVT_SEXT         R10, R6, R6, R6   # 0x38e4
-        C_CHWIDTH        R6, 0   # 0x38e8
-        CVT_SEXT         R6, R7, R7, R7   # 0x38ea
-        SETP_LT_NP       P0, R6, R10, R6   # 0x38ee
-        BRA_PRED         4, L3916   # 0x38f2
-        CHWIDTH_MULTI    4224, 0   # 0x38f6
-        LD_GLOBAL_IDX    R6, R1, R13, 0, 0   # 0x38fa
-        LD_GLOBAL_IDX    R7, R1, R13, 0, 4   # 0x38fe
-        SHLI             R7, R7, 16   # 0x3902
-        SHRI             R10, R6, 16   # 0x3906
-        OR               R12, R7, R10, R7   # 0x390a
-        C_MOV            R7, R13   # 0x390e
-        AND              R13, R6, R0, R6   # 0x3910
-        C_BRA            L395c   # 0x3914
-L3916:  CHWIDTH_MULTI    4224, 0   # 0x3916
-        LD_GLOBAL_IDX    R6, R5, R14, 0, 0   # 0x391a
-        LD_GLOBAL_IDX    R7, R5, R14, 0, 4   # 0x391e
+        C_CHWIDTH        R0, 1   # 0x2a94
+        C_CHWIDTH        R2, 0   # 0x2a96
+        MOV_P            R3, 0, R2, R2, R2   # 0x2a98
+        SHRI             R1, R1, 15   # 0x2a9c
+        ANDI             R2, R3, 1   # 0x2aa0
+        SETP_EQ_NP       P0, R1, R1, R2   # 0x2aa4
+        SHRI             R1, R3, 1   # 0x2aa8
+        C_MOV            R2, R1   # 0x2aac
+        XOR              R0, R1, R0, R1   # 0x2aae
+        C_CHWIDTH        R0, 0   # 0x2ab2
+        MOV_P            R0, 0, R2, R2, R2   # 0x2ab4
+        MOVI             R1, 65535   # 0x2ab8
+        AND              R1, R0, R1, R0   # 0x2abc
+        C_RET            224   # 0x2ac0
+        C_CHWIDTH        R6, 1   # 0x2ac2
+        MOVI             R15, 2   # 0x2ac4
+        LD_GLOBAL        R15, R15, 24   # 0x2ac8
+        SRD              R0, 2   # 0x2acc
+        C_ADD            R15, R0   # 0x2ace
+        ST_LOCAL         R8, 176   # 0x2ad0
+        ST_LOCAL         R9, 180   # 0x2ad4
+        ST_LOCAL         R10, 184   # 0x2ad8
+        ST_LOCAL         R11, 188   # 0x2adc
+        ST_LOCAL         R12, 192   # 0x2ae0
+        ST_LOCAL         R13, 196   # 0x2ae4
+        ST_LOCAL         R14, 164   # 0x2ae8
+        ST_LOCAL         R2, 112   # 0x2aec
+        C_MOV            R13, R1   # 0x2af0
+        LD_GLOBAL_IDX    R0, R13, R2, 0, 60   # 0x2af2
+        SHLI             R0, R0, 16   # 0x2af6
+        LD_GLOBAL_IDX    R1, R13, R2, 0, 56   # 0x2afa
+        SHRI             R4, R1, 16   # 0x2afe
+        OR               R8, R0, R4, R0   # 0x2b02
+        MOVI             R0, 65535   # 0x2b06
+        C_AND            R1, R0   # 0x2b0a
+        LD_GLOBAL_IDX    R6, R13, R2, 0, 4   # 0x2b0c
+        C_MOV            R5, R3   # 0x2b10
+        CVT_SEXT         R2, R6, R6, R6   # 0x2b12
+        SETP_LT_NPI      P0, R2, R2, 1   # 0x2b16
+        BRA_PRED         0, L2e56   # 0x2b1a
+        CHWIDTH_MULTI    16416, 1   # 0x2b1e
+        ST_LOCAL         R3, 108   # 0x2b22
+        MOVI             R2, 0   # 0x2b26
+        ADDI             R14, R6, 255   # 0x2b2a
+        C_CHWIDTH        R14, 0   # 0x2b2e
+        ST_LOCAL         R14, 116   # 0x2b30
+        C_MOV            R7, R2   # 0x2b34
+        ST_LOCAL         R2, 100   # 0x2b36
+        ST_LOCAL         R2, 104   # 0x2b3a
+        C_BRA            L2bba   # 0x2b3e
+L2b40:  C_CHWIDTH        R12, 1   # 0x2b40
+        C_MOV            R4, R8   # 0x2b42
+        C_MOV            R14, R1   # 0x2b44
+        LD_GLOBAL_IDX    R3, R4, R14, 0, 0   # 0x2b46
+        LD_GLOBAL_IDX    R4, R4, R14, 0, 4   # 0x2b4a
+        SHLI             R4, R4, 16   # 0x2b4e
+        SHRI             R14, R3, 16   # 0x2b52
+        C_OR             R4, R14   # 0x2b56
+        C_AND            R3, R0   # 0x2b58
+        LD_GLOBAL_IDX    R14, R4, R3, 0, 8   # 0x2b5a
+        LD_GLOBAL_IDX    R3, R4, R3, 0, 12   # 0x2b5e
+        SHLI             R3, R3, 16   # 0x2b62
+        SHRI             R4, R14, 16   # 0x2b66
+        C_OR             R3, R4   # 0x2b6a
+        C_CHWIDTH        R3, 1   # 0x2b6c
+        AND              R4, R14, R0, R14   # 0x2b6e
+        LD_GLOBAL_IDX    R3, R3, R4, 0, 0   # 0x2b72
+        C_CHWIDTH        R3, 0   # 0x2b76
+        SHRI             R3, R3, 8   # 0x2b78
+        MOVI             R4, 1   # 0x2b7c
+        AND              R12, R3, R4, R3   # 0x2b80
+        LD_LOCAL         R14, 104   # 0x2b84
+        C_CHWIDTH        R14, 1   # 0x2b88
+        ADDI             R14, R14, 1   # 0x2b8a
+        C_CHWIDTH        R14, 0   # 0x2b8e
+        ST_LOCAL         R14, 104   # 0x2b90
+L2b94:  C_CHWIDTH        R6, 0   # 0x2b94
+        CHWIDTH_MULTI    172, 1   # 0x2b96
+        ADD              R7, R12, R7, R12   # 0x2b9a
+        XOR              R3, R5, R0, R5   # 0x2b9e
+        C_CHWIDTH        R3, 0   # 0x2ba2
+        SHRI             R3, R3, 15   # 0x2ba4
+        ADD              R5, R5, R3, R5   # 0x2ba8
+        ADDI             R2, R2, 1   # 0x2bac
+        C_CHWIDTH        R2, 0   # 0x2bb0
+        SETP_NE_NP       P0, R3, R2, R6   # 0x2bb2
+        BRA_PRED         4, L2e1a   # 0x2bb6
+L2bba:  C_CHWIDTH        R12, 0   # 0x2bba
+        C_MOV            R12, R8   # 0x2bbc
+        SHLI             R4, R12, 16   # 0x2bbe
+        C_MOV            R10, R1   # 0x2bc2
+        AND              R14, R4, R10, R4   # 0x2bc4
+        ADD              R9, R4, R10, R4   # 0x2bc8
+        C_OR             R4, R10   # 0x2bcc
+        C_ANDN           R4, R9   # 0x2bce
+        OR               R4, R14, R4, R14   # 0x2bd0
+        SHRI             R4, R4, 31   # 0x2bd4
+        SHRI             R14, R12, 16   # 0x2bd8
+        ADD              R4, R14, R4, R14   # 0x2bdc
+        OR               R11, R9, R4, R9   # 0x2be0
+        CVT_SEXT         R4, R5, R5, R5   # 0x2be4
+        MOVI48           R3, 4294967295   # 0x2be8
+        SETP_LT_NP       P0, R4, R3, R4   # 0x2bee
+        BRA_PRED         4, L2c56   # 0x2bf2
+        MOVI             R9, 0   # 0x2bf6
+        SETP_EQ_NPI      P0, R4, R11, 0   # 0x2bfa
+        BRA_PRED         0, L2cbc   # 0x2bfe
+        C_MOV            R12, R8   # 0x2c02
+        C_MOV            R10, R1   # 0x2c04
+L2c06:  C_CHWIDTH        R5, 0   # 0x2c06
+        LD_GLOBAL_IDX    R4, R12, R10, 0, 8   # 0x2c08
+        LD_GLOBAL_IDX    R14, R12, R10, 0, 12   # 0x2c0c
+        SHLI             R14, R14, 16   # 0x2c10
+        SHRI             R3, R4, 16   # 0x2c14
+        OR               R3, R14, R3, R14   # 0x2c18
+        C_CHWIDTH        R3, 1   # 0x2c1c
+        C_AND            R4, R0   # 0x2c1e
+        LD_GLOBAL_IDX    R3, R3, R4, 0, 2   # 0x2c20
+        C_CHWIDTH        R3, 0   # 0x2c24
+        SETP_EQ_NP       P0, R3, R3, R5   # 0x2c26
+        BRA_PRED         0, L2d2c   # 0x2c2a
+        LD_GLOBAL_IDX    R3, R12, R10, 0, 4   # 0x2c2e
+        LD_GLOBAL_IDX    R4, R12, R10, 0, 0   # 0x2c32
+        SHRI             R14, R4, 16   # 0x2c36
+        SHLI             R10, R3, 16   # 0x2c3a
+        OR               R12, R10, R14, R10   # 0x2c3e
+        C_AND            R3, R0   # 0x2c42
+        OR               R3, R4, R3, R4   # 0x2c44
+        AND              R10, R4, R0, R4   # 0x2c48
+        SETP_EQ_NPI      P0, R3, R3, 0   # 0x2c4c
+        BRA_PRED         4, L2c06   # 0x2c50
+        C_BRA            L2cbc   # 0x2c54
+L2c56:  MOVI             R9, 0   # 0x2c56
+        SETP_EQ_NPI      P0, R4, R11, 0   # 0x2c5a
+        BRA_PRED         0, L2cbc   # 0x2c5e
+L2c62:  LD_GLOBAL_IDX    R3, R12, R10, 0, 8   # 0x2c62
+        LD_GLOBAL_IDX    R4, R12, R10, 0, 12   # 0x2c66
+        SHLI             R4, R4, 16   # 0x2c6a
+        SHRI             R14, R3, 16   # 0x2c6e
+        C_OR             R4, R14   # 0x2c72
+        C_CHWIDTH        R14, 1   # 0x2c74
+        C_AND            R3, R0   # 0x2c76
+        LD_GLOBAL_IDX    R14, R4, R3, 0, 0   # 0x2c78
+        XOR              R14, R14, R2, R14   # 0x2c7c
+        MOVI             R3, 255   # 0x2c80
+        C_CHWIDTH        R3, 1   # 0x2c84
+        AND              R3, R14, R3, R14   # 0x2c86
+        C_CHWIDTH        R3, 0   # 0x2c8a
+        SETP_EQ_NPI      P0, R3, R3, 0   # 0x2c8c
+        BRA_PRED         0, L2d2c   # 0x2c90
+        C_CHWIDTH        R14, 0   # 0x2c94
+        LD_GLOBAL_IDX    R3, R12, R10, 0, 4   # 0x2c96
+        LD_GLOBAL_IDX    R4, R12, R10, 0, 0   # 0x2c9a
+        SHRI             R14, R4, 16   # 0x2c9e
+        SHLI             R10, R3, 16   # 0x2ca2
+        OR               R12, R10, R14, R10   # 0x2ca6
+        C_AND            R3, R0   # 0x2caa
+        OR               R3, R4, R3, R4   # 0x2cac
+        AND              R10, R4, R0, R4   # 0x2cb0
+        SETP_NE_NPI      P0, R3, R3, 0   # 0x2cb4
+        BRA_PRED         0, L2c62   # 0x2cb8
+L2cbc:  MOVI             R10, 0   # 0x2cbc
+        SETP_EQ_NPI      P0, R3, R11, 0   # 0x2cc0
+        BRA_PRED         0, L2d36   # 0x2cc4
+L2cc8:  MOVI             R11, 0   # 0x2cc8
+        MOVI             R4, 0   # 0x2ccc
+L2cd0:  C_CHWIDTH        R14, 0   # 0x2cd0
+        C_MOV            R14, R1   # 0x2cd2
+        C_MOV            R12, R8   # 0x2cd4
+        SHLI             R3, R11, 16   # 0x2cd6
+        AND              R1, R3, R4, R3   # 0x2cda
+        ADD              R8, R3, R4, R3   # 0x2cde
+        C_OR             R3, R4   # 0x2ce2
+        C_ANDN           R3, R8   # 0x2ce4
+        OR               R3, R1, R3, R1   # 0x2ce6
+        SHRI             R3, R3, 31   # 0x2cea
+        SHRI             R4, R11, 16   # 0x2cee
+        ADD              R3, R4, R3, R4   # 0x2cf2
+        LD_GLOBAL_IDX    R4, R12, R14, 0, 0   # 0x2cf6
+        ST_GLOBAL_IDX    R8, R12, R14, 0, 0   # 0x2cfa
+        LD_GLOBAL_IDX    R1, R12, R14, 0, 4   # 0x2cfe
+        ST_GLOBAL_IDX    R3, R12, R14, 0, 4   # 0x2d02
+        SHRI             R3, R4, 16   # 0x2d06
+        SHLI             R11, R1, 16   # 0x2d0a
+        OR               R8, R11, R3, R11   # 0x2d0e
+        AND              R3, R1, R0, R1   # 0x2d12
+        OR               R3, R4, R3, R4   # 0x2d16
+        AND              R1, R4, R0, R4   # 0x2d1a
+        SETP_NE_NPI      P0, R3, R3, 0   # 0x2d1e
+        C_MOV            R11, R12   # 0x2d22
+        C_MOV            R4, R14   # 0x2d24
+        BRA_PRED         0, L2cd0   # 0x2d26
+        C_BRA            L2d40   # 0x2d2a
+L2d2c:  C_MOV            R9, R12   # 0x2d2c
+        SETP_EQ_NPI      P0, R3, R11, 0   # 0x2d2e
+        BRA_PRED         4, L2cc8   # 0x2d32
+L2d36:  C_CHWIDTH        R14, 0   # 0x2d36
+        MOVI             R12, 0   # 0x2d38
+        MOVI             R14, 0   # 0x2d3c
+L2d40:  C_MOV            R1, R14   # 0x2d40
+        C_MOV            R8, R12   # 0x2d42
+        SHLI             R3, R9, 16   # 0x2d44
+        AND              R4, R3, R10, R3   # 0x2d48
+        ADD              R14, R3, R10, R3   # 0x2d4c
+        C_OR             R3, R10   # 0x2d50
+        C_ANDN           R3, R14   # 0x2d52
+        OR               R3, R4, R3, R4   # 0x2d54
+        SHRI             R3, R3, 31   # 0x2d58
+        SHRI             R4, R9, 16   # 0x2d5c
+        ADD              R3, R4, R3, R4   # 0x2d60
+        OR               R3, R14, R3, R14   # 0x2d64
+        SETP_NE_NPI      P0, R3, R3, 0   # 0x2d68
+        BRA_PRED         4, L2b40   # 0x2d6c
+        LD_GLOBAL_IDX    R3, R9, R10, 0, 12   # 0x2d70
+        SHLI             R3, R3, 16   # 0x2d74
+        LD_GLOBAL_IDX    R4, R9, R10, 0, 8   # 0x2d78
+        SHRI             R14, R4, 16   # 0x2d7c
+        C_OR             R3, R14   # 0x2d80
+        C_CHWIDTH        R3, 1   # 0x2d82
+        C_AND            R4, R0   # 0x2d84
+        LD_GLOBAL_IDX    R3, R3, R4, 0, 0   # 0x2d86
+        C_CHWIDTH        R3, 0   # 0x2d8a
+        LD_GLOBAL_IDX    R14, R9, R10, 0, 4   # 0x2d8c
+        LD_GLOBAL_IDX    R4, R9, R10, 0, 0   # 0x2d90
+        SHRI             R11, R3, 9   # 0x2d94
+        C_CHWIDTH        R3, 1   # 0x2d98
+        AND              R3, R3, R11, R3   # 0x2d9a
+        AND              R11, R14, R0, R14   # 0x2d9e
+        OR               R11, R4, R11, R4   # 0x2da2
+        MOVI             R12, 1   # 0x2da6
+        C_CHWIDTH        R12, 1   # 0x2daa
+        AND              R12, R3, R12, R3   # 0x2dac
+        C_CHWIDTH        R3, 0   # 0x2db0
+        LD_LOCAL         R3, 100   # 0x2db2
+        C_CHWIDTH        R3, 1   # 0x2db6
+        ADDI             R3, R3, 1   # 0x2db8
+        C_CHWIDTH        R3, 0   # 0x2dbc
+        ST_LOCAL         R3, 100   # 0x2dbe
+        SETP_EQ_NPI      P0, R3, R11, 0   # 0x2dc2
+        BRA_PRED         0, L2b94   # 0x2dc6
+        SHRI             R3, R4, 16   # 0x2dca
+        SHLI             R14, R14, 16   # 0x2dce
+        OR               R3, R14, R3, R14   # 0x2dd2
+        C_CHWIDTH        R14, 1   # 0x2dd6
+        C_AND            R4, R0   # 0x2dd8
+        LD_GLOBAL_IDX    R14, R3, R4, 0, 4   # 0x2dda
+        C_CHWIDTH        R14, 0   # 0x2dde
+        LD_GLOBAL_IDX    R11, R3, R4, 0, 0   # 0x2de0
+        ST_GLOBAL_IDX    R11, R9, R10, 0, 0   # 0x2de4
+        ST_GLOBAL_IDX    R14, R9, R10, 0, 4   # 0x2de8
+        C_CHWIDTH        R14, 1   # 0x2dec
+        C_MOV            R10, R8   # 0x2dee
+        C_MOV            R11, R1   # 0x2df0
+        LD_GLOBAL_IDX    R14, R10, R11, 0, 4   # 0x2df2
+        C_CHWIDTH        R14, 0   # 0x2df6
+        LD_GLOBAL_IDX    R9, R10, R11, 0, 0   # 0x2df8
+        ST_GLOBAL_IDX    R9, R3, R4, 0, 0   # 0x2dfc
+        ST_GLOBAL_IDX    R14, R3, R4, 0, 4   # 0x2e00
+        SHRI             R14, R3, 16   # 0x2e04
+        ST_GLOBAL_IDX    R14, R10, R11, 0, 4   # 0x2e08
+        SHLI             R3, R3, 16   # 0x2e0c
+        C_OR             R3, R4   # 0x2e10
+        ST_GLOBAL_IDX    R3, R10, R11, 0, 0   # 0x2e12
+        BRA              L2b94   # 0x2e16
+L2e1a:  CHWIDTH_MULTI    32, 0   # 0x2e1a
+        C_CHWIDTH        R2, 1   # 0x2e1e
+        MOVI             R0, 255   # 0x2e20
+        LD_LOCAL         R14, 116   # 0x2e24
+        AND              R2, R14, R0, R14   # 0x2e28
+        CHWIDTH_MULTI    4, 0   # 0x2e2c
+        LD_LOCAL         R0, 100   # 0x2e30
+        SHLI             R0, R0, 2   # 0x2e34
+        LD_LOCAL         R14, 104   # 0x2e38
+        C_CHWIDTH        R14, 1   # 0x2e3c
+        SUB              R14, R0, R14, R0   # 0x2e3e
+        C_CHWIDTH        R0, 1   # 0x2e42
+        ADD              R0, R14, R7, R14   # 0x2e44
+        CHWIDTH_MULTI    16513, 0   # 0x2e48
+        ST_LOCAL         R0, 160   # 0x2e4c
+        LD_LOCAL         R3, 108   # 0x2e50
+        C_BRA            L2e64   # 0x2e54
+L2e56:  CHWIDTH_MULTI    64, 0   # 0x2e56
+        MOVI             R0, 0   # 0x2e5a
+        C_MOV            R2, R0   # 0x2e5e
+        ST_LOCAL         R2, 160   # 0x2e60
+L2e64:  CHWIDTH_MULTI    4096, 0   # 0x2e64
+        ST_LOCAL         R5, 168   # 0x2e68
+        C_MOV            R14, R3   # 0x2e6c
+        C_CHWIDTH        R14, 1   # 0x2e6e
+        C_MOV            R7, R3   # 0x2e70
+        C_CHWIDTH        R7, 1   # 0x2e72
+        C_MOV            R6, R3   # 0x2e74
+        C_CHWIDTH        R6, 1   # 0x2e76
+        CVT_SEXT         R0, R14, R7, R6   # 0x2e78
+        SETP_LT_NPI      P0, R0, R0, 1   # 0x2e7c
+        ST_LOCAL         R2, 172   # 0x2e80
+        BRA_PRED         0, L3464   # 0x2e84
+        CHWIDTH_MULTI    192, 0   # 0x2e88
+        MOVI             R0, 1   # 0x2e8c
+        ST_LOCAL         R0, 148   # 0x2e90
+        MOVI             R12, 65535   # 0x2e94
+        C_MOV            R7, R8   # 0x2e98
+        C_MOV            R6, R1   # 0x2e9a
+        ST_LOCAL         R13, 136   # 0x2e9c
+        C_BRA            L2ed0   # 0x2ea0
+L2ea2:  MOVI             R0, 0   # 0x2ea2
+        ST_GLOBAL_IDX    R0, R10, R11, 0, 4   # 0x2ea6
+        ST_GLOBAL_IDX    R0, R10, R11, 0, 0   # 0x2eaa
+        LD_LOCAL         R0, 148   # 0x2eae
+        C_SHLI           R0, 1   # 0x2eb2
+        ST_LOCAL         R0, 148   # 0x2eb4
+        LD_LOCAL         R0, 156   # 0x2eb8
+        SETP_NE_NPI      P0, R0, R0, 0   # 0x2ebc
+        LD_LOCAL         R8, 144   # 0x2ec0
+        C_MOV            R7, R8   # 0x2ec4
+        LD_LOCAL         R9, 140   # 0x2ec6
+        C_MOV            R6, R9   # 0x2eca
+        BRA_PRED         4, L346a   # 0x2ecc
+L2ed0:  MOVI             R5, 0   # 0x2ed0
+        MOVI             R10, 0   # 0x2ed4
+        MOVI             R11, 0   # 0x2ed8
+        MOVI             R0, 0   # 0x2edc
+        ST_LOCAL         R0, 144   # 0x2ee0
+        ST_LOCAL         R0, 140   # 0x2ee4
+        C_BRA            L2ef6   # 0x2ee8
+L2eea:  SETP_EQ_NPI      P0, R0, R0, 0   # 0x2eea
+        LD_LOCAL         R5, 152   # 0x2eee
+        BRA_PRED         0, L2ea2   # 0x2ef2
+L2ef6:  LD_LOCAL         R4, 148   # 0x2ef6
+        SETP_LT_NPI      P0, R0, R4, 1   # 0x2efa
+        BRA_PRED         0, L2f3c   # 0x2efe
+        MOVI             R2, 0   # 0x2f02
+        C_MOV            R0, R7   # 0x2f06
+        C_MOV            R1, R6   # 0x2f08
+L2f0a:  LD_GLOBAL_IDX    R3, R0, R1, 0, 4   # 0x2f0a
+        LD_GLOBAL_IDX    R1, R0, R1, 0, 0   # 0x2f0e
+        AND              R0, R3, R12, R3   # 0x2f12
+        OR               R0, R1, R0, R1   # 0x2f16
+        SETP_NE_NPI      P0, R0, R0, 0   # 0x2f1a
+        BRA_PRED         4, L2f46   # 0x2f1e
+        SHRI             R0, R1, 16   # 0x2f22
+        SHLI             R3, R3, 16   # 0x2f26
+        OR               R0, R3, R0, R3   # 0x2f2a
+        C_AND            R1, R12   # 0x2f2e
+        C_ADDI           R2, 1   # 0x2f30
+        SETP_EQ_NP       P0, R3, R4, R2   # 0x2f32
+        BRA_PRED         4, L2f0a   # 0x2f36
+        C_BRA            L2f52   # 0x2f3a
+L2f3c:  MOVI             R4, 0   # 0x2f3c
+        C_MOV            R0, R7   # 0x2f40
+        C_MOV            R1, R6   # 0x2f42
+        C_BRA            L2f52   # 0x2f44
+L2f46:  MOVI             R0, 0   # 0x2f46
+        ADDI             R4, R2, 1   # 0x2f4a
+        MOVI             R1, 0   # 0x2f4e
+L2f52:  ST_LOCAL         R5, 156   # 0x2f52
+        ADDI             R2, R5, 1   # 0x2f56
+        ST_LOCAL         R2, 152   # 0x2f5a
+        C_MOV            R9, R7   # 0x2f5e
+        C_MOV            R8, R6   # 0x2f60
+        C_MOV            R7, R0   # 0x2f62
+        C_MOV            R6, R1   # 0x2f64
+        LD_LOCAL         R0, 148   # 0x2f66
+        ST_LOCAL         R0, 104   # 0x2f6a
+        C_BRA            L2f88   # 0x2f6e
+L2f70:  ST_LOCAL         R4, 144   # 0x2f70
+        ST_LOCAL         R5, 140   # 0x2f74
+L2f78:  C_MOV            R9, R1   # 0x2f78
+        C_MOV            R8, R3   # 0x2f7a
+        C_MOV            R7, R0   # 0x2f7c
+        C_MOV            R6, R2   # 0x2f7e
+        C_MOV            R10, R4   # 0x2f80
+        C_MOV            R11, R5   # 0x2f82
+        LD_LOCAL         R4, 100   # 0x2f84
+L2f88:  MOVI             R0, 0   # 0x2f88
+        SETP_LT_NP       P0, R0, R0, R4   # 0x2f8c
+        BRA_PRED         0, L2fcc   # 0x2f90
+        SHLI             R0, R7, 16   # 0x2f94
+        AND              R1, R0, R6, R0   # 0x2f98
+        ADD              R2, R0, R6, R0   # 0x2f9c
+        C_OR             R0, R6   # 0x2fa0
+        C_ANDN           R0, R2   # 0x2fa2
+        OR               R0, R1, R0, R1   # 0x2fa4
+        SHRI             R0, R0, 31   # 0x2fa8
+        SHRI             R1, R7, 16   # 0x2fac
+        ADD              R0, R1, R0, R1   # 0x2fb0
+        OR               R0, R2, R0, R2   # 0x2fb4
+        LD_LOCAL         R1, 104   # 0x2fb8
+        SETP_LT_NPI      P0, R1, R1, 1   # 0x2fbc
+        BRA_PRED         0, L2eea   # 0x2fc0
+        SETP_EQ_NPI      P0, R1, R0, 0   # 0x2fc4
+        BRA_PRED         0, L2eea   # 0x2fc8
+L2fcc:  SETP_NE_NPI      P0, R0, R4, 0   # 0x2fcc
+        BRA_PRED         4, L311c   # 0x2fd0
+        LD_LOCAL         R0, 104   # 0x2fd4
+        SETP_EQ_NPI      P0, R0, R0, 0   # 0x2fd8
+        BRA_PRED         0, L33e4   # 0x2fdc
+        SHLI             R0, R7, 16   # 0x2fe0
+        AND              R1, R0, R6, R0   # 0x2fe4
+        ADD              R2, R0, R6, R0   # 0x2fe8
+        C_OR             R0, R6   # 0x2fec
+        C_ANDN           R0, R2   # 0x2fee
+        OR               R0, R1, R0, R1   # 0x2ff0
+        SHRI             R0, R0, 31   # 0x2ff4
+        SHRI             R1, R7, 16   # 0x2ff8
+        ADD              R0, R1, R0, R1   # 0x2ffc
+        OR               R0, R2, R0, R2   # 0x3000
+        SETP_NE_NPI      P0, R0, R0, 0   # 0x3004
+        BRA_PRED         4, L33e4   # 0x3008
+        C_CHWIDTH        R14, 0   # 0x300c
+        LD_GLOBAL_IDX    R5, R7, R6, 0, 8   # 0x300e
+        LD_GLOBAL_IDX    R14, R7, R6, 0, 12   # 0x3012
+        LD_GLOBAL_IDX    R0, R9, R8, 0, 8   # 0x3016
+        LD_GLOBAL_IDX    R1, R9, R8, 0, 12   # 0x301a
+        SHLI             R1, R1, 16   # 0x301e
+        SHRI             R2, R0, 16   # 0x3022
+        C_OR             R1, R2   # 0x3026
+        AND              R2, R0, R12, R0   # 0x3028
+        C_CHWIDTH        R12, 1   # 0x302c
+        LD_GLOBAL_IDX    R12, R1, R2, 0, 0   # 0x302e
+        MOVI             R0, 128   # 0x3032
+        C_CHWIDTH        R0, 1   # 0x3036
+        AND              R0, R12, R0, R12   # 0x3038
+        C_CHWIDTH        R0, 0   # 0x303c
+        SETP_EQ_NPI      P0, R0, R0, 0   # 0x303e
+        ST_LOCAL         R4, 100   # 0x3042
+        ST_LOCAL         R6, 108   # 0x3046
+        BRA_PRED         4, L313e   # 0x304a
+        ST_LOCAL         R2, 132   # 0x304e
+        ST_LOCAL         R1, 128   # 0x3052
+        ST_LOCAL         R14, 124   # 0x3056
+        ST_LOCAL         R5, 120   # 0x305a
+        MOVI             R0, 7   # 0x305e
+        C_CHWIDTH        R0, 1   # 0x3062
+        AND              R0, R12, R0, R12   # 0x3064
+        CHWIDTH_MULTI    4097, 0   # 0x3068
+        SHRI             R1, R12, 3   # 0x306c
+        C_CHWIDTH        R1, 1   # 0x3070
+        MOVI             R2, 15   # 0x3072
+        AND              R1, R1, R2, R1   # 0x3076
+        C_CHWIDTH        R1, 0   # 0x307a
+        MULI             R1, R1, 17   # 0x307c
+        C_MOV            R3, R1   # 0x3080
+        SETP_EQ_NPI      P0, R1, R0, 1   # 0x3082
+        BRA_PRED         0, L314e   # 0x3086
+        SETP_NE_NPI      P0, R0, R0, 0   # 0x308a
+        C_MOV            R5, R12   # 0x308e
+        BRA_PRED         0, L319a   # 0x3090
+        CHWIDTH_MULTI    48, 1   # 0x3094
+        ST_LOCAL         R7, 116   # 0x3098
+        MOVI             R0, 34   # 0x309c
+        SETP_LT_U_NP     P0, R0, R0, R3   # 0x30a0
+        C_CHWIDTH        R0, 1   # 0x30a4
+        MOVI             R6, 34   # 0x30a6
+        MOV_P            R6, 0, R3, R3, R3   # 0x30aa
+        C_MOV            R2, R13   # 0x30ae
+        LD_LOCAL         R13, 112   # 0x30b0
+        LD_GLOBAL_IDX    R0, R2, R13, 0, 96   # 0x30b4
+        C_CHWIDTH        R0, 0   # 0x30b8
+        LD_GLOBAL_IDX    R1, R2, R13, 0, 40   # 0x30ba
+        LD_GLOBAL_IDX    R5, R2, R13, 0, 2   # 0x30be
+        C_CHWIDTH        R5, 0   # 0x30c2
+        LD_GLOBAL_IDX    R4, R2, R13, 0, 0   # 0x30c4
+        C_CHWIDTH        R4, 0   # 0x30c8
+        LD_GLOBAL_IDX    R3, R2, R13, 0, 32   # 0x30ca
+        LD_GLOBAL_IDX    R2, R2, R13, 0, 36   # 0x30ce
+        ST_GLOBAL        R0, R15, -4   # 0x30d2
+        SHLI             R0, R2, 16   # 0x30d6
+        SHRI             R2, R3, 16   # 0x30da
+        OR               R2, R0, R2, R0   # 0x30de
+        MOVI             R0, 65535   # 0x30e2
+        C_AND            R3, R0   # 0x30e6
+        CALL             R14, 127117   # 0x30e8
+        C_CHWIDTH        R0, 1   # 0x30ec
+        MOVI             R15, 2   # 0x30ee
+        LD_GLOBAL        R15, R15, 24   # 0x30f2
+        SRD              R3, 2   # 0x30f6
+        C_ADD            R15, R3   # 0x30f8
+        C_MOV            R2, R13   # 0x30fa
+        LD_LOCAL         R13, 136   # 0x30fc
+        LD_GLOBAL_IDX    R0, R13, R2, 0, 102   # 0x3100
+        C_CHWIDTH        R0, 0   # 0x3104
+        C_MOV            R5, R1   # 0x3106
+        SETP_NE_NPI      P0, R0, R0, 0   # 0x3108
+        BRA_PRED         0, L3196   # 0x310c
+        C_MOV            R0, R5   # 0x3110
+        C_CHWIDTH        R0, 1   # 0x3112
+        ST_GLOBAL_IDX    R0, R13, R2, 0, 102   # 0x3114
+        C_CHWIDTH        R0, 0   # 0x3118
+        C_BRA            L3196   # 0x311a
+L311c:  LD_GLOBAL_IDX    R1, R7, R6, 0, 0   # 0x311c
+        LD_GLOBAL_IDX    R0, R7, R6, 0, 4   # 0x3120
+        SHLI             R0, R0, 16   # 0x3124
+        SHRI             R2, R1, 16   # 0x3128
+        C_OR             R0, R2   # 0x312c
+        AND              R2, R1, R12, R1   # 0x312e
+        MOVI             R1, 0   # 0x3132
+        ST_LOCAL         R1, 100   # 0x3136
+        BRA              L33ce   # 0x313a
+L313e:  C_CHWIDTH        R3, 1   # 0x313e
+        MOVI             R0, 127   # 0x3140
+        AND              R3, R12, R0, R12   # 0x3144
+        MOVI             R2, 128   # 0x3148
+        C_BRA            L31fe   # 0x314c
+L314e:  C_CHWIDTH        R4, 1   # 0x314e
+        ST_LOCAL         R7, 116   # 0x3150
+        C_MOV            R1, R13   # 0x3154
+        LD_LOCAL         R13, 112   # 0x3156
+        LD_GLOBAL_IDX    R4, R1, R13, 0, 96   # 0x315a
+        C_CHWIDTH        R4, 0   # 0x315e
+        ADDI             R2, R13, 64   # 0x3160
+        CALL             R14, 128410   # 0x3164
+        C_CHWIDTH        R0, 1   # 0x3168
+        MOVI             R15, 2   # 0x316a
+        LD_GLOBAL        R15, R15, 24   # 0x316e
+        SRD              R3, 2   # 0x3172
+        C_ADD            R15, R3   # 0x3174
+        C_MOV            R2, R13   # 0x3176
+        LD_LOCAL         R13, 136   # 0x3178
+        LD_GLOBAL_IDX    R0, R13, R2, 0, 100   # 0x317c
+        C_CHWIDTH        R0, 0   # 0x3180
+        C_MOV            R5, R1   # 0x3182
+        SETP_NE_NPI      P0, R0, R0, 0   # 0x3184
+        BRA_PRED         0, L3196   # 0x3188
+        C_MOV            R0, R5   # 0x318c
+        C_CHWIDTH        R0, 1   # 0x318e
+        ST_GLOBAL_IDX    R0, R13, R2, 0, 100   # 0x3190
+        C_CHWIDTH        R0, 0   # 0x3194
+L3196:  LD_LOCAL         R7, 116   # 0x3196
+L319a:  C_CHWIDTH        R2, 1   # 0x319a
+        LD_LOCAL         R6, 112   # 0x319c
+        LD_GLOBAL_IDX    R2, R13, R6, 0, 96   # 0x31a0
+        C_CHWIDTH        R2, 0   # 0x31a4
+        C_MOV            R1, R5   # 0x31a6
+        CALL             R14, 129894   # 0x31a8
+        CHWIDTH_MULTI    16386, 1   # 0x31ac
+        MOVI             R15, 2   # 0x31b0
+        LD_GLOBAL        R15, R15, 24   # 0x31b4
+        SRD              R3, 2   # 0x31b8
+        C_ADD            R15, R3   # 0x31ba
+        C_CHWIDTH        R3, 1   # 0x31bc
+        ST_GLOBAL_IDX    R1, R13, R6, 0, 96   # 0x31be
+        C_CHWIDTH        R1, 0   # 0x31c2
+        MOVI             R0, 127   # 0x31c4
+        AND              R3, R5, R0, R5   # 0x31c8
+        MOVI             R0, 65280   # 0x31cc
+        AND              R14, R12, R0, R12   # 0x31d0
+        OR               R14, R14, R3, R14   # 0x31d4
+        MOVI             R2, 128   # 0x31d8
+        OR               R14, R14, R2, R14   # 0x31dc
+        LD_LOCAL         R0, 128   # 0x31e0
+        LD_LOCAL         R1, 132   # 0x31e4
+        ST_GLOBAL_IDX    R14, R0, R1, 0, 0   # 0x31e8
+        C_CHWIDTH        R14, 0   # 0x31ec
+        LD_LOCAL         R6, 108   # 0x31ee
+        LD_LOCAL         R4, 100   # 0x31f2
+        LD_LOCAL         R5, 120   # 0x31f6
+        LD_LOCAL         R14, 124   # 0x31fa
+L31fe:  C_CHWIDTH        R12, 1   # 0x31fe
+        SHLI             R0, R14, 16   # 0x3200
+        SHRI             R1, R5, 16   # 0x3204
+        OR               R1, R0, R1, R0   # 0x3208
+        MOVI             R0, 65535   # 0x320c
+        C_AND            R5, R0   # 0x3210
+        C_CHWIDTH        R0, 1   # 0x3212
+        LD_GLOBAL_IDX    R12, R1, R5, 0, 0   # 0x3214
+        AND              R0, R12, R2, R12   # 0x3218
+        C_CHWIDTH        R0, 0   # 0x321c
+        SETP_EQ_NPI      P0, R0, R0, 0   # 0x321e
+        BRA_PRED         4, L32f2   # 0x3222
+        C_CHWIDTH        R3, 0   # 0x3226
+        ST_LOCAL         R5, 128   # 0x3228
+        ST_LOCAL         R1, 124   # 0x322c
+        ST_LOCAL         R3, 120   # 0x3230
+        MOVI             R0, 7   # 0x3234
+        C_CHWIDTH        R0, 1   # 0x3238
+        AND              R0, R12, R0, R12   # 0x323a
+        CHWIDTH_MULTI    4097, 0   # 0x323e
+        SHRI             R1, R12, 3   # 0x3242
+        C_CHWIDTH        R1, 1   # 0x3246
+        MOVI             R2, 15   # 0x3248
+        AND              R1, R1, R2, R1   # 0x324c
+        C_CHWIDTH        R1, 0   # 0x3250
+        MULI             R1, R1, 17   # 0x3252
+        C_MOV            R3, R1   # 0x3256
+        SETP_EQ_NPI      P0, R1, R0, 1   # 0x3258
+        BRA_PRED         0, L32fe   # 0x325c
+        SETP_NE_NPI      P0, R0, R0, 0   # 0x3260
+        C_MOV            R5, R12   # 0x3264
+        BRA_PRED         0, L334a   # 0x3266
+        CHWIDTH_MULTI    48, 1   # 0x326a
+        ST_LOCAL         R7, 116   # 0x326e
+        MOVI             R0, 34   # 0x3272
+        SETP_LT_U_NP     P0, R0, R0, R3   # 0x3276
+        C_CHWIDTH        R0, 1   # 0x327a
+        MOVI             R6, 34   # 0x327c
+        MOV_P            R6, 0, R3, R3, R3   # 0x3280
+        C_MOV            R2, R13   # 0x3284
+        LD_LOCAL         R13, 112   # 0x3286
+        LD_GLOBAL_IDX    R0, R2, R13, 0, 96   # 0x328a
+        C_CHWIDTH        R0, 0   # 0x328e
+        LD_GLOBAL_IDX    R1, R2, R13, 0, 40   # 0x3290
+        LD_GLOBAL_IDX    R5, R2, R13, 0, 2   # 0x3294
+        C_CHWIDTH        R5, 0   # 0x3298
+        LD_GLOBAL_IDX    R4, R2, R13, 0, 0   # 0x329a
+        C_CHWIDTH        R4, 0   # 0x329e
+        LD_GLOBAL_IDX    R3, R2, R13, 0, 32   # 0x32a0
+        LD_GLOBAL_IDX    R2, R2, R13, 0, 36   # 0x32a4
+        ST_GLOBAL        R0, R15, -4   # 0x32a8
+        SHLI             R0, R2, 16   # 0x32ac
+        SHRI             R2, R3, 16   # 0x32b0
+        OR               R2, R0, R2, R0   # 0x32b4
+        MOVI             R0, 65535   # 0x32b8
+        C_AND            R3, R0   # 0x32bc
+        CALL             R14, 126882   # 0x32be
+        C_CHWIDTH        R0, 1   # 0x32c2
+        MOVI             R15, 2   # 0x32c4
+        LD_GLOBAL        R15, R15, 24   # 0x32c8
+        SRD              R3, 2   # 0x32cc
+        C_ADD            R15, R3   # 0x32ce
+        C_MOV            R2, R13   # 0x32d0
+        LD_LOCAL         R13, 136   # 0x32d2
+        LD_GLOBAL_IDX    R0, R13, R2, 0, 102   # 0x32d6
+        C_CHWIDTH        R0, 0   # 0x32da
+        C_MOV            R5, R1   # 0x32dc
+        SETP_NE_NPI      P0, R0, R0, 0   # 0x32de
+        BRA_PRED         0, L3346   # 0x32e2
+        C_MOV            R0, R5   # 0x32e6
+        C_CHWIDTH        R0, 1   # 0x32e8
+        ST_GLOBAL_IDX    R0, R13, R2, 0, 102   # 0x32ea
+        C_CHWIDTH        R0, 0   # 0x32ee
+        C_BRA            L3346   # 0x32f0
+L32f2:  MOVI             R0, 127   # 0x32f2
+        C_CHWIDTH        R0, 1   # 0x32f6
+        AND              R0, R12, R0, R12   # 0x32f8
+        C_BRA            L33a8   # 0x32fc
+L32fe:  C_CHWIDTH        R4, 1   # 0x32fe
+        ST_LOCAL         R7, 116   # 0x3300
+        C_MOV            R1, R13   # 0x3304
+        LD_LOCAL         R13, 112   # 0x3306
+        LD_GLOBAL_IDX    R4, R1, R13, 0, 96   # 0x330a
+        C_CHWIDTH        R4, 0   # 0x330e
+        ADDI             R2, R13, 64   # 0x3310
+        CALL             R14, 128194   # 0x3314
+        C_CHWIDTH        R0, 1   # 0x3318
+        MOVI             R15, 2   # 0x331a
+        LD_GLOBAL        R15, R15, 24   # 0x331e
+        SRD              R3, 2   # 0x3322
+        C_ADD            R15, R3   # 0x3324
+        C_MOV            R2, R13   # 0x3326
+        LD_LOCAL         R13, 136   # 0x3328
+        LD_GLOBAL_IDX    R0, R13, R2, 0, 100   # 0x332c
+        C_CHWIDTH        R0, 0   # 0x3330
+        C_MOV            R5, R1   # 0x3332
+        SETP_NE_NPI      P0, R0, R0, 0   # 0x3334
+        BRA_PRED         0, L3346   # 0x3338
+        C_MOV            R0, R5   # 0x333c
+        C_CHWIDTH        R0, 1   # 0x333e
+        ST_GLOBAL_IDX    R0, R13, R2, 0, 100   # 0x3340
+        C_CHWIDTH        R0, 0   # 0x3344
+L3346:  LD_LOCAL         R7, 116   # 0x3346
+L334a:  C_CHWIDTH        R2, 1   # 0x334a
+        LD_LOCAL         R6, 112   # 0x334c
+        LD_GLOBAL_IDX    R2, R13, R6, 0, 96   # 0x3350
+        C_CHWIDTH        R2, 0   # 0x3354
+        C_MOV            R1, R5   # 0x3356
+        CALL             R14, 129678   # 0x3358
+        CHWIDTH_MULTI    16386, 1   # 0x335c
+        MOVI             R15, 2   # 0x3360
+        LD_GLOBAL        R15, R15, 24   # 0x3364
+        SRD              R3, 2   # 0x3368
+        C_ADD            R15, R3   # 0x336a
+        ST_GLOBAL_IDX    R1, R13, R6, 0, 96   # 0x336c
+        C_CHWIDTH        R1, 0   # 0x3370
+        MOVI             R0, 127   # 0x3372
+        C_CHWIDTH        R0, 1   # 0x3376
+        AND              R0, R5, R0, R5   # 0x3378
+        MOVI             R1, 65280   # 0x337c
+        AND              R14, R12, R1, R12   # 0x3380
+        OR               R14, R14, R0, R14   # 0x3384
+        MOVI             R1, 128   # 0x3388
+        OR               R14, R14, R1, R14   # 0x338c
+        LD_LOCAL         R1, 124   # 0x3390
+        LD_LOCAL         R2, 128   # 0x3394
+        ST_GLOBAL_IDX    R14, R1, R2, 0, 0   # 0x3398
+        LD_LOCAL         R6, 108   # 0x339c
+        LD_LOCAL         R4, 100   # 0x33a0
+        LD_LOCAL         R3, 120   # 0x33a4
+L33a8:  CHWIDTH_MULTI    4105, 0   # 0x33a8
+        SETP_LT_U_NP     P0, R0, R0, R3   # 0x33ac
+        MOVI             R12, 65535   # 0x33b0
+        BRA_PRED         4, L33e4   # 0x33b4
+        LD_GLOBAL_IDX    R1, R7, R6, 0, 0   # 0x33b8
+        LD_GLOBAL_IDX    R0, R7, R6, 0, 4   # 0x33bc
+        SHLI             R0, R0, 16   # 0x33c0
+        SHRI             R2, R1, 16   # 0x33c4
+        C_OR             R0, R2   # 0x33c8
+        AND              R2, R1, R12, R1   # 0x33ca
+L33ce:  LD_LOCAL         R1, 104   # 0x33ce
+        ADDI             R1, R1, -1   # 0x33d2
+        ST_LOCAL         R1, 104   # 0x33d6
+        C_MOV            R1, R9   # 0x33da
+        C_MOV            R3, R8   # 0x33dc
+        C_MOV            R4, R7   # 0x33de
+        C_MOV            R5, R6   # 0x33e0
+        C_BRA            L340a   # 0x33e2
+L33e4:  LD_GLOBAL_IDX    R0, R9, R8, 0, 0   # 0x33e4
+        LD_GLOBAL_IDX    R1, R9, R8, 0, 4   # 0x33e8
+        SHLI             R1, R1, 16   # 0x33ec
+        SHRI             R2, R0, 16   # 0x33f0
+        C_OR             R1, R2   # 0x33f4
+        AND              R3, R0, R12, R0   # 0x33f6
+        ADDI             R4, R4, -1   # 0x33fa
+        ST_LOCAL         R4, 100   # 0x33fe
+        C_MOV            R0, R7   # 0x3402
+        C_MOV            R2, R6   # 0x3404
+        C_MOV            R4, R9   # 0x3406
+        C_MOV            R5, R8   # 0x3408
+L340a:  C_CHWIDTH        R14, 0   # 0x340a
+        SHLI             R6, R10, 16   # 0x340c
+        AND              R7, R6, R11, R6   # 0x3410
+        ADD              R14, R6, R11, R6   # 0x3414
+        C_OR             R6, R11   # 0x3418
+        C_ANDN           R6, R14   # 0x341a
+        OR               R6, R7, R6, R7   # 0x341c
+        SHRI             R6, R6, 31   # 0x3420
+        SHRI             R7, R10, 16   # 0x3424
+        ADD              R6, R7, R6, R7   # 0x3428
+        OR               R6, R14, R6, R14   # 0x342c
+        SETP_EQ_NPI      P0, R6, R6, 0   # 0x3430
+        BRA_PRED         0, L2f70   # 0x3434
+        SHLI             R6, R4, 16   # 0x3438
+        ADD              R7, R6, R5, R6   # 0x343c
+        ST_GLOBAL_IDX    R7, R10, R11, 0, 0   # 0x3440
+        OR               R14, R6, R5, R6   # 0x3444
+        ANDN             R7, R14, R7, R14   # 0x3448
+        C_AND            R6, R5   # 0x344c
+        C_OR             R6, R7   # 0x344e
+        SHRI             R6, R6, 31   # 0x3450
+        SHRI             R7, R4, 16   # 0x3454
+        ADD              R6, R7, R6, R7   # 0x3458
+        ST_GLOBAL_IDX    R6, R10, R11, 0, 4   # 0x345c
+        BRA              L2f78   # 0x3460
+L3464:  CHWIDTH_MULTI    64, 0   # 0x3464
+        C_MOV            R9, R1   # 0x3468
+L346a:  CHWIDTH_MULTI    16512, 0   # 0x346a
+        LD_GLOBAL_IDX    R1, R8, R9, 0, 0   # 0x346e
+        LD_GLOBAL_IDX    R0, R8, R9, 0, 4   # 0x3472
+        SHLI             R0, R0, 16   # 0x3476
+        SHRI             R2, R1, 16   # 0x347a
+        OR               R3, R0, R2, R0   # 0x347e
+        MOVI             R0, 65535   # 0x3482
+        AND              R4, R1, R0, R1   # 0x3486
+        LD_GLOBAL_IDX    R1, R3, R4, 0, 4   # 0x348a
+        SHLI             R1, R1, 16   # 0x348e
+        LD_GLOBAL_IDX    R2, R3, R4, 0, 0   # 0x3492
+        SHRI             R5, R2, 16   # 0x3496
+        OR               R6, R1, R5, R1   # 0x349a
+        C_CHWIDTH        R5, 1   # 0x349e
+        AND              R7, R2, R0, R2   # 0x34a0
+        LD_GLOBAL_IDX    R5, R6, R7, 0, 12   # 0x34a4
+        C_CHWIDTH        R5, 0   # 0x34a8
+        LD_GLOBAL_IDX    R2, R6, R7, 0, 8   # 0x34aa
+        LD_GLOBAL_IDX    R1, R3, R4, 0, 8   # 0x34ae
+        ST_GLOBAL_IDX    R2, R3, R4, 0, 8   # 0x34b2
+        LD_GLOBAL_IDX    R2, R3, R4, 0, 12   # 0x34b6
+        ST_GLOBAL_IDX    R5, R3, R4, 0, 12   # 0x34ba
+        AND              R5, R2, R0, R2   # 0x34be
+        ST_GLOBAL_IDX    R5, R6, R7, 0, 12   # 0x34c2
+        C_CHWIDTH        R5, 1   # 0x34c6
+        ST_GLOBAL_IDX    R1, R6, R7, 0, 8   # 0x34c8
+        LD_GLOBAL_IDX    R5, R6, R7, 0, 4   # 0x34cc
+        C_CHWIDTH        R5, 0   # 0x34d0
+        LD_GLOBAL_IDX    R14, R6, R7, 0, 0   # 0x34d2
+        ST_GLOBAL_IDX    R14, R3, R4, 0, 0   # 0x34d6
+        ST_GLOBAL_IDX    R5, R3, R4, 0, 4   # 0x34da
+        LD_LOCAL         R10, 168   # 0x34de
+        C_MOV            R4, R10   # 0x34e2
+        C_CHWIDTH        R4, 1   # 0x34e4
+        C_MOV            R5, R10   # 0x34e6
+        C_CHWIDTH        R5, 1   # 0x34e8
+        C_MOV            R11, R10   # 0x34ea
+        C_CHWIDTH        R11, 1   # 0x34ec
+        CVT_SEXT         R3, R4, R5, R11   # 0x34ee
+        CHWIDTH_MULTI    2096, 0   # 0x34f2
+        MOVI48           R4, 4294967295   # 0x34f6
+        SETP_LT_NP       P0, R3, R4, R3   # 0x34fc
+        MOVI             R3, 0   # 0x3500
+        ST_GLOBAL_IDX    R3, R6, R7, 0, 4   # 0x3504
+        ST_GLOBAL_IDX    R3, R6, R7, 0, 0   # 0x3508
+        C_MOV            R13, R8   # 0x350c
+        ST_LOCAL         R9, 140   # 0x350e
+        BRA_PRED         4, L3562   # 0x3512
+L3516:  LD_GLOBAL_IDX    R3, R8, R9, 0, 8   # 0x3516
+        LD_GLOBAL_IDX    R4, R8, R9, 0, 12   # 0x351a
+        SHLI             R4, R4, 16   # 0x351e
+        SHRI             R5, R3, 16   # 0x3522
+        C_OR             R4, R5   # 0x3526
+        C_AND            R3, R0   # 0x3528
+        C_CHWIDTH        R3, 1   # 0x352a
+        LD_GLOBAL_IDX    R3, R4, R3, 0, 2   # 0x352c
+        C_CHWIDTH        R3, 0   # 0x3530
+        SETP_EQ_NP       P0, R3, R3, R10   # 0x3532
+        BRA_PRED         0, L35ba   # 0x3536
+        LD_GLOBAL_IDX    R3, R8, R9, 0, 4   # 0x353a
+        LD_GLOBAL_IDX    R4, R8, R9, 0, 0   # 0x353e
+        SHRI             R5, R4, 16   # 0x3542
+        SHLI             R14, R3, 16   # 0x3546
+        OR               R8, R14, R5, R14   # 0x354a
+        C_AND            R3, R0   # 0x354e
+        OR               R3, R4, R3, R4   # 0x3550
+        AND              R9, R4, R0, R4   # 0x3554
+        SETP_EQ_NPI      P0, R3, R3, 0   # 0x3558
+        BRA_PRED         4, L3516   # 0x355c
+        C_BRA            L35b2   # 0x3560
+L3562:  LD_LOCAL         R10, 172   # 0x3562
+L3566:  LD_GLOBAL_IDX    R3, R8, R9, 0, 8   # 0x3566
+        LD_GLOBAL_IDX    R4, R8, R9, 0, 12   # 0x356a
+        SHLI             R4, R4, 16   # 0x356e
+        SHRI             R5, R3, 16   # 0x3572
+        C_OR             R4, R5   # 0x3576
+        C_AND            R3, R0   # 0x3578
+        C_CHWIDTH        R3, 2   # 0x357a
+        LD_GLOBAL_IDX    R3, R4, R3, 0, 0   # 0x357c
+        C_CHWIDTH        R3, 0   # 0x3580
+        C_AND            R3, R0   # 0x3582
+        SETP_EQ_NP       P0, R3, R3, R10   # 0x3584
+        BRA_PRED         0, L35ba   # 0x3588
+        LD_GLOBAL_IDX    R3, R8, R9, 0, 4   # 0x358c
+        LD_GLOBAL_IDX    R4, R8, R9, 0, 0   # 0x3590
+        SHRI             R5, R4, 16   # 0x3594
+        SHLI             R14, R3, 16   # 0x3598
+        OR               R8, R14, R5, R14   # 0x359c
+        C_AND            R3, R0   # 0x35a0
+        OR               R3, R4, R3, R4   # 0x35a2
+        AND              R9, R4, R0, R4   # 0x35a6
+        SETP_NE_NPI      P0, R3, R3, 0   # 0x35aa
+        BRA_PRED         0, L3566   # 0x35ae
+L35b2:  MOVI             R8, 0   # 0x35b2
+        MOVI             R9, 0   # 0x35b6
+L35ba:  SHLI             R2, R2, 16   # 0x35ba
+        SHRI             R3, R1, 16   # 0x35be
+        SHLI             R4, R8, 16   # 0x35c2
+        AND              R5, R4, R9, R4   # 0x35c6
+        ADD              R14, R4, R9, R4   # 0x35ca
+        C_OR             R4, R9   # 0x35ce
+        C_ANDN           R4, R14   # 0x35d0
+        OR               R4, R5, R4, R5   # 0x35d2
+        SHRI             R4, R4, 31   # 0x35d6
+        SHRI             R5, R8, 16   # 0x35da
+        ADD              R4, R5, R4, R5   # 0x35de
+        OR               R4, R14, R4, R14   # 0x35e2
+        SETP_NE_NPI      P0, R4, R4, 0   # 0x35e6
+        BRA_PRED         0, L3610   # 0x35ea
+        C_MOV            R5, R13   # 0x35ee
+        LD_LOCAL         R14, 140   # 0x35f0
+        LD_GLOBAL_IDX    R4, R5, R14, 0, 0   # 0x35f4
+        LD_GLOBAL_IDX    R5, R5, R14, 0, 4   # 0x35f8
+        SHLI             R5, R5, 16   # 0x35fc
+        SHRI             R14, R4, 16   # 0x3600
+        OR               R8, R5, R14, R5   # 0x3604
+        MOVI             R5, 65535   # 0x3608
+        AND              R9, R4, R5, R4   # 0x360c
+L3610:  OR               R10, R2, R3, R2   # 0x3610
+        AND              R11, R1, R0, R1   # 0x3614
+        SHLI             R0, R8, 16   # 0x3618
+        AND              R1, R0, R9, R0   # 0x361c
+        ADD              R2, R0, R9, R0   # 0x3620
+        C_OR             R0, R9   # 0x3624
+        C_ANDN           R0, R2   # 0x3626
+        OR               R0, R1, R0, R1   # 0x3628
+        SHRI             R0, R0, 31   # 0x362c
+        SHRI             R1, R8, 16   # 0x3630
+        ADD              R0, R1, R0, R1   # 0x3634
+        OR               R0, R2, R0, R2   # 0x3638
+        SETP_EQ_NPI      P0, R0, R0, 0   # 0x363c
+        BRA_PRED         0, L36aa   # 0x3640
+        C_CHWIDTH        R5, 1   # 0x3644
+        C_MOV            R1, R13   # 0x3646
+        LD_LOCAL         R2, 140   # 0x3648
+        LD_GLOBAL_IDX    R0, R1, R2, 0, 8   # 0x364c
+        LD_GLOBAL_IDX    R1, R1, R2, 0, 12   # 0x3650
+        SHLI             R1, R1, 16   # 0x3654
+        SHRI             R2, R0, 16   # 0x3658
+        C_OR             R1, R2   # 0x365c
+        MOVI             R12, 65535   # 0x365e
+        C_AND            R0, R12   # 0x3662
+        LD_GLOBAL_IDX    R5, R1, R0, 0, 0   # 0x3664
+        LD_LOCAL         R2, 160   # 0x3668
+L366c:  C_CHWIDTH        R5, 0   # 0x366c
+        C_MOV            R1, R5   # 0x366e
+        CALL             R14, 127471   # 0x3670
+        MOVI             R15, 2   # 0x3674
+        LD_GLOBAL        R15, R15, 24   # 0x3678
+        SRD              R3, 2   # 0x367c
+        C_ADD            R15, R3   # 0x367e
+        LD_GLOBAL_IDX    R0, R8, R9, 0, 4   # 0x3680
+        LD_GLOBAL_IDX    R2, R8, R9, 0, 0   # 0x3684
+        SHRI             R3, R2, 16   # 0x3688
+        SHLI             R4, R0, 16   # 0x368c
+        OR               R8, R4, R3, R4   # 0x3690
+        C_AND            R0, R12   # 0x3694
+        OR               R0, R2, R0, R2   # 0x3696
+        AND              R9, R2, R12, R2   # 0x369a
+        C_MOV            R2, R1   # 0x369e
+        SETP_NE_NPI      P0, R0, R0, 0   # 0x36a0
+        BRA_PRED         0, L366c   # 0x36a4
+        C_BRA            L36ae   # 0x36a8
+L36aa:  LD_LOCAL         R2, 160   # 0x36aa
+L36ae:  C_CHWIDTH        R3, 1   # 0x36ae
+        ST_LOCAL         R2, 160   # 0x36b0
+        LD_LOCAL         R5, 140   # 0x36b4
+        LD_GLOBAL_IDX    R1, R13, R5, 0, 0   # 0x36b8
+        LD_GLOBAL_IDX    R0, R13, R5, 0, 4   # 0x36bc
+        SHLI             R0, R0, 16   # 0x36c0
+        SHRI             R2, R1, 16   # 0x36c4
+        OR               R2, R0, R2, R0   # 0x36c8
+        MOVI             R0, 65535   # 0x36cc
+        C_AND            R1, R0   # 0x36d0
+        LD_GLOBAL_IDX    R3, R2, R1, 0, 12   # 0x36d2
+        C_CHWIDTH        R3, 0   # 0x36d6
+        LD_GLOBAL_IDX    R4, R2, R1, 0, 8   # 0x36d8
+        ST_GLOBAL_IDX    R4, R6, R7, 0, 8   # 0x36dc
+        ST_GLOBAL_IDX    R3, R6, R7, 0, 12   # 0x36e0
+        SHRI             R3, R10, 16   # 0x36e4
+        ST_GLOBAL_IDX    R3, R2, R1, 0, 12   # 0x36e8
+        SHLI             R3, R10, 16   # 0x36ec
+        C_OR             R3, R11   # 0x36f0
+        ST_GLOBAL_IDX    R3, R2, R1, 0, 8   # 0x36f2
+        C_CHWIDTH        R3, 1   # 0x36f6
+        LD_GLOBAL_IDX    R3, R2, R1, 0, 4   # 0x36f8
+        C_CHWIDTH        R3, 0   # 0x36fc
+        LD_GLOBAL_IDX    R4, R2, R1, 0, 0   # 0x36fe
+        ST_GLOBAL_IDX    R4, R6, R7, 0, 0   # 0x3702
+        ST_GLOBAL_IDX    R3, R6, R7, 0, 4   # 0x3706
+        SHLI             R3, R6, 16   # 0x370a
+        C_OR             R3, R7   # 0x370e
+        SHRI             R4, R6, 16   # 0x3710
+        ST_GLOBAL_IDX    R4, R2, R1, 0, 4   # 0x3714
+        ST_GLOBAL_IDX    R3, R2, R1, 0, 0   # 0x3718
+        C_MOV            R1, R13   # 0x371c
+        C_MOV            R13, R5   # 0x371e
+        MOVI             R9, 1   # 0x3720
+        MOVI             R3, 0   # 0x3724
+        C_BRA            L374c   # 0x3728
+L372a:  ST_GLOBAL_IDX    R3, R2, R4, 0, 4   # 0x372a
+        ST_GLOBAL_IDX    R3, R2, R4, 0, 0   # 0x372e
+        C_SHLI           R9, 1   # 0x3732
+        LD_LOCAL         R1, 108   # 0x3734
+        SETP_NE_NPI      P0, R1, R1, 0   # 0x3738
+        LD_LOCAL         R4, 100   # 0x373c
+        C_MOV            R1, R4   # 0x3740
+        LD_LOCAL         R5, 104   # 0x3742
+        C_MOV            R13, R5   # 0x3746
+        BRA_PRED         4, L3998   # 0x3748
+L374c:  MOVI             R6, 0   # 0x374c
+        MOVI             R2, 0   # 0x3750
+        MOVI             R4, 0   # 0x3754
+        MOVI             R5, 0   # 0x3758
+        ST_LOCAL         R5, 100   # 0x375c
+        ST_LOCAL         R5, 104   # 0x3760
+        ST_LOCAL         R9, 116   # 0x3764
+        C_BRA            L377a   # 0x3768
+L376a:  SETP_EQ_NPI      P0, R5, R6, 0   # 0x376a
+        LD_LOCAL         R9, 116   # 0x376e
+        LD_LOCAL         R6, 112   # 0x3772
+        BRA_PRED         0, L372a   # 0x3776
+L377a:  ST_LOCAL         R6, 108   # 0x377a
+        SETP_LT_NPI      P0, R5, R9, 1   # 0x377e
+        BRA_PRED         0, L37c2   # 0x3782
+        MOVI             R5, 0   # 0x3786
+        C_MOV            R6, R1   # 0x378a
+        C_MOV            R7, R13   # 0x378c
+L378e:  LD_GLOBAL_IDX    R14, R6, R7, 0, 4   # 0x378e
+        LD_GLOBAL_IDX    R7, R6, R7, 0, 0   # 0x3792
+        AND              R6, R14, R0, R14   # 0x3796
+        OR               R6, R7, R6, R7   # 0x379a
+        SETP_NE_NPI      P0, R6, R6, 0   # 0x379e
+        BRA_PRED         4, L37cc   # 0x37a2
+        SHRI             R6, R7, 16   # 0x37a6
+        SHLI             R14, R14, 16   # 0x37aa
+        OR               R6, R14, R6, R14   # 0x37ae
+        C_AND            R7, R0   # 0x37b2
+        C_ADDI           R5, 1   # 0x37b4
+        SETP_EQ_NP       P0, R14, R9, R5   # 0x37b6
+        BRA_PRED         4, L378e   # 0x37ba
+        C_MOV            R8, R9   # 0x37be
+        C_BRA            L37d8   # 0x37c0
+L37c2:  MOVI             R8, 0   # 0x37c2
+        C_MOV            R6, R1   # 0x37c6
+        C_MOV            R7, R13   # 0x37c8
+        C_BRA            L37d8   # 0x37ca
+L37cc:  MOVI             R6, 0   # 0x37cc
+        ADDI             R8, R5, 1   # 0x37d0
+        MOVI             R7, 0   # 0x37d4
+L37d8:  LD_LOCAL         R5, 108   # 0x37d8
+        C_ADDI           R5, 1   # 0x37dc
+        ST_LOCAL         R5, 112   # 0x37de
+        C_MOV            R5, R1   # 0x37e2
+        C_MOV            R14, R13   # 0x37e4
+        C_MOV            R1, R6   # 0x37e6
+        C_MOV            R13, R7   # 0x37e8
+        C_BRA            L37fe   # 0x37ea
+L37ec:  ST_LOCAL         R6, 100   # 0x37ec
+        ST_LOCAL         R7, 104   # 0x37f0
+L37f4:  C_MOV            R5, R11   # 0x37f4
+        C_MOV            R14, R10   # 0x37f6
+        C_MOV            R1, R12   # 0x37f8
+        C_MOV            R2, R6   # 0x37fa
+        C_MOV            R4, R7   # 0x37fc
+L37fe:  SETP_LT_NP       P0, R6, R3, R8   # 0x37fe
+        BRA_PRED         0, L383a   # 0x3802
+        SHLI             R6, R1, 16   # 0x3806
+        AND              R7, R6, R13, R6   # 0x380a
+        ADD              R10, R6, R13, R6   # 0x380e
+        C_OR             R6, R13   # 0x3812
+        C_ANDN           R6, R10   # 0x3814
+        OR               R6, R7, R6, R7   # 0x3816
+        SHRI             R6, R6, 31   # 0x381a
+        SHRI             R7, R1, 16   # 0x381e
+        ADD              R6, R7, R6, R7   # 0x3822
+        OR               R6, R10, R6, R10   # 0x3826
+        SETP_LT_NPI      P0, R7, R9, 1   # 0x382a
+        BRA_PRED         0, L376a   # 0x382e
+        SETP_EQ_NPI      P0, R7, R6, 0   # 0x3832
+        BRA_PRED         0, L376a   # 0x3836
+L383a:  SETP_NE_NPI      P0, R6, R8, 0   # 0x383a
+        BRA_PRED         4, L391a   # 0x383e
+        SETP_EQ_NPI      P0, R6, R9, 0   # 0x3842
+        BRA_PRED         0, L38f2   # 0x3846
+        SHLI             R6, R1, 16   # 0x384a
+        AND              R7, R6, R13, R6   # 0x384e
+        ADD              R10, R6, R13, R6   # 0x3852
+        C_OR             R6, R13   # 0x3856
+        C_ANDN           R6, R10   # 0x3858
+        OR               R6, R7, R6, R7   # 0x385a
+        SHRI             R6, R6, 31   # 0x385e
+        SHRI             R7, R1, 16   # 0x3862
+        ADD              R6, R7, R6, R7   # 0x3866
+        OR               R6, R10, R6, R10   # 0x386a
+        SETP_NE_NPI      P0, R6, R6, 0   # 0x386e
+        BRA_PRED         4, L38f2   # 0x3872
+        C_CHWIDTH        R12, 2   # 0x3876
+        LD_GLOBAL_IDX    R6, R5, R14, 0, 8   # 0x3878
+        LD_GLOBAL_IDX    R7, R5, R14, 0, 12   # 0x387c
+        SHLI             R7, R7, 16   # 0x3880
+        SHRI             R10, R6, 16   # 0x3884
+        C_OR             R7, R10   # 0x3888
+        LD_GLOBAL_IDX    R10, R1, R13, 0, 8   # 0x388a
+        LD_GLOBAL_IDX    R11, R1, R13, 0, 12   # 0x388e
+        C_AND            R6, R0   # 0x3892
+        LD_GLOBAL_IDX    R12, R7, R6, 0, 1   # 0x3894
+        ST_GLOBAL_IDX    R12, R7, R6, 0, 0   # 0x3898
+        C_CHWIDTH        R7, 1   # 0x389c
+        C_CHWIDTH        R12, 0   # 0x389e
+        SHLI             R11, R11, 16   # 0x38a0
+        SHRI             R12, R10, 16   # 0x38a4
+        C_OR             R11, R12   # 0x38a8
+        C_CHWIDTH        R12, 2   # 0x38aa
+        C_AND            R10, R0   # 0x38ac
+        LD_GLOBAL_IDX    R12, R11, R10, 0, 1   # 0x38ae
+        ST_GLOBAL_IDX    R12, R11, R10, 0, 0   # 0x38b2
+        LD_GLOBAL_IDX    R7, R7, R6, 0, 2   # 0x38b6
+        C_CHWIDTH        R6, 1   # 0x38ba
+        LD_GLOBAL_IDX    R6, R11, R10, 0, 2   # 0x38bc
+        CVT_SEXT         R10, R6, R6, R6   # 0x38c0
+        C_CHWIDTH        R6, 0   # 0x38c4
+        CVT_SEXT         R6, R7, R7, R7   # 0x38c6
+        SETP_LT_NP       P0, R6, R10, R6   # 0x38ca
+        BRA_PRED         4, L38f2   # 0x38ce
+        CHWIDTH_MULTI    4224, 0   # 0x38d2
+        LD_GLOBAL_IDX    R6, R1, R13, 0, 0   # 0x38d6
+        LD_GLOBAL_IDX    R7, R1, R13, 0, 4   # 0x38da
+        SHLI             R7, R7, 16   # 0x38de
+        SHRI             R10, R6, 16   # 0x38e2
+        OR               R12, R7, R10, R7   # 0x38e6
+        C_MOV            R7, R13   # 0x38ea
+        AND              R13, R6, R0, R6   # 0x38ec
+        C_BRA            L3938   # 0x38f0
+L38f2:  CHWIDTH_MULTI    4224, 0   # 0x38f2
+        LD_GLOBAL_IDX    R6, R5, R14, 0, 0   # 0x38f6
+        LD_GLOBAL_IDX    R7, R5, R14, 0, 4   # 0x38fa
+        SHLI             R7, R7, 16   # 0x38fe
+        SHRI             R10, R6, 16   # 0x3902
+        OR               R11, R7, R10, R7   # 0x3906
+        AND              R10, R6, R0, R6   # 0x390a
+        ADDI             R8, R8, -1   # 0x390e
+        C_MOV            R12, R1   # 0x3912
+        C_MOV            R6, R5   # 0x3914
+        C_MOV            R7, R14   # 0x3916
+        C_BRA            L3942   # 0x3918
+L391a:  LD_GLOBAL_IDX    R6, R1, R13, 0, 0   # 0x391a
+        LD_GLOBAL_IDX    R7, R1, R13, 0, 4   # 0x391e
         SHLI             R7, R7, 16   # 0x3922
-        SHRI             R10, R6, 16   # 0x3926
-        OR               R11, R7, R10, R7   # 0x392a
-        AND              R10, R6, R0, R6   # 0x392e
-        ADDI             R8, R8, -1   # 0x3932
-        C_MOV            R12, R1   # 0x3936
-        C_MOV            R6, R5   # 0x3938
-        C_MOV            R7, R14   # 0x393a
-        C_BRA            L3966   # 0x393c
-L393e:  LD_GLOBAL_IDX    R6, R1, R13, 0, 0   # 0x393e
-        LD_GLOBAL_IDX    R7, R1, R13, 0, 4   # 0x3942
-        SHLI             R7, R7, 16   # 0x3946
-        SHRI             R8, R6, 16   # 0x394a
-        OR               R12, R7, R8, R7   # 0x394e
-        C_MOV            R7, R13   # 0x3952
-        AND              R13, R6, R0, R6   # 0x3954
-        MOVI             R8, 0   # 0x3958
-L395c:  ADDI             R9, R9, -1   # 0x395c
-        C_MOV            R11, R5   # 0x3960
-        C_MOV            R10, R14   # 0x3962
-        C_MOV            R6, R1   # 0x3964
-L3966:  SHLI             R5, R2, 16   # 0x3966
-        AND              R14, R5, R4, R5   # 0x396a
-        ADD              R1, R5, R4, R5   # 0x396e
-        C_OR             R5, R4   # 0x3972
-        C_ANDN           R5, R1   # 0x3974
-        OR               R5, R14, R5, R14   # 0x3976
-        SHRI             R5, R5, 31   # 0x397a
-        SHRI             R14, R2, 16   # 0x397e
-        ADD              R5, R14, R5, R14   # 0x3982
-        C_OR             R1, R5   # 0x3986
-        SETP_EQ_NPI      P0, R1, R1, 0   # 0x3988
-        BRA_PRED         0, L3810   # 0x398c
-        SHLI             R1, R6, 16   # 0x3990
-        ADD              R5, R1, R7, R1   # 0x3994
-        ST_GLOBAL_IDX    R5, R2, R4, 0, 0   # 0x3998
-        OR               R14, R1, R7, R1   # 0x399c
-        ANDN             R5, R14, R5, R14   # 0x39a0
-        C_AND            R1, R7   # 0x39a4
-        C_OR             R1, R5   # 0x39a6
-        SHRI             R1, R1, 31   # 0x39a8
-        SHRI             R5, R6, 16   # 0x39ac
-        ADD              R1, R5, R1, R5   # 0x39b0
-        ST_GLOBAL_IDX    R1, R2, R4, 0, 4   # 0x39b4
-        BRA              L3818   # 0x39b8
-L39bc:  LD_GLOBAL_IDX    R1, R4, R5, 0, 4   # 0x39bc
-        LD_GLOBAL_IDX    R0, R4, R5, 0, 0   # 0x39c0
-        MOVI             R6, 65535   # 0x39c4
-        AND              R2, R1, R6, R1   # 0x39c8
-        OR               R2, R0, R2, R0   # 0x39cc
-        SETP_EQ_NPI      P0, R2, R2, 0   # 0x39d0
-        BRA_PRED         0, L3a44   # 0x39d4
-        SHRI             R2, R0, 16   # 0x39d8
-        SHLI             R1, R1, 16   # 0x39dc
-        OR               R7, R1, R2, R1   # 0x39e0
-        AND              R8, R0, R6, R0   # 0x39e4
-        LD_GLOBAL_IDX    R0, R4, R5, 0, 8   # 0x39e8
-        LD_GLOBAL_IDX    R1, R4, R5, 0, 12   # 0x39ec
-        C_CHWIDTH        R5, 1   # 0x39f0
-        SHLI             R1, R1, 16   # 0x39f2
-        SHRI             R2, R0, 16   # 0x39f6
-        C_OR             R1, R2   # 0x39fa
-        C_AND            R0, R6   # 0x39fc
-        LD_GLOBAL_IDX    R5, R1, R0, 0, 0   # 0x39fe
-        LD_LOCAL         R2, 156   # 0x3a02
-L3a06:  C_CHWIDTH        R5, 0   # 0x3a06
-        C_MOV            R1, R5   # 0x3a08
-        CALL             R14, 127010   # 0x3a0a
-        MOVI             R15, 2   # 0x3a0e
-        LD_GLOBAL        R15, R15, 24   # 0x3a12
-        SRD              R3, 2   # 0x3a16
-        C_ADD            R15, R3   # 0x3a18
-        LD_GLOBAL_IDX    R0, R7, R8, 0, 4   # 0x3a1a
-        LD_GLOBAL_IDX    R2, R7, R8, 0, 0   # 0x3a1e
-        SHRI             R3, R2, 16   # 0x3a22
-        SHLI             R4, R0, 16   # 0x3a26
-        OR               R7, R4, R3, R4   # 0x3a2a
-        C_AND            R0, R6   # 0x3a2e
-        OR               R0, R2, R0, R2   # 0x3a30
-        AND              R8, R2, R6, R2   # 0x3a34
-        C_MOV            R2, R1   # 0x3a38
-        SETP_NE_NPI      P0, R0, R0, 0   # 0x3a3a
-        BRA_PRED         0, L3a06   # 0x3a3e
-        C_BRA            L3a48   # 0x3a42
-L3a44:  LD_LOCAL         R2, 156   # 0x3a44
-L3a48:  C_MOV            R1, R2   # 0x3a48
-        LD_LOCAL         R14, 160   # 0x3a4a
-        LD_LOCAL         R13, 192   # 0x3a4e
-        LD_LOCAL         R12, 188   # 0x3a52
-        LD_LOCAL         R11, 184   # 0x3a56
-        LD_LOCAL         R10, 180   # 0x3a5a
-        LD_LOCAL         R9, 176   # 0x3a5e
-        LD_LOCAL         R8, 172   # 0x3a62
-        C_RET            224   # 0x3a66
-        MOVI             R15, 2   # 0x3a68
-        LD_GLOBAL        R15, R15, 24   # 0x3a6c
-        SRD              R14, 2   # 0x3a70
-        C_ADD            R15, R14   # 0x3a72
-        MOVI             R8, 2   # 0x3a74
-        LD_GLOBAL        R0, R8, 36   # 0x3a78
-        MOVI             R1, 2000   # 0x3a7c
-        SRD              R2, 0   # 0x3a80
-        ST_LOCAL         R2, 196   # 0x3a82
-        MADLO            R3, R2, R1, R0   # 0x3a86
-        ADDI             R4, R3, 666   # 0x3a8a
-        ST_LOCAL         R4, 200   # 0x3a8e
-        LD_GLOBAL        R0, R8, 32   # 0x3a92
-        SHLI             R1, R0, 16   # 0x3a96
-        C_MOV            R9, R0   # 0x3a9a
-        ADD              R2, R1, R4, R1   # 0x3a9c
-        OR               R0, R1, R4, R1   # 0x3aa0
-        C_ANDN           R0, R2   # 0x3aa4
-        AND              R4, R1, R4, R1   # 0x3aa6
-        OR               R0, R4, R0, R4   # 0x3aaa
-        ADDI             R4, R3, 1332   # 0x3aae
-        ADD              R5, R1, R4, R1   # 0x3ab2
-        OR               R6, R1, R4, R1   # 0x3ab6
-        C_ANDN           R6, R5   # 0x3aba
-        AND              R4, R1, R4, R1   # 0x3abc
-        C_OR             R4, R6   # 0x3ac0
-        ADD              R6, R1, R3, R1   # 0x3ac2
-        OR               R7, R1, R3, R1   # 0x3ac6
-        C_ANDN           R7, R6   # 0x3aca
-        C_AND            R1, R3   # 0x3acc
-        C_OR             R1, R7   # 0x3ace
-        LD_GLOBAL        R7, R8, 48   # 0x3ad0
-        MOVI             R8, 7   # 0x3ad4
-        ST_GLOBAL        R8, R15, -100   # 0x3ad8
-        ST_GLOBAL        R7, R15, -104   # 0x3adc
-        MOVI             R7, 102   # 0x3ae0
-        C_MOV            R8, R7   # 0x3ae4
-        C_CHWIDTH        R8, 1   # 0x3ae6
-        ST_GLOBAL        R8, R15, -144   # 0x3ae8
-        C_CHWIDTH        R8, 0   # 0x3aec
-        ST_GLOBAL        R6, R15, -132   # 0x3aee
-        ST_GLOBAL        R6, R15, -140   # 0x3af2
-        ST_GLOBAL        R5, R15, -116   # 0x3af6
-        ST_GLOBAL        R2, R15, -124   # 0x3afa
-        SHRI             R1, R1, 31   # 0x3afe
-        C_MOV            R2, R9   # 0x3b02
-        ST_LOCAL         R2, 204   # 0x3b04
-        SHRI             R5, R2, 16   # 0x3b08
-        ADD              R1, R5, R1, R5   # 0x3b0c
-        ST_GLOBAL        R1, R15, -128   # 0x3b10
-        ST_GLOBAL        R1, R15, -136   # 0x3b14
-        SHRI             R1, R4, 31   # 0x3b18
-        ADD              R1, R5, R1, R5   # 0x3b1c
-        ST_GLOBAL        R1, R15, -112   # 0x3b20
-        SHRI             R0, R0, 31   # 0x3b24
-        ADD              R0, R5, R0, R5   # 0x3b28
-        ST_GLOBAL        R0, R15, -120   # 0x3b2c
-        MOVI             R0, 0   # 0x3b30
-        ST_GLOBAL        R0, R15, -148   # 0x3b34
-        MOVI             R0, 666   # 0x3b38
-        ST_GLOBAL        R0, R15, -108   # 0x3b3c
-        MOVI             R1, 666   # 0x3b40
-        MOVI             R4, 0   # 0x3b44
-        CALL             R14, 123482   # 0x3b48
-        MOVI             R15, 2   # 0x3b4c
-        LD_GLOBAL        R15, R15, 24   # 0x3b50
-        SRD              R3, 2   # 0x3b54
-        C_ADD            R15, R3   # 0x3b56
-        SHLI             R0, R1, 16   # 0x3b58
-        ADD              R3, R0, R2, R0   # 0x3b5c
-        OR               R4, R0, R2, R0   # 0x3b60
-        C_ANDN           R4, R3   # 0x3b64
-        ST_GLOBAL        R3, R15, -92   # 0x3b66
-        C_AND            R0, R2   # 0x3b6a
-        C_OR             R0, R4   # 0x3b6c
-        SHRI             R0, R0, 31   # 0x3b6e
-        SHRI             R1, R1, 16   # 0x3b72
-        ADD              R0, R1, R0, R1   # 0x3b76
-        ST_GLOBAL        R0, R15, -88   # 0x3b7a
-        MOVI             R0, 65388   # 0x3b7e
-        ADDI             R6, R0, 64   # 0x3b82
-        ADDI             R5, R15, -1   # 0x3b86
-        MOVI             R1, 666   # 0x3b8a
-        LD_LOCAL         R2, 204   # 0x3b8e
-        LD_LOCAL         R3, 200   # 0x3b92
-        MOVI             R4, 0   # 0x3b96
-        CALL             R14, 124587   # 0x3b9a
-        C_CHWIDTH        R2, 1   # 0x3b9e
-        MOVI             R15, 2   # 0x3ba0
-        LD_GLOBAL        R15, R15, 24   # 0x3ba4
-        SRD              R3, 2   # 0x3ba8
-        C_ADD            R15, R3   # 0x3baa
-        MOVI             R0, 65535   # 0x3bac
-        LD_GLOBAL        R1, R15, -116   # 0x3bb0
-        AND              R4, R1, R0, R1   # 0x3bb4
-        SHRI             R0, R1, 16   # 0x3bb8
-        LD_GLOBAL        R1, R15, -112   # 0x3bbc
-        SHLI             R1, R1, 16   # 0x3bc0
-        OR               R3, R1, R0, R1   # 0x3bc4
-        LD_GLOBAL        R1, R15, -108   # 0x3bc8
-        LD_GLOBAL        R2, R15, -148   # 0x3bcc
-        C_CHWIDTH        R2, 0   # 0x3bd0
-        CALL             R14, 124935   # 0x3bd2
-        MOVI             R15, 2   # 0x3bd6
-        LD_GLOBAL        R15, R15, 24   # 0x3bda
-        SRD              R3, 2   # 0x3bde
-        C_ADD            R15, R3   # 0x3be0
-        MOVI             R1, 0   # 0x3be2
-        ST_GLOBAL        R1, R15, -48   # 0x3be6
-        ST_GLOBAL        R1, R15, -52   # 0x3bea
-        LD_GLOBAL        R0, R15, -104   # 0x3bee
-        SETP_EQ_NPI      P0, R0, R0, 0   # 0x3bf2
-        BRA_PRED         0, L3d32   # 0x3bf6
-        ADDI             R1, R15, -1   # 0x3bfa
-        MOVI             R8, 1   # 0x3bfe
-        MOVI             R2, 65388   # 0x3c02
-        MOVI             R3, 1   # 0x3c06
-        CALL             R14, 128876   # 0x3c0a
-        C_CHWIDTH        R2, 1   # 0x3c0e
-        MOVI             R15, 2   # 0x3c10
-        LD_GLOBAL        R15, R15, 24   # 0x3c14
-        SRD              R3, 2   # 0x3c18
-        C_ADD            R15, R3   # 0x3c1a
-        LD_GLOBAL        R2, R15, -52   # 0x3c1c
-        C_CHWIDTH        R2, 0   # 0x3c20
-        CALL             R14, 128571   # 0x3c22
-        C_CHWIDTH        R1, 1   # 0x3c26
+        SHRI             R8, R6, 16   # 0x3926
+        OR               R12, R7, R8, R7   # 0x392a
+        C_MOV            R7, R13   # 0x392e
+        AND              R13, R6, R0, R6   # 0x3930
+        MOVI             R8, 0   # 0x3934
+L3938:  ADDI             R9, R9, -1   # 0x3938
+        C_MOV            R11, R5   # 0x393c
+        C_MOV            R10, R14   # 0x393e
+        C_MOV            R6, R1   # 0x3940
+L3942:  SHLI             R5, R2, 16   # 0x3942
+        AND              R14, R5, R4, R5   # 0x3946
+        ADD              R1, R5, R4, R5   # 0x394a
+        C_OR             R5, R4   # 0x394e
+        C_ANDN           R5, R1   # 0x3950
+        OR               R5, R14, R5, R14   # 0x3952
+        SHRI             R5, R5, 31   # 0x3956
+        SHRI             R14, R2, 16   # 0x395a
+        ADD              R5, R14, R5, R14   # 0x395e
+        C_OR             R1, R5   # 0x3962
+        SETP_EQ_NPI      P0, R1, R1, 0   # 0x3964
+        BRA_PRED         0, L37ec   # 0x3968
+        SHLI             R1, R6, 16   # 0x396c
+        ADD              R5, R1, R7, R1   # 0x3970
+        ST_GLOBAL_IDX    R5, R2, R4, 0, 0   # 0x3974
+        OR               R14, R1, R7, R1   # 0x3978
+        ANDN             R5, R14, R5, R14   # 0x397c
+        C_AND            R1, R7   # 0x3980
+        C_OR             R1, R5   # 0x3982
+        SHRI             R1, R1, 31   # 0x3984
+        SHRI             R5, R6, 16   # 0x3988
+        ADD              R1, R5, R1, R5   # 0x398c
+        ST_GLOBAL_IDX    R1, R2, R4, 0, 4   # 0x3990
+        BRA              L37f4   # 0x3994
+L3998:  LD_GLOBAL_IDX    R1, R4, R5, 0, 4   # 0x3998
+        LD_GLOBAL_IDX    R0, R4, R5, 0, 0   # 0x399c
+        MOVI             R6, 65535   # 0x39a0
+        AND              R2, R1, R6, R1   # 0x39a4
+        OR               R2, R0, R2, R0   # 0x39a8
+        SETP_EQ_NPI      P0, R2, R2, 0   # 0x39ac
+        BRA_PRED         0, L3a20   # 0x39b0
+        SHRI             R2, R0, 16   # 0x39b4
+        SHLI             R1, R1, 16   # 0x39b8
+        OR               R7, R1, R2, R1   # 0x39bc
+        AND              R8, R0, R6, R0   # 0x39c0
+        LD_GLOBAL_IDX    R0, R4, R5, 0, 8   # 0x39c4
+        LD_GLOBAL_IDX    R1, R4, R5, 0, 12   # 0x39c8
+        C_CHWIDTH        R5, 1   # 0x39cc
+        SHLI             R1, R1, 16   # 0x39ce
+        SHRI             R2, R0, 16   # 0x39d2
+        C_OR             R1, R2   # 0x39d6
+        C_AND            R0, R6   # 0x39d8
+        LD_GLOBAL_IDX    R5, R1, R0, 0, 0   # 0x39da
+        LD_LOCAL         R2, 160   # 0x39de
+L39e2:  C_CHWIDTH        R5, 0   # 0x39e2
+        C_MOV            R1, R5   # 0x39e4
+        CALL             R14, 127028   # 0x39e6
+        MOVI             R15, 2   # 0x39ea
+        LD_GLOBAL        R15, R15, 24   # 0x39ee
+        SRD              R3, 2   # 0x39f2
+        C_ADD            R15, R3   # 0x39f4
+        LD_GLOBAL_IDX    R0, R7, R8, 0, 4   # 0x39f6
+        LD_GLOBAL_IDX    R2, R7, R8, 0, 0   # 0x39fa
+        SHRI             R3, R2, 16   # 0x39fe
+        SHLI             R4, R0, 16   # 0x3a02
+        OR               R7, R4, R3, R4   # 0x3a06
+        C_AND            R0, R6   # 0x3a0a
+        OR               R0, R2, R0, R2   # 0x3a0c
+        AND              R8, R2, R6, R2   # 0x3a10
+        C_MOV            R2, R1   # 0x3a14
+        SETP_NE_NPI      P0, R0, R0, 0   # 0x3a16
+        BRA_PRED         0, L39e2   # 0x3a1a
+        C_BRA            L3a24   # 0x3a1e
+L3a20:  LD_LOCAL         R2, 160   # 0x3a20
+L3a24:  C_MOV            R1, R2   # 0x3a24
+        LD_LOCAL         R14, 164   # 0x3a26
+        LD_LOCAL         R13, 196   # 0x3a2a
+        LD_LOCAL         R12, 192   # 0x3a2e
+        LD_LOCAL         R11, 188   # 0x3a32
+        LD_LOCAL         R10, 184   # 0x3a36
+        LD_LOCAL         R9, 180   # 0x3a3a
+        LD_LOCAL         R8, 176   # 0x3a3e
+        C_RET            224   # 0x3a42
+        MOVI             R15, 2   # 0x3a44
+        LD_GLOBAL        R15, R15, 24   # 0x3a48
+        SRD              R14, 2   # 0x3a4c
+        C_ADD            R15, R14   # 0x3a4e
+        MOVI             R8, 2   # 0x3a50
+        LD_GLOBAL        R0, R8, 36   # 0x3a54
+        MOVI             R1, 2000   # 0x3a58
+        SRD              R2, 0   # 0x3a5c
+        ST_LOCAL         R2, 200   # 0x3a5e
+        MADLO            R3, R2, R1, R0   # 0x3a62
+        ADDI             R4, R3, 666   # 0x3a66
+        ST_LOCAL         R4, 204   # 0x3a6a
+        LD_GLOBAL        R0, R8, 32   # 0x3a6e
+        SHLI             R1, R0, 16   # 0x3a72
+        C_MOV            R9, R0   # 0x3a76
+        ADD              R2, R1, R4, R1   # 0x3a78
+        OR               R0, R1, R4, R1   # 0x3a7c
+        C_ANDN           R0, R2   # 0x3a80
+        AND              R4, R1, R4, R1   # 0x3a82
+        OR               R0, R4, R0, R4   # 0x3a86
+        ADDI             R4, R3, 1332   # 0x3a8a
+        ADD              R5, R1, R4, R1   # 0x3a8e
+        OR               R6, R1, R4, R1   # 0x3a92
+        C_ANDN           R6, R5   # 0x3a96
+        AND              R4, R1, R4, R1   # 0x3a98
+        C_OR             R4, R6   # 0x3a9c
+        ADD              R6, R1, R3, R1   # 0x3a9e
+        OR               R7, R1, R3, R1   # 0x3aa2
+        C_ANDN           R7, R6   # 0x3aa6
+        C_AND            R1, R3   # 0x3aa8
+        C_OR             R1, R7   # 0x3aaa
+        LD_GLOBAL        R7, R8, 48   # 0x3aac
+        MOVI             R8, 7   # 0x3ab0
+        ST_GLOBAL        R8, R15, -100   # 0x3ab4
+        ST_GLOBAL        R7, R15, -104   # 0x3ab8
+        MOVI             R7, 102   # 0x3abc
+        C_MOV            R8, R7   # 0x3ac0
+        C_CHWIDTH        R8, 1   # 0x3ac2
+        ST_GLOBAL        R8, R15, -144   # 0x3ac4
+        C_CHWIDTH        R8, 0   # 0x3ac8
+        ST_GLOBAL        R6, R15, -132   # 0x3aca
+        ST_GLOBAL        R6, R15, -140   # 0x3ace
+        ST_GLOBAL        R5, R15, -116   # 0x3ad2
+        ST_GLOBAL        R2, R15, -124   # 0x3ad6
+        SHRI             R1, R1, 31   # 0x3ada
+        C_MOV            R2, R9   # 0x3ade
+        ST_LOCAL         R2, 208   # 0x3ae0
+        SHRI             R5, R2, 16   # 0x3ae4
+        ADD              R1, R5, R1, R5   # 0x3ae8
+        ST_GLOBAL        R1, R15, -128   # 0x3aec
+        ST_GLOBAL        R1, R15, -136   # 0x3af0
+        SHRI             R1, R4, 31   # 0x3af4
+        ADD              R1, R5, R1, R5   # 0x3af8
+        ST_GLOBAL        R1, R15, -112   # 0x3afc
+        SHRI             R0, R0, 31   # 0x3b00
+        ADD              R0, R5, R0, R5   # 0x3b04
+        ST_GLOBAL        R0, R15, -120   # 0x3b08
+        MOVI             R0, 0   # 0x3b0c
+        ST_GLOBAL        R0, R15, -148   # 0x3b10
+        MOVI             R0, 666   # 0x3b14
+        ST_GLOBAL        R0, R15, -108   # 0x3b18
+        MOVI             R1, 666   # 0x3b1c
+        MOVI             R4, 0   # 0x3b20
+        CALL             R14, 123500   # 0x3b24
+        MOVI             R15, 2   # 0x3b28
+        LD_GLOBAL        R15, R15, 24   # 0x3b2c
+        SRD              R3, 2   # 0x3b30
+        C_ADD            R15, R3   # 0x3b32
+        SHLI             R0, R1, 16   # 0x3b34
+        ADD              R3, R0, R2, R0   # 0x3b38
+        OR               R4, R0, R2, R0   # 0x3b3c
+        C_ANDN           R4, R3   # 0x3b40
+        ST_GLOBAL        R3, R15, -92   # 0x3b42
+        C_AND            R0, R2   # 0x3b46
+        C_OR             R0, R4   # 0x3b48
+        SHRI             R0, R0, 31   # 0x3b4a
+        SHRI             R1, R1, 16   # 0x3b4e
+        ADD              R0, R1, R0, R1   # 0x3b52
+        ST_GLOBAL        R0, R15, -88   # 0x3b56
+        MOVI             R0, 65388   # 0x3b5a
+        ADDI             R6, R0, 64   # 0x3b5e
+        ADDI             R5, R15, -1   # 0x3b62
+        MOVI             R1, 666   # 0x3b66
+        LD_LOCAL         R2, 208   # 0x3b6a
+        LD_LOCAL         R3, 204   # 0x3b6e
+        MOVI             R4, 0   # 0x3b72
+        CALL             R14, 124605   # 0x3b76
+        C_CHWIDTH        R2, 1   # 0x3b7a
+        MOVI             R15, 2   # 0x3b7c
+        LD_GLOBAL        R15, R15, 24   # 0x3b80
+        SRD              R3, 2   # 0x3b84
+        C_ADD            R15, R3   # 0x3b86
+        MOVI             R0, 65535   # 0x3b88
+        LD_GLOBAL        R1, R15, -116   # 0x3b8c
+        AND              R4, R1, R0, R1   # 0x3b90
+        SHRI             R0, R1, 16   # 0x3b94
+        LD_GLOBAL        R1, R15, -112   # 0x3b98
+        SHLI             R1, R1, 16   # 0x3b9c
+        OR               R3, R1, R0, R1   # 0x3ba0
+        LD_GLOBAL        R1, R15, -108   # 0x3ba4
+        LD_GLOBAL        R2, R15, -148   # 0x3ba8
+        C_CHWIDTH        R2, 0   # 0x3bac
+        CALL             R14, 124953   # 0x3bae
+        MOVI             R15, 2   # 0x3bb2
+        LD_GLOBAL        R15, R15, 24   # 0x3bb6
+        SRD              R3, 2   # 0x3bba
+        C_ADD            R15, R3   # 0x3bbc
+        MOVI             R1, 0   # 0x3bbe
+        ST_GLOBAL        R1, R15, -48   # 0x3bc2
+        ST_GLOBAL        R1, R15, -52   # 0x3bc6
+        LD_GLOBAL        R0, R15, -104   # 0x3bca
+        SETP_EQ_NPI      P0, R0, R0, 0   # 0x3bce
+        BRA_PRED         0, L3d0e   # 0x3bd2
+        ADDI             R1, R15, -1   # 0x3bd6
+        MOVI             R8, 1   # 0x3bda
+        MOVI             R2, 65388   # 0x3bde
+        MOVI             R3, 1   # 0x3be2
+        CALL             R14, 128876   # 0x3be6
+        C_CHWIDTH        R2, 1   # 0x3bea
+        MOVI             R15, 2   # 0x3bec
+        LD_GLOBAL        R15, R15, 24   # 0x3bf0
+        SRD              R3, 2   # 0x3bf4
+        C_ADD            R15, R3   # 0x3bf6
+        LD_GLOBAL        R2, R15, -52   # 0x3bf8
+        C_CHWIDTH        R2, 0   # 0x3bfc
+        CALL             R14, 128571   # 0x3bfe
+        C_CHWIDTH        R1, 1   # 0x3c02
+        MOVI             R15, 2   # 0x3c04
+        LD_GLOBAL        R15, R15, 24   # 0x3c08
+        SRD              R3, 2   # 0x3c0c
+        C_ADD            R15, R3   # 0x3c0e
+        ST_GLOBAL        R1, R15, -52   # 0x3c10
+        C_CHWIDTH        R1, 0   # 0x3c14
+        ADDI             R1, R15, -1   # 0x3c16
+        MOVI             R2, 65388   # 0x3c1a
+        MOVI             R3, 65535   # 0x3c1e
+        CALL             R14, 128846   # 0x3c22
+        C_CHWIDTH        R2, 1   # 0x3c26
         MOVI             R15, 2   # 0x3c28
         LD_GLOBAL        R15, R15, 24   # 0x3c2c
         SRD              R3, 2   # 0x3c30
         C_ADD            R15, R3   # 0x3c32
-        ST_GLOBAL        R1, R15, -52   # 0x3c34
-        C_CHWIDTH        R1, 0   # 0x3c38
-        ADDI             R1, R15, -1   # 0x3c3a
-        MOVI             R2, 65388   # 0x3c3e
-        MOVI             R3, 65535   # 0x3c42
-        CALL             R14, 128846   # 0x3c46
-        C_CHWIDTH        R2, 1   # 0x3c4a
-        MOVI             R15, 2   # 0x3c4c
-        LD_GLOBAL        R15, R15, 24   # 0x3c50
-        SRD              R3, 2   # 0x3c54
-        C_ADD            R15, R3   # 0x3c56
-        LD_GLOBAL        R2, R15, -52   # 0x3c58
-        C_CHWIDTH        R2, 0   # 0x3c5c
-        CALL             R14, 128541   # 0x3c5e
-        MOVI             R15, 2   # 0x3c62
-        LD_GLOBAL        R15, R15, 24   # 0x3c66
-        SRD              R3, 2   # 0x3c6a
-        C_ADD            R15, R3   # 0x3c6c
-        C_MOV            R14, R1   # 0x3c6e
-        C_MOV            R0, R14   # 0x3c70
-        C_CHWIDTH        R0, 1   # 0x3c72
-        ST_GLOBAL        R0, R15, -50   # 0x3c74
-        C_CHWIDTH        R0, 0   # 0x3c78
-        C_MOV            R0, R14   # 0x3c7a
-        C_CHWIDTH        R0, 1   # 0x3c7c
-        ST_GLOBAL        R0, R15, -52   # 0x3c7e
-        C_CHWIDTH        R0, 0   # 0x3c82
-        LD_GLOBAL        R0, R15, -104   # 0x3c84
-        SETP_LT_U_NPI    P0, R0, R0, 2   # 0x3c88
-        C_MOV            R13, R14   # 0x3c8c
-        BRA_PRED         0, L3d22   # 0x3c8e
-L3c92:  ADDI             R1, R15, -1   # 0x3c92
-        MOVI             R2, 65388   # 0x3c96
-        MOVI             R3, 1   # 0x3c9a
-        CALL             R14, 128802   # 0x3c9e
-        C_CHWIDTH        R2, 1   # 0x3ca2
-        MOVI             R15, 2   # 0x3ca4
-        LD_GLOBAL        R15, R15, 24   # 0x3ca8
-        SRD              R3, 2   # 0x3cac
-        C_ADD            R15, R3   # 0x3cae
-        LD_GLOBAL        R2, R15, -52   # 0x3cb0
-        C_CHWIDTH        R2, 0   # 0x3cb4
-        CALL             R14, 128497   # 0x3cb6
-        C_CHWIDTH        R1, 1   # 0x3cba
+        LD_GLOBAL        R2, R15, -52   # 0x3c34
+        C_CHWIDTH        R2, 0   # 0x3c38
+        CALL             R14, 128541   # 0x3c3a
+        MOVI             R15, 2   # 0x3c3e
+        LD_GLOBAL        R15, R15, 24   # 0x3c42
+        SRD              R3, 2   # 0x3c46
+        C_ADD            R15, R3   # 0x3c48
+        C_MOV            R14, R1   # 0x3c4a
+        C_MOV            R0, R14   # 0x3c4c
+        C_CHWIDTH        R0, 1   # 0x3c4e
+        ST_GLOBAL        R0, R15, -50   # 0x3c50
+        C_CHWIDTH        R0, 0   # 0x3c54
+        C_MOV            R0, R14   # 0x3c56
+        C_CHWIDTH        R0, 1   # 0x3c58
+        ST_GLOBAL        R0, R15, -52   # 0x3c5a
+        C_CHWIDTH        R0, 0   # 0x3c5e
+        LD_GLOBAL        R0, R15, -104   # 0x3c60
+        SETP_LT_U_NPI    P0, R0, R0, 2   # 0x3c64
+        C_MOV            R13, R14   # 0x3c68
+        BRA_PRED         0, L3cfe   # 0x3c6a
+L3c6e:  ADDI             R1, R15, -1   # 0x3c6e
+        MOVI             R2, 65388   # 0x3c72
+        MOVI             R3, 1   # 0x3c76
+        CALL             R14, 128802   # 0x3c7a
+        C_CHWIDTH        R2, 1   # 0x3c7e
+        MOVI             R15, 2   # 0x3c80
+        LD_GLOBAL        R15, R15, 24   # 0x3c84
+        SRD              R3, 2   # 0x3c88
+        C_ADD            R15, R3   # 0x3c8a
+        LD_GLOBAL        R2, R15, -52   # 0x3c8c
+        C_CHWIDTH        R2, 0   # 0x3c90
+        CALL             R14, 128497   # 0x3c92
+        C_CHWIDTH        R1, 1   # 0x3c96
+        MOVI             R15, 2   # 0x3c98
+        LD_GLOBAL        R15, R15, 24   # 0x3c9c
+        SRD              R3, 2   # 0x3ca0
+        C_ADD            R15, R3   # 0x3ca2
+        ST_GLOBAL        R1, R15, -52   # 0x3ca4
+        C_CHWIDTH        R1, 0   # 0x3ca8
+        ADDI             R1, R15, -1   # 0x3caa
+        MOVI             R2, 65388   # 0x3cae
+        MOVI             R3, 65535   # 0x3cb2
+        CALL             R14, 128772   # 0x3cb6
+        C_CHWIDTH        R2, 1   # 0x3cba
         MOVI             R15, 2   # 0x3cbc
         LD_GLOBAL        R15, R15, 24   # 0x3cc0
         SRD              R3, 2   # 0x3cc4
         C_ADD            R15, R3   # 0x3cc6
-        ST_GLOBAL        R1, R15, -52   # 0x3cc8
-        C_CHWIDTH        R1, 0   # 0x3ccc
-        ADDI             R1, R15, -1   # 0x3cce
-        MOVI             R2, 65388   # 0x3cd2
-        MOVI             R3, 65535   # 0x3cd6
-        CALL             R14, 128772   # 0x3cda
-        C_CHWIDTH        R2, 1   # 0x3cde
-        MOVI             R15, 2   # 0x3ce0
-        LD_GLOBAL        R15, R15, 24   # 0x3ce4
-        SRD              R3, 2   # 0x3ce8
-        C_ADD            R15, R3   # 0x3cea
-        LD_GLOBAL        R2, R15, -52   # 0x3cec
-        C_CHWIDTH        R2, 0   # 0x3cf0
-        CALL             R14, 128467   # 0x3cf2
-        MOVI             R15, 2   # 0x3cf6
-        LD_GLOBAL        R15, R15, 24   # 0x3cfa
-        SRD              R3, 2   # 0x3cfe
-        C_ADD            R15, R3   # 0x3d00
-        C_ADDI           R8, 1   # 0x3d02
-        LD_GLOBAL        R0, R15, -104   # 0x3d04
-        SETP_LT_U_NP     P0, R0, R8, R0   # 0x3d08
-        C_MOV            R13, R1   # 0x3d0c
-        C_MOV            R0, R13   # 0x3d0e
-        C_CHWIDTH        R0, 1   # 0x3d10
-        ST_GLOBAL        R0, R15, -52   # 0x3d12
-        C_CHWIDTH        R0, 0   # 0x3d16
-        BRA_PRED         0, L3c92   # 0x3d18
-        C_CHWIDTH        R14, 1   # 0x3d1c
-        LD_GLOBAL        R14, R15, -50   # 0x3d1e
-L3d22:  C_CHWIDTH        R14, 0   # 0x3d22
-        CHWIDTH_MULTI    30720, 1   # 0x3d24
-        LD_GLOBAL        R12, R15, -46   # 0x3d28
-        LD_GLOBAL        R11, R15, -48   # 0x3d2c
-        C_BRA            L3d42   # 0x3d30
-L3d32:  C_MOV            R12, R1   # 0x3d32
-        C_MOV            R11, R12   # 0x3d34
-        C_CHWIDTH        R11, 1   # 0x3d36
-        C_MOV            R14, R12   # 0x3d38
-        C_CHWIDTH        R14, 1   # 0x3d3a
-        C_MOV            R13, R12   # 0x3d3c
-        CHWIDTH_MULTI    12288, 1   # 0x3d3e
-L3d42:  LD_LOCAL         R1, 196   # 0x3d42
-        C_SHLI           R1, 3   # 0x3d46
-        MOVI             R0, 2   # 0x3d48
-        LD_GLOBAL        R0, R0, 44   # 0x3d4c
-        C_ADD            R0, R1   # 0x3d50
-        ST_GLOBAL_SLOT   R13, 1, R0, 0, 0   # 0x3d52
-        ADDI             R1, R0, 2   # 0x3d56
-        ST_GLOBAL_SLOT   R14, 1, R1, 0, 0   # 0x3d5a
-        ADDI             R1, R0, 4   # 0x3d5e
-        ST_GLOBAL_SLOT   R11, 1, R1, 0, 0   # 0x3d62
-        C_ADDI           R0, 6   # 0x3d66
-        ST_GLOBAL_SLOT   R12, 1, R0, 0, 0   # 0x3d68
-        C_EXIT           0   # 0x3d6c
+        LD_GLOBAL        R2, R15, -52   # 0x3cc8
+        C_CHWIDTH        R2, 0   # 0x3ccc
+        CALL             R14, 128467   # 0x3cce
+        MOVI             R15, 2   # 0x3cd2
+        LD_GLOBAL        R15, R15, 24   # 0x3cd6
+        SRD              R3, 2   # 0x3cda
+        C_ADD            R15, R3   # 0x3cdc
+        C_ADDI           R8, 1   # 0x3cde
+        LD_GLOBAL        R0, R15, -104   # 0x3ce0
+        SETP_LT_U_NP     P0, R0, R8, R0   # 0x3ce4
+        C_MOV            R13, R1   # 0x3ce8
+        C_MOV            R0, R13   # 0x3cea
+        C_CHWIDTH        R0, 1   # 0x3cec
+        ST_GLOBAL        R0, R15, -52   # 0x3cee
+        C_CHWIDTH        R0, 0   # 0x3cf2
+        BRA_PRED         0, L3c6e   # 0x3cf4
+        C_CHWIDTH        R14, 1   # 0x3cf8
+        LD_GLOBAL        R14, R15, -50   # 0x3cfa
+L3cfe:  C_CHWIDTH        R14, 0   # 0x3cfe
+        CHWIDTH_MULTI    30720, 1   # 0x3d00
+        LD_GLOBAL        R12, R15, -46   # 0x3d04
+        LD_GLOBAL        R11, R15, -48   # 0x3d08
+        C_BRA            L3d1e   # 0x3d0c
+L3d0e:  C_MOV            R12, R1   # 0x3d0e
+        C_MOV            R11, R12   # 0x3d10
+        C_CHWIDTH        R11, 1   # 0x3d12
+        C_MOV            R14, R12   # 0x3d14
+        C_CHWIDTH        R14, 1   # 0x3d16
+        C_MOV            R13, R12   # 0x3d18
+        CHWIDTH_MULTI    12288, 1   # 0x3d1a
+L3d1e:  LD_LOCAL         R1, 200   # 0x3d1e
+        C_SHLI           R1, 3   # 0x3d22
+        MOVI             R0, 2   # 0x3d24
+        LD_GLOBAL        R0, R0, 44   # 0x3d28
+        C_ADD            R0, R1   # 0x3d2c
+        ST_GLOBAL_SLOT   R13, 1, R0, 0, 0   # 0x3d2e
+        ADDI             R1, R0, 2   # 0x3d32
+        ST_GLOBAL_SLOT   R14, 1, R1, 0, 0   # 0x3d36
+        ADDI             R1, R0, 4   # 0x3d3a
+        ST_GLOBAL_SLOT   R11, 1, R1, 0, 0   # 0x3d3e
+        C_ADDI           R0, 6   # 0x3d42
+        ST_GLOBAL_SLOT   R12, 1, R0, 0, 0   # 0x3d44
+        C_EXIT           0   # 0x3d48

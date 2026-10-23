@@ -1111,6 +1111,15 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
                             (ins GPR:$false, PR:$cond, GPR:$a),
                             "# @$cond mov $rd, $a">;
 
+  // `rd = cond ? x + imm : x`, two-address like PSEUDO_PMOV: x plus or minus a
+  // predicate (`add x, zext c`) is one predicated add, not a 0/1 materialized
+  // and added. It is the carry of a 64-bit add and the borrow of a subtract
+  // (IS-13 (2)), and §5.7's pointer-store carry.
+  let Constraints = "$rd = $false" in
+  def PSEUDO_PADDI : CCVInst<0, (outs GPR:$rd),
+                             (ins GPR:$false, PR:$cond, simm10:$imm),
+                             "# @$cond add $rd, $rd, $imm">;
+
   // The calling sequence (F-21; proposals/calling-convention.md). The call
   // frame is static (§2 of the proposal), so the call-sequence markers adjust
   // nothing and are erased; they exist because the DAG brackets every call.
