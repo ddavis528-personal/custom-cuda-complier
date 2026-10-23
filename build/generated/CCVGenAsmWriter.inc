@@ -521,6 +521,11 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     37884661U,	// COS_F32
     37884006U,	// CVT_D0_S0_R0
     407442U,	// CVT_D0_S0_R0_P
+    37884006U,	// CVT_D0_S0_R0_W16_32
+    37884006U,	// CVT_D0_S0_R0_W16_8
+    37884006U,	// CVT_D0_S0_R0_W32_16
+    37884006U,	// CVT_D0_S0_R0_W32_8
+    37884006U,	// CVT_D0_S0_R0_W8_32
     37884038U,	// CVT_D0_S0_R1
     440210U,	// CVT_D0_S0_R1_P
     37883990U,	// CVT_D0_S0_R2
@@ -529,6 +534,8 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     505746U,	// CVT_D0_S0_R3_P
     37884375U,	// CVT_D0_S1_R0
     538514U,	// CVT_D0_S1_R0_P
+    37884375U,	// CVT_D0_S1_R0_W16_8
+    37884375U,	// CVT_D0_S1_R0_W32_8
     37884407U,	// CVT_D0_S1_R1
     571282U,	// CVT_D0_S1_R1_P
     37884359U,	// CVT_D0_S1_R2
@@ -549,6 +556,7 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     833426U,	// CVT_D0_S3_R3_P
     37884070U,	// CVT_D1_S0_R0
     866194U,	// CVT_D1_S0_R0_P
+    37884070U,	// CVT_D1_S0_R0_W8_32
     37884102U,	// CVT_D1_S0_R1
     898962U,	// CVT_D1_S0_R1_P
     37884054U,	// CVT_D1_S0_R2

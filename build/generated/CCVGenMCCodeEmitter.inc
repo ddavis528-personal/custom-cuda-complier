@@ -326,6 +326,11 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(1073742208),	// COS_F32
     UINT64_C(268435456),	// CVT_D0_S0_R0
     UINT64_C(2147483652),	// CVT_D0_S0_R0_P
+    UINT64_C(268435456),	// CVT_D0_S0_R0_W16_32
+    UINT64_C(268435456),	// CVT_D0_S0_R0_W16_8
+    UINT64_C(268435456),	// CVT_D0_S0_R0_W32_16
+    UINT64_C(268435456),	// CVT_D0_S0_R0_W32_8
+    UINT64_C(268435456),	// CVT_D0_S0_R0_W8_32
     UINT64_C(268435520),	// CVT_D0_S0_R1
     UINT64_C(2147483716),	// CVT_D0_S0_R1_P
     UINT64_C(268435584),	// CVT_D0_S0_R2
@@ -334,6 +339,8 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(2147483844),	// CVT_D0_S0_R3_P
     UINT64_C(268435712),	// CVT_D0_S1_R0
     UINT64_C(2147483908),	// CVT_D0_S1_R0_P
+    UINT64_C(268435712),	// CVT_D0_S1_R0_W16_8
+    UINT64_C(268435712),	// CVT_D0_S1_R0_W32_8
     UINT64_C(268435776),	// CVT_D0_S1_R1
     UINT64_C(2147483972),	// CVT_D0_S1_R1_P
     UINT64_C(268435840),	// CVT_D0_S1_R2
@@ -354,6 +361,7 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(2147484612),	// CVT_D0_S3_R3_P
     UINT64_C(268436480),	// CVT_D1_S0_R0
     UINT64_C(2147484676),	// CVT_D1_S0_R0_P
+    UINT64_C(268436480),	// CVT_D1_S0_R0_W8_32
     UINT64_C(268436544),	// CVT_D1_S0_R1
     UINT64_C(2147484740),	// CVT_D1_S0_R1_P
     UINT64_C(268436608),	// CVT_D1_S0_R2
@@ -981,10 +989,17 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     case CCV::CLZ:
     case CCV::COS_F32:
     case CCV::CVT_D0_S0_R0:
+    case CCV::CVT_D0_S0_R0_W8_32:
+    case CCV::CVT_D0_S0_R0_W16_8:
+    case CCV::CVT_D0_S0_R0_W16_32:
+    case CCV::CVT_D0_S0_R0_W32_8:
+    case CCV::CVT_D0_S0_R0_W32_16:
     case CCV::CVT_D0_S0_R1:
     case CCV::CVT_D0_S0_R2:
     case CCV::CVT_D0_S0_R3:
     case CCV::CVT_D0_S1_R0:
+    case CCV::CVT_D0_S1_R0_W16_8:
+    case CCV::CVT_D0_S1_R0_W32_8:
     case CCV::CVT_D0_S1_R1:
     case CCV::CVT_D0_S1_R2:
     case CCV::CVT_D0_S1_R3:
@@ -995,6 +1010,7 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     case CCV::CVT_D0_S3_R2:
     case CCV::CVT_D0_S3_R3:
     case CCV::CVT_D1_S0_R0:
+    case CCV::CVT_D1_S0_R0_W8_32:
     case CCV::CVT_D1_S0_R1:
     case CCV::CVT_D1_S0_R2:
     case CCV::CVT_D1_S0_R3:
@@ -1978,10 +1994,17 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
     case CCV::CLZ:
     case CCV::COS_F32:
     case CCV::CVT_D0_S0_R0:
+    case CCV::CVT_D0_S0_R0_W8_32:
+    case CCV::CVT_D0_S0_R0_W16_8:
+    case CCV::CVT_D0_S0_R0_W16_32:
+    case CCV::CVT_D0_S0_R0_W32_8:
+    case CCV::CVT_D0_S0_R0_W32_16:
     case CCV::CVT_D0_S0_R1:
     case CCV::CVT_D0_S0_R2:
     case CCV::CVT_D0_S0_R3:
     case CCV::CVT_D0_S1_R0:
+    case CCV::CVT_D0_S1_R0_W16_8:
+    case CCV::CVT_D0_S1_R0_W32_8:
     case CCV::CVT_D0_S1_R1:
     case CCV::CVT_D0_S1_R2:
     case CCV::CVT_D0_S1_R3:
@@ -1992,6 +2015,7 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
     case CCV::CVT_D0_S3_R2:
     case CCV::CVT_D0_S3_R3:
     case CCV::CVT_D1_S0_R0:
+    case CCV::CVT_D1_S0_R0_W8_32:
     case CCV::CVT_D1_S0_R1:
     case CCV::CVT_D1_S0_R2:
     case CCV::CVT_D1_S0_R3:

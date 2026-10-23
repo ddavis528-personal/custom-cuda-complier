@@ -23,6 +23,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Regex.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/MathExtras.h"
@@ -212,8 +213,13 @@ int main(int argc, char **argv) {
       // round-trip failure; there is nothing in the bits to distinguish them
       // and nothing downstream of emission that needs to.
       StringRef DecName = MII->getName(Decoded.getOpcode());
+      // A conversion's variant names both widths, `_W<dest>_<source>`
+      // (CP-6): CVT_D0_S0_R0_W8_32 decodes as CVT_D0_S0_R0.
+      static const Regex CvtW("^(CVT_D[0-3]_S[0-3]_R[0-3])_W[0-9]+_[0-9]+$");
+      SmallVector<StringRef, 2> CM;
       bool WidthAlias = (Name.ends_with("_W16") && Name.drop_back(4) == DecName) ||
-                        (Name.ends_with("_W8") && Name.drop_back(3) == DecName);
+                        (Name.ends_with("_W8") && Name.drop_back(3) == DecName) ||
+                        (CvtW.match(Name, &CM) && CM[1] == DecName);
       if (Decoded.getOpcode() != Op && !WidthAlias) {
         errs() << "FAIL " << Name << ": decoded as " << DecName << "\n";
         ++S.Failed;

@@ -170,6 +170,13 @@ if [ -x build/ccv-sim ]; then
   python3 tools/check-narrow-fp.py --quick || fail=1
 fi
 
+# CP-6, stage 2: cuda_fp8.h's conversions, which arrive as inline PTX, made
+# native and executed against the same reference, with two controls.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  FP8 conversions from cuda_fp8.h (CP-6)"
+  ./tools/check-fp8.sh || fail=1
+fi
+
 # AR-20: CoreMark's list, matrix and state, unmodified, on 32 lanes; each lane's
 # CRCs against CoreMark's published values and the host's, with two controls.
 if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then

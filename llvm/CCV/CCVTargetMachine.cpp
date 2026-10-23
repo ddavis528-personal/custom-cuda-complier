@@ -17,6 +17,7 @@ FunctionPass *createCCVWindowRemat();
 FunctionPass *createCCVCompress();
 FunctionPass *createCCVSpillStats();
 FunctionPass *createCCVNarrowUses();
+FunctionPass *createCCVExpandPTXAsm();
 FunctionPass *createCCVMaskUniform();
 FunctionPass *createCCVFuseRcpSeed();
 FunctionPass *createCCVInsertChwidth();
@@ -60,6 +61,9 @@ public:
   }
   bool addInstSelector() override {
     addPass(createCCVISelDag(getCCVTargetMachine(), getOptLevel()));
+    // CUDA's inline PTX conversions, while the machine code is still SSA and
+    // before CSE and dead-code elimination see it (CP-6).
+    addPass(createCCVExpandPTXAsm());
     return false;
   }
   /// §5.1 makes `.shared` flat 32-bit, so a shared object's address is a

@@ -49,7 +49,7 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   //
   // So the address is consumed BEFORE type legalization ever sees it, in a
   // DAGCombine at BeforeLegalizeTypes. See PerformDAGCombine and F-20.
-  setTargetDAGCombine({ISD::LOAD, ISD::STORE, ISD::ADD, ISD::TRUNCATE,
+  setTargetDAGCombine({ISD::INLINEASM, ISD::LOAD, ISD::STORE, ISD::ADD, ISD::TRUNCATE,
                        ISD::LIFETIME_START, ISD::LIFETIME_END});
   setOperationAction(ISD::GlobalAddress, MVT::i64, Custom);
   // A signed byte (F-161): a shift pair. combineDP4 has matched the byte
@@ -697,6 +697,28 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
       N->getOpcode() == ISD::LIFETIME_END)
     return N->getOperand(0);
 
+  // An inline asm's template is an operand of the program pointer type, i64
+  // under this data layout, and the type legalizer has no expansion for a
+  // TargetExternalSymbol. Nothing reads it as an address -- the emitter takes
+  // its name -- so it is re-typed i32 before legalization. CCVExpandPTXAsm
+  // then replaces the asm (CP-6).
+  if (N->getOpcode() == ISD::INLINEASM) {
+    auto *Sym = dyn_cast<ExternalSymbolSDNode>(N->getOperand(1));
+    if (!Sym || Sym->getValueType(0) == MVT::i32)
+      return SDValue();
+    assert(Sym->getTargetFlags() == 0 && "an asm string already re-typed");
+    SmallVector<SDValue, 8> Ops(N->op_begin(), N->op_end());
+    // Symbols are uniqued by name and flags, not type, so the i32 one carries
+    // a flag of its own; the inline-asm emitter copies only the name.
+    Ops[1] = DCI.DAG.getTargetExternalSymbol(Sym->getSymbol(), MVT::i32,
+                                             /*TargetFlags=*/1);
+    SDValue New = DCI.DAG.getNode(ISD::INLINEASM, SDLoc(N), N->getVTList(), Ops);
+    SmallVector<SDValue, 2> Res;
+    for (unsigned I = 0, E = N->getNumValues(); I != E; ++I)
+      Res.push_back(New.getValue(I));
+    return DCI.CombineTo(N, Res);
+  }
+
   // A function's code address as a value (F-21 step 5): CCVCodePointers
   // leaves `ptrtoint @f to i32`, which arrives as a truncate of the 64-bit
   // GlobalAddress the legalizer has nowhere to put. The low 32 bits are the
@@ -886,8 +908,13 @@ std::pair<unsigned, const TargetRegisterClass *>
 CCVTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                                 StringRef Constraint,
                                                 MVT VT) const {
-  if (Constraint.size() == 1 && Constraint[0] == 'r')
+  // PTX's register constraints, as CUDA's headers write them (CP-6): `r` a
+  // 32-bit integer, `f` an FP32 value, `h` a 16-bit one. CCVExpandPTXAsm
+  // replaces the asm that uses them, so these only carry the operands there.
+  if (Constraint.size() == 1 && (Constraint[0] == 'r' || Constraint[0] == 'f'))
     return {0U, &CCV::GPRRegClass};
+  if (Constraint.size() == 1 && Constraint[0] == 'h')
+    return {0U, &CCV::GPR16RegClass};
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
 

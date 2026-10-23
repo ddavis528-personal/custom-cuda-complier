@@ -76,7 +76,13 @@ public:
   const char *getTargetNodeName(unsigned Opcode) const override;
 
   /// 'r' is a GPR. Predicates are a separate namespace (invariant 5) and get
-  /// their own constraint letter when if-conversion needs one.
+  /// their own constraint letter when if-conversion needs one. PTX's 'f' and
+  /// 'h' are register classes too (CP-6, CCVExpandPTXAsm).
+  ConstraintType getConstraintType(StringRef Constraint) const override {
+    if (Constraint.size() == 1 && (Constraint[0] == 'f' || Constraint[0] == 'h'))
+      return C_RegisterClass;
+    return TargetLowering::getConstraintType(Constraint);
+  }
   std::pair<unsigned, const TargetRegisterClass *>
   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                StringRef Constraint, MVT VT) const override;
