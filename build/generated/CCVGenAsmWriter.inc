@@ -123,82 +123,86 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
   /* 1166 */ "atom.add.global \0"
   /* 1183 */ "ld.global \0"
   /* 1194 */ "st.global \0"
-  /* 1205 */ "shl \0"
-  /* 1210 */ "# call \0"
-  /* 1218 */ "fmul \0"
-  /* 1224 */ "andn \0"
-  /* 1230 */ "fmin \0"
-  /* 1236 */ "# adjcallstackdown \0"
-  /* 1256 */ "mad.lo \0"
-  /* 1264 */ "mul.lo \0"
-  /* 1272 */ "# adjcallstackup \0"
-  /* 1290 */ "setp.eq \0"
-  /* 1299 */ "shr \0"
-  /* 1304 */ "por \0"
-  /* 1309 */ "pxor \0"
-  /* 1315 */ "cvt.rm.fp0.s \0"
-  /* 1329 */ "cvt.rp.fp0.s \0"
-  /* 1343 */ "cvt.rz.fp0.s \0"
-  /* 1357 */ "cvt.rm.fp1.s \0"
-  /* 1371 */ "cvt.rn.fp1.s \0"
-  /* 1385 */ "cvt.rp.fp1.s \0"
-  /* 1399 */ "cvt.rz.fp1.s \0"
-  /* 1413 */ "mul.hi.s \0"
-  /* 1423 */ "min.s \0"
-  /* 1430 */ "cvt.u.s \0"
-  /* 1439 */ "max.s \0"
-  /* 1446 */ "abs \0"
-  /* 1451 */ "dp4.ss \0"
-  /* 1459 */ "# ret \0"
-  /* 1466 */ "setp.gt \0"
-  /* 1475 */ "bar.wait \0"
-  /* 1485 */ "bar.init \0"
-  /* 1495 */ "setp.lt \0"
-  /* 1504 */ "reconv.hint \0"
-  /* 1517 */ "cvt.sint.sint \0"
-  /* 1532 */ "not \0"
-  /* 1537 */ "bra.short \0"
-  /* 1548 */ "# broadcast \0"
-  /* 1561 */ "cvt.rm.fp0.u \0"
-  /* 1575 */ "cvt.rp.fp0.u \0"
-  /* 1589 */ "cvt.rz.fp0.u \0"
-  /* 1603 */ "cvt.rm.fp1.u \0"
-  /* 1617 */ "cvt.rn.fp1.u \0"
-  /* 1631 */ "cvt.rp.fp1.u \0"
-  /* 1645 */ "cvt.rz.fp1.u \0"
-  /* 1659 */ "setp.ge.u \0"
-  /* 1670 */ "setp.le.u \0"
-  /* 1681 */ "mul.hi.u \0"
-  /* 1691 */ "min.u \0"
-  /* 1698 */ "cvt.s.u \0"
-  /* 1707 */ "setp.gt.u \0"
-  /* 1718 */ "setp.lt.u \0"
-  /* 1729 */ "cvt.u.u \0"
-  /* 1738 */ "max.u \0"
-  /* 1745 */ "brev \0"
-  /* 1751 */ "pmov \0"
-  /* 1757 */ "# narrow \0"
-  /* 1767 */ "fmax \0"
-  /* 1773 */ "packi.z \0"
-  /* 1782 */ "clz \0"
-  /* 1787 */ "# XRay Function Patchable RET.\0"
-  /* 1818 */ "# XRay Typed Event Log.\0"
-  /* 1842 */ "# XRay Custom Event Log.\0"
-  /* 1867 */ "# XRay Function Enter.\0"
-  /* 1890 */ "# XRay Tail Call Exit.\0"
-  /* 1913 */ "# XRay Function Exit.\0"
-  /* 1935 */ "# @\0"
-  /* 1939 */ "LIFETIME_END\0"
-  /* 1952 */ "PSEUDO_PROBE\0"
-  /* 1965 */ "BUNDLE\0"
-  /* 1972 */ "DBG_VALUE\0"
-  /* 1982 */ "DBG_INSTR_REF\0"
-  /* 1996 */ "DBG_PHI\0"
-  /* 2004 */ "DBG_LABEL\0"
-  /* 2014 */ "LIFETIME_START\0"
-  /* 2029 */ "DBG_VALUE_LIST\0"
-  /* 2044 */ "# FEntry call\0"
-  /* 2058 */ "exit\0"
+  /* 1205 */ "ld.pred.local \0"
+  /* 1220 */ "st.pred.local \0"
+  /* 1235 */ "ld.local \0"
+  /* 1245 */ "st.local \0"
+  /* 1255 */ "shl \0"
+  /* 1260 */ "# call \0"
+  /* 1268 */ "fmul \0"
+  /* 1274 */ "andn \0"
+  /* 1280 */ "fmin \0"
+  /* 1286 */ "# adjcallstackdown \0"
+  /* 1306 */ "mad.lo \0"
+  /* 1314 */ "mul.lo \0"
+  /* 1322 */ "# adjcallstackup \0"
+  /* 1340 */ "setp.eq \0"
+  /* 1349 */ "shr \0"
+  /* 1354 */ "por \0"
+  /* 1359 */ "pxor \0"
+  /* 1365 */ "cvt.rm.fp0.s \0"
+  /* 1379 */ "cvt.rp.fp0.s \0"
+  /* 1393 */ "cvt.rz.fp0.s \0"
+  /* 1407 */ "cvt.rm.fp1.s \0"
+  /* 1421 */ "cvt.rn.fp1.s \0"
+  /* 1435 */ "cvt.rp.fp1.s \0"
+  /* 1449 */ "cvt.rz.fp1.s \0"
+  /* 1463 */ "mul.hi.s \0"
+  /* 1473 */ "min.s \0"
+  /* 1480 */ "cvt.u.s \0"
+  /* 1489 */ "max.s \0"
+  /* 1496 */ "abs \0"
+  /* 1501 */ "dp4.ss \0"
+  /* 1509 */ "# ret \0"
+  /* 1516 */ "setp.gt \0"
+  /* 1525 */ "bar.wait \0"
+  /* 1535 */ "bar.init \0"
+  /* 1545 */ "setp.lt \0"
+  /* 1554 */ "reconv.hint \0"
+  /* 1567 */ "cvt.sint.sint \0"
+  /* 1582 */ "not \0"
+  /* 1587 */ "bra.short \0"
+  /* 1598 */ "# broadcast \0"
+  /* 1611 */ "cvt.rm.fp0.u \0"
+  /* 1625 */ "cvt.rp.fp0.u \0"
+  /* 1639 */ "cvt.rz.fp0.u \0"
+  /* 1653 */ "cvt.rm.fp1.u \0"
+  /* 1667 */ "cvt.rn.fp1.u \0"
+  /* 1681 */ "cvt.rp.fp1.u \0"
+  /* 1695 */ "cvt.rz.fp1.u \0"
+  /* 1709 */ "setp.ge.u \0"
+  /* 1720 */ "setp.le.u \0"
+  /* 1731 */ "mul.hi.u \0"
+  /* 1741 */ "min.u \0"
+  /* 1748 */ "cvt.s.u \0"
+  /* 1757 */ "setp.gt.u \0"
+  /* 1768 */ "setp.lt.u \0"
+  /* 1779 */ "cvt.u.u \0"
+  /* 1788 */ "max.u \0"
+  /* 1795 */ "brev \0"
+  /* 1801 */ "pmov \0"
+  /* 1807 */ "# narrow \0"
+  /* 1817 */ "fmax \0"
+  /* 1823 */ "packi.z \0"
+  /* 1832 */ "clz \0"
+  /* 1837 */ "# XRay Function Patchable RET.\0"
+  /* 1868 */ "# XRay Typed Event Log.\0"
+  /* 1892 */ "# XRay Custom Event Log.\0"
+  /* 1917 */ "# XRay Function Enter.\0"
+  /* 1940 */ "# XRay Tail Call Exit.\0"
+  /* 1963 */ "# XRay Function Exit.\0"
+  /* 1985 */ "# @\0"
+  /* 1989 */ "LIFETIME_END\0"
+  /* 2002 */ "PSEUDO_PROBE\0"
+  /* 2015 */ "BUNDLE\0"
+  /* 2022 */ "DBG_VALUE\0"
+  /* 2032 */ "DBG_INSTR_REF\0"
+  /* 2046 */ "DBG_PHI\0"
+  /* 2054 */ "DBG_LABEL\0"
+  /* 2064 */ "LIFETIME_START\0"
+  /* 2079 */ "DBG_VALUE_LIST\0"
+  /* 2094 */ "# FEntry call\0"
+  /* 2108 */ "exit\0"
 };
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -218,20 +222,20 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     0U,	// IMPLICIT_DEF
     0U,	// SUBREG_TO_REG
     0U,	// COPY_TO_REGCLASS
-    1973U,	// DBG_VALUE
-    2030U,	// DBG_VALUE_LIST
-    1983U,	// DBG_INSTR_REF
-    1997U,	// DBG_PHI
-    2005U,	// DBG_LABEL
+    2023U,	// DBG_VALUE
+    2080U,	// DBG_VALUE_LIST
+    2033U,	// DBG_INSTR_REF
+    2047U,	// DBG_PHI
+    2055U,	// DBG_LABEL
     0U,	// REG_SEQUENCE
     0U,	// COPY
-    1966U,	// BUNDLE
-    2015U,	// LIFETIME_START
-    1940U,	// LIFETIME_END
-    1953U,	// PSEUDO_PROBE
+    2016U,	// BUNDLE
+    2065U,	// LIFETIME_START
+    1990U,	// LIFETIME_END
+    2003U,	// PSEUDO_PROBE
     0U,	// ARITH_FENCE
     0U,	// STACKMAP
-    2045U,	// FENTRY_CALL
+    2095U,	// FENTRY_CALL
     0U,	// PATCHPOINT
     0U,	// LOAD_STACK_GUARD
     0U,	// PREALLOCATED_SETUP
@@ -240,12 +244,12 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     0U,	// LOCAL_ESCAPE
     0U,	// FAULTING_OP
     0U,	// PATCHABLE_OP
-    1868U,	// PATCHABLE_FUNCTION_ENTER
-    1788U,	// PATCHABLE_RET
-    1914U,	// PATCHABLE_FUNCTION_EXIT
-    1891U,	// PATCHABLE_TAIL_CALL
-    1843U,	// PATCHABLE_EVENT_CALL
-    1819U,	// PATCHABLE_TYPED_EVENT_CALL
+    1918U,	// PATCHABLE_FUNCTION_ENTER
+    1838U,	// PATCHABLE_RET
+    1964U,	// PATCHABLE_FUNCTION_EXIT
+    1941U,	// PATCHABLE_TAIL_CALL
+    1893U,	// PATCHABLE_EVENT_CALL
+    1869U,	// PATCHABLE_TYPED_EVENT_CALL
     0U,	// ICALL_BRANCH_FUNNEL
     0U,	// MEMBARRIER
     0U,	// JUMP_TABLE_DEBUG_INFO
@@ -476,213 +480,213 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     0U,	// G_VECREDUCE_UMIN
     0U,	// G_SBFX
     0U,	// G_UBFX
-    5333U,	// ADJCALLSTACKDOWN
-    5369U,	// ADJCALLSTACKUP
-    38413U,	// PSEUDO_BCAST
-    71568U,	// PSEUDO_BRA_PRED
-    5307U,	// PSEUDO_CALL
+    5383U,	// ADJCALLSTACKDOWN
+    5419U,	// ADJCALLSTACKUP
+    38463U,	// PSEUDO_BCAST
+    71618U,	// PSEUDO_BRA_PRED
+    5357U,	// PSEUDO_CALL
     103378U,	// PSEUDO_LD_PRED
-    37885662U,	// PSEUDO_NARROW
+    37885712U,	// PSEUDO_NARROW
     71439192U,	// PSEUDO_PAND
-    10128U,	// PSEUDO_PMOV
+    10178U,	// PSEUDO_PMOV
     71439208U,	// PSEUDO_POR
     71439200U,	// PSEUDO_PXOR
-    5556U,	// PSEUDO_RET
+    5606U,	// PSEUDO_RET
     103389U,	// PSEUDO_ST_PRED
-    37885351U,	// ABS
+    37885401U,	// ABS
     71439255U,	// ADD
     71439255U,	// ADDI
     71439255U,	// ADDI48
-    209893266U,	// ADDI_P
-    12765074U,	// ADDI_PP
+    209893316U,	// ADDI_P
+    12765124U,	// ADDI_PP
     71439255U,	// ADDI_W16
-    209893266U,	// ADD_P
-    12765074U,	// ADD_PP
+    209893316U,	// ADD_P
+    12765124U,	// ADD_PP
     71439255U,	// ADD_W16
     71439337U,	// AND
     71439337U,	// ANDI
-    210834U,	// ANDI_P
-    71439561U,	// ANDN
-    71439561U,	// ANDNI
-    243602U,	// ANDNI_P
-    210834U,	// AND_P
+    210884U,	// ANDI_P
+    71439611U,	// ANDN
+    71439611U,	// ANDNI
+    243652U,	// ANDNI_P
+    210884U,	// AND_P
     71439337U,	// AND_W16
     100766863U,	// ATOM_ADD_G
-    276370U,	// BALLOT
-    37885390U,	// BAR_INIT
-    317330U,	// BAR_WAIT_PHASE
+    276420U,	// BALLOT
+    37885440U,	// BAR_INIT
+    317380U,	// BAR_WAIT_PHASE
     4975U,	// BRA
-    350098U,	// BRA_PRED
-    37885650U,	// BREV
-    37885117U,	// CALL
-    378770U,	// CAS_G
+    350148U,	// BRA_PRED
+    37885700U,	// BREV
+    37885167U,	// CALL
+    378820U,	// CAS_G
     37885050U,	// CHWIDTH_MULTI
-    37885687U,	// CLZ
+    37885737U,	// CLZ
     37884661U,	// COS_F32
     37884006U,	// CVT_D0_S0_R0
-    407442U,	// CVT_D0_S0_R0_P
+    407492U,	// CVT_D0_S0_R0_P
     37884006U,	// CVT_D0_S0_R0_W16_32
     37884006U,	// CVT_D0_S0_R0_W16_8
     37884006U,	// CVT_D0_S0_R0_W32_16
     37884006U,	// CVT_D0_S0_R0_W32_8
     37884006U,	// CVT_D0_S0_R0_W8_32
     37884038U,	// CVT_D0_S0_R1
-    440210U,	// CVT_D0_S0_R1_P
+    440260U,	// CVT_D0_S0_R1_P
     37883990U,	// CVT_D0_S0_R2
-    472978U,	// CVT_D0_S0_R2_P
+    473028U,	// CVT_D0_S0_R2_P
     37884022U,	// CVT_D0_S0_R3
-    505746U,	// CVT_D0_S0_R3_P
+    505796U,	// CVT_D0_S0_R3_P
     37884375U,	// CVT_D0_S1_R0
-    538514U,	// CVT_D0_S1_R0_P
+    538564U,	// CVT_D0_S1_R0_P
     37884375U,	// CVT_D0_S1_R0_W16_8
     37884375U,	// CVT_D0_S1_R0_W32_8
     37884407U,	// CVT_D0_S1_R1
-    571282U,	// CVT_D0_S1_R1_P
+    571332U,	// CVT_D0_S1_R1_P
     37884359U,	// CVT_D0_S1_R2
-    604050U,	// CVT_D0_S1_R2_P
+    604100U,	// CVT_D0_S1_R2_P
     37884391U,	// CVT_D0_S1_R3
-    636818U,	// CVT_D0_S1_R3_P
-    37885248U,	// CVT_D0_S2_R1
-    669586U,	// CVT_D0_S2_R1_P
-    37885220U,	// CVT_D0_S2_R2
-    702354U,	// CVT_D0_S2_R2_P
-    37885234U,	// CVT_D0_S2_R3
-    735122U,	// CVT_D0_S2_R3_P
-    37885494U,	// CVT_D0_S3_R1
-    767890U,	// CVT_D0_S3_R1_P
-    37885466U,	// CVT_D0_S3_R2
-    800658U,	// CVT_D0_S3_R2_P
-    37885480U,	// CVT_D0_S3_R3
-    833426U,	// CVT_D0_S3_R3_P
+    636868U,	// CVT_D0_S1_R3_P
+    37885298U,	// CVT_D0_S2_R1
+    669636U,	// CVT_D0_S2_R1_P
+    37885270U,	// CVT_D0_S2_R2
+    702404U,	// CVT_D0_S2_R2_P
+    37885284U,	// CVT_D0_S2_R3
+    735172U,	// CVT_D0_S2_R3_P
+    37885544U,	// CVT_D0_S3_R1
+    767940U,	// CVT_D0_S3_R1_P
+    37885516U,	// CVT_D0_S3_R2
+    800708U,	// CVT_D0_S3_R2_P
+    37885530U,	// CVT_D0_S3_R3
+    833476U,	// CVT_D0_S3_R3_P
     37884070U,	// CVT_D1_S0_R0
-    866194U,	// CVT_D1_S0_R0_P
+    866244U,	// CVT_D1_S0_R0_P
     37884070U,	// CVT_D1_S0_R0_W8_32
     37884102U,	// CVT_D1_S0_R1
-    898962U,	// CVT_D1_S0_R1_P
+    899012U,	// CVT_D1_S0_R1_P
     37884054U,	// CVT_D1_S0_R2
-    931730U,	// CVT_D1_S0_R2_P
+    931780U,	// CVT_D1_S0_R2_P
     37884086U,	// CVT_D1_S0_R3
-    964498U,	// CVT_D1_S0_R3_P
+    964548U,	// CVT_D1_S0_R3_P
     37884439U,	// CVT_D1_S1_R0
-    997266U,	// CVT_D1_S1_R0_P
+    997316U,	// CVT_D1_S1_R0_P
     37884471U,	// CVT_D1_S1_R1
-    1030034U,	// CVT_D1_S1_R1_P
+    1030084U,	// CVT_D1_S1_R1_P
     37884423U,	// CVT_D1_S1_R2
-    1062802U,	// CVT_D1_S1_R2_P
+    1062852U,	// CVT_D1_S1_R2_P
     37884455U,	// CVT_D1_S1_R3
-    1095570U,	// CVT_D1_S1_R3_P
-    37885276U,	// CVT_D1_S2_R0
-    1128338U,	// CVT_D1_S2_R0_P
-    37885304U,	// CVT_D1_S2_R1
-    1161106U,	// CVT_D1_S2_R1_P
-    37885262U,	// CVT_D1_S2_R2
-    1193874U,	// CVT_D1_S2_R2_P
-    37885290U,	// CVT_D1_S2_R3
-    1226642U,	// CVT_D1_S2_R3_P
-    37885522U,	// CVT_D1_S3_R0
-    1259410U,	// CVT_D1_S3_R0_P
-    37885550U,	// CVT_D1_S3_R1
-    1292178U,	// CVT_D1_S3_R1_P
-    37885508U,	// CVT_D1_S3_R2
-    1324946U,	// CVT_D1_S3_R2_P
-    37885536U,	// CVT_D1_S3_R3
-    1357714U,	// CVT_D1_S3_R3_P
+    1095620U,	// CVT_D1_S1_R3_P
+    37885326U,	// CVT_D1_S2_R0
+    1128388U,	// CVT_D1_S2_R0_P
+    37885354U,	// CVT_D1_S2_R1
+    1161156U,	// CVT_D1_S2_R1_P
+    37885312U,	// CVT_D1_S2_R2
+    1193924U,	// CVT_D1_S2_R2_P
+    37885340U,	// CVT_D1_S2_R3
+    1226692U,	// CVT_D1_S2_R3_P
+    37885572U,	// CVT_D1_S3_R0
+    1259460U,	// CVT_D1_S3_R0_P
+    37885600U,	// CVT_D1_S3_R1
+    1292228U,	// CVT_D1_S3_R1_P
+    37885558U,	// CVT_D1_S3_R2
+    1324996U,	// CVT_D1_S3_R2_P
+    37885586U,	// CVT_D1_S3_R3
+    1357764U,	// CVT_D1_S3_R3_P
     37884132U,	// CVT_D2_S0_R0
-    1390482U,	// CVT_D2_S0_R0_P
+    1390532U,	// CVT_D2_S0_R0_P
     37884118U,	// CVT_D2_S0_R2
-    1423250U,	// CVT_D2_S0_R2_P
+    1423300U,	// CVT_D2_S0_R2_P
     37884146U,	// CVT_D2_S0_R3
-    1456018U,	// CVT_D2_S0_R3_P
+    1456068U,	// CVT_D2_S0_R3_P
     37884501U,	// CVT_D2_S1_R0
-    1488786U,	// CVT_D2_S1_R0_P
+    1488836U,	// CVT_D2_S1_R0_P
     37884529U,	// CVT_D2_S1_R1
-    1521554U,	// CVT_D2_S1_R1_P
+    1521604U,	// CVT_D2_S1_R1_P
     37884487U,	// CVT_D2_S1_R2
-    1554322U,	// CVT_D2_S1_R2_P
+    1554372U,	// CVT_D2_S1_R2_P
     37884515U,	// CVT_D2_S1_R3
-    1587090U,	// CVT_D2_S1_R3_P
-    37885603U,	// CVT_D2_S3_R0
-    1619858U,	// CVT_D2_S3_R0_P
+    1587140U,	// CVT_D2_S1_R3_P
+    37885653U,	// CVT_D2_S3_R0
+    1619908U,	// CVT_D2_S3_R0_P
     37884174U,	// CVT_D3_S0_R0
-    1652626U,	// CVT_D3_S0_R0_P
+    1652676U,	// CVT_D3_S0_R0_P
     37884160U,	// CVT_D3_S0_R2
-    1685394U,	// CVT_D3_S0_R2_P
+    1685444U,	// CVT_D3_S0_R2_P
     37884188U,	// CVT_D3_S0_R3
-    1718162U,	// CVT_D3_S0_R3_P
+    1718212U,	// CVT_D3_S0_R3_P
     37884557U,	// CVT_D3_S1_R0
-    1750930U,	// CVT_D3_S1_R0_P
+    1750980U,	// CVT_D3_S1_R0_P
     37884585U,	// CVT_D3_S1_R1
-    1783698U,	// CVT_D3_S1_R1_P
+    1783748U,	// CVT_D3_S1_R1_P
     37884543U,	// CVT_D3_S1_R2
-    1816466U,	// CVT_D3_S1_R2_P
+    1816516U,	// CVT_D3_S1_R2_P
     37884571U,	// CVT_D3_S1_R3
-    1849234U,	// CVT_D3_S1_R3_P
-    37885335U,	// CVT_D3_S2_R0
-    1882002U,	// CVT_D3_S2_R0_P
-    37885634U,	// CVT_D3_S3_R0
-    1914770U,	// CVT_D3_S3_R0_P
+    1849284U,	// CVT_D3_S1_R3_P
+    37885385U,	// CVT_D3_S2_R0
+    1882052U,	// CVT_D3_S2_R0_P
+    37885684U,	// CVT_D3_S3_R0
+    1914820U,	// CVT_D3_S3_R0_P
     37884681U,	// CVT_F32_S32
-    1947538U,	// CVT_F32_S32_P
+    1947588U,	// CVT_F32_S32_P
     37884694U,	// CVT_F32_U32
-    1980306U,	// CVT_F32_U32_P
+    1980356U,	// CVT_F32_U32_P
     37884599U,	// CVT_S32_F32
-    2013074U,	// CVT_S32_F32_P
-    37885422U,	// CVT_SEXT
+    2013124U,	// CVT_S32_F32_P
+    37885472U,	// CVT_SEXT
     37884612U,	// CVT_U32_F32
-    2045842U,	// CVT_U32_F32_P
-    37885351U,	// C_ABS
+    2045892U,	// CVT_U32_F32_P
+    37885401U,	// C_ABS
     42079127U,	// C_ADD
     42079127U,	// C_ADDI
     42079209U,	// C_AND
     42079209U,	// C_ANDI
-    42079433U,	// C_ANDN
+    42079483U,	// C_ANDN
     5141U,	// C_BAR_ARRIVE
-    5572U,	// C_BAR_WAIT
-    5634U,	// C_BRA
+    5622U,	// C_BAR_WAIT
+    5684U,	// C_BRA
     37885032U,	// C_CHWIDTH
-    2059U,	// C_EXIT
+    2109U,	// C_EXIT
     42079126U,	// C_FADD
     5107U,	// C_FENCE
-    42079976U,	// C_FMAX
-    42079439U,	// C_FMIN
-    42079427U,	// C_FMUL
+    42080026U,	// C_FMAX
+    42079489U,	// C_FMIN
+    42079477U,	// C_FMUL
     16880800U,	// C_LD_GLOBAL
-    42079648U,	// C_MAX_S
-    42079947U,	// C_MAX_U
-    42079632U,	// C_MIN_S
-    42079900U,	// C_MIN_U
-    37885657U,	// C_MOV
-    42079473U,	// C_MUL_LO
+    42079698U,	// C_MAX_S
+    42079997U,	// C_MAX_U
+    42079682U,	// C_MIN_S
+    42079950U,	// C_MIN_U
+    37885707U,	// C_MOV
+    42079523U,	// C_MUL_LO
     37885027U,	// C_NEG
-    37885437U,	// C_NOT
-    42079514U,	// C_OR
-    42079514U,	// C_ORI
-    5601U,	// C_RECONV
-    5558U,	// C_RET
-    42079414U,	// C_SHL
-    42079414U,	// C_SHLI
-    42079508U,	// C_SHR
-    42079508U,	// C_SHRI
+    37885487U,	// C_NOT
+    42079564U,	// C_OR
+    42079564U,	// C_ORI
+    5651U,	// C_RECONV
+    5608U,	// C_RET
+    42079464U,	// C_SHL
+    42079464U,	// C_SHLI
+    42079558U,	// C_SHR
+    42079558U,	// C_SHRI
     42079092U,	// C_SRA
     42079092U,	// C_SRAI
     16880811U,	// C_ST_GLOBAL
     42079097U,	// C_SUB
     42079097U,	// C_SUBI
-    42079519U,	// C_XOR
-    42079519U,	// C_XORI
+    42079569U,	// C_XOR
+    42079569U,	// C_XORI
     339874633U,	// DP2_BF16
     339874624U,	// DP2_F16
     209851262U,	// DP4_ACC
     339874614U,	// DP4_E4M3
     339874604U,	// DP4_E5M2
-    339875244U,	// DP4_SS
+    339875294U,	// DP4_SS
     37884634U,	// EX2_F32
     37883972U,	// FABS_F0
     37884317U,	// FABS_F1
     71438368U,	// FADD
     71438665U,	// FADD_F1
     71438665U,	// FADD_F1_W8
-    2078610U,	// FADD_P
+    2078660U,	// FADD_P
     71438368U,	// FADD_W8
     209850387U,	// FFMA_ACC_F0
     209850684U,	// FFMA_ACC_F1
@@ -695,165 +699,167 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     71438386U,	// FMUL
     71438719U,	// FMUL_F1
     71438719U,	// FMUL_F1_W8
-    2111378U,	// FMUL_P
+    2111428U,	// FMUL_P
     71438386U,	// FMUL_W8
     37883945U,	// FNEG_F0
     37884278U,	// FNEG_F1
     71438346U,	// FSUB
     71438643U,	// FSUB_F1
     71438643U,	// FSUB_F1_W8
-    2144146U,	// FSUB_P
+    2144196U,	// FSUB_P
     71438346U,	// FSUB_W8
     103584U,	// LD_GLOBAL
     21075104U,	// LD_GLOBAL_IDX
     21075104U,	// LD_GLOBAL_IDX_W16
     21075104U,	// LD_GLOBAL_IDX_W8
-    2176914U,	// LD_GLOBAL_P
+    2176964U,	// LD_GLOBAL_P
     2200736U,	// LD_GLOBAL_SLOT
     2200736U,	// LD_GLOBAL_SLOT_W16
     2200736U,	// LD_GLOBAL_SLOT_W8
     103584U,	// LD_GLOBAL_W16
     103584U,	// LD_GLOBAL_W8
+    16880852U,	// LD_LOCAL
     103380U,	// LD_PRED_G
+    16880822U,	// LD_PRED_LOCAL
     103324U,	// LD_PRED_S
     103356U,	// LD_SHARED
     21074876U,	// LD_SHARED_IDX
     103356U,	// LD_SHARED_W16
     103356U,	// LD_SHARED_W8
     37884625U,	// LG2_F32
-    339875049U,	// MADLO
-    2242450U,	// MADLO_P
+    339875099U,	// MADLO
+    2242500U,	// MADLO_P
     209851271U,	// MAD_ACC
-    71439776U,	// MAX_S
-    2275218U,	// MAX_S_P
-    71439776U,	// MAX_S_W16
-    71440075U,	// MAX_U
-    2307986U,	// MAX_U_P
-    71439760U,	// MIN_S
-    2340754U,	// MIN_S_P
-    71439760U,	// MIN_S_W16
-    71440028U,	// MIN_U
-    2373522U,	// MIN_U_P
+    71439826U,	// MAX_S
+    2275268U,	// MAX_S_P
+    71439826U,	// MAX_S_W16
+    71440125U,	// MAX_U
+    2308036U,	// MAX_U_P
+    71439810U,	// MIN_S
+    2340804U,	// MIN_S_P
+    71439810U,	// MIN_S_W16
+    71440078U,	// MIN_U
+    2373572U,	// MIN_U_P
     37885065U,	// MOVI
     37884755U,	// MOVI48
-    2410386U,	// MOV_P
-    71439601U,	// MULI
-    2439058U,	// MULI_P
-    71439750U,	// MUL_HI_S
-    2471826U,	// MUL_HI_S_P
-    71440018U,	// MUL_HI_U
-    2504594U,	// MUL_HI_U_P
-    71439601U,	// MUL_LO
+    2410436U,	// MOV_P
+    71439651U,	// MULI
+    2439108U,	// MULI_P
+    71439800U,	// MUL_HI_S
+    2471876U,	// MUL_HI_S_P
+    71440068U,	// MUL_HI_U
+    2504644U,	// MUL_HI_U_P
+    71439651U,	// MUL_LO
     37885027U,	// NEG
-    71439642U,	// OR
-    71439642U,	// ORI
-    2537362U,	// ORI_P
-    2537362U,	// OR_P
-    71439642U,	// OR_W16
+    71439692U,	// OR
+    71439692U,	// ORI
+    2537412U,	// ORI_P
+    2537412U,	// OR_P
+    71439692U,	// OR_W16
     209851507U,	// PACKI
-    71440110U,	// PACKI_Z
+    71440160U,	// PACKI_Z
     71439336U,	// PAND
-    37885656U,	// PMOV
-    37885656U,	// PMOV_IMM
+    37885706U,	// PMOV
+    37885706U,	// PMOV_IMM
     37884816U,	// POPC
-    71439641U,	// POR
-    71439646U,	// PXOR
+    71439691U,	// POR
+    71439696U,	// PXOR
     37884652U,	// RCP_F32
-    2570130U,	// RCP_F32_P
+    2570180U,	// RCP_F32_P
     37884707U,	// RCP_U32
     37884670U,	// RSQRT_F32
-    2602898U,	// SEL
-    2639762U,	// SETP_EQ
-    2672530U,	// SETP_EQ_F
-    2705298U,	// SETP_EQ_F1
+    2602948U,	// SEL
+    2639812U,	// SETP_EQ
+    2672580U,	// SETP_EQ_F
+    2705348U,	// SETP_EQ_F1
     209850769U,	// SETP_EQ_F1_NP
-    2672530U,	// SETP_EQ_F_I
+    2672580U,	// SETP_EQ_F_I
     209851458U,	// SETP_EQ_F_NP
     209851458U,	// SETP_EQ_F_NPI
-    2639762U,	// SETP_EQ_I
-    209851659U,	// SETP_EQ_NP
-    209851659U,	// SETP_EQ_NPI
-    2738066U,	// SETP_GE
-    2770834U,	// SETP_GE_F
-    2803602U,	// SETP_GE_F1
+    2639812U,	// SETP_EQ_I
+    209851709U,	// SETP_EQ_NP
+    209851709U,	// SETP_EQ_NPI
+    2738116U,	// SETP_GE
+    2770884U,	// SETP_GE_F
+    2803652U,	// SETP_GE_F1
     209850706U,	// SETP_GE_F1_NP
-    2770834U,	// SETP_GE_F_I
+    2770884U,	// SETP_GE_F_I
     209851425U,	// SETP_GE_F_NP
     209851425U,	// SETP_GE_F_NPI
-    2738066U,	// SETP_GE_I
+    2738116U,	// SETP_GE_I
     209851386U,	// SETP_GE_NP
     209851386U,	// SETP_GE_NPI
-    2836370U,	// SETP_GE_U
-    2836370U,	// SETP_GE_U_I
-    209852028U,	// SETP_GE_U_NP
-    209852028U,	// SETP_GE_U_NPI
-    2869138U,	// SETP_GT
-    2901906U,	// SETP_GT_F
-    2934674U,	// SETP_GT_F1
+    2836420U,	// SETP_GE_U
+    2836420U,	// SETP_GE_U_I
+    209852078U,	// SETP_GE_U_NP
+    209852078U,	// SETP_GE_U_NPI
+    2869188U,	// SETP_GT
+    2901956U,	// SETP_GT_F
+    2934724U,	// SETP_GT_F1
     209850790U,	// SETP_GT_F1_NP
-    2901906U,	// SETP_GT_F_I
+    2901956U,	// SETP_GT_F_I
     209851469U,	// SETP_GT_F_NP
     209851469U,	// SETP_GT_F_NPI
-    2869138U,	// SETP_GT_I
-    209851835U,	// SETP_GT_NP
-    209851835U,	// SETP_GT_NPI
-    2967442U,	// SETP_GT_U
-    2967442U,	// SETP_GT_U_I
-    209852076U,	// SETP_GT_U_NP
-    209852076U,	// SETP_GT_U_NPI
-    3000210U,	// SETP_LE
-    3032978U,	// SETP_LE_F
-    3065746U,	// SETP_LE_F1
+    2869188U,	// SETP_GT_I
+    209851885U,	// SETP_GT_NP
+    209851885U,	// SETP_GT_NPI
+    2967492U,	// SETP_GT_U
+    2967492U,	// SETP_GT_U_I
+    209852126U,	// SETP_GT_U_NP
+    209852126U,	// SETP_GT_U_NPI
+    3000260U,	// SETP_LE
+    3033028U,	// SETP_LE_F
+    3065796U,	// SETP_LE_F1
     209850718U,	// SETP_LE_F1_NP
-    3032978U,	// SETP_LE_F_I
+    3033028U,	// SETP_LE_F_I
     209851436U,	// SETP_LE_F_NP
     209851436U,	// SETP_LE_F_NPI
-    3000210U,	// SETP_LE_I
+    3000260U,	// SETP_LE_I
     209851395U,	// SETP_LE_NP
     209851395U,	// SETP_LE_NPI
-    3098514U,	// SETP_LE_U
-    3098514U,	// SETP_LE_U_I
-    209852039U,	// SETP_LE_U_NP
-    209852039U,	// SETP_LE_U_NPI
-    3131282U,	// SETP_LT
-    3164050U,	// SETP_LT_F
-    3196818U,	// SETP_LT_F1
+    3098564U,	// SETP_LE_U
+    3098564U,	// SETP_LE_U_I
+    209852089U,	// SETP_LE_U_NP
+    209852089U,	// SETP_LE_U_NPI
+    3131332U,	// SETP_LT
+    3164100U,	// SETP_LT_F
+    3196868U,	// SETP_LT_F1
     209850802U,	// SETP_LT_F1_NP
-    3164050U,	// SETP_LT_F_I
+    3164100U,	// SETP_LT_F_I
     209851480U,	// SETP_LT_F_NP
     209851480U,	// SETP_LT_F_NPI
-    3131282U,	// SETP_LT_I
-    209851864U,	// SETP_LT_NP
-    209851864U,	// SETP_LT_NPI
-    3229586U,	// SETP_LT_U
-    3229586U,	// SETP_LT_U_I
-    209852087U,	// SETP_LT_U_NP
-    209852087U,	// SETP_LT_U_NPI
-    3262354U,	// SETP_NE
-    3295122U,	// SETP_NE_F
-    3327890U,	// SETP_NE_F1
+    3131332U,	// SETP_LT_I
+    209851914U,	// SETP_LT_NP
+    209851914U,	// SETP_LT_NPI
+    3229636U,	// SETP_LT_U
+    3229636U,	// SETP_LT_U_I
+    209852137U,	// SETP_LT_U_NP
+    209852137U,	// SETP_LT_U_NPI
+    3262404U,	// SETP_NE
+    3295172U,	// SETP_NE_F
+    3327940U,	// SETP_NE_F1
     209850730U,	// SETP_NE_F1_NP
-    3295122U,	// SETP_NE_F_I
+    3295172U,	// SETP_NE_F_I
     209851447U,	// SETP_NE_F_NP
     209851447U,	// SETP_NE_F_NPI
-    3262354U,	// SETP_NE_I
+    3262404U,	// SETP_NE_I
     209851404U,	// SETP_NE_NP
     209851404U,	// SETP_NE_NPI
-    3356562U,	// SHFL_IDX
-    71439542U,	// SHL
-    71439542U,	// SHLI
-    3389330U,	// SHLI_P
-    3389330U,	// SHL_P
-    71439636U,	// SHR
-    71439636U,	// SHRI
-    3422098U,	// SHRI_P
-    3422098U,	// SHR_P
+    3356612U,	// SHFL_IDX
+    71439592U,	// SHL
+    71439592U,	// SHLI
+    3389380U,	// SHLI_P
+    3389380U,	// SHL_P
+    71439686U,	// SHR
+    71439686U,	// SHRI
+    3422148U,	// SHRI_P
+    3422148U,	// SHR_P
     37884643U,	// SIN_F32
     37884671U,	// SQRT_F32
     71439220U,	// SRA
     71439220U,	// SRAI
-    3454866U,	// SRAI_P
-    3454866U,	// SRA_P
+    3454916U,	// SRAI_P
+    3454916U,	// SRA_P
     37884910U,	// SRD
     103595U,	// ST_GLOBAL
     21075115U,	// ST_GLOBAL_IDX
@@ -864,7 +870,9 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     2200747U,	// ST_GLOBAL_SLOT_W8
     103595U,	// ST_GLOBAL_W16
     103595U,	// ST_GLOBAL_W8
+    16880862U,	// ST_LOCAL
     103391U,	// ST_PRED_G
+    16880837U,	// ST_PRED_LOCAL
     103340U,	// ST_PRED_S
     103367U,	// ST_SHARED
     21074887U,	// ST_SHARED_IDX
@@ -872,17 +880,17 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     103367U,	// ST_SHARED_W8
     71439225U,	// SUB
     71439225U,	// SUBI
-    3487634U,	// SUBI_P
-    3487634U,	// SUB_P
+    3487684U,	// SUBI_P
+    3487684U,	// SUB_P
     71439225U,	// SUB_W16
-    3520402U,	// UNBALLOT
+    3520452U,	// UNBALLOT
     71439473U,	// UNPACKI
-    3553170U,	// VOTE_ANY
-    71439647U,	// XOR
-    71439647U,	// XORI
-    3585938U,	// XORI_P
-    3585938U,	// XOR_P
-    71439647U,	// XOR_W16
+    3553220U,	// VOTE_ANY
+    71439697U,	// XOR
+    71439697U,	// XORI
+    3585988U,	// XORI_P
+    3585988U,	// XOR_P
+    71439697U,	// XOR_W16
   };
 
   // Emit the opcode for the instruction.
@@ -1938,7 +1946,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     return;
     break;
   case 4:
-    // C_LD_GLOBAL, C_ST_GLOBAL
+    // C_LD_GLOBAL, C_ST_GLOBAL, LD_LOCAL, LD_PRED_LOCAL, ST_LOCAL, ST_PRED_L...
     O << ']';
     return;
     break;

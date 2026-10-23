@@ -1,12 +1,12 @@
   gen-register-info    ok (639 lines)
-  gen-instr-info       ok (5929 lines)
-  gen-emitter          ok (2816 lines)
-  gen-disassembler     ok (1660 lines)
-  gen-asm-writer       ok (2066 lines)
+  gen-instr-info       ok (5963 lines)
+  gen-emitter          ok (2850 lines)
+  gen-disassembler     ok (1674 lines)
+  gen-asm-writer       ok (2074 lines)
   gen-dag-isel         ok (1837 lines)
   gen-callingconv      ok (92 lines)
 
-checked 394 instructions
+checked 398 instructions
 
   EXEMPT       CHWIDTH_MULTI: Format I metadata: register mask, no canonical slots
   EXEMPT       PMOV_IMM: Format I metadata: pd at [9:8], excluded by invariant 8 (v1.4)
@@ -117,7 +117,7 @@ checked 394 instructions
   dp4 against a four-MAC reference
   PASS  dp4: 32 lanes correct against a four-MAC reference (1 dp4 instruction(s) emitted)
   every instruction has a production path
-  PASS  407 instructions, all with a production path (isel 83, pass 138, mc 1, declared 185)
+  PASS  411 instructions, all with a production path (isel 83, pass 138, mc 1, declared 189)
   the production-path gate catches its own cases
   PASS  removing the bra.short pattern (with insertBranch also removed) fails the check
   PASS  removing the immediate-compare mapping fails the check
@@ -125,7 +125,7 @@ checked 394 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 185 findings and 68 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 186 findings and 69 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -144,8 +144,8 @@ checked 394 instructions
   PASS  fused-corpus sweep matches the tool
   encode -> decode round trip
 
-  CCV instructions     : 394
-  round trips          : 25216 (64 random operand sets each)
+  CCV instructions     : 398
+  round trips          : 25472 (64 random operand sets each)
   non-CCV opcodes      : 284 (LLVM pseudos and GlobalISel generics, no encoding)
   unbuildable operands : 0
   failures             : 0
@@ -181,6 +181,9 @@ checked 394 instructions
 
   --- srd #2, %lanectx (O-64) ---
   PASS  srd #2 gives (context << 5) | lane, -context sets it (TI-35), and srd #3 is still F-ILLEGAL
+
+  --- the interleaved spill space (O-69) ---
+  PASS  ld.local/st.local and the .pred forms at O-69's interleaved addresses, a narrow store included
 
   --- frame objects disjoint (F-179) ---
   PASS  12 frame objects across test/accept are non-empty and disjoint (4 predicate spills in fdiv-all), and an overlap is caught

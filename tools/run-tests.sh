@@ -215,6 +215,22 @@ run_warp() {
     echo "  FAIL  -warp: got '$out' (warp 0: '$ctl'), want '$want'; barrier: $bar"; return 1
   fi
 }
+# --- O-69's interleaved spill space --------------------------------------------
+run_local() {
+  python3 "$AS" "$JSON" test/local.s "$TMP/lo.bin" >/dev/null || return 1
+  local args="-poke 0x20018=256 -context 2 -peek 0x90000 -peek 0x9007c -peek 0x5800100
+              -peek 0x580017c -peek 0x5800084 -peek 0x58000fc -peek 0x5800280
+              -peek 0x90080 -peek 0x900bc -peek 0x900c0"
+  local want="101 132 100 131 3203334144 3203334144 65535 7 7 0" got ctl
+  got=$("$SIM" "$TMP/lo.bin" $args 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  # The control: CCV_LANE_CONTEXTS 0 moves the frame, so the cells are empty.
+  ctl=$("$SIM" "$TMP/lo.bin" $args -lane-contexts 0 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  if [ "${got% }" = "$want" ] && [ "${ctl% }" != "$want" ]; then
+    echo "  PASS  ld.local/st.local and the .pred forms at O-69's interleaved addresses, a narrow store included"
+  else
+    echo "  FAIL  local: got '$got', want '$want' (control: '$ctl')"; return 1
+  fi
+}
 # --- frame objects are disjoint (F-179) --------------------------------------
 # A predicate's spill size was i1's one bit, zero bytes, so every predicate
 # spill slot sat at one offset and a spilled predicate was overwritten by the
@@ -330,6 +346,9 @@ run_warp || fail=1
 echo
 echo "  --- srd #2, %lanectx (O-64) ---"
 run_lanectx || fail=1
+echo
+echo "  --- the interleaved spill space (O-69) ---"
+run_local || fail=1
 echo
 echo "  --- frame objects disjoint (F-179) ---"
 run_frames || fail=1

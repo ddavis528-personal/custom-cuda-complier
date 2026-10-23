@@ -835,6 +835,24 @@ let mayStore = 1 in
 def ST_PRED_S : FormatD<0b01011, (outs), (ins pmask4:$rdata, GPR:$rbase, simm13:$off),
                         "st.pred.shared $rdata, [$rbase + $off]">;
 
+// The interleaved spill space (O-69): a warp's spill frame, lanes four bytes
+// apart, addressed by an unsigned 17-bit byte offset and no base register.
+// The .pred forms are ld.pred/st.pred in this space: warp-scoped, word i of
+// the 16-byte predicate frame at offset + 4i. 32 bits only (no D′, no 48-bit
+// sibling).
+let mayLoad = 1 in
+def LD_LOCAL : FormatDlocal<0b10000, (outs GPR:$rdata), (ins uimm17:$off),
+                            "ld.local $rdata, [$off]">;
+let mayStore = 1 in
+def ST_LOCAL : FormatDlocal<0b10001, (outs), (ins GPR:$rdata, uimm17:$off),
+                            "st.local $rdata, [$off]">;
+let mayLoad = 1 in
+def LD_PRED_LOCAL : FormatDlocal<0b10010, (outs), (ins pmask4:$rdata, uimm17:$off),
+                                 "ld.pred.local $rdata, [$off]">;
+let mayStore = 1 in
+def ST_PRED_LOCAL : FormatDlocal<0b10011, (outs), (ins pmask4:$rdata, uimm17:$off),
+                                 "st.pred.local $rdata, [$off]">;
+
 let mayLoad = 1 in
 def LD_GLOBAL_P : FormatDp<0b00000, (outs GPR:$rdata),
                            (ins pqual:$pq, GPR:$rbase, simm10:$off),

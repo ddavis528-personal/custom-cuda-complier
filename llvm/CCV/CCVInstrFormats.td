@@ -238,6 +238,19 @@ class FormatD<bits<5> opc, dag outs, dag ins, string asm>
   let Inst{31-19} = off;
 }
 
+// Format D, interleaved local (O-69): the spill space, with no base register.
+// [18:15] joins the offset, which is unsigned, 17 bits: offset[3:0] in [18:15]
+// and offset[16:4] in [31:19]. Lane l's byte b is at
+// ((local_base + CCV_LANE_CONTEXTS) << 16) + (ctx << 22) + 128*(b/4) + 4l + b%4.
+class FormatDlocal<bits<5> opc, dag outs, dag ins, string asm>
+    : CCVInst32<0b1000, outs, ins, asm> {
+  bits<4> rdata; bits<17> off;
+  let Inst{10-6}  = opc;
+  let Inst{14-11} = rdata;
+  let Inst{18-15} = off{3-0};
+  let Inst{31-19} = off{16-4};
+}
+
 // Format D, base + index. Effective address for .global is
 // (rbase << 16) + (rindex << scale) + disp -- the shift is a property of the
 // address space, not a field, so this bit map is unchanged from v1.2. §5.1.

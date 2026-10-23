@@ -42,6 +42,13 @@ static constexpr unsigned kBaseShift = 16;
 // like a compile error.
 static constexpr uint64_t kLaunchBase = 0x20000;
 uint64_t launchBlockBase() { return kLaunchBase; }
+
+/// O-69: lane L's byte B of the warp's interleaved spill frame.
+uint64_t Interp::localAddr(const Warp &W, uint64_t B, unsigned L) {
+  uint64_t LocalBase = Mem.peek32(kLaunchBase + 24);
+  return ((LocalBase + LaneContexts) << 16) + (uint64_t(W.WarpCtx) << 22) +
+         128 * (B / 4) + 4 * L + B % 4;
+}
 static constexpr unsigned kOffArgs    = 32;
 // Eight, matching the compiler: a slot names a window word and §5.2 puts those
 // 8 bytes apart (DA's response CP-4, 2026-10-08). If this disagrees with the
@@ -168,6 +175,7 @@ static bool isWidthAware(unsigned Op) {
   case CCV::XORI: case CCV::ANDNI: case CCV::SHLI: case CCV::SHRI:
   case CCV::SRAI:
   case CCV::LD_GLOBAL: case CCV::ST_GLOBAL:
+  case CCV::LD_LOCAL: case CCV::ST_LOCAL:
   case CCV::C_LD_GLOBAL: case CCV::C_ST_GLOBAL:
   case CCV::LD_GLOBAL_IDX: case CCV::ST_GLOBAL_IDX:
   case CCV::LD_GLOBAL_SLOT: case CCV::ST_GLOBAL_SLOT:
@@ -771,7 +779,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::C_ST_GLOBAL: case CCV::LD_GLOBAL_IDX: case CCV::ST_GLOBAL_IDX:
   case CCV::LD_GLOBAL_SLOT: case CCV::ST_GLOBAL_SLOT: case CCV::LD_SHARED:
   case CCV::ST_SHARED: case CCV::LD_SHARED_IDX: case CCV::ST_SHARED_IDX:
-  case CCV::LD_GLOBAL_P:
+  case CCV::LD_GLOBAL_P: case CCV::LD_LOCAL: case CCV::ST_LOCAL:
     if (MI.getOperand(0).isReg()) {
       unsigned D = regOf(MI, 0);
       if (D < kGPRs && W.ChWidth[D] == 3) {
@@ -1345,6 +1353,55 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     }
     // A fault is the whole group's, at the access's address (§3, §12.6):
     // lane 0 forms the address, and the issue mask raises it.
+    if (Mem.AlignLanes) Mem.AlignLanes = Mask;
+    if (Mem.RoLanes)    Mem.RoLanes = Mask;
+    break;
+  }
+  // ---- O-69: the interleaved spill space -----------------------------------
+  // No base register: lane l's byte b of the warp's spill frame is at
+  //   ((local_base + CCV_LANE_CONTEXTS) << 16) + (ctx << 22)
+  //     + 128 * (b / 4) + 4l + b % 4,
+  // local_base being launch-block word 24 and ctx the warp's hardware context
+  // (%lanectx >> 5). Word w of every lane's frame is one 128-byte line.
+  // Transfer size and alignment are any Format D access's.
+  case CCV::LD_LOCAL:
+  case CCV::ST_LOCAL: {
+    bool IsLoad = Op == CCV::LD_LOCAL;
+    unsigned Data = regOf(MI, 0);
+    uint64_t B = uint64_t(MI.getOperand(1).getImm());   // operand 0 is rdata
+    unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
+    forEachLane([&](unsigned L) {
+      uint64_t A = localAddr(W, B, L);
+      if (IsLoad) W.GPR[Data][L] =
+              writeElem(W.GPR[Data][L], Mem.readN(A, Bytes), W.ChWidth[Data]);
+      else        Mem.writeN(A, narrow(W.GPR[Data][L], W.ChWidth[Data]), Bytes);
+    });
+    break;
+  }
+  // ld.pred / st.pred in the spill space: warp-scoped, so the lane term is
+  // 0, and word i of the 16-byte predicate frame at b is byte b + 4i's word.
+  // Merged under divergence exactly as ld.pred / st.pred are (O-62, O-63).
+  case CCV::LD_PRED_LOCAL:
+  case CCV::ST_PRED_LOCAL: {
+    unsigned PMask = unsigned(MI.getOperand(0).getImm()) & 0xf;
+    uint64_t B = uint64_t(MI.getOperand(1).getImm());
+    Mem.CurLane = 0;
+    for (unsigned P = 0; P != kPreds; ++P) {
+      if (!(PMask & (1u << P)))
+        continue;
+      uint64_t A = localAddr(W, B + 4 * P, 0);
+      if (Op == CCV::LD_PRED_LOCAL) {
+        uint32_t V = Mem.readN(A, 4);
+        if (Mem.AlignLanes)
+          break;
+        W.Pred[P] = (W.Pred[P] & ~Mask) | (V & Mask);
+        continue;
+      }
+      uint32_t Old = Mem.peek32(A);
+      Mem.writeN(A, (Old & ~Mask) | (W.Pred[P] & Mask), 4);
+      if (Mem.AlignLanes || Mem.RoLanes)
+        break;
+    }
     if (Mem.AlignLanes) Mem.AlignLanes = Mask;
     if (Mem.RoLanes)    Mem.RoLanes = Mask;
     break;

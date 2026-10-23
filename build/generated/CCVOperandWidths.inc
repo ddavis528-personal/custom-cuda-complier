@@ -231,7 +231,9 @@ static const CCVOperandInfo Operands_LD_GLOBAL_SLOT_W16[] = {{4, false}, {4, fal
 static const CCVOperandInfo Operands_LD_GLOBAL_SLOT_W8[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
 static const CCVOperandInfo Operands_LD_GLOBAL_W16[] = {{4, false}, {4, false}, {13, true}};
 static const CCVOperandInfo Operands_LD_GLOBAL_W8[] = {{4, false}, {4, false}, {13, true}};
+static const CCVOperandInfo Operands_LD_LOCAL[] = {{4, false}, {17, false}};
 static const CCVOperandInfo Operands_LD_PRED_G[] = {{4, false}, {4, false}, {13, true}};
+static const CCVOperandInfo Operands_LD_PRED_LOCAL[] = {{4, false}, {17, false}};
 static const CCVOperandInfo Operands_LD_PRED_S[] = {{4, false}, {4, false}, {13, true}};
 static const CCVOperandInfo Operands_LD_SHARED[] = {{4, false}, {4, false}, {13, true}};
 static const CCVOperandInfo Operands_LD_SHARED_IDX[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
@@ -381,7 +383,9 @@ static const CCVOperandInfo Operands_ST_GLOBAL_SLOT_W16[] = {{4, false}, {4, fal
 static const CCVOperandInfo Operands_ST_GLOBAL_SLOT_W8[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
 static const CCVOperandInfo Operands_ST_GLOBAL_W16[] = {{4, false}, {4, false}, {13, true}};
 static const CCVOperandInfo Operands_ST_GLOBAL_W8[] = {{4, false}, {4, false}, {13, true}};
+static const CCVOperandInfo Operands_ST_LOCAL[] = {{4, false}, {17, false}};
 static const CCVOperandInfo Operands_ST_PRED_G[] = {{4, false}, {4, false}, {13, true}};
+static const CCVOperandInfo Operands_ST_PRED_LOCAL[] = {{4, false}, {17, false}};
 static const CCVOperandInfo Operands_ST_PRED_S[] = {{4, false}, {4, false}, {13, true}};
 static const CCVOperandInfo Operands_ST_SHARED[] = {{4, false}, {4, false}, {13, true}};
 static const CCVOperandInfo Operands_ST_SHARED_IDX[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
@@ -627,7 +631,9 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"LD_GLOBAL_SLOT_W8", 5, Operands_LD_GLOBAL_SLOT_W8},
   {"LD_GLOBAL_W16", 3, Operands_LD_GLOBAL_W16},
   {"LD_GLOBAL_W8", 3, Operands_LD_GLOBAL_W8},
+  {"LD_LOCAL", 2, Operands_LD_LOCAL},
   {"LD_PRED_G", 3, Operands_LD_PRED_G},
+  {"LD_PRED_LOCAL", 2, Operands_LD_PRED_LOCAL},
   {"LD_PRED_S", 3, Operands_LD_PRED_S},
   {"LD_SHARED", 3, Operands_LD_SHARED},
   {"LD_SHARED_IDX", 5, Operands_LD_SHARED_IDX},
@@ -777,7 +783,9 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"ST_GLOBAL_SLOT_W8", 5, Operands_ST_GLOBAL_SLOT_W8},
   {"ST_GLOBAL_W16", 3, Operands_ST_GLOBAL_W16},
   {"ST_GLOBAL_W8", 3, Operands_ST_GLOBAL_W8},
+  {"ST_LOCAL", 2, Operands_ST_LOCAL},
   {"ST_PRED_G", 3, Operands_ST_PRED_G},
+  {"ST_PRED_LOCAL", 2, Operands_ST_PRED_LOCAL},
   {"ST_PRED_S", 3, Operands_ST_PRED_S},
   {"ST_SHARED", 3, Operands_ST_SHARED},
   {"ST_SHARED_IDX", 5, Operands_ST_SHARED_IDX},
@@ -797,4 +805,4 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"XOR_P", 5, Operands_XOR_P},
   {"XOR_W16", 4, Operands_XOR_W16},
 };
-static const unsigned CCVNumInstOperands = 394;
+static const unsigned CCVNumInstOperands = 398;

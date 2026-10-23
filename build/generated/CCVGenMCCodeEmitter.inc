@@ -519,7 +519,9 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(800),	// LD_GLOBAL_SLOT_W8
     UINT64_C(32),	// LD_GLOBAL_W16
     UINT64_C(32),	// LD_GLOBAL_W8
+    UINT64_C(1056),	// LD_LOCAL
     UINT64_C(544),	// LD_PRED_G
+    UINT64_C(1184),	// LD_PRED_LOCAL
     UINT64_C(672),	// LD_PRED_S
     UINT64_C(160),	// LD_SHARED
     UINT64_C(416),	// LD_SHARED_IDX
@@ -669,7 +671,9 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(864),	// ST_GLOBAL_SLOT_W8
     UINT64_C(96),	// ST_GLOBAL_W16
     UINT64_C(96),	// ST_GLOBAL_W8
+    UINT64_C(1120),	// ST_LOCAL
     UINT64_C(608),	// ST_PRED_G
+    UINT64_C(1248),	// ST_PRED_LOCAL
     UINT64_C(736),	// ST_PRED_S
     UINT64_C(224),	// ST_SHARED
     UINT64_C(480),	// ST_SHARED_IDX
@@ -1691,6 +1695,22 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
       Value |= op;
       break;
     }
+    case CCV::LD_LOCAL:
+    case CCV::LD_PRED_LOCAL:
+    case CCV::ST_LOCAL:
+    case CCV::ST_PRED_LOCAL: {
+      // op: rdata
+      op = getMachineOpValue(MI, MI.getOperand(0), Fixups, STI);
+      op &= UINT64_C(15);
+      op <<= 11;
+      Value |= op;
+      // op: off
+      op = getMachineOpValue(MI, MI.getOperand(1), Fixups, STI);
+      op &= UINT64_C(131071);
+      op <<= 15;
+      Value |= op;
+      break;
+    }
     case CCV::LD_GLOBAL:
     case CCV::LD_GLOBAL_W8:
     case CCV::LD_GLOBAL_W16:
@@ -2494,6 +2514,20 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
       case 2:
         // op: rs
         return 12;
+      }
+      break;
+    }
+    case CCV::LD_LOCAL:
+    case CCV::LD_PRED_LOCAL:
+    case CCV::ST_LOCAL:
+    case CCV::ST_PRED_LOCAL: {
+      switch (OpNum) {
+      case 0:
+        // op: rdata
+        return 11;
+      case 1:
+        // op: off
+        return 15;
       }
       break;
     }
