@@ -1,16 +1,18 @@
   gen-register-info    ok (683 lines)
-  gen-instr-info       ok (6155 lines)
-  gen-emitter          ok (2945 lines)
-  gen-disassembler     ok (1726 lines)
-  gen-asm-writer       ok (2147 lines)
+  gen-instr-info       ok (6171 lines)
+  gen-emitter          ok (2951 lines)
+  gen-disassembler     ok (1730 lines)
+  gen-asm-writer       ok (2151 lines)
   gen-dag-isel         ok (1837 lines)
   gen-callingconv      ok (92 lines)
 
-checked 418 instructions
+checked 420 instructions
 
   EXEMPT       CHWIDTH_MULTI: Format I metadata: register mask, no canonical slots
   EXEMPT       PMOV_IMM: Format I metadata: pd at [9:8], excluded by invariant 8 (v1.4)
 
+  INVARIANT-8  ATOM_ADD_F_G: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_ADD_F_S: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
   INVARIANT-8  ATOM_ADD_G: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
   INVARIANT-8  ATOM_ADD_S: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
   INVARIANT-8  ATOM_AND_G: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
@@ -32,7 +34,7 @@ checked 418 instructions
   INVARIANT-8  CAS_G: rindex (slot rs1) at [35:32], invariant 8 says [22:19]
   INVARIANT-8  CAS_S: rindex (slot rs1) at [35:32], invariant 8 says [22:19]
 
-0 error(s), 20 invariant-8 deviation(s)
+0 error(s), 22 invariant-8 deviation(s)
   worked-listing arithmetic
   listing 1: 20 instructions, 512 bits, 25.6 b/instr, fixed-32 640, peak live 4
   listing 2: 13 instructions, 352 bits, 27.1 b/instr, fixed-32 416, peak live 4
@@ -93,14 +95,14 @@ checked 418 instructions
   PASS  control -ccv-test-swap-ptr-halves is caught: 63 wrong; first: slots[0] = 0x10, want 0x50010
   atomics (O-72)
   PASS  the seq_cst atomic is bracketed by two fences, ordering 0 at system scope (O-73)
-  PASS  atomics.cu: global and shared histograms (int, and float by CAS loop), min/max/or/xor/sub/and, CAS, a 16-bit counter and exchange on 32 lanes (454 issue groups)
-  PASS  atomics.cu on 64 threads, two warps (-cta): every word right (1244 issue groups)
+  PASS  atomics.cu: global and shared histograms (int, and float by atom.add.f32), min/max/or/xor/sub/and, CAS, a 16-bit counter and exchange on 32 lanes (439 issue groups)
+  PASS  atomics.cu on 64 threads, two warps (-cta): every word right (1279 issue groups)
   PASS  control -ccv-test-atomic-no-index is caught: 60 wrong; first: bins[0] = 32, want 1
   PASS  control -ccv-test-atomic-plain is caught: 35 wrong; first: bins[1] = 1, want 2
-  INFO  scatter-add, one word each: float by CAS loop 161 issue groups, integer atom.add 74; atom.add.f32 would save 87 (54%)
-  INFO  scatter-add, 64 bins: float by CAS loop 245 issue groups, integer atom.add 74; atom.add.f32 would save 171 (70%)
-  INFO  scatter-add, one word: float by CAS loop 1928 issue groups, integer atom.add 74; atom.add.f32 would save 1854 (96%)
-  PASS  scatter_f and scatter_i compute the right sums at three contention levels
+  INFO  scatter-add, one word each: atom.add.f32 74 issue groups, the CAS loop it replaced 161, saving 87 (54%); integer atom.add 74
+  INFO  scatter-add, 64 bins: atom.add.f32 74 issue groups, the CAS loop it replaced 245, saving 171 (70%); integer atom.add 74
+  INFO  scatter-add, one word: atom.add.f32 74 issue groups, the CAS loop it replaced 1928, saving 1854 (96%); integer atom.add 74
+  PASS  scatter-add, float (atom.add.f32 and the CAS loop) and integer, right at three contention levels; atom.add.f32 costs what atom.add does
   a CTA's warps (TI-29)
   PASS  cta-reduce.cu: 4 warps, a tree sum over .shared across 8 barriers, every thread's result right (3532 issue groups)
   PASS  control -ccv-test-cta-warp-barrier is caught: 128 threads wrong
@@ -176,7 +178,7 @@ checked 418 instructions
   dp4 against a four-MAC reference
   PASS  dp4: 32 lanes correct against a four-MAC reference (1 dp4 instruction(s) emitted)
   every instruction has a production path
-  PASS  434 instructions, all with a production path (isel 83, pass 169, mc 1, declared 181)
+  PASS  436 instructions, all with a production path (isel 83, pass 171, mc 1, declared 181)
   the production-path gate catches its own cases
   PASS  removing the bra.short pattern (with insertBranch also removed) fails the check
   PASS  removing the immediate-compare mapping fails the check
@@ -184,7 +186,7 @@ checked 418 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 196 findings and 75 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 197 findings and 76 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -203,8 +205,8 @@ checked 418 instructions
   PASS  fused-corpus sweep matches the tool
   encode -> decode round trip
 
-  CCV instructions     : 418
-  round trips          : 26752 (64 random operand sets each)
+  CCV instructions     : 420
+  round trips          : 26880 (64 random operand sets each)
   non-CCV opcodes      : 287 (LLVM pseudos and GlobalISel generics, no encoding)
   unbuildable operands : 0
   failures             : 0
@@ -251,6 +253,7 @@ checked 418 instructions
   PASS  canonical NaN at FP32 and FP16 (O-66), the compare's format bit (O-65), F-FORMAT at 32 bits
   PASS  rcp, rsqrt, sqrt, ex2, lg2, sin and cos executed, correctly rounded (O-70), a subnormal and sin(1e30) included
   PASS  atomics: add, max.s, min.u, xor and exch on .global, CAS and or on .shared, at base + index addresses (O-72)
+  PASS  atom.add.f32 on .global and .shared: lanes in ascending order, each add rounded, each lane's old value (O-76)
 
   --- the mixed-width rule (O-67) ---
   PASS  mixed widths read as raw fields at the operating width: shr, min.s, an FP16 add (O-67)

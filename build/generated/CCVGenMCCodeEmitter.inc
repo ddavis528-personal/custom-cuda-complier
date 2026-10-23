@@ -315,6 +315,8 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(656),	// ANDNI_P
     UINT64_C(452),	// AND_P
     UINT64_C(448),	// AND_W16
+    UINT64_C(612),	// ATOM_ADD_F_G
+    UINT64_C(1636),	// ATOM_ADD_F_S
     UINT64_C(36),	// ATOM_ADD_G
     UINT64_C(1060),	// ATOM_ADD_S
     UINT64_C(356),	// ATOM_AND_G
@@ -903,6 +905,8 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
       Value |= op;
       break;
     }
+    case CCV::ATOM_ADD_F_G:
+    case CCV::ATOM_ADD_F_S:
     case CCV::ATOM_ADD_G:
     case CCV::ATOM_ADD_S:
     case CCV::ATOM_AND_G:
@@ -2035,6 +2039,8 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
       }
       break;
     }
+    case CCV::ATOM_ADD_F_G:
+    case CCV::ATOM_ADD_F_S:
     case CCV::ATOM_ADD_G:
     case CCV::ATOM_ADD_S:
     case CCV::ATOM_AND_G:

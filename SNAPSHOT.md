@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-10-23-d080beb
+# Snapshot snapshot-2026-10-23-ddb585a
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `d080beb2085d41d009b3d62d1b6cd43824fd4acf`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `ddb585a80e58cfa68d20c7272f8c928f750f250e`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -24,7 +24,7 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `d080beb2085d41d009b3d62d1b6cd43824fd4acf` |
+| Source | `ccr-ea1c4e17-tem30u` @ `ddb585a80e58cfa68d20c7272f8c928f750f250e` |
 | Built | 2026-10-23 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
@@ -44,7 +44,7 @@ d1825cc689f6094e35e3a24b144576c67d44e6995960739a3f95e7d9ef2162f5  release/asm/be
 dd05714aa352e4b46c5fa8aaaa531d4c219c2a44ca1fc1a83f131bb72d4df5b5  release/asm/bench-vadd16_loop.s
 1ab4360d07e9db8b92b340ce99306c8bfe7392e51ac96c61a3e69e445c895d02  release/asm/bench-vadd_loop.s
 ce633b5713036d7524e482dc2f7870435037bfaa79302180f904d5cff0fe285c  release/asm/cuda-argorder.s
-21ac1440dff7b28608b94d0b5bf1efa8fa77b80420938bcbed86abbe139d45e5  release/asm/cuda-atomics.s
+ceac272e48381e4db55ac4cd3d2653de7f5ab86a1159602e695ef2e00430f8a8  release/asm/cuda-atomics.s
 566d099dfeb2126a930af6b16a7659c0637014250e0f87c01f2b7c2166c4fe39  release/asm/cuda-bytes.s
 1f26d7ee153520931e5eb272ef77d1c8d75cf8fa6a33ef5ef9c790edf555d872  release/asm/cuda-byval.s
 af3128bff7c030f933359bd2f54ffab4eafb444001dc32b60f857e34f3626996  release/asm/cuda-calls.s
@@ -61,7 +61,7 @@ cc381121b5dedda68e70a176b72d8d91dee837891dd3104e9f6f743dda0ad573  release/asm/cu
 f648d1a15e56c231f8e641c259112a09e452c6eed741e6bd1f3667728ce760fb  release/asm/cuda-ptrlist.s
 a1a46d39eb75272a8d61e2ced4f9e44cf16e210700da850182c1a93b8e357329  release/asm/cuda-ptrmem.s
 05488e7011400262be37232f57f34c5cb4448c87685fd5de62315ccd3977dc57  release/asm/cuda-reduce.s
-3c8210bf60499ccedaa8977e6b4692e74653c5b4792f67f83af49547a253000a  release/asm/cuda-scatter.s
+f3c651b17dd3a8f6ed20445f43005aba851eb2ce7d648e3d61685391e6df2f07  release/asm/cuda-scatter.s
 e4703fb1c0b5a880ab1554c695dc2dc0f81743a655255af45ad7aa0f2e054526  release/asm/cuda-sfu.s
 4e28f920d2d25a1a2943611243f41a0a72bddf00d7cc895ad4e0b6df2cafaa27  release/asm/cuda-sgemm.s
 1b38a19d06d2db75cb19303a3cb990abecade207eb7b83d60346f4919adab75a  release/asm/cuda-spinwait.s
@@ -73,8 +73,8 @@ f540a502bf7063cfb75450053c5163bc8986871d7cb0aa9bc2b8ee8cb9637a3c  release/asm/cu
 0529582a0572b0828fefa8b9e57ba448529f16369affe535b1acbb20816662de  release/bench/sweep-decode.txt
 f6fd7cd7cc8438656c03d7331957353f5e585bd6caf12942bb0818398736d72d  release/bench/sweep-frames.txt
 28c14ebc8397a6ec18b69bcb5ebe93a64c94cd04b97c971dd526f78ff72f423b  release/bench/sweep-tiles.txt
-b534ab61fe954a91679732657e4ca945b216129d20fbd25e84a9348b84f36a1c  release/bin/ccv-sim
-5534e1d45e92745c48f3c6ac90fac31d25f9f2cfd3bc6b1ba1692c9610f13aa1  release/bin/ccv-sim.txt
+ac72f6249780d0ed2438c3b3f968f3daf349e4a707dff392c579993ad52d2c3e  release/bin/ccv-sim
+b3168ad7a82ef08ff65dba2773d205a2cf62a1222e8fd8486f9455deb3a78b29  release/bin/ccv-sim.txt
 a462bf4ec724698e923e08de91c0acabb427af1a7a5e62f96936f3174d0fc725  release/kernels/coremark-derived/kernel.bin
 608044bafe0a8bebd88e5006cabf0aa6c7147f152fe1a3db927e89edf7d57e24  release/kernels/coremark-derived/kernel.s
 6ba104efb4f63121017354429d86bafc49b55612259a53579a0613ceb9671cfb  release/kernels/coremark-derived/launch.txt
@@ -91,5 +91,5 @@ ce8e645c8b285ff035aa6d701ee7dc1207459bf060c85e27f4239d48b84d580b  release/kernel
 ba1f77ebad84a1da78c82e9c3ef4f1e466cb8da7d8634dc0f234f7303a1ab069  release/kernels/rope/kernel.s
 12795ff2ace11fc143ad508c1a541846387f492fba37433e1502316ec19c65b3  release/kernels/rope/launch.txt
 1fd038c15e2c80787853fb2af63019b6d6fa9e86459b373fee9974181eb0c477  release/kernels/rope/ops.txt
-2ece62d11ad0ae38da2d71783faf4e0642793752e7795e361c7997ee5f3d4502  release/verify.log
+8ee673fd6dd604e19801526f8c5d9d20cf733ce7d27c6c50701a16129db688ba  release/verify.log
 ```

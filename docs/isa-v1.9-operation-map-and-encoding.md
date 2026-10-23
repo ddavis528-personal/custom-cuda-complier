@@ -148,8 +148,16 @@ applying at once. Arrivals pending at several IDs are legal. No encoding changes
 ### An effective address's arithmetic is written (O-75; CP-33)
 
 `.shared` addresses wrap modulo 2^32, which compiled CUDA relies on. `.global` addresses are
-exact, and a sum outside [0, 2^48) is `F-ADDR`. Both were implied by §5.1 and ccv-sim, and
-neither was stated. No encoding changes.
+exact, and a sum outside [0, 2^48) is `F-ADDR`. §5.1 implied both and stated neither. ccv-sim
+gains the `F-ADDR` check. No encoding changes.
+
+### A native FP atomic add, `atom.add.f32` (O-76; IS-14)
+
+Adopted by DA on 2026-10-23, on the condition that it executes in the existing LANE FP
+hardware. Format M points 9 (`.global`) and 25 (`.shared`), which were reserved, become
+`add.f32`. Same-address lanes apply serially in ascending lane order, each rounded as `fadd`
+rounds and returning the old value it saw. It replaces a CAS retry loop, saving 54–96% of a
+scatter-add's issue groups. This is an encoding change: two reserved points become defined.
 
 ### Still open
 
@@ -1405,10 +1413,10 @@ with loads to different addresses. See O-52.
 active lane's read-modify-write is individually atomic** and full-width at its memory
 location, and each lane returns the old value it saw where the instruction has a
 destination. Atomicity is per lane, as in CUDA, not per instruction: another instruction's
-lanes, from any warp, may land between two lanes of this one. Every operation allocated here is integer and order-independent, so
-same-address lanes within one instruction may apply in any order; a non-associative form,
-such as the FP add IS-14 proposes, arrives with its own ordering rule. Where the operation executes is the
-implementation's choice. *(1.7 and the first cut of 1.8 said "normal ALU execution on the
+lanes, from any warp, may land between two lanes of this one. The integer operations are order-independent, so
+same-address lanes within one instruction may apply in any order. `add.f32` is not, and its
+ordering rule is below (O-76). Where the operation executes is the implementation's choice,
+with one condition DA set: `add.f32`'s add executes in the existing LANE FP hardware (O-76). *(1.7 and the first cut of 1.8 said "normal ALU execution on the
 buffered old value; existing load buffer and store buffer handle the memory side", which
 named the lane ALU as the site. That site cannot apply a same-address lane chain in one pass,
 and holds the line exclusive across a round trip to the lanes. Struck under AR-21, as
@@ -1437,8 +1445,8 @@ global atomic had an encoding. O-72.)*
 | `[27]` | 1 | scale-enable |
 | `[31:28]` | **4** | signed displacement, bytes |
 
-Opcodes: `{add, min.s, min.u, max.s, max.u, and, or, xor, exch}` × `{global, shared}` =
-18 points of 32, numbered as follows (O-73). The `.shared` point is the `.global` point plus 16.
+Opcodes: `{add, min.s, min.u, max.s, max.u, and, or, xor, exch, add.f32}` × `{global, shared}` =
+20 points of 32, numbered as follows (O-73, O-76). The `.shared` point is the `.global` point plus 16.
 
 | Opcode | `.global` | `.shared` | Operation on the word at the address, `rd` ← old value |
 |---|---|---|---|
@@ -1451,9 +1459,22 @@ Opcodes: `{add, min.s, min.u, max.s, max.u, and, or, xor, exch}` × `{global, sh
 | `or` | 6 | 22 | old \| `rs` |
 | `xor` | 7 | 23 | old ^ `rs` |
 | `exch` | 8 | 24 | `rs` |
-| reserved | 9–15 | 25–31 | `F-ILLEGAL` |
+| `add.f32` | 9 | 25 | old + `rs` as binary32, exactly as a 32-bit `fadd` computes it (O-76) |
+| reserved | 10–15 | 26–31 | `F-ILLEGAL` |
 
-There is no `sub`: a subtract is an `add` of the negation.
+There is no `sub`: a subtract is an `add` of the negation, and the same holds for `add.f32`.
+
+**`add.f32` — ordering and site — normative (O-76).** Within one instruction, the active lanes
+that name the same address apply in ascending lane order. Each lane's add is rounded on its
+own, exactly as a 32-bit `fadd` rounds it, with its NaN rule (O-66). Each lane returns the old
+value its own add saw. The chain is never reassociated or combined. Hardware may pipeline it,
+since atomics carry no latency contract, but the bits must be those of the serial chain. Across
+instructions and warps, the per-address history is some interleaving of individual lane
+operations in which one instruction's same-address lanes keep ascending lane order. That is
+CUDA's contract, and a bounded set of outcomes (invariant 12). **Site (DA's condition):** the
+add executes in the existing LANE FP hardware, and no FP adder is added at the memory-side RMW
+site. A combining, no-return reduction (`red.add.f32`) is not allocated. It would reassociate,
+so it needs its own points and its own rule once combining hardware exists (AR-21).
 
 **CAS (48-bit):**
 
@@ -3215,6 +3236,25 @@ path back to OOE. No encoding changes: the field stays 6 bits, its top values re
 
 ---
 
+**O-76 — `atom.add.f32`, a native FP atomic add, in the existing LANE hardware — decided in
+1.9.** IS-14 item 1, measured by CP (CP-29). DA's words: "Agree to adding the f32 atomic form
+so long as we guarantee that we implement within the machine using the existing LANE
+hardware" (2026-10-23). `atomicAdd(float*)` is the commonest atomic in ML code: scatter-add,
+histograms, and embedding and index backward passes. Without a native form it is a CAS retry
+loop. On CP's scatter-add kernel, eight adds a thread, the native form takes 74 issue groups
+against 161 with every lane on its own word (54% saved), 245 over 64 bins (70%) and 1,928 with
+every lane on one word (96%). Allocated: Format M 9 and 25, keeping O-73's rule that the space
+is opcode bit 4. The ordering rule is the one fixed under AR-21 on 2026-10-19: serial in
+ascending lane order within an instruction, never reassociated, because every lane returns an
+old value and a reassociated total is the end of no lane's chain. ccv-sim already applies
+that order. DA's condition fixes the site: the add is LANE's FP adder, as DA's AR-21 ruling (no
+FP arithmetic outside the LANE blocks) already implied, so the machine gains no FP unit. What
+lost: an FP adder at the memory-side RMW site, which DA's condition rules out. Also lost, for
+now: `red.add.f32` with combining, which would fix its semantics as serial if allocated before
+combining hardware exists (AR-21).
+
+---
+
 **O-75 — `.shared` addresses wrap at 2^32; `.global` addresses are exact — decided in 1.9.**
 CP-33. §5.1 called `.shared` "flat 32-bit" and gave `.global`'s sum without saying what happens
 outside its range. Building O-74's producer/consumer test, CP found LLVM addressing `.shared`
@@ -3222,7 +3262,8 @@ as a 32-bit base below the buffer plus an index: `buf[0][t - 64]` is `0xFFFFFF00
 reaches the buffer only if the sum wraps. ccv-sim had added in 64 bits and read past 2^32, so
 every read returned 0. Adopted: `.shared` wraps modulo 2^32, which a 32-bit AGU adder does for
 free and which LLVM's address space assumes. `.global` takes the exact 48-bit sum with no wrap,
-and a sum outside [0, 2^48) is `F-ADDR`, which is how ccv-sim has always computed it. Wrapping
+and a sum outside [0, 2^48) is `F-ADDR`. ccv-sim already formed that exact sum, but it raised no
+`F-ADDR`, so CP adds the check (TI's response to O-75). Wrapping
 `.global` at 2^48 would turn an out-of-range pointer into a silent access to the bottom of the
 address space. What lost: faulting a `.shared` sum that carries past 2^32, which would fault
 ordinary compiled code.
@@ -4944,7 +4985,7 @@ raises an execute-stage fault, whatever its operand values.
 | `F-BARRIER` | Dispatch | Barrier ID (`bar.arrive`, `bar.wait`, `bar.init`, `bar.wait.phase`) at or above the CTA's allocated barrier count (O-59) |
 
 **`F-ILLEGAL` covers every encoding that names no operation.** Reserved opcode points (Format K
-29–31, §4 integer 26–31, `dp` 60–63, Format D `01110`–`01111` and `10100`+, the local forms `10000`–`10011` in D′, Format E `00101`+, Format M 9–15 and 25–31, M′ other than 16–17, any tag at a length it
+29–31, §4 integer 26–31, `dp` 60–63, Format D `01110`–`01111` and `10100`+, the local forms `10000`–`10011` in D′, Format E `00101`+, Format M 10–15 and 26–31, M′ other than 16–17, any tag at a length it
 has no form for); reserved field bits nonzero (Format I `[47:37]`, `bar.wait`'s `[14:15]`, and
 every other field §3 marks reserved); reserved values in defined fields (`srd` selectors 3–15, `fence` scopes 3–7,
 the meaningless-rounding points of the conversion product); and non-canonical encodings (A′ long

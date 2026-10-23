@@ -65,6 +65,9 @@ static cl::opt<unsigned> LaneContexts("lane-contexts", cl::init(4096),
     cl::desc("CCV_LANE_CONTEXTS: where O-69's spill space starts (default the "
              "core's params, the device's %lanectx range: 2^(CCV_P_W_DEV_CORE "
              "+ CCV_W_WARP_ID + 5))"));
+static cl::opt<bool> TestFAddDescending("ccv-test-atomic-fadd-descending",
+    cl::Hidden, cl::desc("apply atom.add.f32's lanes in descending order, to "
+                         "test that the order is observed (O-76)"));
 static cl::opt<bool> TestAtomNoIndex("ccv-test-atomic-no-index", cl::Hidden,
     cl::desc("address atomics without their index register, as before O-72, "
              "to test that it is caught"));
@@ -210,6 +213,7 @@ int main(int argc, char **argv) {
   nfp::TestHostNaN = TestFpHostNaN;
   sfu::TestTruncate = TestSfuTruncate;
   nfp::TestAtomNoIndex = TestAtomNoIndex;
+  nfp::TestFAddDescending = TestFAddDescending;
   nfp::SfuErrorUlps = SfuErrorUlps;
   nfp::TestByValue = TestMixedByValue;
   if (!FpCases.empty()) {

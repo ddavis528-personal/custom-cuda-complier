@@ -24,6 +24,8 @@ static const CCVOperandInfo Operands_ANDNI[] = {{4, false}, {4, false}, {13, tru
 static const CCVOperandInfo Operands_ANDNI_P[] = {{4, false}, {3, false}, {4, false}, {10, true}};
 static const CCVOperandInfo Operands_AND_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_AND_W16[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_ADD_F_G[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_ADD_F_S[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
 static const CCVOperandInfo Operands_ATOM_ADD_G[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
 static const CCVOperandInfo Operands_ATOM_ADD_S[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
 static const CCVOperandInfo Operands_ATOM_AND_G[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
@@ -444,6 +446,8 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"ANDNI_P", 4, Operands_ANDNI_P},
   {"AND_P", 5, Operands_AND_P},
   {"AND_W16", 4, Operands_AND_W16},
+  {"ATOM_ADD_F_G", 6, Operands_ATOM_ADD_F_G},
+  {"ATOM_ADD_F_S", 6, Operands_ATOM_ADD_F_S},
   {"ATOM_ADD_G", 6, Operands_ATOM_ADD_G},
   {"ATOM_ADD_S", 6, Operands_ATOM_ADD_S},
   {"ATOM_AND_G", 6, Operands_ATOM_AND_G},
@@ -845,4 +849,4 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"XOR_P", 5, Operands_XOR_P},
   {"XOR_W16", 4, Operands_XOR_W16},
 };
-static const unsigned CCVNumInstOperands = 418;
+static const unsigned CCVNumInstOperands = 420;

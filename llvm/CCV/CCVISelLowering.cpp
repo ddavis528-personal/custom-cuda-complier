@@ -71,6 +71,7 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
                        ISD::ATOMIC_LOAD_XOR, ISD::ATOMIC_LOAD_MIN,
                        ISD::ATOMIC_LOAD_MAX, ISD::ATOMIC_LOAD_UMIN,
                        ISD::ATOMIC_LOAD_UMAX, ISD::ATOMIC_SWAP,
+                       ISD::ATOMIC_LOAD_FADD,
                        ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS, ISD::ATOMIC_LOAD,
                        ISD::ATOMIC_STORE});
   // A signed byte (F-161): a shift pair. combineDP4 has matched the byte
@@ -813,7 +814,9 @@ static SDValue combineAtomic(AtomicSDNode *AN, TargetLowering::DAGCombinerInfo &
     return DCI.CombineTo(AN, DAG.getStore(AN->getChain(), DL, AN->getVal(),
                                           AN->getBasePtr(),
                                           AN->getMemOperand()));
-  if (AN->getMemoryVT() != MVT::i32)
+  // O-76: a float add is Format M's add.f32, on the word's bits.
+  const bool FAdd = Opc == ISD::ATOMIC_LOAD_FADD;
+  if (AN->getMemoryVT() != (FAdd ? MVT::f32 : MVT::i32))
     return SDValue();       // AtomicExpand made it a word; nothing else is
   const bool Shared = AN->getAddressSpace() == AS_SHARED;
   const bool Cas = Opc == ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS;
@@ -840,11 +843,15 @@ static SDValue combineAtomic(AtomicSDNode *AN, TargetLowering::DAGCombinerInfo &
         AN->getMemoryVT(), AN->getMemOperand());
     return DCI.CombineTo(AN, {New.getValue(0), New.getValue(1), New.getValue(2)});
   }
-  // §3's order: add, min.s, min.u, max.s, max.u, and, or, xor, exch. A
-  // subtract is an add of the negation.
+  // §3's order: add, min.s, min.u, max.s, max.u, and, or, xor, exch,
+  // add.f32. A subtract is an add of the negation.
   unsigned Kind;
   SDValue Val = AN->getVal();
   switch (Opc) {
+  case ISD::ATOMIC_LOAD_FADD:
+    Val = DAG.getBitcast(MVT::i32, Val);
+    Kind = 9;
+    break;
   case ISD::ATOMIC_LOAD_SUB:
     Val = DAG.getNode(ISD::SUB, DL, MVT::i32, DAG.getConstant(0, DL, MVT::i32),
                       Val);
@@ -865,8 +872,9 @@ static SDValue combineAtomic(AtomicSDNode *AN, TargetLowering::DAGCombinerInfo &
                    DAG.getTargetConstant(Kind, DL, MVT::i32), TC};
   SDValue New = DAG.getMemIntrinsicNode(
       CCVISD::ATOM, DL, DAG.getVTList(MVT::i32, MVT::Other), Ops,
-      AN->getMemoryVT(), AN->getMemOperand());
-  return DCI.CombineTo(AN, New, New.getValue(1));
+      FAdd ? MVT::i32 : AN->getMemoryVT(), AN->getMemOperand());
+  SDValue Old = FAdd ? DAG.getBitcast(MVT::f32, New) : New;
+  return DCI.CombineTo(AN, Old, New.getValue(1));
 }
 
 // Mutation control for tools/check-atomics.sh: every atomic a plain load,
@@ -875,6 +883,12 @@ static cl::opt<bool> TestAtomicPlain(
     "ccv-test-atomic-plain", cl::init(false), cl::Hidden,
     cl::desc("make every atomic a plain read-modify-write, to test that it is "
              "caught"));
+
+// For tools/check-atomics.sh's measurement: a float add as the CAS loop it
+// was before O-76, so the two can be compared on the same kernel.
+static cl::opt<bool> TestAtomicFAddCas(
+    "ccv-atomic-fadd-cas", cl::init(false), cl::Hidden,
+    cl::desc("expand a float atomic add into a CAS loop, as before O-76"));
 
 TargetLowering::AtomicExpansionKind
 CCVTargetLowering::shouldExpandAtomicCmpXchgInIR(AtomicCmpXchgInst *) const {
@@ -886,9 +900,12 @@ TargetLowering::AtomicExpansionKind
 CCVTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const {
   if (TestAtomicPlain)
     return AtomicExpansionKind::NotAtomic;
-  // Format M's nine operations at a word are native (sub as add); anything
-  // else -- a float add, nand, the wrapping increments -- and anything
-  // narrower is a CAS loop.
+  // Format M's ten operations at a word are native (sub as add, a float add
+  // as add.f32, O-76); anything else -- a float subtract, min or max, nand,
+  // the wrapping increments -- and anything narrower is a CAS loop.
+  if (RMW->getOperation() == AtomicRMWInst::FAdd && RMW->getType()->isFloatTy())
+    return TestAtomicFAddCas ? AtomicExpansionKind::CmpXChg
+                             : AtomicExpansionKind::None;
   if (!RMW->getType()->isIntegerTy(32))
     return AtomicExpansionKind::CmpXChg;
   switch (RMW->getOperation()) {

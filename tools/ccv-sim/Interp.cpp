@@ -1566,13 +1566,15 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::ATOM_OR_G:    case CCV::ATOM_OR_S:
   case CCV::ATOM_XOR_G:   case CCV::ATOM_XOR_S:
   case CCV::ATOM_EXCH_G:  case CCV::ATOM_EXCH_S:
+  case CCV::ATOM_ADD_F_G: case CCV::ATOM_ADD_F_S:
   case CCV::CAS_G:        case CCV::CAS_S: {
     const bool Cas = Op == CCV::CAS_G || Op == CCV::CAS_S;
     const bool Sh = Op == CCV::CAS_S || Op == CCV::ATOM_ADD_S ||
                     Op == CCV::ATOM_MIN_S_S || Op == CCV::ATOM_MIN_U_S ||
                     Op == CCV::ATOM_MAX_S_S || Op == CCV::ATOM_MAX_U_S ||
                     Op == CCV::ATOM_AND_S || Op == CCV::ATOM_OR_S ||
-                    Op == CCV::ATOM_XOR_S || Op == CCV::ATOM_EXCH_S;
+                    Op == CCV::ATOM_XOR_S || Op == CCV::ATOM_EXCH_S ||
+                    Op == CCV::ATOM_ADD_F_S;
     // RMW: rd, rbase, rindex, scale, disp, rs. CAS: rd, pd, pq, rbase,
     // rindex, scale, disp, rs_cmp, rs_swap.
     const unsigned A0 = Cas ? 3 : 1;
@@ -1590,7 +1592,13 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     }
     Memory &M = Sh ? Shared : Mem;
     uint32_t Succ = 0;
-    for (unsigned L = 0; L != kLanes; ++L) {
+    // O-76: add.f32's same-address lanes apply in ascending lane order, and
+    // that order is the result's, since each add rounds; for the integer
+    // operations it is one of the orders §3 permits.
+    const bool Desc = nfp::TestFAddDescending &&
+                      (Op == CCV::ATOM_ADD_F_G || Op == CCV::ATOM_ADD_F_S);
+    for (unsigned K = 0; K != kLanes; ++K) {
+      const unsigned L = Desc ? kLanes - 1 - K : K;
       if (!(G & (1u << L)))
         continue;
       Mem.CurLane = Shared.CurLane = L;
@@ -1613,6 +1621,9 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       case CCV::ATOM_OR_G:    case CCV::ATOM_OR_S:    New = Old | X; break;
       case CCV::ATOM_XOR_G:   case CCV::ATOM_XOR_S:   New = Old ^ X; break;
       case CCV::ATOM_EXCH_G:  case CCV::ATOM_EXCH_S:  New = X; break;
+      // O-76: rounded exactly as a 32-bit fadd, with its NaN rule (O-66).
+      case CCV::ATOM_ADD_F_G: case CCV::ATOM_ADD_F_S:
+        New = fpRR(CCV::FADD, Old, X); break;
       default:                                        // CAS
         if (Old == X) {
           New = W.GPR[S2][L];
