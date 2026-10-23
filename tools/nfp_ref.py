@@ -272,6 +272,17 @@ def op(name, code, wd, wa, wb, wc, x, y, z):
             return "F-FORMAT"
         v = decode((wa, s), x) if s < 2 else from_int(x, WIDTH[wa], s == 2)
         return encode((wd, d), v, ROUND[r]) if d < 2 else to_int(v, WIDTH[wd], d == 2, ROUND[r])
+    if name.startswith("dp"):
+        # O-44: z (FP32) plus the products of x's and y's elements, summed
+        # exactly and rounded once into FP32. name is "dp:<width>:<code>".
+        _, w, c = name.split(":")
+        fmt = (int(w), int(c))
+        bits = FORMATS[fmt][0]
+        n, m = 32 // bits, (1 << bits) - 1
+        s = mul(decode(fmt, x & m), decode(fmt, y & m))
+        for k in range(1, n):
+            s = add(s, mul(decode(fmt, (x >> bits * k) & m), decode(fmt, (y >> bits * k) & m)))
+        return encode((0, 0), add(s, decode((0, 0), z)))
     if name.startswith("setp"):
         # An FP compare (O-65): rs0 and rs1 at their own widths, in format code.
         rel = name.split(":")[1]

@@ -189,7 +189,15 @@ inline uint32_t encode(const Format &F, const Value &V, Round R) {
   return Sign | Bits;
 }
 
-/// a + b, exactly (to 128 bits and a sticky bit). Sub is add of -b.
+/// a + b, exactly to 127 bits and a sticky bit. Sub is add of -b.
+///
+/// An operand's own sticky bit is kept as a set bit below its last one: the
+/// true value lies strictly between M and M + 1 units, and so does M + 1/2.
+/// When aligning would need more than 127 bits, the larger exponent's operand
+/// is shifted as far as fits and the other right, its lost bits jammed into
+/// the sticky. Every caller rounds to 24 bits or fewer, so a sticky that far
+/// down decides only ties, which is what it is for. (O-44's dot products are
+/// why it has to be this careful: BF16 products span 2^-266 to 2^255.)
 inline Value add(Value A, Value B, Round R) {
   Value Z;
   if (A.K == Value::NaN || B.K == Value::NaN) { Z.K = Value::NaN; return Z; }
@@ -200,6 +208,16 @@ inline Value add(Value A, Value B, Round R) {
     }
     return A.K == Value::Inf ? A : B;
   }
+  for (Value *V : {&A, &B})
+    if (V->Sticky) {
+      if (msb(V->M) < 126) {
+        V->M = V->M << 1 | 1;
+        V->E -= 1;
+      } else {
+        V->M |= 1;
+      }
+      V->Sticky = false;
+    }
   if (A.M == 0 && B.M == 0) {        // signed zeros: IEEE's rule
     Z.Neg = A.Neg == B.Neg ? A.Neg : R == Round::RM;
     return Z;
@@ -208,33 +226,41 @@ inline Value add(Value A, Value B, Round R) {
   if (B.M == 0) return A;
   if (A.E < B.E) std::swap(A, B);    // A has the larger exponent
   int D = A.E - B.E;
+  int Room = 126 - int(msb(A.M));    // how far A can move left
   bool Sticky = false;
-  if (D <= 64) {
+  if (D <= Room) {
     A.M <<= D;
     A.E = B.E;
-  } else {                           // B is far below A's last bit: jam it
-    A.M <<= 64;
-    A.E -= 64;
-    B.M = 0;
-    Sticky = true;
+  } else {
+    A.M <<= Room;
+    A.E -= Room;
+    int Rt = D - Room;               // B moves right; what falls off is sticky
+    if (Rt >= 127) {
+      Sticky = true;
+      B.M = 0;
+    } else {
+      Sticky = (B.M & ((u128(1) << Rt) - 1)) != 0;
+      B.M >>= Rt;
+    }
+    B.E = A.E;
   }
   Z.E = A.E;
   if (A.Neg == B.Neg) {
     Z.Neg = A.Neg;
     Z.M = A.M + B.M;
     Z.Sticky = Sticky;
-  } else if (Sticky) {               // A minus something tiny
+  } else if (A.M > B.M || (A.M == B.M && !Sticky)) {
+    // |A| - (|B| + f), 0 <= f < 1: one unit less, sticky, when f > 0.
     Z.Neg = A.Neg;
-    Z.M = A.M - 1;
-    Z.Sticky = true;
-  } else if (A.M >= B.M) {
-    Z.Neg = A.Neg;
-    Z.M = A.M - B.M;
-    if (Z.M == 0)
+    Z.M = A.M - B.M - (Sticky ? 1 : 0);
+    Z.Sticky = Sticky;
+    if (Z.M == 0 && !Sticky)
       Z.Neg = R == Round::RM;
   } else {
+    // |B| + f - |A|: B is the larger.
     Z.Neg = B.Neg;
     Z.M = B.M - A.M;
+    Z.Sticky = Sticky;
   }
   return Z;
 }

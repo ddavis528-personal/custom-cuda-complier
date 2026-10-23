@@ -224,44 +224,6 @@ static uint32_t fpBits(float F) {
   return std::isnan(F) && !nfp::TestHostNaN ? 0x7fffffffu : floatToBits(F);
 }
 
-// O-44's FP packed dot products. The packed element types are decoded here
-// rather than by the C++ type system: BF16 is the top half of an FP32, FP16 and
-// the two FP8 formats need their fields laid out explicitly, and none of them
-// is a type this simulator otherwise carries.
-static float bf16ToFloat(uint16_t H) { return bitsToFloat(uint32_t(H) << 16); }
-
-static float f16ToFloat(uint16_t H) {
-  uint32_t S = uint32_t(H >> 15) << 31, E = (H >> 10) & 0x1f, M = H & 0x3ff;
-  if (E == 0)                             // zero or subnormal
-    return bitsToFloat(S) + (M ? std::ldexp(float(M), -24) *
-                                 (S ? -1.0f : 1.0f) : 0.0f);
-  if (E == 0x1f)                          // inf or NaN
-    return bitsToFloat(S | 0x7f800000u | (M << 13));
-  return bitsToFloat(S | ((E + 112) << 23) | (M << 13));
-}
-
-/// One FP8 value. `MantBits` is 3 for E4M3 and 2 for E5M2, which fixes the
-/// exponent width and bias with it. E4M3 has no infinity -- its all-ones
-/// exponent with a non-zero mantissa is NaN and with a zero mantissa is a
-/// finite value -- which is why the two formats cannot share one decoder
-/// parameterised only by field width.
-template <unsigned MantBits> static float fp8ToFloat(uint8_t B) {
-  constexpr unsigned ExpBits = 7 - MantBits;
-  constexpr int Bias = (1 << (ExpBits - 1)) - 1;
-  uint32_t S = uint32_t(B >> 7) << 31;
-  int E = (B >> MantBits) & ((1 << ExpBits) - 1);
-  uint32_t M = B & ((1u << MantBits) - 1);
-  if (E == 0)
-    return (S ? -1.0f : 1.0f) * std::ldexp(float(M), -Bias - int(MantBits) + 1);
-  if (MantBits == 2 && E == (1 << ExpBits) - 1)        // E5M2 has inf/NaN
-    return bitsToFloat(S | 0x7f800000u | (M << 21));
-  if (MantBits == 3 && E == (1 << ExpBits) - 1 && M == (1u << MantBits) - 1)
-    return bitsToFloat(S | 0x7fc00000u);               // E4M3: only S.1111.111 is NaN
-  return (S ? -1.0f : 1.0f) *
-         std::ldexp(1.0f + float(M) / float(1u << MantBits), E - Bias);
-}
-
-
 // ---- CP-6: the FP block and the conversions at every width ---------------
 //
 // Where an FP instruction keeps its operands, and what it does, for the
@@ -450,6 +412,29 @@ static bool formatReserved(const FpInfo &I, const uint8_t *Widths) {
   return false;
 }
 
+/// O-44's FP dot products: rs2 (FP32) plus the products of rs0's and rs1's
+/// elements, summed exactly and rounded once into FP32 -- normative, since an
+/// FP reduction's order is observable. Exact through NarrowFP.h: every product
+/// of two 16- or 8-bit elements is exact in 128 bits, and so is their sum.
+static uint32_t dpLane(unsigned Op, uint32_t X, uint32_t Y, uint32_t Acc) {
+  using namespace nfp;
+  unsigned W, Code, N;
+  switch (Op) {
+  case CCV::DP2_BF16: W = 1, Code = 1, N = 2; break;
+  case CCV::DP2_F16:  W = 1, Code = 0, N = 2; break;
+  case CCV::DP4_E4M3: W = 2, Code = 0, N = 4; break;
+  default:            W = 2, Code = 1, N = 4; break;   // DP4_E5M2
+  }
+  const Format F = *format(W, Code), F32 = *format(0, 0);
+  unsigned Bits = 32 / N;
+  Value S = mul(decode(F, X & ((1u << Bits) - 1)), decode(F, Y & ((1u << Bits) - 1)));
+  for (unsigned K = 1; K != N; ++K)
+    S = add(S, mul(decode(F, (X >> (Bits * K)) & ((1u << Bits) - 1)),
+                   decode(F, (Y >> (Bits * K)) & ((1u << Bits) - 1))),
+            Round::RN);
+  return encode(F32, add(S, decode(F32, Acc), Round::RN), Round::RN);
+}
+
 static unsigned fpRelation(unsigned Op, unsigned &Code);
 static bool fpCompareElem(unsigned Rel, unsigned Code, uint8_t WA, uint32_t X,
                           uint32_t Y);
@@ -463,6 +448,12 @@ bool Interp::evalFp(unsigned Op, const uint8_t Widths[4], uint32_t X,
       return false;
     Out = fpCompareElem(Rel, FCode, Widths[1], narrow(X, Widths[1]),
                         opnd(Y, Widths[2], Widths[1]));
+    return true;
+  }
+  // A dot product (O-44): X, Y the packed words, Z the FP32 accumulator.
+  if (Op == CCV::DP2_BF16 || Op == CCV::DP2_F16 || Op == CCV::DP4_E4M3 ||
+      Op == CCV::DP4_E5M2) {
+    Out = dpLane(Op, X, Y, Z);
     return true;
   }
   FpInfo I = fpInfo(Op);
@@ -1043,31 +1034,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     unsigned D = regOf(MI, 0), A = regOf(MI, 1), B = regOf(MI, 2),
              C = regOf(MI, 3);
     forEachLane([&](unsigned L) {
-      uint32_t X = W.GPR[A][L], Y = W.GPR[B][L];
-      long double Sum = (long double)bitsToFloat(W.GPR[C][L]);
-      switch (Op) {
-      case CCV::DP2_BF16:
-        for (unsigned K = 0; K != 2; ++K)
-          Sum += (long double)bf16ToFloat(uint16_t(X >> (16 * K))) *
-                 (long double)bf16ToFloat(uint16_t(Y >> (16 * K)));
-        break;
-      case CCV::DP2_F16:
-        for (unsigned K = 0; K != 2; ++K)
-          Sum += (long double)f16ToFloat(uint16_t(X >> (16 * K))) *
-                 (long double)f16ToFloat(uint16_t(Y >> (16 * K)));
-        break;
-      case CCV::DP4_E4M3:
-        for (unsigned K = 0; K != 4; ++K)
-          Sum += (long double)fp8ToFloat<3>(uint8_t(X >> (8 * K))) *
-                 (long double)fp8ToFloat<3>(uint8_t(Y >> (8 * K)));
-        break;
-      default:
-        for (unsigned K = 0; K != 4; ++K)
-          Sum += (long double)fp8ToFloat<2>(uint8_t(X >> (8 * K))) *
-                 (long double)fp8ToFloat<2>(uint8_t(Y >> (8 * K)));
-        break;
-      }
-      W.GPR[D][L] = fpBits((float)Sum);   // the one rounding
+      W.GPR[D][L] = dpLane(Op, W.GPR[A][L], W.GPR[B][L], W.GPR[C][L]);
     });
     break;
   }

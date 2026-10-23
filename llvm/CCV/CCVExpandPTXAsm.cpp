@@ -20,6 +20,10 @@
 // ordinary instructions: `float(fp8)` asks for an x2 conversion and reads one
 // half, and the other half's conversion is then dead.
 //
+// It also selects `ccv.dp4.e4m3` and `ccv.dp4.e5m2`, the templates
+// CCVFormFP8Dot writes for an FP8 dot product, since LLVM 18 has no IR for
+// one either.
+//
 // Anything else written in inline PTX is refused by name, not emitted: the
 // asm printer would put PTX text into a CCV object.
 //
@@ -152,6 +156,9 @@ bool CCVExpandPTXAsm::runOnMachineFunction(MachineFunction &MF) {
           "\\$([0-9]+), \\$([0-9]+)$");
       static const Regex FromX2(
           "^cvt\\.rn\\.f16x2\\.(e4m3|e5m2)x2 \\$([0-9]+), \\$([0-9]+)$");
+      static const Regex Dot4(
+          "^ccv\\.dp4\\.(e4m3|e5m2) \\$([0-9]+), \\$([0-9]+), \\$([0-9]+), "
+          "\\$([0-9]+)$");
       static const Regex F32F16("^cvt\\.f32\\.f16 \\$([0-9]+), \\$([0-9]+)$");
       static const Regex F16F32(
           "^cvt\\.rn\\.f16\\.f32 \\$([0-9]+), \\$([0-9]+)$");
@@ -211,6 +218,12 @@ bool CCVExpandPTXAsm::runOnMachineFunction(MachineFunction &MF) {
         BuildMI(MBB, MI, DL, TII->get(CCV::SHLI), Sh).addReg(Hi).addImm(16);
         BuildMI(MBB, MI, DL, TII->get(CCV::OR), op(M[2]))
             .addReg(Sh).addReg(Lo).addReg(Sh);
+      } else if (Dot4.match(T, &M)) {
+        // CCVFormFP8Dot's: rd = rs2 + the four products of rs0's and rs1's
+        // bytes, summed exactly and rounded once (O-44).
+        unsigned Opc = M[1] == "e4m3" ? CCV::DP4_E4M3 : CCV::DP4_E5M2;
+        BuildMI(MBB, MI, DL, TII->get(Opc), op(M[2]))
+            .addReg(op(M[3])).addReg(op(M[4])).addReg(op(M[5]));
       } else if (F32F16.match(T, &M)) {
         // float(fp8) is fp8 -> f16 -> f32 in CUDA's header. FP16 holds every
         // E4M3 and E5M2 value exactly, so the pair is one conversion from the
