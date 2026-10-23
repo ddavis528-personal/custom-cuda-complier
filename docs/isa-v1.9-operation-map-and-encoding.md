@@ -123,7 +123,7 @@ O-30's frame. This is an encoding change: four reserved points become defined.
 
 ### Still open
 
-SFU accuracy is ruled under IS-12, but its PTX bound table is not yet written.
+Nothing from IS-2, IS-12 or IS-16 remains open. The SFU bound table is written (O-70).
 
 ---
 
@@ -2108,8 +2108,31 @@ the opcode and therefore a violation of invariant 1 — and it left `cvt2fp16` t
 | 258 | `sqrt.f32` | 262 | `cos.f32` |
 | 259 | `ex2.f32` | 263 | **`rcp.u32`** — integer reciprocal seed (O-35) |
 
-Accuracy of the floating-point set is implementation-defined and approximate, as on every
-machine that has one. `rcp.u32` is the exception: it carries a **contract**, because a
+**Accuracy of the floating-point set — normative (O-70; IS-12).** Each FP SFU operation may
+return any value within its bound, and no other value. That is bounded nondeterminism, as §12.1
+permits, not implementation-defined behaviour, which invariant 12 forbids. An ulp is the spacing
+of FP32 at the exact result's magnitude, so subnormal results are bounded at 2⁻¹⁴⁹. Subnormal
+operands are never flushed (O-56).
+
+| Operation | Bound | Exact special values |
+|---|---|---|
+| `rcp.f32` | ≤ 2 ulps of 1/x | ±0 → ±Inf; ±Inf → ±0 |
+| `rsqrt.f32` | ≤ 2 ulps of 1/√x | +0 → +Inf; −0 → −Inf; +Inf → +0; x < 0 → NaN |
+| `sqrt.f32` | ≤ 2 ulps of √x | ±0 → ±0; +Inf → +Inf; x < 0 → NaN |
+| `ex2.f32` | ≤ 2 ulps of 2ˣ | −Inf → +0; +Inf → +Inf; 0 → 1 |
+| `lg2.f32` | absolute ≤ 2⁻²² for x in [½, 2]; ≤ 2 ulps elsewhere | ±0 → −Inf; 1 → +0; +Inf → +Inf; x < 0 → NaN |
+| `sin.f32`, `cos.f32` | absolute ≤ 2⁻²¹ for \|x\| ≤ π; any value in [−1, 1] beyond | sin(±0) → ±0; cos(±0) → 1; ±Inf → NaN |
+
+A NaN operand gives the canonical NaN (O-66). A result whose exact value overflows FP32 is
+±Inf, as IEEE requires. `rcp`, `rsqrt` and `sqrt` carry the bound a compiler builds IEEE
+sequences on: CUDA's `/`, `1.0f/x` and `sqrtf` are proved correctly rounded for any SFU within
+8 ulps (CP-22), so 2 leaves margin. PTX's documented `.approx` bounds for these three fall
+inside 2 ulps (CP's IS-12 response). `ex2`, `lg2`, `sin` and `cos` are reached only by
+fast-math lowerings. Their bounds leave cheap hardware room, and `sin`/`cos` promise nothing
+past ±π but the range, where no argument reduction is required. `ccv-sim` returns the correctly
+rounded value by default, which lies inside every bound and depends on no host library. Its
+`-sfu-error-ulps` option returns values at the bound, so the gate tests sequences against the
+bound rather than one unit. `rcp.u32` is separate: it carries a **contract** (below), because a
 compiler-generated sequence depends on it and cannot check it.
 
 **`rcp.u32 rd, rs`** returns an under-estimate of ⌊2³²/`rs`⌋ with 16 bits of relative
@@ -3077,6 +3100,23 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-70 — The FP SFU set has normative error bounds — decided in 1.9.** IS-12, ruled in
+substance on 2026-10-20 and written now that CP has built against it (CP-22). §4 called SFU
+accuracy "implementation-defined and approximate", while O-31 specified it as correctly rounded,
+and `ccv-sim` took its values from the host's libm. So there were three answers, one of them
+host-dependent. Adopted: a bound per operation, any value within it permitted (§12.1's bounded
+nondeterminism). `rcp`, `rsqrt` and `sqrt` take 2 ulps, CP's proposal. It covers PTX's `.approx`
+bounds for them, with margin under the 8 ulps CP's IEEE sequences are proved against. `ex2` and
+`lg2` take 2 ulps, with an absolute bound for `lg2` near 1, where a relative one would demand
+exactness. `sin` and `cos` take an absolute bound on [−π, π] and only the range beyond it, so no
+unit needs argument reduction. CUDA's `__sinf` makes no promise past that range either. O-31's
+"correctly rounded" simplification is withdrawn: it was a statement about the simulator, not a
+contract hardware could keep. What lost: correct rounding (too costly to require of an SFU),
+"implementation-defined" (forbidden by invariant 12), and PTX's own figures cited by version (a
+moving reference, and not stated per CCV's special values).
 
 ---
 
