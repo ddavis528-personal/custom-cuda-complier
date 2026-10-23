@@ -107,6 +107,12 @@ checked 398 instructions
   PASS  control -ccv-fp8-dot=false is caught: dot_e4m3, dot_e5m2
   PASS  fp8 add, sub, mul: native at chwidth 8, 13312 lanes equal to FP32 then saturating conversion; the native reading agrees (§5.8)
   PASS  control -ccv-test-fp8-wrong-format is caught
+  FP4 and __NV_NOSAT conversions (CP-6 stage 2b)
+  PASS  to_e2m1: 426 inputs as NVIDIA's header computes them
+  PASS  to_e4m3_nosat: 1854 inputs as NVIDIA's header computes them
+  PASS  to_e5m2_nosat: 1818 inputs as NVIDIA's header computes them
+  PASS  from_e2m1: 16 inputs as NVIDIA's header computes them
+  PASS  control -ccv-test-fp64bits-rebias is caught in 3 of 4 kernels
   CoreMark-derived workload (AR-20)
   PASS  CoreMark-derived: list, matrix and state on 32 lanes give CoreMark's CRCs, and the host's after 2 iterations (72be e714 1fd7 8e3a; 1537424 issue groups)
   PASS  control -ccv-test-hoist-past-calls is caught: did not run: error: SRD has no semantics in the simulator yet
@@ -131,7 +137,7 @@ checked 398 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 190 findings and 70 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 191 findings and 70 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings

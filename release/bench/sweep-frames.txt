@@ -14,6 +14,7 @@
   test/cuda/calls.cu                     12        54         54
   test/cuda/divconst.cu                   0         0          0
   test/cuda/dp4.cu                        0         0          0
+  test/cuda/fp4.cu                       --
   test/cuda/fp8.cu                       --
   test/cuda/fused.cu                      0         0          0
   test/cuda/fusion/adamw.cu               0         0          0

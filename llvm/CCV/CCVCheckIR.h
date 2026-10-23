@@ -20,6 +20,11 @@ void lowerCCVCodePointers(Module &M);
 /// O-61: every global becomes part of one data image, addressed as (word 28
 /// of the launch block, offset). Runs first. CCVModuleData.cpp.
 void lowerCCVModuleData(Module &M);
+/// CP-6 stage 2b: a double that is only a float widened and read as its 64
+/// bits (NVIDIA's software FP4 and __NV_NOSAT conversions) is rebuilt on i64.
+/// Runs before checkCCVModule, which reports any FP64 that remains.
+/// CCVFP64Bits.cpp.
+void lowerCCVFP64Bits(Module &M);
 } // namespace llvm
 
 #endif
