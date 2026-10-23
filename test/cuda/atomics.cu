@@ -1,6 +1,6 @@
 // O-72: CUDA atomics on computed addresses, as clang's builtins write them.
-// A 64-bin histogram in .global, integer and float (the float add is a CAS
-// loop: Format M has no FP add), a 16-bin one in .shared merged after a
+// A 64-bin histogram in .global, integer and float (the float add is
+// atom.add.f32, O-76; it was a CAS loop), a 16-bin one in .shared merged after a
 // barrier, and one word for each other operation. tools/check-atomics.sh
 // compares the final memory with Python; where the result depends on the
 // order lanes and warps apply in (which CAS wins), it checks the set §3's

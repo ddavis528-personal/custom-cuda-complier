@@ -135,7 +135,7 @@ static unsigned atWidth(unsigned Opc, EVT MemVT) {
 }
 
 /// O-72's RMW point for an operation, in §3's order (add, min.s, min.u, max.s,
-/// max.u, and, or, xor, exch), and an address space.
+/// max.u, and, or, xor, exch, add.f32), and an address space.
 static unsigned atomOpcode(unsigned Kind, bool Shared) {
   switch (Kind) {
   case 0:  return Shared ? CCV::ATOM_ADD_S : CCV::ATOM_ADD_G;
@@ -146,7 +146,8 @@ static unsigned atomOpcode(unsigned Kind, bool Shared) {
   case 5:  return Shared ? CCV::ATOM_AND_S : CCV::ATOM_AND_G;
   case 6:  return Shared ? CCV::ATOM_OR_S : CCV::ATOM_OR_G;
   case 7:  return Shared ? CCV::ATOM_XOR_S : CCV::ATOM_XOR_G;
-  default: return Shared ? CCV::ATOM_EXCH_S : CCV::ATOM_EXCH_G;
+  case 8:  return Shared ? CCV::ATOM_EXCH_S : CCV::ATOM_EXCH_G;
+  default: return Shared ? CCV::ATOM_ADD_F_S : CCV::ATOM_ADD_F_G;   // O-76
   }
 }
 

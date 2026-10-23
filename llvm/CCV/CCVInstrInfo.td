@@ -869,6 +869,8 @@ def LD_GLOBAL_P : FormatDp<0b00000, (outs GPR:$rdata),
 // O-72: the base + index address of Format D, so an atomic reaches a computed
 // element. O-73's numbers: the nine operations in §3's order at 0-8 for
 // .global and 16-24 for .shared, and CAS, in the 48-bit space, at 16 and 17.
+// O-76 adds add.f32 at 9 and 25: same-address lanes in ascending lane order,
+// each rounded as fadd rounds.
 class AtomOp<string n, string m, int o> {
   string Name = n; string Mnem = m; int Opc = o;
 }
@@ -880,7 +882,7 @@ foreach a = [AtomOp<"ADD", "add", 0>, AtomOp<"MIN_S", "min.s", 1>,
              AtomOp<"MIN_U", "min.u", 2>, AtomOp<"MAX_S", "max.s", 3>,
              AtomOp<"MAX_U", "max.u", 4>, AtomOp<"AND", "and", 5>,
              AtomOp<"OR", "or", 6>, AtomOp<"XOR", "xor", 7>,
-             AtomOp<"EXCH", "exch", 8>] in
+             AtomOp<"EXCH", "exch", 8>, AtomOp<"ADD_F", "add.f32", 9>] in
   foreach sp = [AtomSpace<"G", "global", 0>, AtomSpace<"S", "shared", 16>] in
     def ATOM_#a.Name#_#sp.Name
         : FormatM<!add(a.Opc, sp.Base), (outs GPR:$rd),

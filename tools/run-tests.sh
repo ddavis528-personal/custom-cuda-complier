@@ -309,6 +309,22 @@ run_atomics() {
     echo "  FAIL  atomics: got '$got', want '$want' (no index: '$ctl')"; return 1
   fi
 }
+# --- atom.add.f32 (O-76) -----------------------------------------------------
+run_atomics_fadd() {
+  python3 "$AS" "$JSON" test/atomics-fadd.s "$TMP/af.bin" >/dev/null || return 1
+  local args="-poke 0xc0000=1266679808" l got ctl
+  for l in $(seq 1 31); do args+=" -poke $(printf 0x%x $((0xc0000 + 4 * l)))=1065353216"; done
+  args+=" -peek 0xd0000 -peek 0xd0004 -peek 0xe0000 -peek 0xe0004 -peek 0xe007c"
+  local want="1266679808 1266679808 0 1266679808 1266679808"
+  got=$("$SIM" "$TMP/af.bin" $args 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  # The control: the lanes in descending order, whose sum rounds differently.
+  ctl=$("$SIM" "$TMP/af.bin" $args -ccv-test-atomic-fadd-descending 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  if [ "${got% }" = "$want" ] && [ "${ctl% }" != "$want" ]; then
+    echo "  PASS  atom.add.f32 on .global and .shared: lanes in ascending order, each add rounded, each lane's old value (O-76)"
+  else
+    echo "  FAIL  atom.add.f32: got '$got', want '$want' (descending: '$ctl')"; return 1
+  fi
+}
 # --- the FP SFU's values (O-70) --------------------------------------------
 run_sfu() {
   python3 "$AS" "$JSON" test/sfu.s "$TMP/sfu.bin" >/dev/null || return 1
@@ -394,6 +410,7 @@ echo "  --- canonical NaN, compare format (O-66, O-65) ---"
 run_fp_canon || fail=1
 run_sfu || fail=1
 run_atomics || fail=1
+run_atomics_fadd || fail=1
 echo
 echo "  --- the mixed-width rule (O-67) ---"
 run_mixed_width || fail=1

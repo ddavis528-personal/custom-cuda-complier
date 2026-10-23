@@ -3,7 +3,7 @@
 # warp, whose 32 lanes collide on bins and on single words, and on two
 # (ccv-sim -cta, TI-29), whose CAS loops interleave on the same words: a
 # 64-bin histogram in .global, integer (one
-# atom.add.global at a computed address) and float (a CAS loop), a 16-bin one
+# atom.add.global at a computed address) and float (atom.add.f32, O-76), a 16-bin one
 # in .shared merged after a barrier, and min, max, or, xor, sub (seq_cst, so
 # fenced), and, CAS, a 16-bit counter (a CAS loop on its word) and exchange.
 # Final memory is compared with Python; where it depends on the order lanes
@@ -108,7 +108,7 @@ else
 fi
 out=$(run "" "")
 case "$out" in
-  ok*) echo "  PASS  atomics.cu: global and shared histograms (int, and float by CAS loop), min/max/or/xor/sub/and, CAS, a 16-bit counter and exchange on 32 lanes (${out#ok } issue groups)" ;;
+  ok*) echo "  PASS  atomics.cu: global and shared histograms (int, and float by atom.add.f32), min/max/or/xor/sub/and, CAS, a 16-bit counter and exchange on 32 lanes (${out#ok } issue groups)" ;;
   *)   echo "  FAIL  atomics.cu: $out"; fail=1 ;;
 esac
 out=$(run "" "-cta" 64)
@@ -125,17 +125,20 @@ for c in "|-ccv-test-atomic-no-index" "-ccv-test-atomic-plain|"; do
   esac
 done
 
-# IS-14 (1): the float scatter-add against its integer twin, whose one
-# atom.add.global is what an atom.add.f32 would cost, with every lane on its
-# own word, 32 lanes over 64 bins, and every lane on one word. Each must also
-# compute the right sums.
+# IS-14 (1), now O-76: the float scatter-add with atom.add.f32, against the
+# CAS loop it replaced (ccv-llc -ccv-atomic-fadd-cas) and its integer twin's
+# one atom.add.global, with every lane on its own word, 32 lanes over 64
+# bins, and every lane on one word. Each must compute the right sums, and
+# the native float add must cost what the integer one does.
 CCV_CFLAGS=-Itest/bench ./tools/cuda-to-ir.sh test/cuda/scatter.cu "$TMP/s.ll" >/dev/null || exit 1
 opt -load-pass-plugin=build/CCVLowerKernelArgs.so \
     -passes='function(infer-address-spaces),ccv-lower-kernel-args,function(instcombine,gvn,simplifycfg)' \
     -S "$TMP/s.ll" -o "$TMP/s.low.ll" 2>/dev/null || exit 1
 build/ccv-llc "$TMP/s.low.ll" -o "$TMP/s.o" -obj || exit 1
 llvm-objcopy -O binary --only-section=.text "$TMP/s.o" "$TMP/s.bin" || exit 1
-python3 - "$TMP/s.bin" "$TMP/s.o" <<'PY' || fail=1
+build/ccv-llc "$TMP/s.low.ll" -o "$TMP/c.o" -obj -ccv-atomic-fadd-cas || exit 1
+llvm-objcopy -O binary --only-section=.text "$TMP/c.o" "$TMP/c.bin" || exit 1
+python3 - "$TMP/s.bin" "$TMP/s.o" "$TMP/c.bin" <<'PY' || fail=1
 import random, re, struct, subprocess, sys
 syms = {l.split()[2]: int(l.split()[0], 16) for l in
         subprocess.run(["llvm-nm", sys.argv[2]], capture_output=True, text=True).stdout.splitlines()
@@ -151,7 +154,7 @@ shapes = {"one word each": [8 * i + j for i in range(N) for j in range(8)],
 fail, rows = 0, []
 for shape, idx in shapes.items():
     issued = {}
-    for kind in ("f", "i"):
+    for kind in ("f", "c", "i"):        # atom.add.f32, CAS loop, integer
         args = ["-threads", str(N), "-poke", f"{hex(L + 24)}=256"]
         for k, win in enumerate((3, 4, 5)):
             args += ["-poke", f"{hex(L + 32 + 8 * k)}={win}", "-poke", f"{hex(L + 36 + 8 * k)}=0"]
@@ -159,25 +162,30 @@ for shape, idx in shapes.items():
         for j, v in enumerate(idx):
             args += ["-poke", f"{hex(0x30000 + 4 * j)}={v}"]
         for j, v in enumerate(W):
-            args += ["-poke", f"{hex(0x40000 + 4 * j)}={f2b(float(v)) if kind == 'f' else v}"]
+            args += ["-poke", f"{hex(0x40000 + 4 * j)}={v if kind == 'i' else f2b(float(v))}"]
         used = sorted(set(idx))
         args += [x for a in used for x in ("-peek", hex(0x50000 + 4 * a))]
-        r = subprocess.run(["build/ccv-sim", sys.argv[1], "-entry", hex(entry("scatter_" + kind)), *args],
+        binf, fn = (sys.argv[3], "scatter_f") if kind == "c" else (sys.argv[1], "scatter_" + kind)
+        r = subprocess.run(["build/ccv-sim", binf, "-entry", hex(entry(fn)), *args],
                            capture_output=True, text=True)
         got = {int(a, 16): int(v) for a, v in re.findall(r"\[(0x[0-9a-f]+)\] = (\d+)", r.stdout)}
         sums = {}
         for a, v in zip(idx, W):
             sums[a] = sums.get(a, 0) + v
-        want = {0x50000 + 4 * a: (f2b(float(s)) if kind == "f" else s) for a, s in sums.items()}
+        want = {0x50000 + 4 * a: (s if kind == "i" else f2b(float(s))) for a, s in sums.items()}
         if r.returncode or got != want:
             print(f"  FAIL  scatter_{kind}, {shape}: wrong sums or did not run"); fail = 1
         issued[kind] = int(next((l.split()[1] for l in r.stdout.splitlines() if "executed" in l), "0"))
-    rows.append((shape, issued["f"], issued["i"]))
-for shape, f, i in rows:
-    print(f"  INFO  scatter-add, {shape}: float by CAS loop {f} issue groups, "
-          f"integer atom.add {i}; atom.add.f32 would save {f - i} ({100.0 * (f - i) / f:.0f}%)")
+    rows.append((shape, issued["f"], issued["c"], issued["i"]))
+for shape, f, c, i in rows:
+    print(f"  INFO  scatter-add, {shape}: atom.add.f32 {f} issue groups, the CAS loop it "
+          f"replaced {c}, saving {c - f} ({100.0 * (c - f) / c:.0f}%); integer atom.add {i}")
+    if f != i:
+        print(f"  FAIL  scatter-add, {shape}: the native float add costs {f}, the integer one {i}")
+        fail = 1
 if not fail:
-    print("  PASS  scatter_f and scatter_i compute the right sums at three contention levels")
+    print("  PASS  scatter-add, float (atom.add.f32 and the CAS loop) and integer, right at "
+          "three contention levels; atom.add.f32 costs what atom.add does")
 sys.exit(fail)
 PY
 exit $fail
