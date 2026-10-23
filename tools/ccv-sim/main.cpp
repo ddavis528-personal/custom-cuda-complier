@@ -83,6 +83,17 @@ static cl::opt<unsigned> CtaId("ctaid", cl::init(0), cl::desc("CTA index"));
 // than 32 threads stops the run.
 static cl::opt<unsigned> WarpInCta("warp", cl::init(0),
                                    cl::desc("which warp of the CTA to run (TI-29)"));
+// TI-29: or every warp of the CTA, sharing memory, .shared and the barriers,
+// for a kernel whose warps communicate. They issue in turn, one issue group
+// each, warp 0 first; a warp with nothing runnable is passed over. Warp w is
+// hardware context -context + w. A barrier completes once every live lane of
+// every warp has arrived. The oracle record is one warp's, so -oracle is
+// refused with it.
+static cl::opt<bool> WholeCta(
+    "cta", cl::desc("run every warp of the CTA, with shared barriers (TI-29)"));
+static cl::opt<bool> TestWarpBarrier("ccv-test-cta-warp-barrier", cl::Hidden,
+    cl::desc("with -cta, a barrier waits for its own warp only, to test that "
+             "it is caught"));
 static cl::opt<uint64_t> CodeBase("code-base", cl::init(0x1000),
                                   cl::desc("load address for the kernel"));
 static cl::opt<uint64_t> Entry(
@@ -238,25 +249,39 @@ int main(int argc, char **argv) {
   Interp I;
   I.BarrierCount = std::min(unsigned(Barriers), 16u);
   I.LaneContexts = LaneContexts;
-  Warp W;
-  W.CtaId = CtaId;
-  W.WarpCtx = LaneContext >= 0 ? unsigned(LaneContext) : unsigned(WarpInCta);
-  if (W.WarpCtx >= (1u << 27)) {
-    errs() << "error: -context=" << W.WarpCtx << " does not fit srd #2's "
-           << "(context << 5) | lane\n";
+  if (WholeCta && (WarpInCta || !OracleFile.empty())) {
+    errs() << "error: -cta runs every warp; -warp and -oracle name one\n";
     return 1;
-  }
-  for (unsigned L = 0; L != kLanes; ++L) {
-    W.PC[L] = CodeBase + Entry;
-    W.CtaTid[L] = kLanes * WarpInCta + L;  // warp w, lane L is thread 32w + L
   }
   if (uint64_t(kLanes) * WarpInCta >= NumThreads) {
     errs() << "error: -warp=" << WarpInCta << " has no threads in a CTA of "
            << NumThreads << "\n";
     return 1;
   }
-  const unsigned WarpThreads = std::min(kLanes, NumThreads - kLanes * WarpInCta);
-  W.Active = WarpThreads >= kLanes ? ~0u : ((1u << WarpThreads) - 1);
+  // The warps this run executes: all of the CTA's with -cta, else -warp's.
+  const unsigned NumWarps = WholeCta ? (NumThreads + kLanes - 1) / kLanes : 1;
+  std::vector<Warp> Warps(NumWarps);
+  for (unsigned K = 0; K != NumWarps; ++K) {
+    Warp &X = Warps[K];
+    const unsigned WI = WarpInCta + K;     // the warp's index in its CTA
+    X.CtaId = CtaId;
+    // -context names warp 0's (one warp's without -cta); else warp w's is w.
+    X.WarpCtx = LaneContext >= 0 ? unsigned(LaneContext) + K : WI;
+    if (X.WarpCtx >= (1u << 27)) {
+      errs() << "error: -context=" << X.WarpCtx << " does not fit srd #2's "
+             << "(context << 5) | lane\n";
+      return 1;
+    }
+    for (unsigned L = 0; L != kLanes; ++L) {
+      X.PC[L] = CodeBase + Entry;
+      X.CtaTid[L] = kLanes * WI + L;       // warp w, lane L is thread 32w + L
+    }
+    const unsigned WarpThreads = std::min(kLanes, NumThreads - kLanes * WI);
+    X.Active = WarpThreads >= kLanes ? ~0u : ((1u << WarpThreads) - 1);
+  }
+  if (WholeCta)
+    I.Cta = &Warps;
+  I.TestWarpBarrier = TestWarpBarrier;
 
   std::vector<std::string> AllPokes;
   if (!DataImage.empty()) {
@@ -324,8 +349,8 @@ int main(int argc, char **argv) {
     if (WarpInCta)
       std::fprintf(OF, "\"warp_in_cta\":%u,", unsigned(WarpInCta));
     // The warp's hardware context, when it is not the -warp index (TI-35).
-    if (W.WarpCtx != WarpInCta)
-      std::fprintf(OF, "\"lane_context\":%u,", unsigned(W.WarpCtx));
+    if (Warps[0].WarpCtx != WarpInCta)
+      std::fprintf(OF, "\"lane_context\":%u,", unsigned(Warps[0].WarpCtx));
     // F-RO's .const range, when there is one, for MIU's const_base and
     // const_limit (TI-26). Absent, the range is empty.
     if (I.Mem.ConstLimit > I.Mem.ConstBase)
@@ -373,10 +398,10 @@ int main(int argc, char **argv) {
     std::fprintf(OF, "{\"final\":{\"gpr\":[");
     for (unsigned G = 0; G != kGPRs; ++G) {
       if (G) std::fputc(',', OF);
-      jsonU32s(OF, W.GPR[G].data(), kLanes);
+      jsonU32s(OF, Warps[0].GPR[G].data(), kLanes);
     }
     std::fprintf(OF, "],\"pred\":");
-    jsonU32s(OF, W.Pred.data(), kPreds);
+    jsonU32s(OF, Warps[0].Pred.data(), kPreds);
     std::sort(Touched.begin(), Touched.end());
     std::fprintf(OF, ",\"mem\":[");
     uint64_t LastWord = UINT64_MAX;
@@ -395,11 +420,14 @@ int main(int argc, char **argv) {
     std::fprintf(OF, "],\"issue_groups\":%u}}\n", Issued);
   };
 
+  // The warp issuing, an index into Warps: always 0 without -cta.
+  unsigned Cur = NumWarps - 1;
   auto fault = [&](const char *Cause, uint64_t PC, uint32_t Lanes,
                    uint64_t Addr) {
-    outs() << format("  FAULT %s  pc=%#llx  lanes=%08x  addr=%#llx  cta=%u warp=0\n",
+    outs() << format("  FAULT %s  pc=%#llx  lanes=%08x  addr=%#llx  cta=%u warp=%u\n",
                      Cause, (unsigned long long)PC, Lanes,
-                     (unsigned long long)Addr, unsigned(CtaId));
+                     (unsigned long long)Addr, unsigned(CtaId),
+                     unsigned(WholeCta ? Cur : 0));
     if (OF) {
       std::fprintf(OF, "{\"fault\":{\"cause\":\"%s\",\"pc\":%llu,\"lanes\":%u,"
                        "\"addr\":%llu,\"cta\":%u,\"warp\":0}}\n",
@@ -419,27 +447,24 @@ int main(int argc, char **argv) {
   uint64_t Seq = 0;
 
   Counters C;
-  // Distinct PCs among runnable lanes, to tell reconvergence from mere
-  // progress: §1 claims lanes regroup opportunistically when their PCs
-  // coincide, and that is only observable by watching the count fall.
-  auto distinctPCs = [&](uint32_t Run) {
-    unsigned N = 0;
-    uint64_t Seen[kLanes];
-    for (unsigned L = 0; L != kLanes; ++L) {
-      if (!((Run >> L) & 1)) continue;
-      bool New = true;
-      for (unsigned J = 0; J != N; ++J)
-        if (Seen[J] == W.PC[L]) { New = false; break; }
-      if (New) Seen[N++] = W.PC[L];
-    }
-    return N;
-  };
-  unsigned PrevGroups = 1;
 
-  // O-60 fairness state, FET's: picks since lane r's group last issued, and
-  // the rotating lane pointer r.
-  unsigned Picks = 0, FairLane = 0;
-  while (W.Active && Steps++ < MaxSteps) {
+  // O-60 fairness state, FET's, per warp: picks since lane r's group last
+  // issued, and the rotating lane pointer r.
+  std::vector<std::pair<unsigned, unsigned>> Fair(NumWarps);
+  auto live = [&] {
+    return std::any_of(Warps.begin(), Warps.end(),
+                       [](const Warp &X) { return X.Active != 0; });
+  };
+  while (live() && Steps++ < MaxSteps) {
+    // The next warp in turn with a runnable lane (TI-29). Without -cta there
+    // is one, and it is always the one.
+    for (unsigned K = 0; K != NumWarps; ++K) {
+      Cur = (Cur + 1) % NumWarps;
+      if (Warps[Cur].Active & ~Warps[Cur].Stalled)
+        break;
+    }
+    Warp &W = Warps[Cur];
+    auto &[Picks, FairLane] = Fair[Cur];
     // Group by PC: pick the lowest PC among active lanes and issue for every
     // lane sitting there. Lowest-first is a scheduling policy, not semantics:
     // for code whose lanes do not communicate, any order gives the same
@@ -450,7 +475,10 @@ int main(int argc, char **argv) {
       // Every remaining lane is blocked at a barrier that no one can now
       // complete. Report it as what it is rather than running to the step
       // limit: a deadlocked kernel and a slow one look nothing alike.
-      errs() << "error: deadlock -- " << llvm::popcount(W.Active)
+      unsigned Blocked = 0;
+      for (const Warp &X : Warps)
+        Blocked += llvm::popcount(X.Active);
+      errs() << "error: deadlock -- " << Blocked
              << " lanes blocked at a barrier with no lane able to arrive\n";
       return 1;
     }
@@ -510,11 +538,12 @@ int main(int argc, char **argv) {
     // A fault is precise (§12.4): the faulting instruction has no
     // architectural effect. So every step can be undone -- registers from
     // this copy, memory from the write journals.
-    if (NumThreads > kLanes &&
+    if (!WholeCta && NumThreads > kLanes &&
         (MI.getOpcode() == CCV::C_BAR_ARRIVE || MI.getOpcode() == CCV::C_BAR_WAIT ||
          MI.getOpcode() == CCV::BAR_WAIT_PHASE)) {
       errs() << "error: a barrier in a CTA of " << NumThreads << " threads, "
-             << "whose other warps this run does not model (TI-29)\n";
+             << "whose other warps this run does not model; -cta runs them "
+             << "(TI-29)\n";
       return 1;
     }
     Warp Before = W;
@@ -833,16 +862,16 @@ int main(int argc, char **argv) {
       // that has left never arrives. Re-check every barrier against the lanes
       // that remain.
       W.Stalled = 0;
-      for (auto &B : W.Bar)
-        if (B.Arrived && W.Active && (B.Arrived & W.Active) == W.Active) {
-          B.Arrived = 0;
-          ++B.Epoch;
-        }
+      if (live())
+        for (unsigned Id = 0; Id != kBarriers; ++Id)
+          if (std::any_of(Warps.begin(), Warps.end(),
+                          [&](const Warp &X) { return X.Bar[Id].Arrived; }))
+            I.retireIfComplete(W, Id);
       break;
     }
   }
 
-  if (W.Active) {
+  if (live()) {
     errs() << "error: step limit reached with lanes still active\n";
     return 1;
   }
@@ -866,7 +895,8 @@ int main(int argc, char **argv) {
                      (unsigned long long)C.ActiveLanes,
                      pct(C.ActiveLanes, C.LaneInstrs))
            << format("  per thread              %10.1f   (lane-instructions / %u threads)\n",
-                     double(C.LaneInstrs) / std::max(1u, Threads), Threads)
+                     double(C.LaneInstrs) / std::max(1u, unsigned(WholeCta ? NumThreads : Threads)),
+                     unsigned(WholeCta ? NumThreads : Threads))
            << format("  SIMT efficiency         %9.1f%%   (lanes active per issue, of %u)\n",
                      pct(C.LaneInstrs, C.IssueGroups * Threads), Threads)
            << format("  fairness overrides      %10llu   (O-60 picks that left min-PC)\n",

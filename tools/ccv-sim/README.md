@@ -115,6 +115,12 @@ included, for `tools/check-narrow-fp.py`.
 CTA of more than 32 threads stops the run. The oracle's `init` carries
 `warp_in_cta` when W is not 0 (TI-29).
 
+`-cta` runs every warp of the CTA instead: they share memory, `.shared` and the
+barriers, and issue in turn, one issue group each, warp 0 first. A barrier
+completes once every live lane of every warp has arrived. Warp w is context w,
+or `-context` + w. The oracle record is one warp's, so `-cta` refuses
+`-oracle` (TI-29, F-190).
+
 `-oracle FILE` writes one JSON record per issue group for the CCV core's Stage 3
 skeleton, which takes *what* each instruction does from here and models only
 *when*. A record holds the bytes, the issue mask, every register the group reads

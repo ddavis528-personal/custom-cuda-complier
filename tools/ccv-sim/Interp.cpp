@@ -45,6 +45,34 @@ static constexpr uint64_t kLaunchBase = 0x20000;
 uint64_t launchBlockBase() { return kLaunchBase; }
 
 /// O-69: lane L's byte B of the warp's interleaved spill frame.
+bool Interp::retireIfComplete(Warp &W, unsigned Id) {
+  // Live lanes are what the barrier waits for. A lane blocked at THIS barrier
+  // is already accounted for; one that has exited never arrives. With every
+  // warp of the CTA running, that is every warp's live lanes: a warp whose
+  // lanes have all exited waits for nothing.
+  auto arrived = [&](const Warp &X) {
+    return (X.Bar[Id].Arrived & X.Active) == X.Active;
+  };
+  std::vector<Warp> *All = TestWarpBarrier ? nullptr : Cta;
+  if (All ? !std::all_of(All->begin(), All->end(), arrived) : !arrived(W))
+    return false;
+  // The arrivals retire together, in every warp, so the warps' epochs stay
+  // equal. Wake everything blocked. A woken lane re-executes its `bar.wait`,
+  // which either lets it through (its arrival has now retired) or blocks it
+  // again on a different barrier -- so this is correct without tracking which
+  // barrier each lane is parked on.
+  auto retire = [&](Warp &X) {
+    X.Bar[Id].Arrived = 0;
+    ++X.Bar[Id].Epoch;
+    X.Stalled = 0;
+  };
+  if (All)
+    std::for_each(All->begin(), All->end(), retire);
+  else
+    retire(W);
+  return true;
+}
+
 uint64_t Interp::localAddr(const Warp &W, uint64_t B, unsigned L) {
   uint64_t LocalBase = Mem.peek32(kLaunchBase + 24);
   return ((LocalBase + LaneContexts) << 16) + (uint64_t(W.WarpCtx) << 22) +
@@ -1871,17 +1899,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     auto &B = W.Bar[Id];
     forEachLane([&](unsigned L) { B.ArrivalEpoch[L] = B.Epoch; });
     B.Arrived |= Mask;
-    // Runnable lanes are what the barrier waits for. A lane blocked at THIS
-    // barrier is already accounted for; one that has exited never arrives.
-    if ((B.Arrived & W.Active) == W.Active) {
-      B.Arrived = 0;
-      ++B.Epoch;                       // the arrivals retire together
-      // Wake everything blocked. A woken lane re-executes its `bar.wait`,
-      // which either lets it through (its arrival has now retired) or blocks
-      // it again on a different barrier -- so this is correct without
-      // tracking which barrier each lane is parked on.
-      W.Stalled = 0;
-    }
+    retireIfComplete(W, Id);
     break;
   }
 
