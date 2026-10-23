@@ -57,6 +57,7 @@ int main(int argc, char **argv) {
   lowerCCVModuleData(*M);
   lowerCCVCodePointers(*M);
   lowerCCVPointerPairs(*M);
+  foldCCVFP4(*M);
   lowerCCVFP64Bits(*M);
   if (PrintLowered)
     M->print(errs(), nullptr);

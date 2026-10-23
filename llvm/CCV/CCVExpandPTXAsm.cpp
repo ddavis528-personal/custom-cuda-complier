@@ -22,7 +22,8 @@
 //
 // It also selects the templates CCVFormFP8 writes, since LLVM 18 has no IR
 // for them either: `ccv.dp4.e4m3`/`.e5m2` for a dot product, and
-// `ccv.fadd.e4m3` and its kin for one native FP8 operation.
+// `ccv.fadd.e4m3` and its kin for one native FP8 operation. CCVFoldFP4 writes
+// `ccv.cvt.e2m1.f32` and `ccv.cvt.f32.e2m1` for cuda_fp4.hpp's conversions.
 //
 // Anything else written in inline PTX is refused by name, not emitted: the
 // asm printer would put PTX text into a CCV object.
@@ -169,6 +170,10 @@ bool CCVExpandPTXAsm::runOnMachineFunction(MachineFunction &MF) {
           "^ccv\\.(fadd|fsub|fmul)\\.(e4m3|e5m2) \\$([0-9]+), \\$([0-9]+), "
           "\\$([0-9]+)$");
       static const Regex F32F16("^cvt\\.f32\\.f16 \\$([0-9]+), \\$([0-9]+)$");
+      static const Regex ToE2M1(
+          "^ccv\\.cvt\\.e2m1\\.f32 \\$([0-9]+), \\$([0-9]+)$");
+      static const Regex FromE2M1(
+          "^ccv\\.cvt\\.f32\\.e2m1 \\$([0-9]+), \\$([0-9]+)$");
       static const Regex F16F32(
           "^cvt\\.rn\\.f16\\.f32 \\$([0-9]+), \\$([0-9]+)$");
 
@@ -268,6 +273,17 @@ bool CCVExpandPTXAsm::runOnMachineFunction(MachineFunction &MF) {
       } else if (F16F32.match(T, &M)) {
         unsigned Opc = CCV::CVT_D0_S0_R0_W16_32;
         cvt(Opc, op(M[1]), op(M[2]));
+      } else if (ToE2M1.match(T, &M)) {
+        // CCVFoldFP4's: FP32 to E2M1 at chwidth 4, widened into the i32
+        // result, which clears bits [31:4] (O-38).
+        Register N = vreg(CCV::GPR4RegClass);
+        cvt(CCV::CVT_D0_S0_R0_W4_32, N, op(M[2]));
+        copy(op(M[1]), N);
+      } else if (FromE2M1.match(T, &M)) {
+        // And back: the i32 source narrowed to its low nibble.
+        Register N = vreg(CCV::GPR4RegClass);
+        copy(N, op(M[2]));
+        cvt(CCV::CVT_D0_S0_R0_W32_4, op(M[1]), N);
       } else {
         report_fatal_error("CCV: inline PTX '" + Twine(T) +
                            "' is not one CCV implements (CP-6)");

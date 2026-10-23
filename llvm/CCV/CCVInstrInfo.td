@@ -317,7 +317,8 @@ foreach d = [0, 1, 2, 3] in
 // CVT_D0_S0_R0_W8_32 is FP32 to E4M3. Each encodes exactly as its namesake;
 // what differs is the operand classes, which CCVInsertChwidth reads as widths,
 // as it does ADD_W16's, and ccv-roundtrip accepts the decode as the namesake. CCVExpandPTXAsm builds them from the inline
-// PTX in cuda_fp8.hpp and cuda_fp16.hpp. `rd` is earlyclobber for CVT_SEXT's
+// PTX in cuda_fp8.hpp and cuda_fp16.hpp, and the W4 pair from the
+// `ccv.cvt` templates CCVFoldFP4 writes for cuda_fp4.hpp. `rd` is earlyclobber for CVT_SEXT's
 // reason: it is at a different width from the sources.
 multiclass CvtW<int d, int s, RegisterClass RD, RegisterClass RS, string mnem> {
   def NAME : FormatA<CvtOpc<d, s, round.RN>.V, (outs RD:$rd),
@@ -328,11 +329,13 @@ multiclass CvtW<int d, int s, RegisterClass RD, RegisterClass RS, string mnem> {
 let isCodeGenOnly = 1, hasSideEffects = 0, Constraints = "@earlyclobber $rd" in {
   defm CVT_D0_S0_R0_W8_32  : CvtW<0, 0, GPR8,  GPR,   "cvt.rn.fp0.fp0">;
   defm CVT_D1_S0_R0_W8_32  : CvtW<1, 0, GPR8,  GPR,   "cvt.rn.fp1.fp0">;
+  defm CVT_D0_S0_R0_W4_32  : CvtW<0, 0, GPR4,  GPR,   "cvt.rn.fp0.fp0">;
   defm CVT_D0_S0_R0_W16_8  : CvtW<0, 0, GPR16, GPR8,  "cvt.rn.fp0.fp0">;
   defm CVT_D0_S1_R0_W16_8  : CvtW<0, 1, GPR16, GPR8,  "cvt.rn.fp0.fp1">;
   defm CVT_D0_S0_R0_W32_16 : CvtW<0, 0, GPR,   GPR16, "cvt.rn.fp0.fp0">;
   defm CVT_D0_S0_R0_W16_32 : CvtW<0, 0, GPR16, GPR,   "cvt.rn.fp0.fp0">;
   defm CVT_D0_S0_R0_W32_8  : CvtW<0, 0, GPR,   GPR8,  "cvt.rn.fp0.fp0">;
+  defm CVT_D0_S0_R0_W32_4  : CvtW<0, 0, GPR,   GPR4,  "cvt.rn.fp0.fp0">;
   defm CVT_D0_S1_R0_W32_8  : CvtW<0, 1, GPR,   GPR8,  "cvt.rn.fp0.fp1">;
 }
 

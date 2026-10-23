@@ -91,6 +91,14 @@ def GPR8 : RegisterClass<"CCV", [i32], 32,
     (add R14, R13, R12, R11, R10, R9, R8, R7, R6, R5, R4, R3, R2, R1, R0,
          R15)>;
 
+// 4-bit elements: E2M1, CUDA's FP4 (CP-6). Only a conversion's result is ever
+// at this width, since a memory access at chwidth 4 names no transfer
+// (F-WIDTH): it is widened, which clears bits [31:4] (O-38), before anything
+// stores it. Like GPR8, it differs from GPR only in its ID, width code 3.
+def GPR4 : RegisterClass<"CCV", [i32], 32,
+    (add R14, R13, R12, R11, R10, R9, R8, R7, R6, R5, R4, R3, R2, R1, R0,
+         R15)>;
+
 // One bit per lane in hardware; i1 per thread in the type system.
 //
 // Size is the SPILL size, and it is a word: `st.pred` moves a predicate's 32

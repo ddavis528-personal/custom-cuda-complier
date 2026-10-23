@@ -25,6 +25,10 @@ void lowerCCVModuleData(Module &M);
 /// Runs before checkCCVModule, which reports any FP64 that remains.
 /// CCVFP64Bits.cpp.
 void lowerCCVFP64Bits(Module &M);
+/// CP-6 stage 2b: NVIDIA's software FP4 conversions, recognized by evaluation,
+/// become §4's E2M1 conversions. Runs before lowerCCVFP64Bits; returns how
+/// many it folded. CCVFoldFP4.cpp.
+unsigned foldCCVFP4(Module &M);
 } // namespace llvm
 
 #endif
