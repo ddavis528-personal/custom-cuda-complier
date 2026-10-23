@@ -2520,6 +2520,19 @@ contraction is exact for add, subtract and multiply. Had overflow given NaN inst
 contraction would have been illegal and the 4× FP8 datapath reachable only through a CCV
 extension; that is why the decision went the way it did.
 
+**The FP8 dot product contracts too, but it is not exact — normative (O-68).** CUDA has no FP8
+dot function, so a dot product over `__nv_fp8x4_*` is written as four products of converted
+elements, summed in FP32. When every multiply and add carries contraction permission (C11
+6.5p8's `FP_CONTRACT`, on under CUDA's default `-ffp-contract=fast`), a compiler may replace
+four byte-*k* products of two words in one format, plus at most one further addend, with one
+`dp4.e4m3` or `dp4.e5m2`. The products are exact in FP32 for both formats. So the
+contraction removes only the additions' roundings: `dp4` sums exactly and rounds once (§4).
+Unlike the contractions above, **this one changes results**. It can differ in the last place
+from the source evaluated as written, and from NVIDIA's code, which forms an FMA chain here.
+That is the latitude C gives every contraction, and two compilers already differ where they
+contract differently. A compiler must not form it without contraction permission on every
+operation it absorbs. It must offer a way to keep the written order (CCV's: `-ccv-fp8-dot=false`).
+
 ---
 
 ## 6. Encoding density
@@ -2998,6 +3011,21 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-68 — An FP8 dot product contracts to `dp4.e4m3`/`dp4.e5m2`, and is documented as
+value-changing — decided in 1.9.** CP-20. CP's compiler replaces CUDA's
+float-converted FP8 dot product (four products and an add chain, 117 instructions) with one
+`dp4`, under C's contraction rule. §5.8 listed only exact contractions, so this one was CP's
+reading of C, not the ISA's rule. It is stated now, in a separate paragraph, because it is a
+different kind: it removes roundings and so can change the last place, where the others are
+value-preserving. Its conditions are what keep it within C's latitude: contraction permission
+on every absorbed operation, products exact in FP32, and an opt-out. What lost: leaving it
+unstated, under which an implementation or a second compiler could not tell a permitted
+difference from a defect; and forbidding it, which would keep FP8 dot products 30 times
+longer than the instruction built for them (O-44). The divergence from NVIDIA's result is
+recorded like `.ftz`'s (O-56): in the last place, only where the source permitted contraction.
 
 ---
 
