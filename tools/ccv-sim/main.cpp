@@ -252,6 +252,7 @@ int main(int argc, char **argv) {
   Interp I;
   I.BarrierCount = std::min(unsigned(Barriers), 16u);
   I.LaneContexts = LaneContexts;
+  I.Mem.AddrLimit = 1ull << 48;            // F-ADDR (O-75); .shared has none
   if (WholeCta && WarpInCta) {
     errs() << "error: -cta runs every warp; -warp names one\n";
     return 1;
