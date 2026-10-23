@@ -9,6 +9,7 @@
 
 #include "Interp.h"
 #include "NarrowFP.h"
+#include "SfuMath.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
@@ -57,11 +58,15 @@ static cl::opt<int> LaneContext("context", cl::init(-1),
 static cl::opt<bool> TestMixedByValue("ccv-test-mixed-by-value", cl::Hidden,
     cl::desc("read integer sources at their own width, to test that it is caught"));
 static cl::opt<unsigned> SfuErrorUlps("sfu-error-ulps", cl::init(0),
-    cl::desc("move rcp.f32, rsqrt.f32 and sqrt.f32 results by up to N ulps, "
-             "as an approximate SFU may (IS-12)"));
+    cl::desc("return FP SFU values up to N units from the exact result, as an "
+             "approximate SFU may: an ulp, or O-70's absolute unit for lg2 near "
+             "1 and sin/cos on [-pi, pi]; N = 2 is O-70's bound (SfuMath.h)"));
 static cl::opt<unsigned> LaneContexts("lane-contexts", cl::init(1024),
     cl::desc("CCV_LANE_CONTEXTS: where O-69's spill space starts (default the "
              "core's 32 warp contexts of 32 lanes)"));
+static cl::opt<bool> TestSfuTruncate("ccv-test-sfu-truncate", cl::Hidden,
+    cl::desc("truncate the FP SFU's values instead of rounding them, to test "
+             "that it is caught"));
 static cl::opt<bool> TestFpHostNaN("ccv-test-fp-host-nan", cl::Hidden,
     cl::desc("FP32 NaN results keep the host's bits, to test that it is caught"));
 static cl::opt<unsigned> NumThreads("threads", cl::init(32),
@@ -185,6 +190,7 @@ int main(int argc, char **argv) {
   nfp::TestFtz = TestFpFtz;
   nfp::TestNoSaturate = TestFpNoSat;
   nfp::TestHostNaN = TestFpHostNaN;
+  sfu::TestTruncate = TestSfuTruncate;
   nfp::SfuErrorUlps = SfuErrorUlps;
   nfp::TestByValue = TestMixedByValue;
   if (!FpCases.empty()) {
