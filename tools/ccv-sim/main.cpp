@@ -87,8 +87,8 @@ static cl::opt<unsigned> WarpInCta("warp", cl::init(0),
 // for a kernel whose warps communicate. They issue in turn, one issue group
 // each, warp 0 first; a warp with nothing runnable is passed over. Warp w is
 // hardware context -context + w. A barrier completes once every live lane of
-// every warp has arrived. The oracle record is one warp's, so -oracle is
-// refused with it.
+// every warp has arrived. -oracle then writes one record file per warp
+// (CP-30).
 static cl::opt<bool> WholeCta(
     "cta", cl::desc("run every warp of the CTA, with shared barriers (TI-29)"));
 static cl::opt<bool> TestWarpBarrier("ccv-test-cta-warp-barrier", cl::Hidden,
@@ -249,8 +249,8 @@ int main(int argc, char **argv) {
   Interp I;
   I.BarrierCount = std::min(unsigned(Barriers), 16u);
   I.LaneContexts = LaneContexts;
-  if (WholeCta && (WarpInCta || !OracleFile.empty())) {
-    errs() << "error: -cta runs every warp; -warp and -oracle name one\n";
+  if (WholeCta && WarpInCta) {
+    errs() << "error: -cta runs every warp; -warp names one\n";
     return 1;
   }
   if (uint64_t(kLanes) * WarpInCta >= NumThreads) {
@@ -334,23 +334,35 @@ int main(int argc, char **argv) {
     I.Mem.write32(Addr, Val);
   }
 
-  std::FILE *OF = nullptr;
+  // One record file per warp (CP-30): -oracle's for warp 0, and with -cta
+  // oracle.<w>.jsonl beside it for warp w, as the skeleton's loader reads a
+  // CTA. Each is that warp's records alone, in its issue order; the files
+  // share the init, and the final memory, which is the CTA's.
+  std::vector<std::FILE *> OFs(NumWarps, nullptr);
+  std::FILE *OF = nullptr;                     // the issuing warp's
   std::vector<Memory::Access> MemLog, ShLog;
   std::vector<uint64_t> Touched;               // every address an access saw
-  if (!OracleFile.empty()) {
-    OF = std::fopen(OracleFile.c_str(), "w");
-    if (!OF) { errs() << "error: cannot write " << OracleFile << "\n"; return 1; }
+  if (!OracleFile.empty()) for (unsigned K = 0; K != NumWarps; ++K) {
+    std::string Path = OracleFile;
+    if (K) {
+      StringRef Stem(OracleFile);
+      Path = Stem.consume_back(".jsonl") ? (Stem + "." + Twine(K) + ".jsonl").str()
+                                          : OracleFile + "." + utostr(K);
+    }
+    OF = OFs[K] = std::fopen(Path.c_str(), "w");
+    if (!OF) { errs() << "error: cannot write " << Path << "\n"; return 1; }
+    const unsigned WI = WarpInCta + K;
     std::fprintf(OF, "{\"init\":{\"code_base\":%llu,\"threads\":%u,"
                      "\"ctaid\":%u,",
                  (unsigned long long)CodeBase, unsigned(NumThreads),
                  unsigned(CtaId));
     // The warp's index in its CTA, when it is not the first (TI-29). Absent,
     // it is 0, so a one-warp record is exactly what it was.
-    if (WarpInCta)
-      std::fprintf(OF, "\"warp_in_cta\":%u,", unsigned(WarpInCta));
-    // The warp's hardware context, when it is not the -warp index (TI-35).
-    if (Warps[0].WarpCtx != WarpInCta)
-      std::fprintf(OF, "\"lane_context\":%u,", unsigned(Warps[0].WarpCtx));
+    if (WI)
+      std::fprintf(OF, "\"warp_in_cta\":%u,", WI);
+    // The warp's hardware context, when it is not its index (TI-35).
+    if (Warps[K].WarpCtx != WI)
+      std::fprintf(OF, "\"lane_context\":%u,", unsigned(Warps[K].WarpCtx));
     // F-RO's .const range, when there is one, for MIU's const_base and
     // const_limit (TI-26). Absent, the range is empty.
     if (I.Mem.ConstLimit > I.Mem.ConstBase)
@@ -368,7 +380,8 @@ int main(int argc, char **argv) {
       std::fprintf(OF, First ? "[%llu,%u]" : ",[%llu,%u]",
                    (unsigned long long)Addr, Val);
       First = false;
-      Touched.push_back(Addr);
+      if (!K)
+        Touched.push_back(Addr);
     }
     std::fprintf(OF, "]}}\n");
     I.Mem.Log = &MemLog;
@@ -387,21 +400,24 @@ int main(int argc, char **argv) {
   // Peeks still print: the state is the faulting instruction's predecessors',
   // which is what precision (§12.4) promises.
   unsigned Steps = 0, Issued = 0;
+  std::vector<unsigned> IssuedBy(NumWarps, 0);   // per warp, for its record
 
   // Final architectural state: every GPR lane, every predicate, and every
   // global word any access or poke touched -- what the skeleton's retired
   // state is compared against. After a fault it is the state the rollback
   // left, which is what precision (§12.4) promises (TI-28).
-  auto emitFinal = [&] {
+  // Each warp's file gets its own registers and the CTA's memory.
+  auto emitFinal = [&](unsigned K) {
+    std::FILE *OF = OFs[K];
     I.Mem.Log = nullptr;
     I.Shared.Log = nullptr;
     std::fprintf(OF, "{\"final\":{\"gpr\":[");
     for (unsigned G = 0; G != kGPRs; ++G) {
       if (G) std::fputc(',', OF);
-      jsonU32s(OF, Warps[0].GPR[G].data(), kLanes);
+      jsonU32s(OF, Warps[K].GPR[G].data(), kLanes);
     }
     std::fprintf(OF, "],\"pred\":");
-    jsonU32s(OF, Warps[0].Pred.data(), kPreds);
+    jsonU32s(OF, Warps[K].Pred.data(), kPreds);
     std::sort(Touched.begin(), Touched.end());
     std::fprintf(OF, ",\"mem\":[");
     uint64_t LastWord = UINT64_MAX;
@@ -417,7 +433,13 @@ int main(int argc, char **argv) {
                    (unsigned long long)Wd, V);
       First = false;
     }
-    std::fprintf(OF, "],\"issue_groups\":%u}}\n", Issued);
+    std::fprintf(OF, "],\"issue_groups\":%u}}\n", IssuedBy[K]);
+  };
+  auto emitFinals = [&] {
+    for (unsigned K = 0; K != NumWarps; ++K) {
+      emitFinal(K);
+      std::fclose(OFs[K]);
+    }
   };
 
   // The warp issuing, an index into Warps: always 0 without -cta.
@@ -429,12 +451,13 @@ int main(int argc, char **argv) {
                      (unsigned long long)Addr, unsigned(CtaId),
                      unsigned(WholeCta ? Cur : 0));
     if (OF) {
-      std::fprintf(OF, "{\"fault\":{\"cause\":\"%s\",\"pc\":%llu,\"lanes\":%u,"
-                       "\"addr\":%llu,\"cta\":%u,\"warp\":0}}\n",
+      // In the faulting warp's file; a fault ends the run, so every file
+      // then gets its final state.
+      std::fprintf(OFs[Cur], "{\"fault\":{\"cause\":\"%s\",\"pc\":%llu,\"lanes\":%u,"
+                             "\"addr\":%llu,\"cta\":%u,\"warp\":0}}\n",
                    Cause, (unsigned long long)PC, Lanes,
                    (unsigned long long)Addr, unsigned(CtaId));
-      emitFinal();
-      std::fclose(OF);
+      emitFinals();
     }
     I.Mem.Log = nullptr;
     for (const auto &P : Peeks) {
@@ -444,7 +467,7 @@ int main(int argc, char **argv) {
     }
     return 3;
   };
-  uint64_t Seq = 0;
+  std::vector<uint64_t> Seqs(NumWarps, 0);     // each file's own sequence
 
   Counters C;
 
@@ -464,6 +487,8 @@ int main(int argc, char **argv) {
         break;
     }
     Warp &W = Warps[Cur];
+    if (OF)
+      OF = OFs[Cur];
     auto &[Picks, FairLane] = Fair[Cur];
     // Group by PC: pick the lowest PC among active lanes and issue for every
     // lane sitting there. Lowest-first is a scheduling policy, not semantics:
@@ -552,6 +577,7 @@ int main(int argc, char **argv) {
 
     auto R = I.step(W, MI, Mask, Target, unsigned(Size));
     ++Issued;
+    ++IssuedBy[Cur];
     // A fault: undo it first, then record the instruction as it was issued
     // -- kind "fault", its uses, no defs, each executing lane's address and
     // no written value -- so the skeleton fetches it and MIU sees it, then the
@@ -566,7 +592,7 @@ int main(int argc, char **argv) {
     if (OF) {
       const MCInstrDesc &D = MII->get(MI.getOpcode());
       std::fprintf(OF, "{\"seq\":%llu,\"pc\":%llu,\"size\":%u,\"bytes\":\"",
-                   (unsigned long long)Seq++, (unsigned long long)Target,
+                   (unsigned long long)Seqs[Cur]++, (unsigned long long)Target,
                    unsigned(Size));
       for (uint64_t K = 0; K != Size; ++K) std::fprintf(OF, "%02x", Bytes[K]);
       const char *Kind = R.Kind == Interp::Result::Advance ? "advance"
@@ -878,10 +904,8 @@ int main(int argc, char **argv) {
 
   outs() << "  executed " << Issued << " issue groups\n";
 
-  if (OF) {
-    emitFinal();
-    std::fclose(OF);
-  }
+  if (OF)
+    emitFinals();
   if (Stats) {
     unsigned Threads = NumThreads >= kLanes ? kLanes : NumThreads;
     auto pct = [](uint64_t N, uint64_t D) {

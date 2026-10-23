@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-10-23-ebbcfb9
+# Snapshot snapshot-2026-10-23-f863b76
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `ebbcfb9f488d1ce3c8693d452c8a9b34c1d50caf`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `f863b76b3d5ffb60065cddc8cac578bb80095689`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -24,7 +24,7 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `ebbcfb9f488d1ce3c8693d452c8a9b34c1d50caf` |
+| Source | `ccr-ea1c4e17-tem30u` @ `f863b76b3d5ffb60065cddc8cac578bb80095689` |
 | Built | 2026-10-23 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
@@ -73,8 +73,8 @@ f540a502bf7063cfb75450053c5163bc8986871d7cb0aa9bc2b8ee8cb9637a3c  release/asm/cu
 0529582a0572b0828fefa8b9e57ba448529f16369affe535b1acbb20816662de  release/bench/sweep-decode.txt
 9a44a3bd44d1779d620cf74ef9cb0ca498d0cdbb8c6da69c305d85a2bad975d9  release/bench/sweep-frames.txt
 28c14ebc8397a6ec18b69bcb5ebe93a64c94cd04b97c971dd526f78ff72f423b  release/bench/sweep-tiles.txt
-18ef6502fa37cccd492d6799bd70f8812489fbefe439b3985d2afd360eb9b6a5  release/bin/ccv-sim
-ec07422061b41954a8ac3a8ab6869841ad7dbdbf25a3dddc174cd24a35880598  release/bin/ccv-sim.txt
+14a8ff336dc0a204dd3c249426cb08b1d5feb663894da7dcc3da280ef633ac2f  release/bin/ccv-sim
+7c1eecb0be0b9c60f87221564c7e14baf9773a010beb6a0616a97ae86d4ac6cc  release/bin/ccv-sim.txt
 a462bf4ec724698e923e08de91c0acabb427af1a7a5e62f96936f3174d0fc725  release/kernels/coremark-derived/kernel.bin
 608044bafe0a8bebd88e5006cabf0aa6c7147f152fe1a3db927e89edf7d57e24  release/kernels/coremark-derived/kernel.s
 6ba104efb4f63121017354429d86bafc49b55612259a53579a0613ceb9671cfb  release/kernels/coremark-derived/launch.txt
@@ -91,5 +91,5 @@ ce8e645c8b285ff035aa6d701ee7dc1207459bf060c85e27f4239d48b84d580b  release/kernel
 ba1f77ebad84a1da78c82e9c3ef4f1e466cb8da7d8634dc0f234f7303a1ab069  release/kernels/rope/kernel.s
 12795ff2ace11fc143ad508c1a541846387f492fba37433e1502316ec19c65b3  release/kernels/rope/launch.txt
 1fd038c15e2c80787853fb2af63019b6d6fa9e86459b373fee9974181eb0c477  release/kernels/rope/ops.txt
-78ed14112070696f4a30d0b48c3ba6f20348a6a3f7656dc3d54e2da0e29870c5  release/verify.log
+55b19053e309d8cda37ccd06bb3a588a5296da1d37e95976a171eedc9b99bcc4  release/verify.log
 ```

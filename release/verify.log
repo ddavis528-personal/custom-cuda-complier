@@ -104,6 +104,8 @@ checked 418 instructions
   a CTA's warps (TI-29)
   PASS  cta-reduce.cu: 4 warps, a tree sum over .shared across 8 barriers, every thread's result right (3532 issue groups)
   PASS  control -ccv-test-cta-warp-barrier is caught: 128 threads wrong
+  PASS  -cta -oracle: one file per warp, each its own records (101, 1147, 1142, 1142), init and final memory shared
+  PASS  -cta on one warp writes the same oracle file as a run without it
   PASS  without -cta, a barrier in a CTA of 128 is still refused
   64-bit integers (IS-13)
   PASS  int64.cu: 17 64-bit operations on 32 lanes, edge words included, as C computes them (5922 issue groups)
