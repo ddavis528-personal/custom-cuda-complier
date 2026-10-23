@@ -126,7 +126,7 @@ checked 398 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 187 findings and 69 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 188 findings and 70 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -191,6 +191,7 @@ checked 398 instructions
 
   --- canonical NaN, compare format (O-66, O-65) ---
   PASS  canonical NaN at FP32 and FP16 (O-66), the compare's format bit (O-65), F-FORMAT at 32 bits
+  PASS  rcp, rsqrt, sqrt, ex2, lg2, sin and cos executed, correctly rounded (O-70), a subnormal and sin(1e30) included
 
   --- the mixed-width rule (O-67) ---
   PASS  mixed widths read as raw fields at the operating width: shr, min.s, an FP16 add (O-67)
@@ -291,6 +292,24 @@ checked 398 instructions
   PASS  exact SFU: 1265 divisions and 665 each of sqrtf and 1.0f/x correctly rounded, every operand class
   PASS  SFU off by up to 2 ulps: 1265 divisions and 665 each of sqrtf and 1.0f/x correctly rounded, every operand class
   PASS  control -ccv-test-fdiv-no-specials is caught: 213 wrong
+
+  --- the FP SFU's values (O-70) ---
+  PASS  rcp   correctly rounded: 1049345 inputs (every 4093-th) and 0 judged near a midpoint
+  PASS  rsqrt correctly rounded: 1049345 inputs (every 4093-th) and 127 judged near a midpoint
+  PASS  sqrt  correctly rounded: 1049345 inputs (every 4093-th) and 127 judged near a midpoint
+  PASS  ex2   correctly rounded: 1049345 inputs (every 4093-th) and 11 judged near a midpoint
+  PASS  lg2   correctly rounded: 1049345 inputs (every 4093-th) and 130 judged near a midpoint
+  PASS  sin   correctly rounded: 1049345 inputs (every 4093-th) and 48 judged near a midpoint
+  PASS  cos   correctly rounded: 1049345 inputs (every 4093-th) and 40 judged near a midpoint
+  PASS  control: truncating instead of rounding is caught
+  PASS  rcp   -sfu-error-ulps 2 within 2 units: 1049345 inputs, 80% moved, the farthest 2.00 units
+  PASS  rsqrt -sfu-error-ulps 2 within 2 units: 1049345 inputs, 40% moved, the farthest 2.00 units
+  PASS  sqrt  -sfu-error-ulps 2 within 2 units: 1049345 inputs, 40% moved, the farthest 2.00 units
+  PASS  ex2   -sfu-error-ulps 2 within 2 units: 1049345 inputs, 34% moved, the farthest 2.00 units
+  PASS  lg2   -sfu-error-ulps 2 within 2 units: 1049345 inputs, 40% moved, the farthest 2.00 units
+  PASS  sin   -sfu-error-ulps 2 within 2 units: 1049345 inputs, 85% moved, the farthest 2.00 units
+  PASS  cos   -sfu-error-ulps 2 within 2 units: 1049345 inputs, 80% moved, the farthest 2.00 units
+  PASS  control: -sfu-error-ulps 3 is caught outside O-70's bound
 
   --- warp-uniform lane-0 masking ---
   PASS  lane-0 masking is result-identical (7 masked, 3 broadcasts)

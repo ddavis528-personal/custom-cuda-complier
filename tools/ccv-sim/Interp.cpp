@@ -10,6 +10,7 @@
 
 #include "Interp.h"
 #include "NarrowFP.h"
+#include "SfuMath.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
@@ -483,28 +484,6 @@ bool Interp::evalFp(unsigned Op, const uint8_t Widths[4], uint32_t X,
 /// Format A′ twins O-34 made possible share the semantics rather than copying
 /// them -- a predicated instruction that rounds differently from its base would
 /// be invisible until it produced a wrong answer in one lane.
-/// -sfu-error-ulps N (IS-12): the FP SFU's accuracy is implementation-defined
-/// and approximate, so the IEEE sequences built over `rcp.f32`, `rsqrt.f32`
-/// and `sqrt.f32` must not lean on a correctly rounded seed. Under this option
-/// each of those results is moved by up to N ulps, by an amount fixed by the
-/// input's bits, so a run is reproducible and every input sees its own error.
-/// A NaN, infinite or zero result is left alone, and no result is moved across
-/// zero or into infinity. 0, the default, is the correctly rounded value, so
-/// oracles do not depend on it.
-static uint32_t sfuError(uint32_t X, uint32_t R) {
-  unsigned N = nfp::SfuErrorUlps;
-  if (!N || (R & 0x7FFFFFFFu) == 0 || (R & 0x7F800000u) == 0x7F800000u)
-    return R;
-  uint32_t H = X * 0x9E3779B1u;                 // Fibonacci hash of the input
-  H ^= H >> 15;
-  int D = int(H % (2 * N + 1)) - int(N);
-  uint32_t M = R & 0x7FFFFFFFu;
-  int64_t Moved = int64_t(M) + D;
-  if (Moved < 1 || Moved >= 0x7F800000)
-    return R;
-  return (R & 0x80000000u) | uint32_t(Moved);
-}
-
 static uint32_t cvtSfuLane(unsigned Op, uint32_t X) {
   float F = bitsToFloat(X);
   switch (Op) {
@@ -521,10 +500,11 @@ static uint32_t cvtSfuLane(unsigned Op, uint32_t X) {
     return F >= 4294967295.0f ? UINT32_MAX
            : (F <= 0.0f || std::isnan(F)) ? 0u
                                           : uint32_t(F);
-  // The FP SFU is approximate (IS-12). By default the simulator returns the
-  // correctly rounded value, so oracles pin no particular hardware's error;
-  // -sfu-error-ulps moves rcp, rsqrt and sqrt off it, which is how the IEEE
-  // sequences are checked not to depend on it (sfuError above).
+  // The FP SFU is approximate, within O-70's bounds. By default the simulator
+  // returns the correctly rounded value, from integer arithmetic alone, so an
+  // oracle pins no hardware's error and no host's libm (SfuMath.cpp);
+  // -sfu-error-ulps returns values at the bound, which is how the IEEE
+  // sequences are checked not to depend on it.
   // O-35. The simulator returns the WORST value the contract permits, not the
   // exact one.
   //
@@ -540,13 +520,13 @@ static uint32_t cvtSfuLane(unsigned Op, uint32_t X) {
     uint64_t Exact = std::min<uint64_t>((1ull << 32) / X, 0xFFFFFFFFull);
     return uint32_t((Exact * ((1u << 16) - 1)) >> 16);   // exact*(1 - 2^-16)
   }
-  case CCV::RCP_F32:   return sfuError(X, fpBits(1.0f / F));
-  case CCV::RSQRT_F32: return sfuError(X, fpBits(1.0f / std::sqrt(F)));
-  case CCV::SQRT_F32:  return sfuError(X, fpBits(std::sqrt(F)));
-  case CCV::EX2_F32:   return fpBits(std::exp2f(F));
-  case CCV::LG2_F32:   return fpBits(std::log2f(F));
-  case CCV::SIN_F32:   return fpBits(std::sin(F));
-  default:             return fpBits(std::cos(F));
+  case CCV::RCP_F32:   return sfu::evalWithin(sfu::Rcp, X, nfp::SfuErrorUlps);
+  case CCV::RSQRT_F32: return sfu::evalWithin(sfu::Rsqrt, X, nfp::SfuErrorUlps);
+  case CCV::SQRT_F32:  return sfu::evalWithin(sfu::Sqrt, X, nfp::SfuErrorUlps);
+  case CCV::EX2_F32:   return sfu::evalWithin(sfu::Ex2, X, nfp::SfuErrorUlps);
+  case CCV::LG2_F32:   return sfu::evalWithin(sfu::Lg2, X, nfp::SfuErrorUlps);
+  case CCV::SIN_F32:   return sfu::evalWithin(sfu::Sin, X, nfp::SfuErrorUlps);
+  default:             return sfu::evalWithin(sfu::Cos, X, nfp::SfuErrorUlps);
   }
 }
 

@@ -218,7 +218,8 @@ run_warp() {
 # --- O-69's interleaved spill space --------------------------------------------
 run_local() {
   python3 "$AS" "$JSON" test/local.s "$TMP/lo.bin" >/dev/null || return 1
-  local args="-poke 0x20018=256 -context 2 -peek 0x90000 -peek 0x9007c -peek 0x5800100
+  # The addresses below are at CCV_LANE_CONTEXTS 1,024, one core's contexts.
+  local args="-lane-contexts 1024 -poke 0x20018=256 -context 2 -peek 0x90000 -peek 0x9007c -peek 0x5800100
               -peek 0x580017c -peek 0x5800084 -peek 0x58000fc -peek 0x5800280
               -peek 0x90080 -peek 0x900bc -peek 0x900c0"
   local want="101 132 100 131 3203334144 3203334144 65535 7 7 0" got ctl
@@ -292,6 +293,23 @@ run_fp_canon() {
     echo "  FAIL  fp-canon: got '$got', want '$want' (host NaN: '$nan', bit ignored: '$f0'); 32-bit .f1: $ff"; return 1
   fi
 }
+# --- the FP SFU's values (O-70) --------------------------------------------
+run_sfu() {
+  python3 "$AS" "$JSON" test/sfu.s "$TMP/sfu.bin" >/dev/null || return 1
+  local args="" i got trunc moved
+  for i in $(seq 0 11); do args+=" -peek $(printf 0x%x $((0x90000 + 4 * i)))"; done
+  local want="1051372203 1058262330 1068827891 1068827891 362 1070260237 876128826 1041269187 3015425326 3209333168 3212836864 1065353216"
+  got=$("$SIM" "$TMP/sfu.bin" $args 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  # Controls: truncation instead of rounding; and -sfu-error-ulps must move
+  # some of them (check-sfu-math holds the moved values to O-70's bound).
+  trunc=$("$SIM" "$TMP/sfu.bin" $args -ccv-test-sfu-truncate 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  moved=$("$SIM" "$TMP/sfu.bin" $args -sfu-error-ulps 2 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  if [ "${got% }" = "$want" ] && [ "${trunc% }" != "$want" ] && [ "${moved% }" != "$want" ]; then
+    echo "  PASS  rcp, rsqrt, sqrt, ex2, lg2, sin and cos executed, correctly rounded (O-70), a subnormal and sin(1e30) included"
+  else
+    echo "  FAIL  sfu: got '$got', want '$want' (truncated: '$trunc', -sfu-error-ulps 2: '$moved')"; return 1
+  fi
+}
 # --- the mixed-width rule (O-67) --------------------------------------------
 run_mixed_width() {
   python3 "$AS" "$JSON" test/mixed-width.s "$TMP/mw.bin" >/dev/null || return 1
@@ -358,6 +376,7 @@ run_frames || fail=1
 echo
 echo "  --- canonical NaN, compare format (O-66, O-65) ---"
 run_fp_canon || fail=1
+run_sfu || fail=1
 echo
 echo "  --- the mixed-width rule (O-67) ---"
 run_mixed_width || fail=1
@@ -640,6 +659,27 @@ else
   echo "  PASS  control: model-ieee-sfu --control fails, as an exact SFU would hide"
 fi
 ./tools/check-fdiv.sh 20 || fail=1
+
+# --- the FP SFU's values (O-70) --------------------------------------------
+# ccv-sim's values are its own integer arithmetic (SfuMath.cpp). check-sfu-math
+# holds them to the host's double functions, and to mpmath's judgement where a
+# double is too near a midpoint (test/sfu-hard-cases.txt, every such input in
+# FP32); and -sfu-error-ulps 2 to O-70's bound. The controls: truncation for
+# rounding, and -sfu-error-ulps 3 against the same bound.
+echo
+echo "  --- the FP SFU's values (O-70) ---"
+build/check-sfu-math --sample 4093 || fail=1
+if build/check-sfu-math --sample 65521 --control >/dev/null; then
+  echo "  FAIL  control: check-sfu-math --control (truncation) still passed"; fail=1
+else
+  echo "  PASS  control: truncating instead of rounding is caught"
+fi
+build/check-sfu-math --within 2 2 4093 || fail=1
+if build/check-sfu-math --within 3 2 65521 >/dev/null; then
+  echo "  FAIL  control: -sfu-error-ulps 3 still within O-70's bound"; fail=1
+else
+  echo "  PASS  control: -sfu-error-ulps 3 is caught outside O-70's bound"
+fi
 
 # --- lane-0 masking (O-33) -------------------------------------------------
 echo

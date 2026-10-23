@@ -27,9 +27,9 @@ public:
   /// raises F-BARRIER.
   unsigned BarrierCount = 16;
   /// CCV_LANE_CONTEXTS, the device's lane contexts (O-64): O-69's spill space
-  /// starts at window local_base + this. ccv-sim's default is the core's 32
-  /// warp contexts (CCV_PARKED_WARPS) of 32 lanes; -lane-contexts sets it.
-  unsigned LaneContexts = 1024;
+  /// starts at window local_base + this. ccv-sim's default is the core's
+  /// params, 4,096, the device's %lanectx range; -lane-contexts sets it.
+  unsigned LaneContexts = 4096;
   /// O-69: lane L's byte B of the warp's interleaved spill frame.
   uint64_t localAddr(const Warp &W, uint64_t B, unsigned L);
 
