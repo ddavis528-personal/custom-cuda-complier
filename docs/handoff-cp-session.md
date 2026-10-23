@@ -100,8 +100,8 @@ spans tabs, and IDs are permanent. Read it with the Claude Docs connector and
   other day", `CRON_TZ=America/Los_Angeles 58 1 */2 * *`. It is **bound to the
   session that made it**, so a successor needs its own; the old one should be
   disabled or deleted once the new one exists, or two sessions will sweep.
-- CP's address in `roster.json` (custom-cuda-core, branch
-  `claude/custom-cuda-core-infra-6msg93`, `docs/register/roster.json`) is
+- CP's address in the roster (`roster.json` in custom-cuda-core's docs/register
+  directory, on branch `claude/custom-cuda-core-infra-6msg93`) is
   `session_019cSebQ45AT3pSnPU71torg` as of 2026-10-23. A successor's will
   differ, and goes in the roster in a commit of its own.
 - **CP files its own rows and sends its own notices** (Daniel, 2026-10-23): no
