@@ -343,26 +343,16 @@ def : Pat<(f32 (uint_to_fp GPR:$a)), (CVT_F32_U32 GPR:$a, GPR:$a, GPR:$a)>;
 def : Pat<(i32 (fp_to_sint GPR:$a)), (CVT_S32_F32 GPR:$a, GPR:$a, GPR:$a)>;
 def : Pat<(i32 (fp_to_uint GPR:$a)), (CVT_U32_F32 GPR:$a, GPR:$a, GPR:$a)>;
 
-// 1.0f / x is the reciprocal instruction. This is the only fdiv this backend
-// selects: general float division needs a Newton sequence of its own and is
-// not implemented -- see F-49.
-def fpimm_one : PatLeaf<(fpimm), [{ return N->isExactlyValue(1.0); }]>;
-def : Pat<(fdiv fpimm_one, GPR:$a), (RCP_F32 GPR:$a, GPR:$a, GPR:$a)>;
+// The SFU's approximate reciprocal and square root (IS-12). No `fdiv` and no
+// `fsqrt` selects: CUDA's `/` and `sqrtf` are IEEE, and CCVExpandDivision
+// writes them as sequences over these seeds (and writes the seeds themselves
+// for fast-math). An fdiv or fsqrt that reaches selection is a gap, and
+// failing to select it is the right diagnosis. (The old `fdiv 1.0, x` and
+// `fdiv -1.0, x` patterns made 1.0f/x one rcp.f32, which is not IEEE once the
+// SFU is approximate; F-144's `-1.0` case came from that leftover fdiv.)
+def : Pat<(int_nvvm_rcp_approx_ftz_f GPR:$a), (RCP_F32 GPR:$a, GPR:$a, GPR:$a)>;
+def : Pat<(int_nvvm_sqrt_approx_f GPR:$a), (SQRT_F32 GPR:$a, GPR:$a, GPR:$a)>;
 
-// ...and its negation, which is not a second case anyone writes but is one the
-// generic combiner MANUFACTURES: `-(1.0f/x)` -- or, as it actually arises,
-// `a - b * (1.0f/x)` reassociated -- becomes `fdiv -1.0, x`. CCVExpandDivision
-// runs on IR and is long finished by then, so without this the node reaches
-// instruction selection with nothing to match and the compile fails outright.
-// Found by the AdamW step in the fused corpus, which is the first kernel here to
-// subtract a reciprocal-scaled term. F-144.
-def fpimm_minus_one : PatLeaf<(fpimm), [{ return N->isExactlyValue(-1.0); }]>;
-def : Pat<(fdiv fpimm_minus_one, GPR:$a),
-          (FNEG_F0 (RCP_F32 GPR:$a, GPR:$a, GPR:$a),
-                   (RCP_F32 GPR:$a, GPR:$a, GPR:$a),
-                   (RCP_F32 GPR:$a, GPR:$a, GPR:$a))>;
-
-def : Pat<(fsqrt GPR:$a), (SQRT_F32 GPR:$a, GPR:$a, GPR:$a)>;
 
 // The rest of the SFU group (F-141, closing half of F-120).
 //

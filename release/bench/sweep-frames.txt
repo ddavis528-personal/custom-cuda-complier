@@ -16,7 +16,7 @@
   test/cuda/dp4.cu                        0         0          0
   test/cuda/fp8.cu                       --
   test/cuda/fused.cu                      0         0          0
-  test/cuda/fusion/adamw.cu               4        11         13
+  test/cuda/fusion/adamw.cu               8        19         21
   test/cuda/fusion/add_rmsnorm.cu         0         0          0
   test/cuda/fusion/attn_combine.cu        4        11         17
   test/cuda/fusion/dequant.cu             0         0          0
@@ -43,7 +43,7 @@
   kernel                              spill  args  object  fns  w/obj
   test/cuda/bytes.cu                      1     0       6    1      1
   test/cuda/calls.cu                     31    12      15   15      3
-  test/cuda/fusion/adamw.cu              11     0       0    1      0
+  test/cuda/fusion/adamw.cu              19     0       0    1      0
   test/cuda/fusion/attn_combine.cu       11     0       0    1      0
   test/cuda/fusion/rope.cu               24     0       0    1      0
   test/cuda/gemv.cu                       3     0       0    1      0
@@ -52,7 +52,7 @@
   test/cuda/ptrlist.cu                   11     0       4    4      1
   test/cuda/sgemm.cu                     97     0       0    1      0
   test/coremark-derived                 450     3      56   13      2
-  total (kernels with a frame)          747    15      81
+  total (kernels with a frame)          755    15      81
   functions in the corpus: 69, with a frame object: 7
 
   issued, at each kernel's launch (dynamic)
@@ -61,16 +61,16 @@
   saxpy                     14        6       0          0       0     0.0%
   dot                      113       44       0          0       0     0.0%
   reduce                   111       43       0          0       0     0.0%
-  transpose                 52        7       0          0       1    14.3%
+  transpose                 55        7       0          0       1    14.3%
   vadd16                    14        5       0          0       0     0.0%
   vadd_loop                 65       26       0          0       0     0.0%
   vadd16_loop               66       26       0          0       0     0.0%
   gemv                     196       76       3          3       0     0.0%
-  sgemm                    516      251     149        150       0     0.0%
+  sgemm                    519      251     149        150       0     0.0%
   rope                     187       60      29         30       0     0.0%
   layernorm                268       93       0          0       1     1.1%
   coremark-derived      783612   108170   22384      24835   18157    16.8%
-  total                 785227   108812   22565      25018   18159    16.7%
+  total                 785233   108812   22565      25018   18159    16.7%
 
   frame traffic by kind, issued (IS-19)
   kernel               spill   args  object  via ptr

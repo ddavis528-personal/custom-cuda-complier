@@ -54,7 +54,7 @@ void DAGISEL_CLASS_COLONCOLON SelectCode(SDNode *N)
   // this.
   #define TARGET_VAL(X) X & 255, unsigned(X) >> 8
   static const unsigned char MatcherTable[] = {
-/*     0*/ OPC_SwitchOpcode /*50 cases */, 114, TARGET_VAL(ISD::ADD),// ->118
+/*     0*/ OPC_SwitchOpcode /*48 cases */, 114, TARGET_VAL(ISD::ADD),// ->118
 /*     4*/  OPC_Scope, 48, /*->54*/ // 3 children in Scope
 /*     6*/   OPC_RecordChild0, // #0 = $a
 /*     7*/   OPC_RecordChild1, // #1 = $i
@@ -1440,166 +1440,148 @@ void DAGISEL_CLASS_COLONCOLON SelectCode(SDNode *N)
              // Src: (fpimm:{ *:[f32] }):$i - Complexity = 3
              // Dst: (MOVI48:{ *:[f32] } (fpimm_bits:{ *:[i32] } ?:{ *:[f32] }:$i))
 /*  2385*/  0, /*End of Scope*/
-/*  2386*/ /*SwitchOpcode*/ 41, TARGET_VAL(ISD::INTRINSIC_WO_CHAIN),// ->2430
-/*  2389*/  OPC_Scope, 12, /*->2403*/ // 3 children in Scope
-/*  2391*/   OPC_CheckChild0Integer, 12|128,127/*16268*/, 
+/*  2386*/ /*SwitchOpcode*/ 67, TARGET_VAL(ISD::INTRINSIC_WO_CHAIN),// ->2456
+/*  2389*/  OPC_Scope, 12, /*->2403*/ // 5 children in Scope
+/*  2391*/   OPC_CheckChild0Integer, 42|128,125/*16042*/, 
 /*  2394*/   OPC_RecordChild1, // #0 = $a
-/*  2395*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::RSQRT_F32),
+/*  2395*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::RCP_F32),
+                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
+             // Src: (intrinsic_wo_chain:{ *:[f32] } 8021:{ *:[iPTR] }, GPR:{ *:[f32] }:$a) - Complexity = 8
+             // Dst: (RCP_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
+/*  2403*/  /*Scope*/ 12, /*->2416*/
+/*  2404*/   OPC_CheckChild0Integer, 106|128,127/*16362*/, 
+/*  2407*/   OPC_RecordChild1, // #0 = $a
+/*  2408*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::SQRT_F32),
+                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
+             // Src: (intrinsic_wo_chain:{ *:[f32] } 8181:{ *:[iPTR] }, GPR:{ *:[f32] }:$a) - Complexity = 8
+             // Dst: (SQRT_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
+/*  2416*/  /*Scope*/ 12, /*->2429*/
+/*  2417*/   OPC_CheckChild0Integer, 12|128,127/*16268*/, 
+/*  2420*/   OPC_RecordChild1, // #0 = $a
+/*  2421*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::RSQRT_F32),
                  MVT::f32, 3/*#Ops*/, 0, 0, 0, 
              // Src: (intrinsic_wo_chain:{ *:[f32] } 8134:{ *:[iPTR] }, GPR:{ *:[f32] }:$a) - Complexity = 8
              // Dst: (RSQRT_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2403*/  /*Scope*/ 12, /*->2416*/
-/*  2404*/   OPC_CheckChild0Integer, 102|128,127/*16358*/, 
-/*  2407*/   OPC_RecordChild1, // #0 = $a
-/*  2408*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::SIN_F32),
+/*  2429*/  /*Scope*/ 12, /*->2442*/
+/*  2430*/   OPC_CheckChild0Integer, 102|128,127/*16358*/, 
+/*  2433*/   OPC_RecordChild1, // #0 = $a
+/*  2434*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::SIN_F32),
                  MVT::f32, 3/*#Ops*/, 0, 0, 0, 
              // Src: (intrinsic_wo_chain:{ *:[f32] } 8179:{ *:[iPTR] }, GPR:{ *:[f32] }:$a) - Complexity = 8
              // Dst: (SIN_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2416*/  /*Scope*/ 12, /*->2429*/
-/*  2417*/   OPC_CheckChild0Integer, 96|128,118/*15200*/, 
-/*  2420*/   OPC_RecordChild1, // #0 = $a
-/*  2421*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::COS_F32),
+/*  2442*/  /*Scope*/ 12, /*->2455*/
+/*  2443*/   OPC_CheckChild0Integer, 96|128,118/*15200*/, 
+/*  2446*/   OPC_RecordChild1, // #0 = $a
+/*  2447*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::COS_F32),
                  MVT::f32, 3/*#Ops*/, 0, 0, 0, 
              // Src: (intrinsic_wo_chain:{ *:[f32] } 7600:{ *:[iPTR] }, GPR:{ *:[f32] }:$a) - Complexity = 8
              // Dst: (COS_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2429*/  0, /*End of Scope*/
-/*  2430*/ /*SwitchOpcode*/ 56, TARGET_VAL(ISD::FDIV),// ->2489
-/*  2433*/  OPC_MoveChild0,
-/*  2434*/  OPC_CheckOpcode, TARGET_VAL(ISD::ConstantFP),
-/*  2437*/  OPC_Scope, 12, /*->2451*/ // 2 children in Scope
-/*  2439*/   OPC_CheckPredicate, 19, // Predicate_fpimm_one
-/*  2441*/   OPC_MoveParent,
-/*  2442*/   OPC_RecordChild1, // #0 = $a
-/*  2443*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::RCP_F32),
-                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
-             // Src: (fdiv:{ *:[f32] } (fpimm:{ *:[f32] })<<P:Predicate_fpimm_one>>, GPR:{ *:[f32] }:$a) - Complexity = 7
-             // Dst: (RCP_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2451*/  /*Scope*/ 36, /*->2488*/
-/*  2452*/   OPC_CheckPredicate, 20, // Predicate_fpimm_minus_one
-/*  2454*/   OPC_MoveParent,
-/*  2455*/   OPC_RecordChild1, // #0 = $a
-/*  2456*/   OPC_EmitNode1None, TARGET_VAL(CCV::RCP_F32),
-                 MVT::i32, 3/*#Ops*/, 0, 0, 0,  // Results = #1
-/*  2464*/   OPC_EmitNode1None, TARGET_VAL(CCV::RCP_F32),
-                 MVT::i32, 3/*#Ops*/, 0, 0, 0,  // Results = #2
-/*  2472*/   OPC_EmitNode1None, TARGET_VAL(CCV::RCP_F32),
-                 MVT::i32, 3/*#Ops*/, 0, 0, 0,  // Results = #3
-/*  2480*/   OPC_MorphNodeTo1None, TARGET_VAL(CCV::FNEG_F0),
-                 MVT::f32, 3/*#Ops*/, 1, 2, 3, 
-             // Src: (fdiv:{ *:[f32] } (fpimm:{ *:[f32] })<<P:Predicate_fpimm_minus_one>>, GPR:{ *:[f32] }:$a) - Complexity = 7
-             // Dst: (FNEG_F0:{ *:[f32] } (RCP_F32:{ *:[i32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a), (RCP_F32:{ *:[i32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a), (RCP_F32:{ *:[i32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a))
-/*  2488*/  0, /*End of Scope*/
-/*  2489*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FADD),// ->2501
-/*  2492*/  OPC_RecordChild0, // #0 = $a
-/*  2493*/  OPC_RecordChild1, // #1 = $b
-/*  2494*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FADD),
+/*  2455*/  0, /*End of Scope*/
+/*  2456*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FADD),// ->2468
+/*  2459*/  OPC_RecordChild0, // #0 = $a
+/*  2460*/  OPC_RecordChild1, // #1 = $b
+/*  2461*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FADD),
                 MVT::f32, 2/*#Ops*/, 0, 1, 
             // Src: (fadd:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b) - Complexity = 3
             // Dst: (C_FADD:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b)
-/*  2501*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FMUL),// ->2513
-/*  2504*/  OPC_RecordChild0, // #0 = $a
-/*  2505*/  OPC_RecordChild1, // #1 = $b
-/*  2506*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FMUL),
+/*  2468*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FMUL),// ->2480
+/*  2471*/  OPC_RecordChild0, // #0 = $a
+/*  2472*/  OPC_RecordChild1, // #1 = $b
+/*  2473*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FMUL),
                 MVT::f32, 2/*#Ops*/, 0, 1, 
             // Src: (fmul:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b) - Complexity = 3
             // Dst: (C_FMUL:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b)
-/*  2513*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::FSUB),// ->2526
-/*  2516*/  OPC_RecordChild0, // #0 = $a
-/*  2517*/  OPC_RecordChild1, // #1 = $b
-/*  2518*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FSUB),
+/*  2480*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::FSUB),// ->2493
+/*  2483*/  OPC_RecordChild0, // #0 = $a
+/*  2484*/  OPC_RecordChild1, // #1 = $b
+/*  2485*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FSUB),
                 MVT::f32, 3/*#Ops*/, 0, 1, 0, 
             // Src: (fsub:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b) - Complexity = 3
             // Dst: (FSUB:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b, GPR:{ *:[f32] }:$a)
-/*  2526*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FMINNUM),// ->2538
-/*  2529*/  OPC_RecordChild0, // #0 = $a
-/*  2530*/  OPC_RecordChild1, // #1 = $b
-/*  2531*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FMIN),
+/*  2493*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FMINNUM),// ->2505
+/*  2496*/  OPC_RecordChild0, // #0 = $a
+/*  2497*/  OPC_RecordChild1, // #1 = $b
+/*  2498*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FMIN),
                 MVT::f32, 2/*#Ops*/, 0, 1, 
             // Src: (fminnum:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b) - Complexity = 3
             // Dst: (C_FMIN:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b)
-/*  2538*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FMAXNUM),// ->2550
-/*  2541*/  OPC_RecordChild0, // #0 = $a
-/*  2542*/  OPC_RecordChild1, // #1 = $b
-/*  2543*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FMAX),
+/*  2505*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FMAXNUM),// ->2517
+/*  2508*/  OPC_RecordChild0, // #0 = $a
+/*  2509*/  OPC_RecordChild1, // #1 = $b
+/*  2510*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::C_FMAX),
                 MVT::f32, 2/*#Ops*/, 0, 1, 
             // Src: (fmaxnum:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b) - Complexity = 3
             // Dst: (C_FMAX:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b)
-/*  2550*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FNEG),// ->2562
-/*  2553*/  OPC_RecordChild0, // #0 = $a
-/*  2554*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FNEG_F0),
+/*  2517*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FNEG),// ->2529
+/*  2520*/  OPC_RecordChild0, // #0 = $a
+/*  2521*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FNEG_F0),
                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (fneg:{ *:[f32] } GPR:{ *:[f32] }:$a) - Complexity = 3
             // Dst: (FNEG_F0:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2562*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FABS),// ->2574
-/*  2565*/  OPC_RecordChild0, // #0 = $a
-/*  2566*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FABS_F0),
+/*  2529*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FABS),// ->2541
+/*  2532*/  OPC_RecordChild0, // #0 = $a
+/*  2533*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FABS_F0),
                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (fabs:{ *:[f32] } GPR:{ *:[f32] }:$a) - Complexity = 3
             // Dst: (FABS_F0:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2574*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::FMA),// ->2588
-/*  2577*/  OPC_RecordChild0, // #0 = $a
-/*  2578*/  OPC_RecordChild1, // #1 = $b
-/*  2579*/  OPC_RecordChild2, // #2 = $c
-/*  2580*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FFMA_F0),
+/*  2541*/ /*SwitchOpcode*/ 11, TARGET_VAL(ISD::FMA),// ->2555
+/*  2544*/  OPC_RecordChild0, // #0 = $a
+/*  2545*/  OPC_RecordChild1, // #1 = $b
+/*  2546*/  OPC_RecordChild2, // #2 = $c
+/*  2547*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::FFMA_F0),
                 MVT::f32, 3/*#Ops*/, 0, 1, 2, 
             // Src: (fma:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b, GPR:{ *:[f32] }:$c) - Complexity = 3
             // Dst: (FFMA_F0:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$b, GPR:{ *:[f32] }:$c)
-/*  2588*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::SINT_TO_FP),// ->2601
-/*  2591*/  OPC_RecordChild0, // #0 = $a
-/*  2592*/  OPC_CheckChild0TypeI32,
-/*  2593*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_F32_S32),
+/*  2555*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::SINT_TO_FP),// ->2568
+/*  2558*/  OPC_RecordChild0, // #0 = $a
+/*  2559*/  OPC_CheckChild0TypeI32,
+/*  2560*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_F32_S32),
                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (sint_to_fp:{ *:[f32] } GPR:{ *:[i32] }:$a) - Complexity = 3
             // Dst: (CVT_F32_S32:{ *:[f32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a)
-/*  2601*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::UINT_TO_FP),// ->2614
-/*  2604*/  OPC_RecordChild0, // #0 = $a
-/*  2605*/  OPC_CheckChild0TypeI32,
-/*  2606*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_F32_U32),
+/*  2568*/ /*SwitchOpcode*/ 10, TARGET_VAL(ISD::UINT_TO_FP),// ->2581
+/*  2571*/  OPC_RecordChild0, // #0 = $a
+/*  2572*/  OPC_CheckChild0TypeI32,
+/*  2573*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::CVT_F32_U32),
                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (uint_to_fp:{ *:[f32] } GPR:{ *:[i32] }:$a) - Complexity = 3
             // Dst: (CVT_F32_U32:{ *:[f32] } GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a, GPR:{ *:[i32] }:$a)
-/*  2614*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FSQRT),// ->2626
-/*  2617*/  OPC_RecordChild0, // #0 = $a
-/*  2618*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::SQRT_F32),
-                MVT::f32, 3/*#Ops*/, 0, 0, 0, 
-            // Src: (fsqrt:{ *:[f32] } GPR:{ *:[f32] }:$a) - Complexity = 3
-            // Dst: (SQRT_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2626*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FEXP2),// ->2638
-/*  2629*/  OPC_RecordChild0, // #0 = $a
-/*  2630*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::EX2_F32),
+/*  2581*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FEXP2),// ->2593
+/*  2584*/  OPC_RecordChild0, // #0 = $a
+/*  2585*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::EX2_F32),
                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (fexp2:{ *:[f32] } GPR:{ *:[f32] }:$a) - Complexity = 3
             // Dst: (EX2_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2638*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FLOG2),// ->2650
-/*  2641*/  OPC_RecordChild0, // #0 = $a
-/*  2642*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::LG2_F32),
+/*  2593*/ /*SwitchOpcode*/ 9, TARGET_VAL(ISD::FLOG2),// ->2605
+/*  2596*/  OPC_RecordChild0, // #0 = $a
+/*  2597*/  OPC_MorphNodeTo1None, TARGET_VAL(CCV::LG2_F32),
                 MVT::f32, 3/*#Ops*/, 0, 0, 0, 
             // Src: (flog2:{ *:[f32] } GPR:{ *:[f32] }:$a) - Complexity = 3
             // Dst: (LG2_F32:{ *:[f32] } GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a, GPR:{ *:[f32] }:$a)
-/*  2650*/ 0, // EndSwitchOpcode
+/*  2605*/ 0, // EndSwitchOpcode
     0
-  }; // Total Array size is 2652 bytes
+  }; // Total Array size is 2607 bytes
 
   // Opcode Histogram:
-  // #OPC_Scope                                = 44
+  // #OPC_Scope                                = 43
   // #OPC_RecordNode                           = 11
-  // #OPC_RecordChild                          = 115
+  // #OPC_RecordChild                          = 114
   // #OPC_RecordMemRef                         = 2
   // #OPC_CaptureGlueInput                     = 2
-  // #OPC_MoveChild                            = 37
+  // #OPC_MoveChild                            = 36
   // #OPC_MoveSibling                          = 2
-  // #OPC_MoveParent                           = 57
+  // #OPC_MoveParent                           = 55
   // #OPC_CheckSame                            = 0
   // #OPC_CheckChildSame                       = 0
   // #OPC_CheckPatternPredicate                = 0
-  // #OPC_CheckPredicate                       = 135
-  // #OPC_CheckOpcode                          = 38
+  // #OPC_CheckPredicate                       = 133
+  // #OPC_CheckOpcode                          = 37
   // #OPC_SwitchOpcode                         = 1
   // #OPC_CheckType                            = 76
   // #OPC_SwitchType                           = 13
   // #OPC_CheckChildType                       = 28
   // #OPC_CheckInteger                         = 2
-  // #OPC_CheckChildInteger                    = 15
+  // #OPC_CheckChildInteger                    = 17
   // #OPC_CheckCondCode                        = 0
   // #OPC_CheckChild2CondCode                  = 0
   // #OPC_CheckValueType                       = 1
@@ -1615,10 +1597,10 @@ void DAGISEL_CLASS_COLONCOLON SelectCode(SDNode *N)
   // #OPC_EmitConvertToTarget                  = 28
   // #OPC_EmitMergeInputChains                 = 43
   // #OPC_EmitCopyToReg                        = 0
-  // #OPC_EmitNode                             = 39
+  // #OPC_EmitNode                             = 36
   // #OPC_EmitNodeXForm                        = 6
   // #OPC_CompleteMatch                        = 2
-  // #OPC_MorphNodeTo                          = 131
+  // #OPC_MorphNodeTo                          = 130
 
   #undef TARGET_VAL
   SelectCodeCommon(N, MatcherTable,sizeof(MatcherTable));
@@ -1779,18 +1761,6 @@ return true;
 
   return N->getValueAPF().bitcastToAPInt().getZExtValue() < (1u << 17);
 
-  }
-  case 19: {
-    // Predicate_fpimm_one
-    auto *N = cast<ConstantFPSDNode>(Node);
-    (void)N;
- return N->isExactlyValue(1.0); 
-  }
-  case 20: {
-    // Predicate_fpimm_minus_one
-    auto *N = cast<ConstantFPSDNode>(Node);
-    (void)N;
- return N->isExactlyValue(-1.0); 
   }
   }
 }

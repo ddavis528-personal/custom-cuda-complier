@@ -116,6 +116,10 @@ add_dependencies(ccv-llc CCVTableGen)
 target_link_libraries(ccv-llc PRIVATE CCVMC)
 
 add_executable(ccv-sim tools/ccv-sim/main.cpp tools/ccv-sim/Interp.cpp)
+# IS-12's IEEE divide and sqrt over an approximate SFU, checked exhaustively on
+# the host against NarrowFP.h's exact rounding (no LLVM needed).
+add_executable(model-ieee-sfu tools/model-ieee-sfu/main.cpp)
+target_compile_options(model-ieee-sfu PRIVATE -O2 -ffp-contract=off)
 add_dependencies(ccv-sim CCVTableGen)
 target_include_directories(ccv-sim PRIVATE ${CMAKE_SOURCE_DIR}/tools/ccv-sim)
 target_link_libraries(ccv-sim PRIVATE CCVMC)

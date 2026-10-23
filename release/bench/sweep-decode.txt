@@ -19,9 +19,9 @@
 
   For contrast, the same two columns on the GEMM this was compared against:
   ------------------------------------------------------------
-  sgemm 2x2         360    10512     102     60/10       0%
-  sgemm 2x4         579    17472     190     95/10       0%
-  sgemm 4x4         916    28112     397    131/10       0%
+  sgemm 2x2         363    10592     102     60/10       0%
+  sgemm 2x4         582    17552     190     95/10       0%
+  sgemm 4x4         919    28192     397    131/10       0%
 
   Read the div/unif column first. In `sgemm` the divergent peak alone is several
   times the 16-entry register file -- its addressing is indexed by `threadIdx`,

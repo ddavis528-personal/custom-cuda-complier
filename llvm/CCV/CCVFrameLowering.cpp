@@ -127,7 +127,9 @@ void CCVFrameLowering::emitPrologue(MachineFunction &MF,
   if (FrameStats) {
     const MachineFrameInfo &MFI = MF.getFrameInfo();
     for (int FI = MFI.getObjectIndexBegin(); FI != MFI.getObjectIndexEnd(); ++FI) {
-      if (MFI.isDeadObjectIndex(FI) || !MFI.getObjectSize(FI))
+      // An empty object is printed too: a zero-size spill slot is a bug, and
+      // skipping it hid one (F-179).
+      if (MFI.isDeadObjectIndex(FI))
         continue;
       int64_t D = MFI.getObjectOffset(FI) - int64_t(Base);
       const char *Kind = MFI.isFixedObjectIndex(FI) ? "fixed"

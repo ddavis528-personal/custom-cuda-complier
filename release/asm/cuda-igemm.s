@@ -24,13 +24,16 @@ _Z5igemmPiPKiS1_ii:
 	@!p3 shfl.idx r3, r3, 0
 	setp.le.u p0, r0, r3
 	@p3 add r4, r12, 1
-	pand p1, 0, 3
-	@p1 mov r12, r4
+	pand p0, 0, 3
+	@p0 mov r12, r4
 	@p3 sub r4, r3, r0
 	@p0 mov r3, r4
+	@!p3 shfl.idx r3, r3, 0
 	setp.le.u p0, r0, r3
 	@p3 add r3, r12, 1
+	pand p0, 0, 3
 	@p0 mov r12, r3
+	@!p3 shfl.idx r12, r12, 0
 	mul.lo r4, r12, r0
 	@p3 sub r6, r1, r4
 	@!p3 shfl.idx r6, r6, 0

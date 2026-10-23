@@ -24,13 +24,16 @@ _Z5sgemmPfPKfS1_ii:
 	@!p3 shfl.idx r2, r2, 0
 	setp.le.u p0, r1, r2
 	@p3 add r3, r13, 1
-	pand p1, 0, 3
-	@p1 mov r13, r3
+	pand p0, 0, 3
+	@p0 mov r13, r3
 	@p3 sub r3, r2, r1
 	@p0 mov r2, r3
+	@!p3 shfl.idx r2, r2, 0
 	setp.le.u p0, r1, r2
 	@p3 add r2, r13, 1
+	pand p0, 0, 3
 	@p0 mov r13, r2
+	@!p3 shfl.idx r13, r13, 0
 	mul.lo r3, r13, r1
 	@p3 sub r5, r0, r3
 	@!p3 shfl.idx r5, r5, 0

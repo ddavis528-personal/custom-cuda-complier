@@ -28,10 +28,12 @@
 //
 // WHAT IS STOOD IN FOR, AND WHY IT CANNOT MOVE THE RESULT
 // ------------------------------------------------------
-// One thing: DIVISION. F-49 leaves `1.0f / x` -- the reciprocal instruction --
-// as the only `fdiv` this backend selects, so every division below is written
-// that way. That is also what a real kernel gets from `-use_fast_math`, and
-// `ccv_recip` names it rather than hiding it.
+// One thing: DIVISION. Every division below is a reciprocal, `ccv_recip`, and
+// that is the SFU's approximate `rcp.f32` -- what a real kernel gets from
+// `-use_fast_math`, named rather than hidden. CUDA's own `/` is IEEE, and on
+// this machine that is a long sequence over the same instruction (IS-12,
+// F-181), which would make the corpus measure the divide rather than the
+// fusion.
 //
 // Nothing else is stood in for. The transcendentals these kernels need are
 // reachable as of F-141, through the same intrinsics a CUDA kernel uses:
@@ -58,8 +60,11 @@
 // density comparison portable.h serves.
 #define NCTAID_X gridDim.x
 
-// 1/x, spelled so it selects `rcp.f32` (F-49).
-__device__ static inline float ccv_recip(float x) { return 1.0f / x; }
+// 1/x as `-use_fast_math` has it: the SFU's approximate reciprocal, one
+// `rcp.f32` (F-49, F-181).
+__device__ static inline float ccv_recip(float x) {
+    return __nvvm_rcp_approx_ftz_f(x);
+}
 
 // x^-1/2, one `rsqrt.f32` (F-141). This is `rsqrtf`, and it is what every
 // normalisation kernel in an inference stack calls.

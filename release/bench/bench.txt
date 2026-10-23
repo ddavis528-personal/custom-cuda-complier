@@ -11,9 +11,9 @@
   vadd16_loop |     25     80   25.6 |     17     56 |     35    184   42.1 |     23
   dot        |     52    162   24.9 |     43    134 |     60    300   40.0 |     46
   reduce     |     48    150   25.0 |     41    128 |     54    268   39.7 |     41
-  transpose  |     60    210   28.0 |     52    184 |     64    308   38.5 |     43
+  transpose  |     63    220   27.9 |     55    194 |     64    308   38.5 |     43
   gemv       |    206    728   28.3 |    197    698 |    306   1688   44.1 |    228
-  sgemm      |    384   1352   28.2 |    360   1268 |    238   1376   46.3 |    201
+  sgemm      |    387   1362   28.2 |    363   1278 |    238   1376   46.3 |    201
 
   DYNAMIC -- instructions actually issued, per thread of work.
 
@@ -26,9 +26,9 @@
   vadd16_loop     66.0   100%         -- |      2112       100%   has 1 loops; not modelled
   dot            74.9    66%         -- |      2397       100%   has 3 loops; not modelled
   reduce         72.9    66%         -- |      2333       100%   has 3 loops; not modelled
-  transpose      52.0   100%         64 |      1127        68%   exact: no backward branch
+  transpose      55.0   100%         64 |      1189        68%   exact: no backward branch
   gemv          196.0   100%         -- |      6272       100%   has 2 loops; not modelled
-  sgemm         516.0   100%         -- |     15973        97%   has 5 loops; not modelled
+  sgemm         519.0   100%         -- |     16035        97%   has 5 loops; not modelled
 
   O-33 A/B -- what lane-0 masking costs and buys, measured.
 
@@ -49,11 +49,11 @@
   reduce, masking off                 72.9        2333      2333       100%
   reduce, masking on                  72.9        2333      2333       100%
   transpose, masking off              45.0        1440      1344        93%
-  transpose, masking on               52.0        1664      1127        68%
+  transpose, masking on               55.0        1760      1189        68%
   gemv, masking off                  196.0        6272      6272       100%
   gemv, masking on                   196.0        6272      6272       100%
   sgemm, masking off                 501.0       16032     15936        99%
-  sgemm, masking on                  516.0       16512     15973        97%
+  sgemm, masking on                  519.0       16608     16035        97%
 
   Four of five kernels read identically in both rows: the pass DECLINED
   to mask them, because every uniform value is consumed immediately by
@@ -71,9 +71,9 @@
   vadd16_loop       66         55      32   0.582        50.0   1.300x
   dot              113         92       0   0.000       113.0       --
   reduce           111         90       0   0.000       111.0       --
-  transpose         52         49       0   0.000        52.0       --
+  transpose         55         51       0   0.000        55.0       --
   gemv             196        190       0   0.000       196.0       --
-  sgemm            516        495       0   0.000       516.0       --
+  sgemm            519        497       0   0.000       519.0       --
 
   CYCLES IS A MODEL, NOT A MEASUREMENT. The simulator retires one
   instruction per step; this column applies O-40's claimed 2x rate to
@@ -93,14 +93,14 @@
     vadd16                448            464            864           1024           1024            368
     vadd_loop             260             --             --             --             --             --
     vadd16_loop            264             --             --             --             --             --
-    transpose            1664           1024           1920           2432           2432            992
+    transpose            1760           1024           1920           2432           2432            992
   instr bytes / 1K elem
     vadd                 1344           2432           5248           5888           6144           2240
     saxpy                1536           2176           4352           4992           5248           1984
     vadd16               1536           2432           5376           6016           6272           2240
     vadd_loop             200             --             --             --             --             --
     vadd16_loop            224             --             --             --             --             --
-    transpose            5888           4928           9856          12032          11904           4800
+    transpose            6208           4928           9856          12032          11904           4800
 
   One thread handles one element in these four, so a machine covers
   `warp width` elements per instruction it issues. Counts are the
@@ -125,7 +125,7 @@
   vadd16_loop            25.6          128.0           42.1           43.6           42.4           46.8           45.2
   dot                   24.9          128.0           40.0           41.5           40.9           42.3           42.1
   reduce                25.0          128.0           39.7           42.9           39.2           41.4           40.2
-  transpose             28.0          128.0           38.5           41.1           39.6           39.2           38.7
+  transpose             27.9          128.0           38.5           41.1           39.6           39.2           38.7
   gemv                  28.3          128.0           44.1           48.1           50.3           49.4           43.4
   sgemm                 28.2          128.0           46.3           43.4           43.6           43.4           42.9
   --------------------------------------------------------------------------------------------------------------------
@@ -145,9 +145,9 @@
   vadd16_loop              25             20             35             44             49             39             29
   dot                     52             42             60             64             68             62             54
   reduce                  48             39             54             50             71             58             51
-  transpose               60             53             64             60             76             76             62
+  transpose               63             53             64             60             76             76             62
   gemv                   206            166            306            305            312            323            238
-  sgemm                  384            196            238            222            245            247            205
+  sgemm                  387            196            238            222            245            247            205
 
   A kernel's tail padding is EXCLUDED, on both vendors: gfx10+ pads with
   s_code_end, CDNA3 with s_nop, and NVIDIA with NOPs to a 128-byte

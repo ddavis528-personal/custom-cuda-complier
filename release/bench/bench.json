@@ -485,12 +485,12 @@
   {
     "kernel": "transpose",
     "ccv": {
-      "instrs": 60,
-      "bytes": 210
+      "instrs": 63,
+      "bytes": 220
     },
     "ccv_aligned": {
-      "instrs": 52,
-      "bytes": 184
+      "instrs": 55,
+      "bytes": 194
     },
     "amdgcn": {
       "instrs": 64,
@@ -501,13 +501,13 @@
       "instrs": 43
     },
     "dyn": {
-      "per_thread": 52.0,
+      "per_thread": 55.0,
       "simt": 100.0,
-      "lane_act": 1127,
-      "lane_instr": 1664,
-      "issues": 52,
+      "lane_act": 1189,
+      "lane_instr": 1760,
+      "issues": 55,
       "narrow": 0,
-      "element_work": 49
+      "element_work": 51
     },
     "arches": {
       "gfx900": {
@@ -623,12 +623,12 @@
   {
     "kernel": "sgemm",
     "ccv": {
-      "instrs": 384,
-      "bytes": 1352
+      "instrs": 387,
+      "bytes": 1362
     },
     "ccv_aligned": {
-      "instrs": 360,
-      "bytes": 1268
+      "instrs": 363,
+      "bytes": 1278
     },
     "amdgcn": {
       "instrs": 238,
@@ -639,13 +639,13 @@
       "instrs": 201
     },
     "dyn": {
-      "per_thread": 516.0,
+      "per_thread": 519.0,
       "simt": 100.0,
-      "lane_act": 15973,
-      "lane_instr": 16512,
-      "issues": 516,
+      "lane_act": 16035,
+      "lane_instr": 16608,
+      "issues": 519,
       "narrow": 0,
-      "element_work": 495
+      "element_work": 497
     },
     "arches": {
       "gfx900": {

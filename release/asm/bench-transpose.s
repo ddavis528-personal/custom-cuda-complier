@@ -25,13 +25,16 @@ _Z9transposePfPKfi:
 	@!p3 shfl.idx r5, r5, 0
 	setp.le.u p0, r3, r5
 	@p3 add r6, r2, 1
-	pand p1, 0, 3
-	@p1 mov r2, r6
+	pand p0, 0, 3
+	@p0 mov r2, r6
 	@p3 sub r6, r5, r3
 	@p0 mov r5, r6
+	@!p3 shfl.idx r5, r5, 0
 	setp.le.u p0, r3, r5
 	@p3 add r5, r2, 1
+	pand p0, 0, 3
 	@p0 mov r2, r5
+	@!p3 shfl.idx r2, r2, 0
 	mul.lo r3, r2, r3
 	@p3 sub r4, r4, r3
 	@!p3 shfl.idx r4, r4, 0

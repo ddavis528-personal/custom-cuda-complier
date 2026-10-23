@@ -3,7 +3,7 @@
   gen-emitter          ok (2816 lines)
   gen-disassembler     ok (1660 lines)
   gen-asm-writer       ok (2066 lines)
-  gen-dag-isel         ok (1867 lines)
+  gen-dag-isel         ok (1837 lines)
   gen-callingconv      ok (92 lines)
 
 checked 394 instructions
@@ -125,7 +125,7 @@ checked 394 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 181 findings and 68 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 185 findings and 68 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -181,6 +181,9 @@ checked 394 instructions
 
   --- srd #2, %lanectx (O-64) ---
   PASS  srd #2 gives (context << 5) | lane, -context sets it (TI-35), and srd #3 is still F-ILLEGAL
+
+  --- frame objects disjoint (F-179) ---
+  PASS  12 frame objects across test/accept are non-empty and disjoint (4 predicate spills in fdiv-all), and an overlap is caught
 
   --- canonical NaN, compare format (O-66, O-65) ---
   PASS  canonical NaN at FP32 and FP16 (O-66), the compare's format bit (O-65), F-FORMAT at 32 bits
@@ -239,6 +242,7 @@ checked 394 instructions
   PASS  accepts select.ll
   PASS  accepts shared-memory.ll
   PASS  accepts shift-i64.ll
+  PASS  accepts sqrt-rcp.ll
   PASS  accepts switch-dense.ll
   PASS  accepts window-cross-block.ll
   PASS  diagnoses bad-addr-shape.ll
@@ -277,11 +281,12 @@ checked 394 instructions
   no Newton, 1 correction                           8   exact seed only
   no Newton, no correction                          5   never
 
-  --- software fp32 division ---
-  result normal    : 20184/20184 correctly rounded
-  result subnormal : 54/5000 off, worst 1 ulp (known gap -- double rounding in the final scale, F-62)
-  PASS  5120 fp32 divisions, all correctly rounded where the result is normal
-        (16 subnormal results differ by 1 ulp -- F-62, known)
+  --- IEEE fp32 division, 1/x and sqrtf ---
+  PASS  IEEE divide and sqrt over an SFU off by up to 2 ulps: 127329120 cases correctly rounded
+  PASS  control: model-ieee-sfu --control fails, as an exact SFU would hide
+  PASS  exact SFU: 1265 divisions and 665 each of sqrtf and 1.0f/x correctly rounded, every operand class
+  PASS  SFU off by up to 2 ulps: 1265 divisions and 665 each of sqrtf and 1.0f/x correctly rounded, every operand class
+  PASS  control -ccv-test-fdiv-no-specials is caught: 213 wrong
 
   --- warp-uniform lane-0 masking ---
   PASS  lane-0 masking is result-identical (7 masked, 3 broadcasts)

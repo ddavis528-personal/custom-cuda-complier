@@ -215,6 +215,43 @@ run_warp() {
     echo "  FAIL  -warp: got '$out' (warp 0: '$ctl'), want '$want'; barrier: $bar"; return 1
   fi
 }
+# --- frame objects are disjoint (F-179) --------------------------------------
+# A predicate's spill size was i1's one bit, zero bytes, so every predicate
+# spill slot sat at one offset and a spilled predicate was overwritten by the
+# next. The invariant, over every accepted kernel: no frame object is empty and
+# no two overlap. The control is the checker on a frame that breaks it.
+frames_disjoint() {   # stdin: -ccv-frame-stats output
+  python3 -c '
+import re, sys
+objs = {}
+for l in sys.stdin:
+    m = re.match(r"\s*frame-object (\S+) \S+ (-?\d+) (-?\d+)", l)
+    if m:
+        objs.setdefault(m[1], []).append((int(m[2]), int(m[3])))
+bad = [f"{f}: [{a},{b})" for f, o in objs.items() for a, b in o if b <= a]
+for f, o in objs.items():
+    o.sort()
+    bad += [f"{f}: [{a},{b}) meets [{c},{d})" for (a, b), (c, d) in zip(o, o[1:]) if c < b]
+print("\n".join(bad)); sys.exit(1 if bad else 0)'
+}
+run_frames() {
+  local f all="" n=0
+  for f in test/accept/*.ll; do
+    all+=$(build/ccv-llc "$f" -o /dev/null -ccv-frame-stats 2>&1 | sed "s|frame-object |frame-object $(basename "$f"):|")$'\n'
+  done
+  n=$(grep -c "frame-object" <<< "$all")
+  local np; np=$(build/ccv-llc test/accept/fdiv-all.ll -o - 2>/dev/null | grep -c "st.pred")
+  if ! out=$(frames_disjoint <<< "$all"); then
+    echo "  FAIL  frame objects overlap or are empty:"; echo "$out" | head -5; return 1
+  fi
+  if frames_disjoint <<< $'  frame-object k spill -4 0\n  frame-object k spill -4 0' >/dev/null; then
+    echo "  FAIL  control: two objects at one offset were not caught"; return 1
+  fi
+  if [ "$np" -lt 2 ]; then
+    echo "  FAIL  fdiv-all.ll spills $np predicates; the check needs two in memory at once"; return 1
+  fi
+  echo "  PASS  $n frame objects across test/accept are non-empty and disjoint ($np predicate spills in fdiv-all), and an overlap is caught"
+}
 # --- canonical NaN and the compare format bit (O-66, O-65) ------------------
 run_fp_canon() {
   python3 "$AS" "$JSON" test/fp-canon.s "$TMP/fc.bin" >/dev/null || return 1
@@ -293,6 +330,9 @@ run_warp || fail=1
 echo
 echo "  --- srd #2, %lanectx (O-64) ---"
 run_lanectx || fail=1
+echo
+echo "  --- frame objects disjoint (F-179) ---"
+run_frames || fail=1
 echo
 echo "  --- canonical NaN, compare format (O-66, O-65) ---"
 run_fp_canon || fail=1
@@ -562,12 +602,21 @@ echo "  --- integer-reciprocal division ---"
 # so nobody can quietly shorten the sequence past what the hardware promises.
 python3 tools/model-rcp.py --samples 20000 || fail=1
 
-# --- software fp32 division (F-49, O-36) -----------------------------------
-# Two checks that have caught different things: the model checks the ALGORITHM
-# against exact rational arithmetic, the simulator run checks the MACHINE.
+# --- IEEE fp32 division, 1/x and sqrtf over an approximate SFU --------------
+# (F-49, O-36, F-62, F-178, IS-12.) Two checks that catch different things:
+# the model checks the ALGORITHM against exact rounding -- every reduced
+# divisor and argument at every seed error up to 2 ulps, and sampled divides;
+# `model-ieee-sfu --all` adds every float -- and the simulator run checks the
+# MACHINE. The model's control drops the divide's residual check of the last
+# bit and sqrt's refinement, which a correctly rounded SFU would have hidden.
 echo
-echo "  --- software fp32 division ---"
-python3 tools/model-fdiv.py --samples 20000 || fail=1
+echo "  --- IEEE fp32 division, 1/x and sqrtf ---"
+build/model-ieee-sfu --divs 500000 || fail=1
+if build/model-ieee-sfu --divs 500000 --control >/dev/null; then
+  echo "  FAIL  control: model-ieee-sfu --control still passed"; fail=1
+else
+  echo "  PASS  control: model-ieee-sfu --control fails, as an exact SFU would hide"
+fi
 ./tools/check-fdiv.sh 20 || fail=1
 
 # --- lane-0 masking (O-33) -------------------------------------------------

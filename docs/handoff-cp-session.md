@@ -96,13 +96,18 @@ spans tabs, and IDs are permanent. Read it with the Claude Docs connector and
   `97878b4b-bf21`, body node `099ebfed-9eea`.
 - **Tab revs as of this writing**, for a cheap first `sinceRev` sweep: CP 23,
   IS 9, OA 64, AR 48, TI 53, OI 77, DA 53, Conventions 14.
-- The sweep is `trig_01Hj6ntsiLMpw7pxjoqCo6sR`, "CCV register — CP sweep, every
-  other day", `CRON_TZ=America/Los_Angeles 58 1 */2 * *`. It is **bound to this
-  session**, so a successor needs its own; this one should be disabled or deleted
-  once the new one exists, or two sessions will sweep.
-- CP's address for OA's `roster.json`: session
-  `session_01Gzzm3YDxvhdKn9ircF6Wda`, peer name `custom-cuda-complier-c2`. A
-  successor's will differ — tell OA the new one.
+- The sweep is `trig_01Hp4MZnx61rMQL7Dd5qjd5z`, "CCV register — CP sweep, every
+  other day", `CRON_TZ=America/Los_Angeles 58 1 */2 * *`. It is **bound to the
+  session that made it**, so a successor needs its own; the old one should be
+  disabled or deleted once the new one exists, or two sessions will sweep.
+- CP's address in the roster (`roster.json` in custom-cuda-core's docs/register
+  directory, on branch `claude/custom-cuda-core-infra-6msg93`) is
+  `session_019cSebQ45AT3pSnPU71torg` as of 2026-10-23. A successor's will
+  differ, and goes in the roster in a commit of its own.
+- **CP files its own rows and sends its own notices** (Daniel, 2026-10-23): no
+  one's leave is needed to add to the register, and every row that needs or
+  answers another agent gets a REGISTER-NOTICE through `send_message`. The skill
+  has the how.
 - **Daniel set CP's cadence to every other day on 2026-10-17** (RTL is the
   focus, compiler changes have slowed), where OA's sweep is daily. Keep that
   unless he says otherwise; it survived the OA-18 rollout deliberately.
@@ -251,5 +256,5 @@ leave the normative rewrite to IS. Do not silently rewrite it.
 - **Report against your own argument when the measurement turns.** F-152 and the
   withdrawn F-149 propagation are both that. The register's own convention —
   record what lost — is worth honouring on one's own rows first.
-- **Do not claim what was not done.** A notice CP cannot send is not sent; an
+- **Do not claim what was not done.** A notice not delivered is not sent; an
   audit not run is not run; a gate that skips a check has skipped it.

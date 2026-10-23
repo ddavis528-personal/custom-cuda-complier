@@ -46,10 +46,10 @@ enum {
 
 namespace CCV {
 enum {
-  PRRegClassID = 0,
-  GPR16RegClassID = 1,
-  GPRRegClassID = 2,
-  GPR8RegClassID = 3,
+  GPR16RegClassID = 0,
+  GPRRegClassID = 1,
+  GPR8RegClassID = 2,
+  PRRegClassID = 3,
 
 };
 } // end namespace CCV
@@ -175,16 +175,6 @@ extern const MCPhysReg CCVRegUnitRoots[][2] = {
 };
 
 namespace {     // Register classes...
-  // PR Register Class...
-  const MCPhysReg PR[] = {
-    CCV::P0, CCV::P1, CCV::P2, CCV::P3, 
-  };
-
-  // PR Bit set.
-  const uint8_t PRBits[] = {
-    0x1e, 
-  };
-
   // GPR16 Register Class...
   const MCPhysReg GPR16[] = {
     CCV::R14, CCV::R13, CCV::R12, CCV::R11, CCV::R10, CCV::R9, CCV::R8, CCV::R7, CCV::R6, CCV::R5, CCV::R4, CCV::R3, CCV::R2, CCV::R1, CCV::R0, CCV::R15, 
@@ -215,6 +205,16 @@ namespace {     // Register classes...
     0xe0, 0xff, 0x1f, 
   };
 
+  // PR Register Class...
+  const MCPhysReg PR[] = {
+    CCV::P0, CCV::P1, CCV::P2, CCV::P3, 
+  };
+
+  // PR Bit set.
+  const uint8_t PRBits[] = {
+    0x1e, 
+  };
+
 } // end anonymous namespace
 
 
@@ -232,10 +232,10 @@ extern const char CCVRegClassStrings[] = {
 #endif
 
 extern const MCRegisterClass CCVMCRegisterClasses[] = {
-  { PR, PRBits, 12, 4, sizeof(PRBits), CCV::PRRegClassID, 1, 1, true },
   { GPR16, GPR16Bits, 0, 16, sizeof(GPR16Bits), CCV::GPR16RegClassID, 16, 1, true },
   { GPR, GPRBits, 11, 16, sizeof(GPRBits), CCV::GPRRegClassID, 32, 1, true },
   { GPR8, GPR8Bits, 6, 16, sizeof(GPR8Bits), CCV::GPR8RegClassID, 32, 1, true },
+  { PR, PRBits, 12, 4, sizeof(PRBits), CCV::PRRegClassID, 32, 1, true },
 };
 
 extern const uint16_t CCVRegEncodingTable[] = {
@@ -311,10 +311,10 @@ struct CCVGenRegisterInfo : public TargetRegisterInfo {
 };
 
 namespace CCV { // Register classes
-  extern const TargetRegisterClass PRRegClass;
   extern const TargetRegisterClass GPR16RegClass;
   extern const TargetRegisterClass GPRRegClass;
   extern const TargetRegisterClass GPR8RegClass;
+  extern const TargetRegisterClass PRRegClass;
 } // end namespace CCV
 
 } // end namespace llvm
@@ -355,28 +355,28 @@ static const LaneBitmask SubRegIndexLaneMaskTable[] = {
 
 static const TargetRegisterInfo::RegClassInfo RegClassInfos[] = {
   // Mode = 0 (Default)
-  { 1, 1, 32, /*VTLists+*/0 },    // PR
   { 16, 16, 32, /*VTLists+*/2 },    // GPR16
   { 32, 32, 32, /*VTLists+*/6 },    // GPR
   { 32, 32, 32, /*VTLists+*/4 },    // GPR8
+  { 32, 32, 32, /*VTLists+*/0 },    // PR
 };
 
 static const TargetRegisterClass *const NullRegClasses[] = { nullptr };
 
-static const uint32_t PRSubClassMask[] = {
-  0x00000001, 
-};
-
 static const uint32_t GPR16SubClassMask[] = {
-  0x0000000e, 
+  0x00000007, 
 };
 
 static const uint32_t GPRSubClassMask[] = {
-  0x0000000c, 
+  0x00000006, 
 };
 
 static const uint32_t GPR8SubClassMask[] = {
-  0x0000000c, 
+  0x00000006, 
+};
+
+static const uint32_t PRSubClassMask[] = {
+  0x00000008, 
 };
 
 static const uint16_t SuperRegIdxSeqs[] = {
@@ -397,20 +397,6 @@ static const TargetRegisterClass *const GPR8Superclasses[] = {
 
 
 namespace CCV {   // Register class instances
-  extern const TargetRegisterClass PRRegClass = {
-    &CCVMCRegisterClasses[PRRegClassID],
-    PRSubClassMask,
-    SuperRegIdxSeqs + 0,
-    LaneBitmask(0x0000000000000001),
-    0,
-    false,
-    0x00, /* TSFlags */
-    false, /* HasDisjunctSubRegs */
-    false, /* CoveredBySubRegs */
-    NullRegClasses,
-    nullptr
-  };
-
   extern const TargetRegisterClass GPR16RegClass = {
     &CCVMCRegisterClasses[GPR16RegClassID],
     GPR16SubClassMask,
@@ -453,14 +439,28 @@ namespace CCV {   // Register class instances
     nullptr
   };
 
+  extern const TargetRegisterClass PRRegClass = {
+    &CCVMCRegisterClasses[PRRegClassID],
+    PRSubClassMask,
+    SuperRegIdxSeqs + 0,
+    LaneBitmask(0x0000000000000001),
+    0,
+    false,
+    0x00, /* TSFlags */
+    false, /* HasDisjunctSubRegs */
+    false, /* CoveredBySubRegs */
+    NullRegClasses,
+    nullptr
+  };
+
 } // end namespace CCV
 
 namespace {
   const TargetRegisterClass *const RegisterClasses[] = {
-    &CCV::PRRegClass,
     &CCV::GPR16RegClass,
     &CCV::GPRRegClass,
     &CCV::GPR8RegClass,
+    &CCV::PRRegClass,
   };
 } // end anonymous namespace
 
@@ -479,10 +479,10 @@ CostPerUseTable, 1, InAllocatableClassTable};
 const RegClassWeight &CCVGenRegisterInfo::
 getRegClassWeight(const TargetRegisterClass *RC) const {
   static const RegClassWeight RCWeightTable[] = {
-    {1, 4},  	// PR
     {1, 16},  	// GPR16
     {1, 16},  	// GPR
     {1, 16},  	// GPR8
+    {1, 4},  	// PR
   };
   return RCWeightTable[RC->getID()];
 }
@@ -533,7 +533,7 @@ static const int RCSetsTable[] = {
 const int *CCVGenRegisterInfo::
 getRegClassPressureSets(const TargetRegisterClass *RC) const {
   static const uint8_t RCSetStartTable[] = {
-    0,2,2,2,};
+    2,2,2,0,};
   return &RCSetsTable[RCSetStartTable[RC->getID()]];
 }
 
