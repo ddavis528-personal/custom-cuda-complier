@@ -22,6 +22,13 @@ static constexpr unsigned AS_CONST  = 4;
 
 #include "CCVGenCallingConv.inc"
 
+// Mutation control for tools/check-int64.sh: sign-extend every load widened
+// to 64 bits, whatever its extension.
+static cl::opt<bool> TestWideLoadSext(
+    "ccv-test-wide-load-sext", cl::init(false), cl::Hidden,
+    cl::desc("sign-extend every load widened to 64 bits, to test that it is "
+             "caught"));
+
 CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
                                      const CCVSubtarget &STI)
     : TargetLowering(TM) {
@@ -117,6 +124,17 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
     setOperationAction(Op, MVT::i32, Expand);
   for (RTLIB::Libcall LC : {RTLIB::SHL_I64, RTLIB::SRL_I64, RTLIB::SRA_I64})
     setLibcallName(LC, nullptr);
+  // A 64-bit multiply (IS-13's 64-bit integers) is split into 32-bit halves
+  // as *MUL_LOHI, which has no instruction; expanded, it is mul.lo and
+  // mul.hi.u / mul.hi.s, both in §4.
+  for (unsigned Op : {ISD::UMUL_LOHI, ISD::SMUL_LOHI})
+    setOperationAction(Op, MVT::i32, Expand);
+  // A 64-bit compare is split into the halves' compares, joined by a
+  // select_cc on their i1 results, which has no instruction either.
+  setOperationAction(ISD::SELECT_CC, MVT::i1, Expand);
+  // ... and that select picks between the halves' predicates, i1: predicate
+  // logic, selected in CCVISelDAGToDAG.
+  setOperationAction(ISD::SELECT, MVT::i1, Legal);
   // brcond takes an i1; there is no BRCOND over a GPR bit pattern, because a
   // branch reads the predicate file directly (§3, Format E).
   setOperationAction(ISD::BRCOND, MVT::Other, Legal);
@@ -778,8 +796,20 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     // by the widening chwidth, sign-extended by `sext_inreg`, truncated for an
     // i8 or i16 user. i8 is not legal, so this has to happen here, before the
     // type legalizer meets the 64-bit address.
-    ISD::LoadExtType Ext = LD->getExtensionType();
+    //
+    // A load extended to 64 bits (IS-13's 64-bit integers) is the same load
+    // at 32 bits, then extended: the combiner folds `zext (load i32)` into
+    // one i64 extending load, whose address then reached the type legalizer
+    // unmatched and aborted -- every 64-bit kernel that read 32-bit data.
+    ISD::LoadExtType WideExt = LD->getExtensionType(), Ext = WideExt;
     EVT MemVT = LD->getMemoryVT(), VT = LD->getValueType(0);
+    const bool Wide = VT == MVT::i64 && Ext != ISD::NON_EXTLOAD &&
+                      MemVT.getSizeInBits() <= 32;
+    if (Wide) {
+      VT = MVT::i32;
+      if (MemVT == MVT::i32)
+        Ext = ISD::NON_EXTLOAD;
+    }
     const bool Byte = MemVT == MVT::i8;
     if (Byte ? !(VT == MVT::i8 || VT == MVT::i16 || VT == MVT::i32)
              : Ext != ISD::NON_EXTLOAD && (MemVT != MVT::i16 || VT != MVT::i32))
@@ -841,6 +871,12 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
       V = DAG.getNode(Ext == ISD::SEXTLOAD ? ISD::SIGN_EXTEND : ISD::ZERO_EXTEND,
                       DL, MVT::i32, V);
     }
+    if (Wide)
+      V = DAG.getNode(WideExt == ISD::SEXTLOAD || TestWideLoadSext
+                                                 ? ISD::SIGN_EXTEND
+                      : WideExt == ISD::ZEXTLOAD ? ISD::ZERO_EXTEND
+                                                 : ISD::ANY_EXTEND,
+                      DL, MVT::i64, V);
     DCI.CombineTo(N, V, New.getValue(1));
     return SDValue(N, 0);
   }

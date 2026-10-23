@@ -443,25 +443,62 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     ReplaceNode(N, SDValue(New, 0).getNode());
     return;
   }
+  case ISD::ADD:
+  case ISD::SUB: {
+    // x + zext c, or x - zext c: one predicated add of +1 or -1 rather than
+    // the predicate materialized as 0/1 and then added. The carry of a
+    // 64-bit add and the borrow of a subtract are this shape (IS-13 (2)).
+    if (N->getValueType(0) != MVT::i32)
+      break;
+    auto IsBit = [](SDValue V) {
+      return (V.getOpcode() == ISD::ZERO_EXTEND ||
+              V.getOpcode() == ISD::ANY_EXTEND) &&
+             V.getOperand(0).getValueType() == MVT::i1;
+    };
+    SDValue X = N->getOperand(0), C = N->getOperand(1);
+    if (N->getOpcode() == ISD::ADD && !IsBit(C) && IsBit(X))
+      std::swap(X, C);
+    if (!IsBit(C))
+      break;
+    ReplaceNode(N, CurDAG->getMachineNode(
+                       CCV::PSEUDO_PADDI, DL, MVT::i32,
+                       {X, C.getOperand(0),
+                        CurDAG->getTargetConstant(
+                            N->getOpcode() == ISD::ADD ? 1 : -1, DL, MVT::i32)}));
+    return;
+  }
   case ISD::ZERO_EXTEND:
   case ISD::ANY_EXTEND: {
-    // A predicate as 0 or 1. The combiner makes one of `select c, x + 1, x`,
-    // which is how a stored pointer's carry is written (§5.7), as x + zext c.
-    // It is a select of the two constants, a predicated move.
+    // A predicate as 0 or 1: 0, plus 1 where the predicate holds -- two
+    // instructions, where a select of two materialized constants took three.
+    // (`x + zext c` itself, a stored pointer's carry (§5.7), is ISD::ADD's.)
     if (N->getValueType(0) != MVT::i32 ||
         N->getOperand(0).getValueType() != MVT::i1)
       break;
-    auto Imm = [&](int V) {
-      return SDValue(CurDAG->getMachineNode(
-                         CCV::MOVI, DL, MVT::i32,
-                         CurDAG->getTargetConstant(V, DL, MVT::i32)),
-                     0);
-    };
-    ReplaceNode(N, CurDAG->getMachineNode(CCV::PSEUDO_PMOV, DL, MVT::i32,
-                                          {Imm(0), N->getOperand(0), Imm(1)}));
+    SDValue Zero(CurDAG->getMachineNode(
+                     CCV::MOVI, DL, MVT::i32,
+                     CurDAG->getTargetConstant(0, DL, MVT::i32)),
+                 0);
+    ReplaceNode(N, CurDAG->getMachineNode(
+                       CCV::PSEUDO_PADDI, DL, MVT::i32,
+                       {Zero, N->getOperand(0),
+                        CurDAG->getTargetConstant(1, DL, MVT::i32)}));
     return;
   }
   case ISD::SELECT: {
+    // A select between predicates -- a 64-bit compare joining its halves'
+    // compares (IS-13 (2)) -- is b ^ (c & (a ^ b)): three predicate
+    // operations, where going through a GPR cost a materialized 0/1 per arm.
+    if (N->getValueType(0) == MVT::i1) {
+      auto P = [&](unsigned Opc, SDValue L, SDValue R) {
+        return SDValue(CurDAG->getMachineNode(Opc, DL, MVT::i1, {L, R}), 0);
+      };
+      SDValue C = N->getOperand(0), A = N->getOperand(1), B = N->getOperand(2);
+      ReplaceNode(N, P(CCV::PSEUDO_PXOR, B,
+                       P(CCV::PSEUDO_PAND, C, P(CCV::PSEUDO_PXOR, A, B)))
+                         .getNode());
+      return;
+    }
     // (select cond, a, b) -- cond is an i1 in a predicate register.
     if (N->getValueType(0) != MVT::i32 && N->getValueType(0) != MVT::f32)
       break;

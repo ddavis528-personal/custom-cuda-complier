@@ -86,6 +86,14 @@ bool CCVExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
         break;
       }
 
+      case CCV::PSEUDO_PADDI:
+        // operands: rd(tied), false, cond, imm  ->  @cond add rd, rd, imm
+        BuildMI(MBB, MI, DL, TII->get(CCV::ADDI_P), MI.getOperand(0).getReg())
+            .addImm(qualFor(MI.getOperand(2).getReg(), /*Negate=*/false))
+            .add(MI.getOperand(1))
+            .add(MI.getOperand(3));
+        break;
+
       case CCV::PSEUDO_CALL:
         // F-21: the conventional link register. A call.short form of this is
         // the compressor's to pick once it can see the distance.

@@ -132,6 +132,13 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-ptrmem.sh || fail=1
 fi
 
+# IS-13 (2): 64-bit integers through 32-bit pairs, every operation executed
+# against C's semantics, with a control; and the add.cc/addc measurement.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  64-bit integers (IS-13)"
+  ./tools/check-int64.sh || fail=1
+fi
+
 # F-22: pointers as values -- phis, selects, compares, NULL, a frame object's
 # address -- executed across a window boundary, with two controls.
 if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
