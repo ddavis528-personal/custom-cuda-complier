@@ -92,6 +92,7 @@ checked 416 instructions
   PASS  control -ccv-test-no-ptr-carry is caught: 8 wrong; first: slots[3] = 0x0, want 0x100000000
   PASS  control -ccv-test-swap-ptr-halves is caught: 63 wrong; first: slots[0] = 0x10, want 0x50010
   atomics (O-72)
+  PASS  the seq_cst atomic is bracketed by two fences, ordering 0 at system scope (O-73)
   PASS  atomics.cu: global and shared histograms (int, and float by CAS loop), min/max/or/xor/sub/and, CAS, a 16-bit counter and exchange on 32 lanes (454 issue groups)
   PASS  control -ccv-test-atomic-no-index is caught: 60 wrong; first: bins[0] = 32, want 1
   PASS  control -ccv-test-atomic-plain is caught: 35 wrong; first: bins[1] = 1, want 2
@@ -164,7 +165,7 @@ checked 416 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 192 findings and 72 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 192 findings and 73 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings

@@ -77,12 +77,12 @@ LBB0_4:
 	atom.xor.global r3, [r8, r7, 0, 0], r3
 	ld.global r3, [r2 + 64]
 	ld.global r7, [r2 + 68]
-	fence 26
+	fence 2
 	add r7, r7, 24
 	neg r8, r1
 	atom.add.global r3, [r3, r7, 0, 0], r8
 	not r3, r6
-	fence 26
+	fence 2
 	ld.global r6, [r2 + 68]
 	add r6, r6, 28
 	ld.global r7, [r2 + 64]

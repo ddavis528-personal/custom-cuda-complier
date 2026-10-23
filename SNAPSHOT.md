@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-10-23-18d5c60
+# Snapshot snapshot-2026-10-23-ecb6e44
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `18d5c605ff7f8977035bd836f1dc5d9beceae7f4`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `ecb6e44a000d0831921b9bf98a1d3f46dd9682aa`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -24,7 +24,7 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `18d5c605ff7f8977035bd836f1dc5d9beceae7f4` |
+| Source | `ccr-ea1c4e17-tem30u` @ `ecb6e44a000d0831921b9bf98a1d3f46dd9682aa` |
 | Built | 2026-10-23 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
@@ -44,7 +44,7 @@ d1825cc689f6094e35e3a24b144576c67d44e6995960739a3f95e7d9ef2162f5  release/asm/be
 dd05714aa352e4b46c5fa8aaaa531d4c219c2a44ca1fc1a83f131bb72d4df5b5  release/asm/bench-vadd16_loop.s
 1ab4360d07e9db8b92b340ce99306c8bfe7392e51ac96c61a3e69e445c895d02  release/asm/bench-vadd_loop.s
 ce633b5713036d7524e482dc2f7870435037bfaa79302180f904d5cff0fe285c  release/asm/cuda-argorder.s
-580a6e91c0c833b51797000fd8f93f631a133e76a627a7505e4ed548721d21f6  release/asm/cuda-atomics.s
+21ac1440dff7b28608b94d0b5bf1efa8fa77b80420938bcbed86abbe139d45e5  release/asm/cuda-atomics.s
 0116de90126825a9c05ce79635fa600b35ff9f1b8305111cc0f46b853b1fc865  release/asm/cuda-bytes.s
 1f26d7ee153520931e5eb272ef77d1c8d75cf8fa6a33ef5ef9c790edf555d872  release/asm/cuda-byval.s
 af3128bff7c030f933359bd2f54ffab4eafb444001dc32b60f857e34f3626996  release/asm/cuda-calls.s
@@ -73,7 +73,7 @@ f540a502bf7063cfb75450053c5163bc8986871d7cb0aa9bc2b8ee8cb9637a3c  release/asm/cu
 7c2f971dd9be5f3bf8991f6f3e0bf4dd73d7c132151c7a9a41ed62f1630d3388  release/bench/sweep-frames.txt
 28c14ebc8397a6ec18b69bcb5ebe93a64c94cd04b97c971dd526f78ff72f423b  release/bench/sweep-tiles.txt
 eec284294c85e429ed7e66c1d32dd207b09e61545db1922898291a0e785c3c72  release/bin/ccv-sim
-6231052571a049687dbdcf2f721074bc35841b583a5dab206e11d6a71fbd9711  release/bin/ccv-sim.txt
+b2d15d529ded28aa8cc443ac83cbbb15f7f8855bd7029ea644198dc009ad6ad4  release/bin/ccv-sim.txt
 a462bf4ec724698e923e08de91c0acabb427af1a7a5e62f96936f3174d0fc725  release/kernels/coremark-derived/kernel.bin
 608044bafe0a8bebd88e5006cabf0aa6c7147f152fe1a3db927e89edf7d57e24  release/kernels/coremark-derived/kernel.s
 6ba104efb4f63121017354429d86bafc49b55612259a53579a0613ceb9671cfb  release/kernels/coremark-derived/launch.txt
@@ -90,5 +90,5 @@ ce8e645c8b285ff035aa6d701ee7dc1207459bf060c85e27f4239d48b84d580b  release/kernel
 ba1f77ebad84a1da78c82e9c3ef4f1e466cb8da7d8634dc0f234f7303a1ab069  release/kernels/rope/kernel.s
 12795ff2ace11fc143ad508c1a541846387f492fba37433e1502316ec19c65b3  release/kernels/rope/launch.txt
 1fd038c15e2c80787853fb2af63019b6d6fa9e86459b373fee9974181eb0c477  release/kernels/rope/ops.txt
-06962bbe37cf381bb58a19d13e2bedc50fcd99e82467a7941ccc3b37abc1de8e  release/verify.log
+5b3e0e8f280a730341f0d9abd6b3a1f64ab334f6f7bf2286b0172d7143f313a2  release/verify.log
 ```

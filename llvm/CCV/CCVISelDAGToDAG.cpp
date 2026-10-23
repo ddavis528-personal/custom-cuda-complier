@@ -283,9 +283,9 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
   }
   case ISD::ATOMIC_FENCE: {
     // §3's fence: scope at [10:8] and ordering at [12:11], payload bits
-    // [2:0] and [4:3]. The codes are provisional, pending IS (CP-29): scope
-    // 0 CTA, 1 device, 2 system; ordering 1 acquire, 2 release, 3 both. A
-    // single-thread fence orders nothing the hardware sees.
+    // [2:0] and [4:3], with O-73's codes: scope 0 CTA, 1 device, 2 system;
+    // ordering 0 sequentially consistent, 1 acquire, 2 release, 3
+    // acquire-release. A single-thread fence orders nothing the hardware sees.
     auto Ord = AtomicOrdering(N->getConstantOperandVal(1));
     auto Scope = SyncScope::ID(N->getConstantOperandVal(2));
     if (Scope == SyncScope::SingleThread) {
@@ -303,9 +303,10 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
       else if (Nm == "device" || Nm == "gpu" || Nm == "agent")
         ScopeCode = 1;
     }
-    unsigned OrdCode = Ord == AtomicOrdering::Acquire   ? 1
-                       : Ord == AtomicOrdering::Release ? 2
-                                                        : 3;
+    unsigned OrdCode = Ord == AtomicOrdering::Acquire          ? 1
+                       : Ord == AtomicOrdering::Release        ? 2
+                       : Ord == AtomicOrdering::AcquireRelease ? 3
+                                                               : 0;
     ReplaceNode(N, CurDAG->getMachineNode(
                        CCV::C_FENCE, DL, MVT::Other,
                        {CurDAG->getTargetConstant(ScopeCode | OrdCode << 3, DL,

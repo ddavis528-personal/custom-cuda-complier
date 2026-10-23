@@ -95,6 +95,16 @@ PY
 }
 
 fail=0
+# O-73's fence codes: the seq_cst subtract is bracketed by ordering 0
+# (sequentially consistent) at system scope, payload 2, and nothing else in
+# the kernel is stronger than relaxed.
+build/ccv-llc "$TMP/a.low.ll" -o "$TMP/a.s" || exit 1
+fences=$(grep -oE '^\s*fence [0-9]+' "$TMP/a.s" | awk '{print $2}' | sort | uniq -c | xargs)
+if [ "$fences" = "2 2" ]; then
+  echo "  PASS  the seq_cst atomic is bracketed by two fences, ordering 0 at system scope (O-73)"
+else
+  echo "  FAIL  fences emitted: '$fences', want two of payload 2"; fail=1
+fi
 out=$(run "" "")
 case "$out" in
   ok*) echo "  PASS  atomics.cu: global and shared histograms (int, and float by CAS loop), min/max/or/xor/sub/and, CAS, a 16-bit counter and exchange on 32 lanes (${out#ok } issue groups)" ;;
