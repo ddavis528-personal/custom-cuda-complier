@@ -605,12 +605,20 @@ if [ -x build/ccv-llc ]; then
       echo "  FAIL  rejects $(basename "$f") -- should compile"; fail=1
     fi
   done
+  # Each test names the diagnostic it exists for (`; expect:`), so a module
+  # that several rules reject still proves its own one fires.
   for f in test/reject/*.ll; do
     out=$(build/ccv-llc "$f" -o "$TMP/r.s" 2>&1); rc=$?
-    if [ $rc -eq 1 ] && grep -q "cannot be lowered" <<< "$out"; then
-      echo "  PASS  diagnoses $(basename "$f")"
+    want=$(sed -n 's/^; expect: //p' "$f" | head -1)
+    if [ -z "$want" ]; then
+      echo "  FAIL  $(basename "$f") names no '; expect:' diagnostic"; fail=1
+    elif [ $rc -eq 1 ] && grep -q "cannot be lowered" <<< "$out" &&
+         grep -qF -- "- $want in @" <<< "$out"; then
+      echo "  PASS  diagnoses $(basename "$f"): $want"
     elif [ $rc -eq 0 ]; then
       echo "  FAIL  $(basename "$f") compiled -- should be rejected"; fail=1
+    elif [ $rc -eq 1 ] && grep -q "cannot be lowered" <<< "$out"; then
+      echo "  FAIL  $(basename "$f") was rejected, but not with '$want'"; fail=1
     else
       echo "  FAIL  $(basename "$f") crashed (rc=$rc) instead of diagnosing"; fail=1
     fi

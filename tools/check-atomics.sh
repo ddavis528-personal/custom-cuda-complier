@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # O-72: CUDA atomics, compiled and executed. test/cuda/atomics.cu runs on one
-# warp, whose 32 lanes collide on bins and on single words (ccv-sim does not
-# model a barrier across a CTA's warps, TI-29): a 64-bin histogram in .global, integer (one
+# warp, whose 32 lanes collide on bins and on single words, and on two
+# (ccv-sim -cta, TI-29), whose CAS loops interleave on the same words: a
+# 64-bin histogram in .global, integer (one
 # atom.add.global at a computed address) and float (a CAS loop), a 16-bin one
 # in .shared merged after a barrier, and min, max, or, xor, sub (seq_cst, so
 # fenced), and, CAS, a 16-bit counter (a CAS loop on its word) and exchange.
@@ -24,14 +25,14 @@ opt -load-pass-plugin=build/CCVLowerKernelArgs.so \
     -passes='function(infer-address-spaces),ccv-lower-kernel-args,function(instcombine,gvn,simplifycfg)' \
     -S "$TMP/a.ll" -o "$TMP/a.low.ll" 2>/dev/null || exit 1
 
-run() {   # $1 = ccv-llc flags, $2 = ccv-sim flags
+run() {   # $1 = ccv-llc flags, $2 = ccv-sim flags, $3 = threads (32)
   build/ccv-llc "$TMP/a.low.ll" -o "$TMP/a.o" -obj $1 2>"$TMP/err" ||
     { echo "compile failed: $(head -1 "$TMP/err")"; return; }
   llvm-objcopy -O binary --only-section=.text "$TMP/a.o" "$TMP/a.bin" || return
   local entry; entry=$(llvm-nm "$TMP/a.o" | awk '/ T .*atomics/ {print "0x"$1}')
-  python3 - "$TMP/a.bin" "$entry" "$2" <<'PY'
+  python3 - "$TMP/a.bin" "$entry" "$2" "${3:-32}" <<'PY'
 import random, re, struct, subprocess, sys
-N = 32
+N = int(sys.argv[4])
 random.seed(72)
 IN = [random.getrandbits(11) for _ in range(N)]
 W = [float(random.randint(1, 8)) for _ in range(N)]    # exact in any order
@@ -109,6 +110,11 @@ out=$(run "" "")
 case "$out" in
   ok*) echo "  PASS  atomics.cu: global and shared histograms (int, and float by CAS loop), min/max/or/xor/sub/and, CAS, a 16-bit counter and exchange on 32 lanes (${out#ok } issue groups)" ;;
   *)   echo "  FAIL  atomics.cu: $out"; fail=1 ;;
+esac
+out=$(run "" "-cta" 64)
+case "$out" in
+  ok*) echo "  PASS  atomics.cu on 64 threads, two warps (-cta): every word right (${out#ok } issue groups)" ;;
+  *)   echo "  FAIL  atomics.cu on 64 threads (-cta): $out"; fail=1 ;;
 esac
 for c in "|-ccv-test-atomic-no-index" "-ccv-test-atomic-plain|"; do
   out=$(run "${c%%|*}" "${c#*|}")

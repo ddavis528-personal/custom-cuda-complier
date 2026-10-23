@@ -13,6 +13,7 @@
   test/cuda/bytes.cu                      4         7          7
   test/cuda/byval.cu                      0         0          0
   test/cuda/calls.cu                     12        54         54
+  test/cuda/cta-reduce.cu                 0         0          0
   test/cuda/divconst.cu                   0         0          0
   test/cuda/dp4.cu                        0         0          0
   test/cuda/fp4.cu                       --
@@ -42,7 +43,7 @@
   test/cuda/vadd-aligned.cu               0         0          0
   test/cuda/vadd.cu                       0         0          0
   test/coremark-derived                  37       109         97
-  frame words: 0: 36, 1-32: 3, 33-64: 1, >64: 0 of 40 kernels
+  frame words: 0: 37, 1-32: 3, 33-64: 1, >64: 0 of 41 kernels
 
   frame instructions by kind (static), and functions with a frame object
   kernel                              spill  args  object  fns  w/obj
@@ -51,7 +52,7 @@
   test/cuda/ptrlist.cu                    5     0       4    4      1
   test/coremark-derived                  50     3      56   13      2
   total (kernels with a frame)           78    15      86
-  functions in the corpus: 74, with a frame object: 8
+  functions in the corpus: 75, with a frame object: 8
 
   issued, at each kernel's launch (dynamic)
   kernel                 issue   memops   frame  +lane reg  st idx  idx/mem

@@ -566,7 +566,9 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     4362342U,	// CVT_D0_S0_R0_W16_32
     4362342U,	// CVT_D0_S0_R0_W16_8
     4362342U,	// CVT_D0_S0_R0_W32_16
+    4362342U,	// CVT_D0_S0_R0_W32_4
     4362342U,	// CVT_D0_S0_R0_W32_8
+    4362342U,	// CVT_D0_S0_R0_W4_32
     4362342U,	// CVT_D0_S0_R0_W8_32
     4362374U,	// CVT_D0_S0_R1
     538869U,	// CVT_D0_S0_R1_P

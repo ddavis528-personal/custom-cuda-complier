@@ -139,6 +139,13 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-atomics.sh || fail=1
 fi
 
+# TI-29: every warp of a CTA in one ccv-sim run (-cta), sharing .shared and
+# the barriers: a tree sum across four warps, with a control.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  a CTA's warps (TI-29)"
+  ./tools/check-cta.sh || fail=1
+fi
+
 # IS-13 (2): 64-bit integers through 32-bit pairs, every operation executed
 # against C's semantics, with a control; and the add.cc/addc measurement.
 if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then

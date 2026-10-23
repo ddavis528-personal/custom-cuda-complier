@@ -78,6 +78,7 @@ add_library(CCVMC STATIC
   llvm/CCV/CCVAsmPrinter.cpp
   llvm/CCV/CCVCheckIR.cpp
   llvm/CCV/CCVFP64Bits.cpp
+  llvm/CCV/CCVFoldFP4.cpp
   llvm/CCV/CCVInternalize.cpp
   llvm/CCV/CCVPointerPairs.cpp
   llvm/CCV/CCVCodePointers.cpp
@@ -105,7 +106,8 @@ target_compile_definitions(CCVMC PUBLIC ${LLVM_DEFINITIONS})
 
 llvm_map_components_to_libnames(LLVM_LIBS mc mcdisassembler support
                                 codegen selectiondag asmprinter target analysis
-                                irreader core bitreader mcparser)
+                                irreader core bitreader mcparser
+                                transformutils)
 target_link_libraries(CCVMC PUBLIC ${LLVM_LIBS})
 
 add_executable(ccv-roundtrip tools/ccv-roundtrip/main.cpp)

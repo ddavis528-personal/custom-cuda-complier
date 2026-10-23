@@ -91,7 +91,8 @@ bool CCVNarrowUses::runOnMachineFunction(MachineFunction &MF) {
   // its source's register, which it takes wherever the source dies there.
   auto width = [&](Register R) -> uint8_t {
     unsigned ID = MRI.getRegClass(R)->getID();
-    return ID == CCV::GPR16RegClassID ? 1 : ID == CCV::GPR8RegClassID ? 2 : 0;
+    return ID == CCV::GPR16RegClassID ? 1 : ID == CCV::GPR8RegClassID ? 2
+         : ID == CCV::GPR4RegClassID ? 3 : 0;
   };
   for (MachineBasicBlock &MBB : MF)
     for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {

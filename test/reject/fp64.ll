@@ -1,3 +1,4 @@
+; expect: double-precision (FP64) arithmetic
 ; FP64 is out of scope for V1 (DA's response IS-13; ISA v1.8 section 10).
 ; `double` in device code must be diagnosed, not emulated. Before the rule,
 ; this aborted in the type legalizer with no diagnostic.

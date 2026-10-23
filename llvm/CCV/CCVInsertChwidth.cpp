@@ -144,6 +144,8 @@ uint8_t operandWidth(const MCInstrDesc &D, unsigned OpNo) {
     return 1;
   if (RC == CCV::GPR8RegClassID)        // F-161: a byte access's data register
     return 2;
+  if (RC == CCV::GPR4RegClassID)        // an E2M1 conversion's result
+    return 3;
   return 0;
 }
 } // namespace llvm

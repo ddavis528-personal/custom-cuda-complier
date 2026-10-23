@@ -59,7 +59,9 @@ static const CCVOperandInfo Operands_CVT_D0_S0_R0_P[] = {{4, false}, {3, false},
 static const CCVOperandInfo Operands_CVT_D0_S0_R0_W16_32[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_CVT_D0_S0_R0_W16_8[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_CVT_D0_S0_R0_W32_16[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S0_R0_W32_4[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_CVT_D0_S0_R0_W32_8[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CVT_D0_S0_R0_W4_32[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_CVT_D0_S0_R0_W8_32[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_CVT_D0_S0_R1[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_CVT_D0_S0_R1_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
@@ -477,7 +479,9 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"CVT_D0_S0_R0_W16_32", 4, Operands_CVT_D0_S0_R0_W16_32},
   {"CVT_D0_S0_R0_W16_8", 4, Operands_CVT_D0_S0_R0_W16_8},
   {"CVT_D0_S0_R0_W32_16", 4, Operands_CVT_D0_S0_R0_W32_16},
+  {"CVT_D0_S0_R0_W32_4", 4, Operands_CVT_D0_S0_R0_W32_4},
   {"CVT_D0_S0_R0_W32_8", 4, Operands_CVT_D0_S0_R0_W32_8},
+  {"CVT_D0_S0_R0_W4_32", 4, Operands_CVT_D0_S0_R0_W4_32},
   {"CVT_D0_S0_R0_W8_32", 4, Operands_CVT_D0_S0_R0_W8_32},
   {"CVT_D0_S0_R1", 4, Operands_CVT_D0_S0_R1},
   {"CVT_D0_S0_R1_P", 5, Operands_CVT_D0_S0_R1_P},
@@ -841,4 +845,4 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"XOR_P", 5, Operands_XOR_P},
   {"XOR_W16", 4, Operands_XOR_W16},
 };
-static const unsigned CCVNumInstOperands = 416;
+static const unsigned CCVNumInstOperands = 418;

@@ -4,6 +4,7 @@
 
 #include "Warp.h"
 #include <cstdint>
+#include <vector>
 
 namespace llvm { class MCInst; }
 
@@ -26,6 +27,15 @@ public:
   /// Barriers the CTA has allocated, at most 16 (O-59); an ID at or above it
   /// raises F-BARRIER.
   unsigned BarrierCount = 16;
+  /// Every warp of the CTA, when the run is all of them (-cta, TI-29): a
+  /// barrier then waits for each warp's live lanes, not only its own warp's.
+  std::vector<Warp> *Cta = nullptr;
+  /// Mutation control for tools/check-cta.sh: each warp's barriers wait for
+  /// that warp alone, as if the others were not there.
+  bool TestWarpBarrier = false;
+  /// Retires barrier Id if every live lane it waits for has arrived, and
+  /// wakes every blocked lane; true if it did.
+  bool retireIfComplete(Warp &W, unsigned Id);
   /// CCV_LANE_CONTEXTS, the device's lane contexts (O-64): O-69's spill space
   /// starts at window local_base + this. ccv-sim's default is the core's
   /// params, 4,096, the device's %lanectx range; -lane-contexts sets it.
