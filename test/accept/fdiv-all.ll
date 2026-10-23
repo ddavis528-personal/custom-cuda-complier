@@ -1,8 +1,10 @@
 ; Software fp32 division (F-49, O-36), driven from memory so that
 ; tools/check-fdiv.sh can feed adversarial operands.
 ;
-; The claim under test is "correctly rounded whenever the result is normal",
-; which is a bit-exact claim about every input, not an error bound. The cases
+; The claim under test is IEEE division, correctly rounded at every input --
+; zeros, infinities, NaN (the canonical one, O-66), subnormal operands and
+; subnormal results (F-62, F-178) -- over an SFU that is only approximate
+; (IS-12). It is a bit-exact claim, not an error bound. The cases
 ; that break a divide sequence are not the obvious ones: operands at opposite
 ; ends of the exponent range, where an intermediate overflows or goes subnormal,
 ; and quotients that land a hair either side of a rounding boundary. Neither is

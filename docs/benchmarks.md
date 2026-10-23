@@ -77,9 +77,9 @@ questions and only one of them can be measured on both machines.
   vadd16_loop |     25     80   25.6 |     17     56 |     35    184   42.1 |     23
   dot        |     52    162   24.9 |     43    134 |     60    300   40.0 |     46
   reduce     |     48    150   25.0 |     41    128 |     54    268   39.7 |     41
-  transpose  |     60    210   28.0 |     52    184 |     64    308   38.5 |     43
+  transpose  |     63    220   27.9 |     55    194 |     64    308   38.5 |     43
   gemv       |    206    728   28.3 |    197    698 |    306   1688   44.1 |    228
-  sgemm      |    384   1352   28.2 |    360   1268 |    238   1376   46.3 |    201
+  sgemm      |    387   1362   28.2 |    363   1278 |    238   1376   46.3 |    201
 ```
 
 **Dynamic — instructions actually issued, per thread of work.**
@@ -94,9 +94,9 @@ questions and only one of them can be measured on both machines.
   vadd16_loop     66.0   100%         -- |      2112       100%   has 1 loops; not modelled
   dot            74.9    66%         -- |      2397       100%   has 3 loops; not modelled
   reduce         72.9    66%         -- |      2333       100%   has 3 loops; not modelled
-  transpose      52.0   100%         64 |      1127        68%   exact: no backward branch
+  transpose      55.0   100%         64 |      1189        68%   exact: no backward branch
   gemv          196.0   100%         -- |      6272       100%   has 2 loops; not modelled
-  sgemm         516.0   100%         -- |     15973        97%   has 5 loops; not modelled
+  sgemm         519.0   100%         -- |     16035        97%   has 5 loops; not modelled
 ```
 
 **CCV's dynamic column is measured** on the simulator — lane-instructions
@@ -138,7 +138,7 @@ spanning both encoding families and the datacentre line.
   vadd16_loop            25.6          128.0           42.1           43.6           42.4           46.8           45.2
   dot                   24.9          128.0           40.0           41.5           40.9           42.3           42.1
   reduce                25.0          128.0           39.7           42.9           39.2           41.4           40.2
-  transpose             28.0          128.0           38.5           41.1           39.6           39.2           38.7
+  transpose             27.9          128.0           38.5           41.1           39.6           39.2           38.7
   gemv                  28.3          128.0           44.1           48.1           50.3           49.4           43.4
   sgemm                 28.2          128.0           46.3           43.4           43.6           43.4           42.9
   --------------------------------------------------------------------------------------------------------------------
@@ -157,9 +157,9 @@ spanning both encoding families and the datacentre line.
   vadd16_loop              25             20             35             44             49             39             29
   dot                     52             42             60             64             68             62             54
   reduce                  48             39             54             50             71             58             51
-  transpose               60             53             64             60             76             76             62
+  transpose               63             53             64             60             76             76             62
   gemv                   206            166            306            305            312            323            238
-  sgemm                  384            196            238            222            245            247            205
+  sgemm                  387            196            238            222            245            247            205
 ```
 
 **The objection does not land.** AMD's density is flat across eight years and two
@@ -327,7 +327,7 @@ GCN5 the counts are within 30% and CCV is *lower* on nine of ten:
 
 | | vadd | saxpy | vadd16 | vadd_loop | vadd16_loop | dot | reduce | transpose | gemv | sgemm |
 |---|---|---|---|---|---|---|---|---|---|---|
-| CCV | 20 | 19 | 21 | 24 | 25 | 52 | 48 | 60 | 206 | 384 |
+| CCV | 20 | 19 | 21 | 24 | 25 | 52 | 48 | 63 | 206 | 387 |
 | GCN | 29 | 25 | 29 | 35 | 35 | 60 | 54 | 64 | 306 | 238 |
 
 `sgemm` is the exception and it is not a small one: 384 against 238. Read it
@@ -367,14 +367,14 @@ emits `.amdhsa_wavefront_size32` and its absence means wave64.
     vadd16                448            464            864           1024           1024            368
     vadd_loop             260             --             --             --             --             --
     vadd16_loop            264             --             --             --             --             --
-    transpose            1664           1024           1920           2432           2432            992
+    transpose            1760           1024           1920           2432           2432            992
   instr bytes / 1K elem
     vadd                 1344           2432           5248           5888           6144           2240
     saxpy                1536           2176           4352           4992           5248           1984
     vadd16               1536           2432           5376           6016           6272           2240
     vadd_loop             200             --             --             --             --             --
     vadd16_loop            224             --             --             --             --             --
-    transpose            5888           4928           9856          12032          11904           4800
+    transpose            6208           4928           9856          12032          11904           4800
 ```
 
 **Two results, and they point opposite ways.**
@@ -407,8 +407,8 @@ unit, one instruction for the whole wavefront.
 
 **`transpose` was the one kernel above GCN on instruction count, and is no
 longer**, and it now
-grew to **60 instructions and 210 bytes** against GCN's 64 and 308 — below on
-both again after O-45 removed its window loads, and below on issued work at 52
+grew to **63 instructions and 220 bytes** against GCN's 64 and 308 — below on
+both again after O-45 removed its window loads, and below on issued work at 55
 per thread against 64. For most of this project's life it was far worse
 than that and the explanation on file was wrong, which is worth recording
 because the wrong explanation was plausible for two revisions. See
@@ -610,9 +610,9 @@ had measured that. The simulator now counts it:
   vadd16_loop       66         55      32   0.582        50.0   1.300x
   dot              113         92       0   0.000       113.0       --
   reduce           111         90       0   0.000       111.0       --
-  transpose         52         49       0   0.000        52.0       --
+  transpose         55         51       0   0.000        55.0       --
   gemv             196        190       0   0.000       196.0       --
-  sgemm            516        495       0   0.000       516.0       --
+  sgemm            519        497       0   0.000       519.0       --
 ```
 
 **`vadd16` is exactly break-even.** 18 issued instructions, 4 of them narrow
@@ -707,12 +707,16 @@ The `lane-act` column is the measurement, from `ccv-sim -counters`:
 | | issued/thread | issued lane slots | activations | share |
 |---|---|---|---|---|
 | `transpose`, masking off | 45.0 | 1440 | 1344 | 93% |
-| `transpose`, masking on | 52.0 | 1664 | **1127** | **68%** |
+| `transpose`, masking on | 55.0 | 1760 | **1189** | **68%** |
 
-**217 fewer lanes switched — a 16% cut — for 7 added instructions per thread.**
-The pass's own stats account for them: 14 operations masked to lane 0, 1 already
-predicated and composed with `pand` (F-58), 7 broadcasts inserted, plus the one
-`pmov` that materializes the lane-0 mask. The broadcast count rose and the
+**155 fewer lanes switched — a 12% cut — for 10 added instructions per thread.**
+The pass's own stats account for them: 14 operations masked to lane 0, 3 already
+predicated and composed with `pand` (F-58), 9 broadcasts inserted, plus the one
+`pmov` that materializes the lane-0 mask. The saving fell, and the instruction
+count rose by three, when F-180 fixed the pass a second time: the division's
+correction selects were left unmasked while reading a value only lane 0 had
+computed, so lanes 1-31 were wrong whenever the correction fired. The divisors
+here never fire it, which is how the earlier, smaller numbers passed. The broadcast count rose and the
 saving fell when F-134 fixed the pass: a value consumed by an instruction that
 is NOT masked needs broadcasting however uniform it is, and compares -- which
 are never maskable -- were being treated as if they were in the region. F-111 widened this: O-41's Format B
@@ -796,7 +800,7 @@ anything to do with masking:
 | after F-94 — collect the dead reciprocal seed | 58 | −9% |
 | after O-41 and `mul.lo` — immediates have somewhere to go | **54** | **−16%** |
 
-52 instructions issued against GCN5's 64 is where it lands.
+55 instructions issued against GCN5's 64 is where it lands.
 
 **F-93 is the large one, and it hid behind a comment.** `CCVExpandDivision`
 opened with "constant divisors never reach here — instcombine turns those into a
@@ -923,22 +927,22 @@ only testable against an FP32 kernel of the same shape (F-113, F-121):
   FP32 -- test/cuda/sgemm.cu
   tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  div/unif
   ---------------------------------------------------------------------------------
-  1x1   1          185     5248    28.4      40     10   4.00       2      24     28/10
-  1x2   2          275     7952    28.9      74     22   3.36       2      54     46/10
-  2x2   4          360    10512    29.2     102     40   2.55       4      76     60/10
-  2x4   8          579    17472    30.2     190     75   2.53      17     116     95/10
-  4x4   16         916    28112    30.7     397    142   2.80     180     152    131/10
-  8x8   64        2530    79664    31.5    1441    521   2.77    1133     272    282/10
+  1x1   1          187     5360    28.7      41     10   4.10       2      26     28/10
+  1x2   2          277     8016    28.9      73     22   3.32       2      54     46/10
+  2x2   4          363    10592    29.2     102     40   2.55       4      76     60/10
+  2x4   8          582    17552    30.2     190     75   2.53      17     116     95/10
+  4x4   16         919    28192    30.7     397    142   2.80     180     152    131/10
+  8x8   64        2533    79744    31.5    1441    521   2.77    1133     272    282/10
 
   INT8 -- test/cuda/igemm.cu, four MACs per dp4
   tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  div/unif
   ---------------------------------------------------------------------------------
-  1x1   1          182     5184    28.5      37     34   1.09       2      22     28/10
-  1x2   2          271     7824    28.9      69     70   0.99       2      50     46/10
-  2x2   4          368    10672    29.0     105    136   0.77       4      76     60/10
-  2x4   8          589    17760    30.2     199    267   0.75      18     116     95/10
-  4x4   16         914    28112    30.8     392    526   0.75     165     152    131/10
-  8x8   64        2525    79584    31.5    1437   2057   0.70    1127     272    282/10
+  1x1   1          185     5248    28.4      37     34   1.09       2      22     28/10
+  1x2   2          276     7920    28.7      71     70   1.01       2      52     46/10
+  2x2   4          371    10752    29.0     105    136   0.77       4      76     60/10
+  2x4   8          592    17840    30.1     199    267   0.75      18     116     95/10
+  4x4   16         917    28192    30.7     392    526   0.75     165     152    131/10
+  8x8   64        2528    79664    31.5    1437   2057   0.70    1127     272    282/10
 
   sp/mac is the decision number: memory traffic the register file forced, per
   multiply-accumulate it bought. A bigger tile raises arithmetic intensity as
@@ -1106,9 +1110,9 @@ block:
 
   For contrast, the same two columns on the GEMM this was compared against:
   ------------------------------------------------------------
-  sgemm 2x2         360    10512     102     60/10       0%
-  sgemm 2x4         579    17472     190     95/10       0%
-  sgemm 4x4         916    28112     397    131/10       0%
+  sgemm 2x2         363    10592     102     60/10       0%
+  sgemm 2x4         582    17552     190     95/10       0%
+  sgemm 4x4         919    28192     397    131/10       0%
 
   Read the div/unif column first. In `sgemm` the divergent peak alone is several
   times the 16-entry register file -- its addressing is indexed by `threadIdx`,
@@ -1215,7 +1219,7 @@ parameterised on "number of tensors" would have counted as three.
   rmsnorm           3     2      79    2128      4       0      0      0      0       6/9
   add_rmsnorm       3     2      84    2256      6       0      0      0      0       8/9
   rope              4     4     144    4000     13      24     17      0      0     11/15
-  adamw             4     8      78    2096      7      11      6      0      2      8/15
+  adamw             4     8     131    3728      7      19      8      0      2     10/15
   dequant           6     1      61    1616      6       0      0      0      0      5/10
   layernorm         6     2     113    3040      7       0      0      0      0      8/14
   attn_combine      4     2     219    6352     16      11      6      0      0      3/19

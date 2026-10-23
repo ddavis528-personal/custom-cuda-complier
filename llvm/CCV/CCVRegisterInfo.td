@@ -92,4 +92,13 @@ def GPR8 : RegisterClass<"CCV", [i32], 32,
          R15)>;
 
 // One bit per lane in hardware; i1 per thread in the type system.
+//
+// Size is the SPILL size, and it is a word: `st.pred` moves a predicate's 32
+// lane bits as one word (O-19). Left to TableGen it is i1's one bit, which is
+// zero bytes, so every predicate spill slot had size 0 and all of them sat at
+// one offset. A value spilled while another predicate was live in memory was
+// overwritten by the next spill, and the reload brought back the wrong lanes.
+// Nothing had more than one predicate in memory at once until the IEEE divide
+// (F-179).
+let Size = 32 in
 def PR : RegisterClass<"CCV", [i1], 32, (sequence "P%u", 0, 3)>;

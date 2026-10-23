@@ -45,6 +45,9 @@ enum class Round { RN = 0, RZ = 1, RM = 2, RP = 3 };
 /// reading O-67 replaced).
 inline bool TestFtz = false, TestNoSaturate = false, TestHostNaN = false,
             TestByValue = false;
+/// ccv-sim -sfu-error-ulps: how far the FP SFU's results may be from correctly
+/// rounded (IS-12); 0 is exact.
+inline unsigned SfuErrorUlps = 0;
 
 struct Format {
   unsigned Bits, ExpBits, ManBits;
