@@ -864,9 +864,8 @@ def LD_GLOBAL_P : FormatDp<0b00000, (outs GPR:$rdata),
 // Format M / M' -- atomics.
 // ---------------------------------------------------------------------------
 // O-72: the base + index address of Format D, so an atomic reaches a computed
-// element. The opcode numbers are provisional, pending IS (CP-29): the nine
-// operations in §3's order at 0-8 for .global and 16-24 for .shared, and CAS,
-// in the 48-bit space, at 16 and 17.
+// element. O-73's numbers: the nine operations in §3's order at 0-8 for
+// .global and 16-24 for .shared, and CAS, in the 48-bit space, at 16 and 17.
 class AtomOp<string n, string m, int o> {
   string Name = n; string Mnem = m; int Opc = o;
 }
