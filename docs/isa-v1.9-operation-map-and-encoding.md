@@ -113,6 +113,14 @@ Invariant 3 promised a deterministic result for a width mismatch without saying 
 does: raw fields, zero-extended or truncated to the operating width, never converted. It is
 §3's shuffle rule applied everywhere, and what the lanes' operand path delivers (OA).
 
+### An interleaved spill space (O-69; IS-19)
+
+Adopted by DA on 2026-10-23. Four Format D points, `ld.local`, `st.local`, `ld.pred.local` and
+`st.pred.local`, address a warp-private, lane-interleaved spill frame with no base register. A
+warp's spill of one word is one line and one page, where O-30's per-thread windows made it 32 of
+each. R15 is reserved only where an address-taken object, a stack argument or recursion needs
+O-30's frame. This is an encoding change: four reserved points become defined.
+
 ### Still open
 
 SFU accuracy is ruled under IS-12, but its PTX bound table is not yet written.
@@ -1082,11 +1090,66 @@ it is the rarest of the four and the index register carries most of the addressi
 | `01000`–`01011` | base + offset | `ld.pred`, `st.pred` × `{global, shared}` |
 | `01100`–`01101` | **launch-slot + index** | `ld.global`, `st.global` (O-45) |
 | `01110`–`01111` | — | reserved (the O-45 form for other spaces, if wanted) |
-| `10000`+ | — | reserved (span/wide transfers) — deferred, see §10 |
+| `10000`–`10011` | **interleaved local, no base** | `ld.local`, `st.local`, `ld.pred.local`, `st.pred.local` (O-69); D only, reserved in D′ |
+| `10100`+ | — | reserved (span/wide transfers) — deferred, see §10 |
 
 *(This row first read `01100`–`01111` covering all four spaces. `.shared` is flat 32-bit and
 has no window — §5.1 exempts it — so a launch-slot base means nothing there, and `.const` is
 where the launch block itself lives. Two points, not four.)*
+
+**Interleaved local (O-69).** A fourth addressing mode, for the spill space: frame slots no
+pointer can reach. It names no base register: `[18:15]` joins the offset, which is
+**unsigned**, 17 bits, a byte offset *b* into the thread's spill frame.
+
+| Bits | Width | Field |
+|---|---|---|
+| `[1:0]` | 2 | length = `00` |
+| `[5:2]` | 4 | fmt = `1000` |
+| `[10:6]` | 5 | opcode, `10000`–`10011` |
+| `[14:11]` | 4 | `rdata`; for the `.pred` forms, the predicate mask |
+| `[18:15]` | 4 | offset `[3:0]` |
+| `[31:19]` | 13 | offset `[16:4]` |
+
+Lane *l*'s byte *b* is at
+
+```
+    ((local_base + CCV_LANE_CONTEXTS) << 16) + (ctx << 22) + 128·⌊b/4⌋ + 4l + (b mod 4)
+```
+
+where `local_base` is launch-block word 24, `CCV_LANE_CONTEXTS` is the device's lane-context
+count (O-64), and `ctx` is the warp's hardware context, device-unique: `%lanectx >> 5` (§5.3).
+So a warp's spill frame is a 4 MiB region of its own, and word *w* of every lane's frame is one
+128-byte line, the lanes interleaved four bytes apart. That is CUDA's local-memory layout: a
+warp spilling one word touches one line and one page. MIU forms everything but `4l` once a memop,
+from `local_base` (which its per-CTA launch-block table already holds, TI-31) and the memop's
+warp. The AGU's base input is zero, its index input is the constant `4l`, and `b`'s bits are
+rearranged by wiring.
+
+- **Transfer size and alignment** are as for every Format D access: from `rdata`'s `chwidth`,
+  `F-WIDTH` at 4 bits, and natural alignment of *b* (`F-ALIGN`), which keeps every access
+  inside its lane's 4-byte cell.
+- **`ld.pred.local` / `st.pred.local`** are `ld.pred`/`st.pred` (O-19, O-62, O-63) in this
+  space. They are warp-scoped, so the lane term is 0. Word *i* of the 16-byte predicate frame
+  at *b* (a multiple of 4) is at the formula's address for byte *b* + 4*i* with *l* = 0, and
+  `st.pred.local` merges the issuing group's bits as `st.pred` does. These exist because a
+  predicate spill is decided during register allocation, so without them the frame register
+  could never be released.
+- **Faults** are those of any access at the formed address (`F-ADDR`, and `F-RO` should a
+  runtime ever map the region read-only).
+- **32 bits only.** The local forms have no 48-bit sibling and no D′ form. Opcodes `10000`–`10011`
+  under the 48-bit tag or in D′ raise `F-ILLEGAL`. 17 bits already reach 128 KiB of spill a
+  thread.
+- **Who may use it, and how — normative.** Offsets are absolute within the warp's frame, with
+  no frame register, so two functions live at once must never share a slot. A compiler
+  allocates spill slots statically over the call graph: a function's slots sit above the
+  largest spill extent of everything it calls, indirect calls included. A function on a
+  call-graph cycle, or one that calls a function whose frame is unknown, keeps its spills on
+  O-30's R15 frame. A slot is for data no pointer reaches: an address-taken object stays on
+  O-30's frame, whose bytes are contiguous per thread.
+- **R15 under O-69.** It is reserved only in a function with an address-taken frame object, a
+  stack-passed argument, or an O-30 fallback, all known before register allocation. Such a
+  function forms R15 at entry (O-30's prologue, with `srd #2`). R15 is not preserved across
+  calls, and every other function allocates it as an ordinary register.
 
 **Launch-slot + index (O-45).** A third addressing mode in which `[18:15]` is **not a register
 number but a 4-bit launch-block slot index**: the window base comes from the launch block
@@ -2199,7 +2262,9 @@ byte offset 24 (O-30), the module data window `W_d` at 28 (below), and the argum
 lifetime. So two threads live together never share a frame, whichever CTAs or grids they
 belong to. `local_base`, word 24, is the context's, the same in every CTA's launch block. The
 runtime reserves `local_base` through `local_base + CCV_LANE_CONTEXTS − 1` per context, sized
-by the device's lane contexts, not by the grid. O-30's prologue reads `srd #2` where it read
+by the device's lane contexts, not by the grid. The spill space (O-69) follows at window
+`local_base + CCV_LANE_CONTEXTS`, 4 MiB per hardware warp context, so the runtime reserves that
+too. It is address space only: a warp touches the pages its spills reach. O-30's prologue reads `srd #2` where it read
 `srd #0`, and is otherwise unchanged.
 
 **The whole launch window is read-only (O-61).** `LAUNCH_BASE` is 64 KiB-aligned, and the
@@ -2304,7 +2369,8 @@ three scopes, covering everything this revision needs:
 
 | Scope | Serves |
 |---|---|
-| Thread-private | `.local` |
+| Thread-private | `.local`'s address-taken objects and stack arguments (O-30, O-64) |
+| Warp-private, lane-interleaved | spill slots — `ld.local` / `st.local`, `ld.pred.local` / `st.pred.local` (O-69) |
 | Warp-private | predicate spill region — `ld.pred` / `st.pred`, §3 |
 | CTA-private | launch block and kernel arguments, §5.2 |
 
@@ -3011,6 +3077,25 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-69 — An interleaved, base-free spill space: `ld.local`/`st.local` — decided in 1.9.** IS-19,
+from AR-23. DA's words: "This sounds like a great idea. Please adopt IS-19 and take all actions
+needed to begin implementation" (2026-10-23). O-30 gave each thread a 64 KiB window, which cost
+one reserved GPR, and its memory cost went unweighed. A warp's spill of one word touched 32
+lines and 32 pages, all 64 KiB apart and so in one L1 set. On rope, frames were 96% of DCU
+lookups, and a correct run tripped the decode watchdog (TI's IS-19 figures). CP measured spill
+slots at 99.4% of frame traffic in the CoreMark-derived run, with 62 of 69 functions freeing R15.
+AR priced the hardware small (about 5,000 gates, 264 flops, 16 wires). Interleaving every
+`.local` byte was rejected, because address-taken objects need per-thread contiguity and CCV has no
+generic address space. So the space holds only slots no pointer reaches. Three refinements made
+while writing it: the spill window derives from `local_base` (word 24), since the launch block's
+first line has no free word; the per-warp stride is a fixed 4 MiB with an unsigned offset, so MIU
+needs no stride value; and predicate forms are included, because a predicate spill is decided
+during allocation and would otherwise keep R15 reserved. What lost: a second reserved register
+(cannot reach CoreMark's 84-word frame), large pages (fix translations, not lookups), and O-30
+for spills.
 
 ---
 
@@ -4616,7 +4701,7 @@ raises an execute-stage fault, whatever its operand values.
 | `F-BARRIER` | Dispatch | Barrier ID (`bar.arrive`, `bar.wait`, `bar.init`, `bar.wait.phase`) at or above the CTA's allocated barrier count (O-59) |
 
 **`F-ILLEGAL` covers every encoding that names no operation.** Reserved opcode points (Format K
-29–31, §4 integer 26–31, `dp` 60–63, Format D `01110`+, Format E `00101`+, any tag at a length it
+29–31, §4 integer 26–31, `dp` 60–63, Format D `01110`–`01111` and `10100`+, the local forms `10000`–`10011` in D′, Format E `00101`+, any tag at a length it
 has no form for); reserved field bits nonzero (Format I `[47:37]`, `bar.wait`'s `[14:15]`, and
 every other field §3 marks reserved); reserved values in defined fields (`srd` selectors 3–15,
 the meaningless-rounding points of the conversion product); and non-canonical encodings (A′ long
