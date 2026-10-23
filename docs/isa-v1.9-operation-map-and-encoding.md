@@ -130,6 +130,15 @@ displacement. CAS gives up its 16-bit offset for `rindex`, scale-enable and an 1
 displacement. This is an encoding change to a defined format. No compiled kernel used the old
 form.
 
+### Format M's opcode numbers and `fence`'s codes are written (O-73; CP-29)
+
+§3 named Format M's 20 operations and `fence`'s two fields but gave no numbers. The numbers CP
+built (release 37dc8d5) are now normative: simple RMW `.global` at 0–8 and `.shared` at 16–24,
+CAS at 16 and 17 of the 48-bit space, and every other Format M point reserved. `fence`'s scope
+is 0 CTA, 1 device, 2 system, 3–7 reserved. Its ordering is 1 acquire, 2 release, 3
+acquire-release, and 0, which had no meaning, is sequentially consistent. No defined value
+changes; points and values that had no number now have one, or fault as reserved.
+
 ### Still open
 
 Nothing from IS-2, IS-12 or IS-16 remains open. The SFU bound table is written (O-70).
@@ -1417,7 +1426,22 @@ global atomic had an encoding. O-72.)*
 | `[31:28]` | **4** | signed displacement, bytes |
 
 Opcodes: `{add, min.s, min.u, max.s, max.u, and, or, xor, exch}` × `{global, shared}` =
-18 points of 32.
+18 points of 32, numbered as follows (O-73). The `.shared` point is the `.global` point plus 16.
+
+| Opcode | `.global` | `.shared` | Operation on the word at the address, `rd` ← old value |
+|---|---|---|---|
+| `add` | 0 | 16 | old + `rs`, modulo 2^32 |
+| `min.s` | 1 | 17 | signed minimum of old and `rs` |
+| `min.u` | 2 | 18 | unsigned minimum |
+| `max.s` | 3 | 19 | signed maximum |
+| `max.u` | 4 | 20 | unsigned maximum |
+| `and` | 5 | 21 | old & `rs` |
+| `or` | 6 | 22 | old \| `rs` |
+| `xor` | 7 | 23 | old ^ `rs` |
+| `exch` | 8 | 24 | `rs` |
+| reserved | 9–15 | 25–31 | `F-ILLEGAL` |
+
+There is no `sub`: a subtract is an `add` of the negation.
 
 **CAS (48-bit):**
 
@@ -1435,6 +1459,9 @@ Opcodes: `{add, min.s, min.u, max.s, max.u, and, or, xor, exch}` × `{global, sh
 | `[35:32]` | 4 | `rindex` |
 | `[36]` | 1 | scale-enable |
 | `[47:37]` | **11** | signed displacement, bytes |
+
+CAS opcodes (O-73): `cas.global` = 16, `cas.shared` = 17. Points 0–15 and 18–31 of the 48-bit
+space are reserved (`F-ILLEGAL`).
 
 CAS is the clearest case in the whole ISA for variable length: four GPR sources (`rbase`,
 `rindex`, `rs_cmp`, `rs_swap`), two destinations across separate register spaces, and an
@@ -1558,6 +1585,20 @@ because it adds a predicate source and a qualifier to that same ID. See O-12 and
 **Fence:** no 32-bit form. Scope (3 bits) plus ordering (2 bits) is 5 bits of content,
 fully expressed in Format K. Fences are emitted around every barrier and atomic sequence,
 so this is one of the higher-frequency compressions in the set.
+
+**Fence codes — normative (O-73).** Format K point 56:
+
+| `[10:8]` scope | Orders against | | `[12:11]` ordering | Meaning |
+|---|---|---|---|---|
+| 0 | the issuing CTA's threads | | 0 | sequentially consistent: acquire-release, and all sequentially consistent fences of the scope take one total order |
+| 1 | the device: every CTA of every kernel on the GPU | | 1 | acquire |
+| 2 | the system: the device and the host | | 2 | release |
+| 3–7 | reserved, `F-ILLEGAL` | | 3 | acquire-release |
+
+These are C++'s and PTX's meanings of the same names. A CUDA `__threadfence_block()`,
+`__threadfence()` and `__threadfence_system()` are ordering 0 at scope 0, 1 and 2, and a
+`seq_cst` atomic is the access bracketed by ordering-0 fences. A warp is not a scope, because
+a warp's lanes are one instruction stream and are ordered by program order.
 
 **Opcode map (5 bits):**
 
@@ -3124,6 +3165,22 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-73 — Format M's opcode numbers and `fence`'s codes — decided in 1.9.** CP-29. §3 named
+Format M's 20 operations and `fence`'s scope and ordering fields without numbering either, so
+CP built provisional values (release 37dc8d5) and asked IS to ratify or replace them. Ratified
+as built, since nothing argued for another order: `.shared` is `.global` plus 16, so the space
+bit is opcode bit 4 and decode needs no table, and 9–15 and 25–31 stay free for later
+operations, the FP add IS-14 proposes first. CAS keeps 16 in the 48-bit space and takes 17
+beside it. Scope follows CUDA's three (block, device, system), with 3–7 reserved. Ordering 1–3
+are CP's acquire, release and both. Ordering 0 had no value, and a fence that orders nothing is
+not worth a code, so 0 is sequentially consistent: CUDA's `__threadfence()` family is
+`fence.sc` in PTX, and without it a `seq_cst` atomic or a `__threadfence()` had no correct
+lowering. This is spec completion, not an encoding change: no defined value moved, and each
+point or value that had no number now has one or faults as reserved. CP maps `__threadfence*`
+and `seq_cst` to ordering 0.
 
 ---
 
@@ -4802,9 +4859,9 @@ raises an execute-stage fault, whatever its operand values.
 | `F-BARRIER` | Dispatch | Barrier ID (`bar.arrive`, `bar.wait`, `bar.init`, `bar.wait.phase`) at or above the CTA's allocated barrier count (O-59) |
 
 **`F-ILLEGAL` covers every encoding that names no operation.** Reserved opcode points (Format K
-29–31, §4 integer 26–31, `dp` 60–63, Format D `01110`–`01111` and `10100`+, the local forms `10000`–`10011` in D′, Format E `00101`+, any tag at a length it
+29–31, §4 integer 26–31, `dp` 60–63, Format D `01110`–`01111` and `10100`+, the local forms `10000`–`10011` in D′, Format E `00101`+, Format M 9–15 and 25–31, M′ other than 16–17, any tag at a length it
 has no form for); reserved field bits nonzero (Format I `[47:37]`, `bar.wait`'s `[14:15]`, and
-every other field §3 marks reserved); reserved values in defined fields (`srd` selectors 3–15,
+every other field §3 marks reserved); reserved values in defined fields (`srd` selectors 3–15, `fence` scopes 3–7,
 the meaningless-rounding points of the conversion product); and non-canonical encodings (A′ long
 with `opcode[9:7]` = `000`, O-37). Must-be-zero rather than ignored: an ignored field can never
 be given meaning, because code that happened to set it would change behaviour.
