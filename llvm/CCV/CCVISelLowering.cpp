@@ -11,6 +11,7 @@
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 
 using namespace llvm;
@@ -59,6 +60,19 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   setTargetDAGCombine({ISD::INLINEASM, ISD::LOAD, ISD::STORE, ISD::ADD, ISD::TRUNCATE,
                        ISD::LIFETIME_START, ISD::LIFETIME_END});
   setOperationAction(ISD::GlobalAddress, MVT::i64, Custom);
+
+  // O-72 atomics: a word at most, so a sub-word atomic is a CAS loop on its
+  // word (AtomicExpand), as is any operation Format M has no point for. Their
+  // 64-bit addresses are consumed before type legalization, as a load's are.
+  setMaxAtomicSizeInBitsSupported(32);
+  setMinCmpXchgSizeInBits(32);
+  setTargetDAGCombine({ISD::ATOMIC_LOAD_ADD, ISD::ATOMIC_LOAD_SUB,
+                       ISD::ATOMIC_LOAD_AND, ISD::ATOMIC_LOAD_OR,
+                       ISD::ATOMIC_LOAD_XOR, ISD::ATOMIC_LOAD_MIN,
+                       ISD::ATOMIC_LOAD_MAX, ISD::ATOMIC_LOAD_UMIN,
+                       ISD::ATOMIC_LOAD_UMAX, ISD::ATOMIC_SWAP,
+                       ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS, ISD::ATOMIC_LOAD,
+                       ISD::ATOMIC_STORE});
   // A signed byte (F-161): a shift pair. combineDP4 has matched the byte
   // extracts it wants by the time this applies, before legalization.
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i8, Expand);
@@ -173,6 +187,8 @@ const char *CCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case CCVISD::ST_BASEOFF: return "CCVISD::ST_BASEOFF";
   case CCVISD::CODEADDR: return "CCVISD::CODEADDR";
   case CCVISD::FRAMEOFF: return "CCVISD::FRAMEOFF";
+  case CCVISD::ATOM: return "CCVISD::ATOM";
+  case CCVISD::CAS: return "CCVISD::CAS";
   default:          return nullptr;
   }
 }
@@ -301,6 +317,33 @@ static std::optional<unsigned> matchLaunchSlot(SDValue Win) {
 static bool matchBaseIdx(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
                          EVT MemVT, SDValue &Base, SDValue &Idx,
                          bool &ScaleEnable, int64_t &Disp) {
+  // An address with its low bits masked off -- `ptrmask p, -4`, which is how
+  // AtomicExpand finds a sub-word atomic's word (O-72). The window term is a
+  // multiple of 2^16, so a mask of fewer than 16 low bits touches only the
+  // in-window part: ((rbase << 16) + off) & ~m == (rbase << 16) + (off & ~m).
+  if (Addr.getOpcode() == ISD::AND)
+    if (auto *M = dyn_cast<ConstantSDNode>(Addr.getOperand(1))) {
+      int64_t Mask = M->getSExtValue();
+      if (Mask < 0 && isPowerOf2_64(uint64_t(-Mask)) && -Mask <= (1 << 16)) {
+        if (!matchBaseIdx(DAG, DL, Addr.getOperand(0), MemVT, Base, Idx,
+                          ScaleEnable, Disp))
+          return false;
+        SDValue Bytes =
+            ScaleEnable
+                ? DAG.getNode(ISD::SHL, DL, MVT::i32, Idx,
+                              DAG.getConstant(Log2_32(MemVT.getStoreSize()),
+                                              DL, MVT::i32))
+                : Idx;
+        if (Disp)
+          Bytes = DAG.getNode(ISD::ADD, DL, MVT::i32, Bytes,
+                              DAG.getConstant(Disp, DL, MVT::i32));
+        Idx = DAG.getNode(ISD::AND, DL, MVT::i32, Bytes,
+                          DAG.getConstant(int32_t(Mask), DL, MVT::i32));
+        ScaleEnable = false;
+        Disp = 0;
+        return true;
+      }
+    }
   // Peel the constant addend first, so the shapes below see the two- and
   // three-addend forms they were written for. ADD canonicalises a constant to
   // the right, but the check is symmetric because nothing here guarantees the
@@ -702,6 +745,163 @@ static SDValue combineDP4(SDNode *N, SelectionDAG &DAG) {
   return DAG.getNode(CCVISD::DP4_SS, DL, MVT::i32, Hit->X, Hit->Y, Acc);
 }
 
+/// O-72: an atomic's address as Format M's base + index + displacement, the
+/// displacement in DispBits signed bits (4 for an RMW, 11 for CAS). `.global`
+/// is matched as a load's address is, and `.shared` is flat 32-bit.
+static bool matchAtomicAddr(SelectionDAG &DAG, const SDLoc &DL, SDValue Ptr,
+                            bool Shared, unsigned DispBits, SDValue &Base,
+                            SDValue &Idx, bool &Scale, int64_t &Disp) {
+  Scale = false;
+  Disp = 0;
+  if (Shared) {
+    Base = Ptr;
+    Idx = DAG.getConstant(0, DL, MVT::i32);
+    if (Ptr.getOpcode() == ISD::ADD) {
+      Base = Ptr.getOperand(0);
+      SDValue R = Ptr.getOperand(1);
+      auto *K = dyn_cast<ConstantSDNode>(R);
+      auto *Sh = R.getOpcode() == ISD::SHL
+                     ? dyn_cast<ConstantSDNode>(R.getOperand(1))
+                     : nullptr;
+      if (K && isIntN(DispBits, K->getSExtValue())) {
+        Disp = K->getSExtValue();
+      } else if (Sh && Sh->getZExtValue() == 2) {
+        Idx = R.getOperand(0);
+        Scale = true;
+      } else {
+        Idx = R;
+      }
+    }
+    return true;
+  }
+  if (matchBaseIdx(DAG, DL, Ptr, MVT::i32, Base, Idx, Scale, Disp)) {
+    // A displacement the field cannot hold goes into the index, in bytes.
+    if (!isIntN(DispBits, Disp)) {
+      SDValue Bytes =
+          Scale ? DAG.getNode(ISD::SHL, DL, MVT::i32, Idx,
+                              DAG.getConstant(2, DL, MVT::i32))
+                : Idx;
+      Idx = DAG.getNode(ISD::ADD, DL, MVT::i32, Bytes,
+                        DAG.getConstant(Disp, DL, MVT::i32));
+      Scale = false;
+      Disp = 0;
+    }
+    return true;
+  }
+  SDValue Off;
+  if (matchBaseOff(DAG, DL, Ptr, Base, Off)) {
+    Idx = DAG.getConstant(cast<ConstantSDNode>(Off)->getSExtValue(), DL,
+                          MVT::i32);
+    return true;
+  }
+  return false;
+}
+
+/// O-72: an atomic read-modify-write or compare-and-swap of a word, as one
+/// Format M instruction. A relaxed atomic load or store becomes the plain
+/// access (§3), which the load and store combines below then address.
+static SDValue combineAtomic(AtomicSDNode *AN, TargetLowering::DAGCombinerInfo &DCI) {
+  SelectionDAG &DAG = DCI.DAG;
+  SDLoc DL(AN);
+  const unsigned Opc = AN->getOpcode();
+  if (Opc == ISD::ATOMIC_LOAD) {
+    SDValue L = DAG.getLoad(AN->getValueType(0), DL, AN->getChain(),
+                            AN->getBasePtr(), AN->getMemOperand());
+    return DCI.CombineTo(AN, L, L.getValue(1));
+  }
+  if (Opc == ISD::ATOMIC_STORE)
+    return DCI.CombineTo(AN, DAG.getStore(AN->getChain(), DL, AN->getVal(),
+                                          AN->getBasePtr(),
+                                          AN->getMemOperand()));
+  if (AN->getMemoryVT() != MVT::i32)
+    return SDValue();       // AtomicExpand made it a word; nothing else is
+  const bool Shared = AN->getAddressSpace() == AS_SHARED;
+  const bool Cas = Opc == ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS;
+  SDValue Base, Idx;
+  bool Scale;
+  int64_t Disp;
+  if (!matchAtomicAddr(DAG, DL, AN->getBasePtr(), Shared, Cas ? 11 : 4, Base,
+                       Idx, Scale, Disp)) {
+    std::string Shape;
+    raw_string_ostream OS(Shape);
+    AN->getBasePtr()->printrFull(OS, &DAG);
+    report_fatal_error(Twine("CCV: this atomic's address has no Format M "
+                             "form -- it is neither a window plus an index "
+                             "nor .shared (O-72): ") + OS.str());
+  }
+  SDValue TC = DAG.getTargetConstant(Shared, DL, MVT::i32);
+  SDValue Sc = DAG.getTargetConstant(Scale, DL, MVT::i32);
+  SDValue Dp = DAG.getTargetConstant(Disp, DL, MVT::i32);
+  if (Cas) {
+    SDValue Ops[] = {AN->getChain(), Base, Idx, Sc, Dp, AN->getOperand(2),
+                     AN->getOperand(3), TC};
+    SDValue New = DAG.getMemIntrinsicNode(
+        CCVISD::CAS, DL, DAG.getVTList(MVT::i32, MVT::i1, MVT::Other), Ops,
+        AN->getMemoryVT(), AN->getMemOperand());
+    return DCI.CombineTo(AN, {New.getValue(0), New.getValue(1), New.getValue(2)});
+  }
+  // §3's order: add, min.s, min.u, max.s, max.u, and, or, xor, exch. A
+  // subtract is an add of the negation.
+  unsigned Kind;
+  SDValue Val = AN->getVal();
+  switch (Opc) {
+  case ISD::ATOMIC_LOAD_SUB:
+    Val = DAG.getNode(ISD::SUB, DL, MVT::i32, DAG.getConstant(0, DL, MVT::i32),
+                      Val);
+    [[fallthrough]];
+  case ISD::ATOMIC_LOAD_ADD:  Kind = 0; break;
+  case ISD::ATOMIC_LOAD_MIN:  Kind = 1; break;
+  case ISD::ATOMIC_LOAD_UMIN: Kind = 2; break;
+  case ISD::ATOMIC_LOAD_MAX:  Kind = 3; break;
+  case ISD::ATOMIC_LOAD_UMAX: Kind = 4; break;
+  case ISD::ATOMIC_LOAD_AND:  Kind = 5; break;
+  case ISD::ATOMIC_LOAD_OR:   Kind = 6; break;
+  case ISD::ATOMIC_LOAD_XOR:  Kind = 7; break;
+  case ISD::ATOMIC_SWAP:      Kind = 8; break;
+  default:
+    return SDValue();
+  }
+  SDValue Ops[] = {AN->getChain(), Base, Idx, Sc, Dp, Val,
+                   DAG.getTargetConstant(Kind, DL, MVT::i32), TC};
+  SDValue New = DAG.getMemIntrinsicNode(
+      CCVISD::ATOM, DL, DAG.getVTList(MVT::i32, MVT::Other), Ops,
+      AN->getMemoryVT(), AN->getMemOperand());
+  return DCI.CombineTo(AN, New, New.getValue(1));
+}
+
+// Mutation control for tools/check-atomics.sh: every atomic a plain load,
+// operation and store, which lanes racing on one word expose.
+static cl::opt<bool> TestAtomicPlain(
+    "ccv-test-atomic-plain", cl::init(false), cl::Hidden,
+    cl::desc("make every atomic a plain read-modify-write, to test that it is "
+             "caught"));
+
+TargetLowering::AtomicExpansionKind
+CCVTargetLowering::shouldExpandAtomicCmpXchgInIR(AtomicCmpXchgInst *) const {
+  return TestAtomicPlain ? AtomicExpansionKind::NotAtomic
+                         : AtomicExpansionKind::None;
+}
+
+TargetLowering::AtomicExpansionKind
+CCVTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const {
+  if (TestAtomicPlain)
+    return AtomicExpansionKind::NotAtomic;
+  // Format M's nine operations at a word are native (sub as add); anything
+  // else -- a float add, nand, the wrapping increments -- and anything
+  // narrower is a CAS loop.
+  if (!RMW->getType()->isIntegerTy(32))
+    return AtomicExpansionKind::CmpXChg;
+  switch (RMW->getOperation()) {
+  case AtomicRMWInst::Add: case AtomicRMWInst::Sub: case AtomicRMWInst::And:
+  case AtomicRMWInst::Or:  case AtomicRMWInst::Xor: case AtomicRMWInst::Max:
+  case AtomicRMWInst::Min: case AtomicRMWInst::UMax: case AtomicRMWInst::UMin:
+  case AtomicRMWInst::Xchg:
+    return AtomicExpansionKind::None;
+  default:
+    return AtomicExpansionKind::CmpXChg;
+  }
+}
+
 SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
                                              DAGCombinerInfo &DCI) const {
   // A lifetime marker on a frame object is dropped, chain and all. It carries
@@ -779,13 +979,23 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
   // become an ld.global of the shared offset.
   auto IsWindowed = [](unsigned AS) { return AS != AS_SHARED; };
 
+  if (auto *AN = dyn_cast<AtomicSDNode>(N))
+    return combineAtomic(AN, DCI);
+
   // Volatile accesses take the same addressing as any other: volatility is an
   // ordering property, carried by the memory operand onto the target node,
   // not a different address. Excluding them (isSimple) left a volatile load's
   // 64-bit address to the type legalizer, which aborted -- found by the IS-17
-  // spin-wait kernel, whose flag is volatile. Atomics stay excluded (F-118).
+  // spin-wait kernel, whose flag is volatile. A relaxed atomic load or store
+  // is a plain access too (§3: a plain `ld` serves as the relaxed atomic
+  // load); AtomicExpand has put fences around anything stronger.
+  auto Stronger = [](const MemSDNode *M) {
+    return M->isAtomic() &&
+           M->getMergedOrdering() != AtomicOrdering::Monotonic &&
+           M->getMergedOrdering() != AtomicOrdering::Unordered;
+  };
   if (auto *LD = dyn_cast<LoadSDNode>(N)) {
-    if (LD->isAtomic() || !IsWindowed(LD->getAddressSpace()))
+    if (Stronger(LD) || !IsWindowed(LD->getAddressSpace()))
       return SDValue();
     // A 16-bit load extended to 32 is a 16-bit load at width 16, then the
     // extension: free for zero (O-38's widening clears the bits it exposes),
@@ -882,7 +1092,7 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
   }
 
   if (auto *ST = dyn_cast<StoreSDNode>(N)) {
-    if (ST->isAtomic() || !IsWindowed(ST->getAddressSpace()))
+    if (Stronger(ST) || !IsWindowed(ST->getAddressSpace()))
       return SDValue();
     // A 16-bit store of a 32-bit value is a store of its low half at width
     // 16, as `trunc i32 -> i16` is free. Left alone, it reached the type

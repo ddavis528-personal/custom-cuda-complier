@@ -1,19 +1,38 @@
   gen-register-info    ok (639 lines)
-  gen-instr-info       ok (5972 lines)
-  gen-emitter          ok (2851 lines)
-  gen-disassembler     ok (1674 lines)
-  gen-asm-writer       ok (2077 lines)
+  gen-instr-info       ok (6135 lines)
+  gen-emitter          ok (2939 lines)
+  gen-disassembler     ok (1726 lines)
+  gen-asm-writer       ok (2145 lines)
   gen-dag-isel         ok (1837 lines)
   gen-callingconv      ok (92 lines)
 
-checked 398 instructions
+checked 416 instructions
 
   EXEMPT       CHWIDTH_MULTI: Format I metadata: register mask, no canonical slots
   EXEMPT       PMOV_IMM: Format I metadata: pd at [9:8], excluded by invariant 8 (v1.4)
 
-  all checks pass
+  INVARIANT-8  ATOM_ADD_G: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_ADD_S: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_AND_G: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_AND_S: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_EXCH_G: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_EXCH_S: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_MAX_S_G: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_MAX_S_S: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_MAX_U_G: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_MAX_U_S: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_MIN_S_G: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_MIN_S_S: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_MIN_U_G: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_MIN_U_S: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_OR_G: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_OR_S: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_XOR_G: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  ATOM_XOR_S: rindex (slot rs1) at [26:23], invariant 8 says [22:19]
+  INVARIANT-8  CAS_G: rindex (slot rs1) at [35:32], invariant 8 says [22:19]
+  INVARIANT-8  CAS_S: rindex (slot rs1) at [35:32], invariant 8 says [22:19]
 
-0 error(s), 0 invariant-8 deviation(s)
+0 error(s), 20 invariant-8 deviation(s)
   worked-listing arithmetic
   listing 1: 20 instructions, 512 bits, 25.6 b/instr, fixed-32 640, peak live 4
   listing 2: 13 instructions, 352 bits, 27.1 b/instr, fixed-32 416, peak live 4
@@ -72,6 +91,14 @@ checked 398 instructions
   PASS  ptrmem.cu: 32 pointers read from memory and 32 written, across 4 GiB (39 issue groups)
   PASS  control -ccv-test-no-ptr-carry is caught: 8 wrong; first: slots[3] = 0x0, want 0x100000000
   PASS  control -ccv-test-swap-ptr-halves is caught: 63 wrong; first: slots[0] = 0x10, want 0x50010
+  atomics (O-72)
+  PASS  atomics.cu: global and shared histograms (int, and float by CAS loop), min/max/or/xor/sub/and, CAS, a 16-bit counter and exchange on 32 lanes (454 issue groups)
+  PASS  control -ccv-test-atomic-no-index is caught: 60 wrong; first: bins[0] = 32, want 1
+  PASS  control -ccv-test-atomic-plain is caught: 35 wrong; first: bins[1] = 1, want 2
+  INFO  scatter-add, one word each: float by CAS loop 161 issue groups, integer atom.add 74; atom.add.f32 would save 87 (54%)
+  INFO  scatter-add, 64 bins: float by CAS loop 245 issue groups, integer atom.add 74; atom.add.f32 would save 171 (70%)
+  INFO  scatter-add, one word: float by CAS loop 1928 issue groups, integer atom.add 74; atom.add.f32 would save 1854 (96%)
+  PASS  scatter_f and scatter_i compute the right sums at three contention levels
   64-bit integers (IS-13)
   PASS  int64.cu: 17 64-bit operations on 32 lanes, edge words included, as C computes them (5922 issue groups)
   PASS  control -ccv-test-wide-load-sext is caught: 215 of 1088 words wrong; first: lane 1 x+y hi got 1, want 2147483649
@@ -129,7 +156,7 @@ checked 398 instructions
   dp4 against a four-MAC reference
   PASS  dp4: 32 lanes correct against a four-MAC reference (1 dp4 instruction(s) emitted)
   every instruction has a production path
-  PASS  412 instructions, all with a production path (isel 83, pass 143, mc 1, declared 185)
+  PASS  432 instructions, all with a production path (isel 83, pass 166, mc 1, declared 182)
   the production-path gate catches its own cases
   PASS  removing the bra.short pattern (with insertBranch also removed) fails the check
   PASS  removing the immediate-compare mapping fails the check
@@ -137,7 +164,7 @@ checked 398 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 191 findings and 70 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 192 findings and 72 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -156,9 +183,9 @@ checked 398 instructions
   PASS  fused-corpus sweep matches the tool
   encode -> decode round trip
 
-  CCV instructions     : 398
-  round trips          : 25472 (64 random operand sets each)
-  non-CCV opcodes      : 285 (LLVM pseudos and GlobalISel generics, no encoding)
+  CCV instructions     : 416
+  round trips          : 26624 (64 random operand sets each)
+  non-CCV opcodes      : 287 (LLVM pseudos and GlobalISel generics, no encoding)
   unbuildable operands : 0
   failures             : 0
 
@@ -203,6 +230,7 @@ checked 398 instructions
   --- canonical NaN, compare format (O-66, O-65) ---
   PASS  canonical NaN at FP32 and FP16 (O-66), the compare's format bit (O-65), F-FORMAT at 32 bits
   PASS  rcp, rsqrt, sqrt, ex2, lg2, sin and cos executed, correctly rounded (O-70), a subnormal and sin(1e30) included
+  PASS  atomics: add, max.s, min.u, xor and exch on .global, CAS and or on .shared, at base + index addresses (O-72)
 
   --- the mixed-width rule (O-67) ---
   PASS  mixed widths read as raw fields at the operating width: shr, min.s, an FP16 add (O-67)
@@ -261,7 +289,7 @@ checked 398 instructions
   PASS  accepts sqrt-rcp.ll
   PASS  accepts switch-dense.ll
   PASS  accepts window-cross-block.ll
-  PASS  diagnoses atomic-rmw.ll
+  PASS  diagnoses atomic-64.ll
   PASS  diagnoses bad-addr-shape.ll
   PASS  diagnoses fp64.ll
   PASS  diagnoses ptr-compared.ll

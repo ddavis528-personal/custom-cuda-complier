@@ -301,20 +301,28 @@ class FormatDp<bits<5> opc, dag outs, dag ins, string asm>
 // ---------------------------------------------------------------------------
 // Formats M / M' -- atomics. §3.
 // ---------------------------------------------------------------------------
+// Format M -- atomics. O-72: the address is Format D's base + index form,
+// (rbase << 16) + (rindex << scale) + disp for .global and rbase + ... for
+// .shared, with scale 2 when scale-enable is set (the access is one word).
 class FormatM<bits<5> opc, dag outs, dag ins, string asm>
     : CCVInst32<0b1001, outs, ins, asm> {
-  bits<4> rd; bits<4> rbase; bits<4> rs1; bits<9> off;
+  bits<4> rd; bits<4> rbase; bits<4> rs1; bits<4> rindex; bits<1> scale;
+  bits<4> disp;
   let Inst{10-6}  = opc;
   let Inst{14-11} = rd;
   let Inst{18-15} = rbase;
   let Inst{22-19} = rs1;
-  let Inst{31-23} = off;
+  let Inst{26-23} = rindex;
+  let Inst{27}    = scale;
+  let Inst{31-28} = disp;
 }
 
+// Format M' -- CAS, 48-bit: four GPR sources, the success predicate, and the
+// index and an 11-bit displacement in the extension (O-72).
 class FormatMp<bits<5> opc, dag outs, dag ins, string asm>
     : CCVInst48<0b1001, outs, ins, asm> {
   bits<4> rd; bits<4> rbase; bits<4> rs1; bits<4> rs2;
-  bits<3> pq; bits<2> pd; bits<16> off;
+  bits<3> pq; bits<2> pd; bits<4> rindex; bits<1> scale; bits<11> disp;
   let Inst{10-6}  = opc;
   let Inst{14-11} = rd;
   let Inst{18-15} = rbase;
@@ -322,7 +330,9 @@ class FormatMp<bits<5> opc, dag outs, dag ins, string asm>
   let Inst{26-23} = rs2;
   let Inst{29-27} = pq;
   let Inst{31-30} = pd;
-  let Inst{47-32} = off;
+  let Inst{35-32} = rindex;
+  let Inst{36}    = scale;
+  let Inst{47-37} = disp;
 }
 
 // ---------------------------------------------------------------------------

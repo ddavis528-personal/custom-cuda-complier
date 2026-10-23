@@ -24,7 +24,24 @@ static const CCVOperandInfo Operands_ANDNI[] = {{4, false}, {4, false}, {13, tru
 static const CCVOperandInfo Operands_ANDNI_P[] = {{4, false}, {3, false}, {4, false}, {10, true}};
 static const CCVOperandInfo Operands_AND_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_AND_W16[] = {{4, false}, {4, false}, {4, false}, {4, false}};
-static const CCVOperandInfo Operands_ATOM_ADD_G[] = {{4, false}, {4, false}, {4, false}, {9, true}};
+static const CCVOperandInfo Operands_ATOM_ADD_G[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_ADD_S[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_AND_G[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_AND_S[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_EXCH_G[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_EXCH_S[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_MAX_S_G[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_MAX_S_S[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_MAX_U_G[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_MAX_U_S[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_MIN_S_G[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_MIN_S_S[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_MIN_U_G[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_MIN_U_S[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_OR_G[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_OR_S[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_XOR_G[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
+static const CCVOperandInfo Operands_ATOM_XOR_S[] = {{4, false}, {4, false}, {4, false}, {1, false}, {4, true}, {4, false}};
 static const CCVOperandInfo Operands_BALLOT[] = {{4, false}, {3, false}, {3, false}};
 static const CCVOperandInfo Operands_BAR_INIT[] = {{6, false}, {10, false}};
 static const CCVOperandInfo Operands_BAR_WAIT_PHASE[] = {{3, false}, {6, false}, {2, false}};
@@ -32,7 +49,8 @@ static const CCVOperandInfo Operands_BRA[] = {{21, true}};
 static const CCVOperandInfo Operands_BRA_PRED[] = {{3, false}, {18, true}};
 static const CCVOperandInfo Operands_BREV[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_CALL[] = {{4, false}, {17, true}};
-static const CCVOperandInfo Operands_CAS_G[] = {{4, false}, {2, false}, {3, false}, {4, false}, {4, false}, {4, false}, {16, true}};
+static const CCVOperandInfo Operands_CAS_G[] = {{4, false}, {2, false}, {3, false}, {4, false}, {4, false}, {1, false}, {11, true}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_CAS_S[] = {{4, false}, {2, false}, {3, false}, {4, false}, {4, false}, {1, false}, {11, true}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_CHWIDTH_MULTI[] = {{16, false}, {2, false}};
 static const CCVOperandInfo Operands_CLZ[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_COS_F32[] = {{4, false}, {4, false}, {4, false}, {4, false}};
@@ -424,7 +442,24 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"ANDNI_P", 4, Operands_ANDNI_P},
   {"AND_P", 5, Operands_AND_P},
   {"AND_W16", 4, Operands_AND_W16},
-  {"ATOM_ADD_G", 4, Operands_ATOM_ADD_G},
+  {"ATOM_ADD_G", 6, Operands_ATOM_ADD_G},
+  {"ATOM_ADD_S", 6, Operands_ATOM_ADD_S},
+  {"ATOM_AND_G", 6, Operands_ATOM_AND_G},
+  {"ATOM_AND_S", 6, Operands_ATOM_AND_S},
+  {"ATOM_EXCH_G", 6, Operands_ATOM_EXCH_G},
+  {"ATOM_EXCH_S", 6, Operands_ATOM_EXCH_S},
+  {"ATOM_MAX_S_G", 6, Operands_ATOM_MAX_S_G},
+  {"ATOM_MAX_S_S", 6, Operands_ATOM_MAX_S_S},
+  {"ATOM_MAX_U_G", 6, Operands_ATOM_MAX_U_G},
+  {"ATOM_MAX_U_S", 6, Operands_ATOM_MAX_U_S},
+  {"ATOM_MIN_S_G", 6, Operands_ATOM_MIN_S_G},
+  {"ATOM_MIN_S_S", 6, Operands_ATOM_MIN_S_S},
+  {"ATOM_MIN_U_G", 6, Operands_ATOM_MIN_U_G},
+  {"ATOM_MIN_U_S", 6, Operands_ATOM_MIN_U_S},
+  {"ATOM_OR_G", 6, Operands_ATOM_OR_G},
+  {"ATOM_OR_S", 6, Operands_ATOM_OR_S},
+  {"ATOM_XOR_G", 6, Operands_ATOM_XOR_G},
+  {"ATOM_XOR_S", 6, Operands_ATOM_XOR_S},
   {"BALLOT", 3, Operands_BALLOT},
   {"BAR_INIT", 2, Operands_BAR_INIT},
   {"BAR_WAIT_PHASE", 3, Operands_BAR_WAIT_PHASE},
@@ -432,7 +467,8 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"BRA_PRED", 2, Operands_BRA_PRED},
   {"BREV", 4, Operands_BREV},
   {"CALL", 2, Operands_CALL},
-  {"CAS_G", 7, Operands_CAS_G},
+  {"CAS_G", 9, Operands_CAS_G},
+  {"CAS_S", 9, Operands_CAS_S},
   {"CHWIDTH_MULTI", 2, Operands_CHWIDTH_MULTI},
   {"CLZ", 4, Operands_CLZ},
   {"COS_F32", 4, Operands_COS_F32},
@@ -805,4 +841,4 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"XOR_P", 5, Operands_XOR_P},
   {"XOR_W16", 4, Operands_XOR_W16},
 };
-static const unsigned CCVNumInstOperands = 398;
+static const unsigned CCVNumInstOperands = 416;

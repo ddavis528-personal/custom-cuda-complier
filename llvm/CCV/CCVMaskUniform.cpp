@@ -185,6 +185,11 @@ bool isDivergentSource(const MachineInstr &MI) {
   if (MI.getOpcode() == CCV::SRD && MI.getOperand(1).isImm() &&
       MI.getOperand(1).getImm() == 0)
     return true;
+  // An atomic (O-72) returns the word each lane saw, which differs between
+  // lanes even when every lane names one address with one operand: lane l of
+  // an add sees l increments before its own.
+  if (MI.mayLoad() && MI.mayStore())
+    return true;
   // A value taken from a physical register is a call's result (F-21): a kernel
   // has no register arguments, so nothing else arrives that way. The callee
   // computed it per lane, so it is divergent until shown otherwise.

@@ -121,6 +121,15 @@ warp's spill of one word is one line and one page, where O-30's per-thread windo
 each. R15 is reserved only where an address-taken object, a stack argument or recursion needs
 O-30's frame. This is an encoding change: four reserved points become defined.
 
+### Atomics take the base + index address (O-72; IS-21)
+
+Adopted by DA on 2026-10-23. Format M's address was `(rbase << 16)` plus an immediate, so no
+CUDA global atomic on a computed element had an encoding. Both forms now take Format D's base
++ index address. Simple RMW gives up its 9-bit offset for `rindex`, scale-enable and a 4-bit
+displacement. CAS gives up its 16-bit offset for `rindex`, scale-enable and an 11-bit
+displacement. This is an encoding change to a defined format. No compiled kernel used the old
+form.
+
 ### Still open
 
 Nothing from IS-2, IS-12 or IS-16 remains open. The SFU bound table is written (O-70).
@@ -1384,6 +1393,15 @@ named the lane ALU as the site. That site cannot apply a same-address lane chain
 and holds the line exclusive across a round trip to the lanes. Struck under AR-21, as
 invariant 2's mechanism clause was under OA-16; the site is AR's and DA's.)*
 
+**The address is base + index — normative (O-72).** Every Format M form addresses memory as
+Format D's base + index form does: `(rbase << 16) + (rindex << scale) + disp` for `.global`
+(§5.1), and `rbase + (rindex << scale) + disp` for `.shared`, which is flat. `scale` is 2 when
+scale-enable is set and 0 when it is clear, because the memory-side access is always one
+4-byte word. The address must be 4-byte aligned (`F-ALIGN`, O-58), and every §12 execute
+cause applies to it, gated per lane. *(Through 1.9's first cut the address was `(rbase << 16)`
+plus an immediate, with no index. That cannot reach a computed `.global` element, so no CUDA
+global atomic had an encoding. O-72.)*
+
 **Simple RMW (32-bit):**
 
 | Bits | Width | Field |
@@ -1394,7 +1412,9 @@ invariant 2's mechanism clause was under OA-16; the site is AR's and DA's.)*
 | `[14:11]` | 4 | `rd` — returned old value |
 | `[18:15]` | 4 | `rbase` |
 | `[22:19]` | 4 | `rs` — operand |
-| `[31:23]` | **9** | signed offset |
+| `[26:23]` | 4 | `rindex` |
+| `[27]` | 1 | scale-enable |
+| `[31:28]` | **4** | signed displacement, bytes |
 
 Opcodes: `{add, min.s, min.u, max.s, max.u, and, or, xor, exch}` × `{global, shared}` =
 18 points of 32.
@@ -1412,11 +1432,15 @@ Opcodes: `{add, min.s, min.u, max.s, max.u, and, or, xor, exch}` × `{global, sh
 | `[26:23]` | 4 | `rs_swap` |
 | `[29:27]` | 3 | **pred qualifier** |
 | `[31:30]` | 2 | `pd` — success predicate |
-| `[47:32]` | **16** | signed offset |
+| `[35:32]` | 4 | `rindex` |
+| `[36]` | 1 | scale-enable |
+| `[47:37]` | **11** | signed displacement, bytes |
 
-CAS is the clearest case in the whole ISA for variable length: two sources, two
-destinations across separate register spaces, and an address. It does not fit in 32 bits
-and should not be forced to.
+CAS is the clearest case in the whole ISA for variable length: four GPR sources (`rbase`,
+`rindex`, `rs_cmp`, `rs_swap`), two destinations across separate register spaces, and an
+address. It does not fit in 32 bits and should not be forced to. It is still one instruction
+with one ROB entry. That its address and its operands are read at different steps is the
+implementation's business (O-72 records how the first build does it).
 
 The memory-side RMW is full-width. `chwidth` on `rd` governs only how the returned old
 value is interpreted — no atomicity implication.
@@ -3103,6 +3127,37 @@ path back to OOE. No encoding changes: the field stays 6 bits, its top values re
 
 ---
 
+**O-72 — Atomics take Format D's base + index address — decided in 1.9.** IS-21, from CP-26.
+DA's words: "Yes, adopt IS-21 and start implementation" (2026-10-23). Format M addressed
+`(rbase << 16)` plus a 9-bit offset (16 bits for CAS), and `rbase` is a 64 KiB window, so a
+lane reached only a window-aligned address plus a few hundred bytes. An element index could
+not be folded in without losing its low 16 bits, and no register may hold a 48-bit address
+(invariant 11). So `atomicAdd(&bins[i], v)`, every FP atomic (a CAS loop), and CUB's
+histograms, radix sort and queues had no encoding. CP found it measuring IS-14 (1), and the
+compiler diagnosed every atomic meanwhile. Adopted: the base + index address on both forms,
+with three GPR sources for simple RMW (an indexed store's count) and four for CAS. The
+first build reads CAS's four without a fourth port (AR's and OA's IS-21 responses): DEC
+issues it as an address slot and an operand slot under one ROB entry. A1 reads `rbase` and
+`rindex`, A2 reads `rs_cmp` and `rs_swap`, and A3 reuses A1's address. That costs 6 wires and a
+take-both-or-neither rule in rename. What lost: the immediate-only forms; a fourth GPR source on
+every uop (about 15,000 cells); a word-granular CAS window (16 GiB reach and a placement
+rule); and native FP atomics as the only fix, which would have left CAS unusable on computed
+addresses.
+
+---
+
+**O-71 — 64-bit integers are 32-bit pairs, and the carry-producing add stays unallocated —
+decided in 1.9.** IS-13 item 2. IS-13 proposed reviving §11's `add.cc` / `addc` on
+compatibility grounds, pending CP's measurement. CP made 64-bit integers compile and run as C
+computes them (CP-27, 17 operations checked on 32 lanes against C's semantics), then measured.
+On the first real 64-bit kernel the carry pair removes 4.9% of instructions, and register pairs
+cost 18.5% in spills. Multiplies gain nothing from a carry, since their cross terms are
+`mad.lo`. Two of the six scarce A″ points are not spent for 5% on hash and RNG code, with
+nothing on the corpus's GPU kernels. §11 records the trigger for revisiting. What lost: about 5%
+on 64-bit add-heavy code. No encoding changes.
+
+---
+
 **O-70 — The FP SFU set has normative error bounds — decided in 1.9.** IS-12, ruled in
 substance on 2026-10-20 and written now that CP has built against it (CP-22). §4 called SFU
 accuracy "implementation-defined and approximate", while O-31 specified it as correctly rounded,
@@ -4668,9 +4723,15 @@ because it reinterprets rather than converts, and the narrow write then lands in
   report aligned and unaligned kernels separately, since the two shapes differ by three live
   registers on the simplest kernel there is.
 
-- **Carry-producing add.** §4's integer range has 6 unallocated points in the low 32, which
-  is the A″-reachable range where a carry-out predicate destination would live. Only needed
-  if window-crossing pointer arithmetic (§5.1) shows up hot. Deferred pending codegen data.
+- **Carry-producing add — measured and deferred (O-71).** §4's integer range has 6
+  unallocated points in the low 32, the A″-reachable range where a carry-out predicate
+  destination would live. 64-bit integers are in scope as 32-bit pairs: an add or subtract is
+  4 instructions (`add`, `setp.lt.u`, `add`, a predicated `add` of ±1). CP measured `add.cc` /
+  `addc` on splitmix64 and FNV-1a (CP-27): they remove 4.9% of instructions, while the same
+  kernel spends 18.5% on spills, because each 64-bit value holds two of 16 GPRs. The points stay
+  free. **Re-measure trigger:** a corpus kernel class (a 64-bit-indexed reduction, multi-word
+  arithmetic, a 64-bit-keyed hash table) where carry pairs exceed 10% of dynamic
+  instructions, or window-crossing pointer arithmetic (§5.1) showing up hot.
 
 ---
 

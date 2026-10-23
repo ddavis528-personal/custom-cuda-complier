@@ -70,6 +70,10 @@ public:
   /// §5.1 makes `.shared` flat 32-bit, so a shared object's address is a
   /// compile-time constant and the layout is the whole of its lowering.
   void addIRPasses() override {
+    // O-72: an atomic Format M has no point for (a float add, a sub-word
+    // width) becomes a CAS loop, and fences go around anything stronger than
+    // relaxed. First, so everything after sees the expanded form.
+    addPass(createAtomicExpandPass());
     // Before anything relies on a device function's linkage (F-21).
     addPass(createCCVInternalize());
     addPass(createCCVLowerShared());

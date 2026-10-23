@@ -9,6 +9,7 @@
   test/bench/vadd16_loop.cu               0         0          0
   test/bench/vadd_loop.cu                 0         0          0
   test/cuda/argorder.cu                   0         0          0
+  test/cuda/atomics.cu                    0         0          0
   test/cuda/bytes.cu                      4         7          7
   test/cuda/byval.cu                      0         0          0
   test/cuda/calls.cu                     12        54         54
@@ -34,13 +35,14 @@
   test/cuda/ptrlist.cu                    2         9          9
   test/cuda/ptrmem.cu                     0         0          0
   test/cuda/reduce.cu                     0         0          0
+  test/cuda/scatter.cu                    0         0          0
   test/cuda/sfu.cu                        0         0          0
   test/cuda/sgemm.cu                      0         0          0
   test/cuda/spinwait.cu                   0         0          0
   test/cuda/vadd-aligned.cu               0         0          0
   test/cuda/vadd.cu                       0         0          0
   test/coremark-derived                  37       109         97
-  frame words: 0: 34, 1-32: 3, 33-64: 1, >64: 0 of 38 kernels
+  frame words: 0: 36, 1-32: 3, 33-64: 1, >64: 0 of 40 kernels
 
   frame instructions by kind (static), and functions with a frame object
   kernel                              spill  args  object  fns  w/obj
@@ -49,7 +51,7 @@
   test/cuda/ptrlist.cu                    5     0       4    4      1
   test/coremark-derived                  50     3      56   13      2
   total (kernels with a frame)           78    15      86
-  functions in the corpus: 71, with a frame object: 8
+  functions in the corpus: 74, with a frame object: 8
 
   issued, at each kernel's launch (dynamic)
   kernel                 issue   memops   frame  +lane reg  st idx  idx/mem

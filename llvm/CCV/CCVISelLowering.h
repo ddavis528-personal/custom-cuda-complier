@@ -25,6 +25,8 @@ enum NodeType : unsigned {
   ST_FRAME,   ///< store to   a .local frame slot -- chain, value, FI, idx, scale
   CODEADDR,   ///< a function's 32-bit code address -- target global (F-21)
   FRAMEOFF,   ///< a frame object's offset in the window below R15's -- target FI
+  ATOM,       ///< O-72 RMW -- chain, base, idx, scale, disp, value, op, shared
+  CAS,        ///< O-72 CAS -- chain, base, idx, scale, disp, cmp, swap, shared
 };
 } // namespace CCVISD
 
@@ -41,6 +43,15 @@ public:
                          EVT VT) const override {
     return MVT::i1;
   }
+
+  /// O-72's atomics take every ordering as relaxed between fences, which
+  /// AtomicExpand places; the rest is CCVISelLowering.cpp's.
+  bool shouldInsertFencesForAtomic(const Instruction *) const override {
+    return true;
+  }
+  AtomicExpansionKind shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const override;
+  AtomicExpansionKind
+  shouldExpandAtomicCmpXchgInIR(AtomicCmpXchgInst *CX) const override;
 
   /// No access is wider than 32 bits, so adjacent stores merge no further: a
   /// merged i64 store reached the type legalizer with its address already a

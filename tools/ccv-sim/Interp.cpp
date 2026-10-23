@@ -1453,6 +1453,82 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     break;
   }
 
+  // ---- Format M: atomics (O-72) --------------------------------------------
+  // Each executing lane's read-modify-write is atomic and full-width, and
+  // returns the old word; lanes apply in ascending order, one of the orders
+  // §3 permits for these order-independent operations. The address is Format
+  // D's base + index (O-72), scale 2 when enabled: one word, aligned (F-ALIGN).
+  // The write is made whatever the operation computes, so a store into
+  // read-only memory is F-RO even when nothing would change (O-51).
+  case CCV::ATOM_ADD_G:   case CCV::ATOM_ADD_S:
+  case CCV::ATOM_MIN_S_G: case CCV::ATOM_MIN_S_S:
+  case CCV::ATOM_MIN_U_G: case CCV::ATOM_MIN_U_S:
+  case CCV::ATOM_MAX_S_G: case CCV::ATOM_MAX_S_S:
+  case CCV::ATOM_MAX_U_G: case CCV::ATOM_MAX_U_S:
+  case CCV::ATOM_AND_G:   case CCV::ATOM_AND_S:
+  case CCV::ATOM_OR_G:    case CCV::ATOM_OR_S:
+  case CCV::ATOM_XOR_G:   case CCV::ATOM_XOR_S:
+  case CCV::ATOM_EXCH_G:  case CCV::ATOM_EXCH_S:
+  case CCV::CAS_G:        case CCV::CAS_S: {
+    const bool Cas = Op == CCV::CAS_G || Op == CCV::CAS_S;
+    const bool Sh = Op == CCV::CAS_S || Op == CCV::ATOM_ADD_S ||
+                    Op == CCV::ATOM_MIN_S_S || Op == CCV::ATOM_MIN_U_S ||
+                    Op == CCV::ATOM_MAX_S_S || Op == CCV::ATOM_MAX_U_S ||
+                    Op == CCV::ATOM_AND_S || Op == CCV::ATOM_OR_S ||
+                    Op == CCV::ATOM_XOR_S || Op == CCV::ATOM_EXCH_S;
+    // RMW: rd, rbase, rindex, scale, disp, rs. CAS: rd, pd, pq, rbase,
+    // rindex, scale, disp, rs_cmp, rs_swap.
+    const unsigned A0 = Cas ? 3 : 1;
+    const unsigned D = regOf(MI, 0), Base = regOf(MI, A0),
+                   Idx = regOf(MI, A0 + 1);
+    const unsigned Scale = MI.getOperand(A0 + 2).getImm() ? 2 : 0;
+    const int64_t Disp = MI.getOperand(A0 + 3).getImm();
+    const unsigned S1 = regOf(MI, A0 + 4), S2 = Cas ? regOf(MI, A0 + 5) : 0;
+    const unsigned PD = Cas ? regOf(MI, 1) : 0;
+    const uint32_t G =
+        Cas ? guardMask(W, uint32_t(MI.getOperand(2).getImm())) & Mask : Mask;
+    if (Cas) {
+      R.Active = G;
+      R.ActiveSet = true;
+    }
+    Memory &M = Sh ? Shared : Mem;
+    uint32_t Succ = 0;
+    for (unsigned L = 0; L != kLanes; ++L) {
+      if (!(G & (1u << L)))
+        continue;
+      Mem.CurLane = Shared.CurLane = L;
+      uint64_t A =
+          (nfp::TestAtomNoIndex ? 0 : uint64_t(W.GPR[Idx][L]) << Scale) + Disp;
+      A += Sh ? uint64_t(W.GPR[Base][L]) : uint64_t(W.GPR[Base][L]) << kBaseShift;
+      const uint32_t Old = M.readN(A, 4), X = W.GPR[S1][L];
+      uint32_t New = Old;
+      switch (Op) {
+      case CCV::ATOM_ADD_G:   case CCV::ATOM_ADD_S:   New = Old + X; break;
+      case CCV::ATOM_MIN_S_G: case CCV::ATOM_MIN_S_S:
+        New = uint32_t(std::min(int32_t(Old), int32_t(X))); break;
+      case CCV::ATOM_MIN_U_G: case CCV::ATOM_MIN_U_S: New = std::min(Old, X); break;
+      case CCV::ATOM_MAX_S_G: case CCV::ATOM_MAX_S_S:
+        New = uint32_t(std::max(int32_t(Old), int32_t(X))); break;
+      case CCV::ATOM_MAX_U_G: case CCV::ATOM_MAX_U_S: New = std::max(Old, X); break;
+      case CCV::ATOM_AND_G:   case CCV::ATOM_AND_S:   New = Old & X; break;
+      case CCV::ATOM_OR_G:    case CCV::ATOM_OR_S:    New = Old | X; break;
+      case CCV::ATOM_XOR_G:   case CCV::ATOM_XOR_S:   New = Old ^ X; break;
+      case CCV::ATOM_EXCH_G:  case CCV::ATOM_EXCH_S:  New = X; break;
+      default:                                        // CAS
+        if (Old == X) {
+          New = W.GPR[S2][L];
+          Succ |= 1u << L;
+        }
+        break;
+      }
+      M.writeN(A, New, 4);
+      W.GPR[D][L] = Old;
+    }
+    if (Cas)
+      W.Pred[PD] = (W.Pred[PD] & ~G) | Succ;
+    break;
+  }
+
   // ---- Format D: shared memory -------------------------------------------
   // §5.1: `.shared` does not shift. The AGU computes rbase + (rindex << scale)
   // + disp -- a plain three-input add against a separate flat 32-bit space.

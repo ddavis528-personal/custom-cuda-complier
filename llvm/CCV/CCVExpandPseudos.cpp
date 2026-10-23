@@ -86,6 +86,24 @@ bool CCVExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
         break;
       }
 
+      case CCV::PSEUDO_CAS_G:
+      case CCV::PSEUDO_CAS_S:
+        // rd, pd, guard, rbase, rindex, scale, disp, cmp, swap
+        BuildMI(MBB, MI, DL,
+                TII->get(MI.getOpcode() == CCV::PSEUDO_CAS_G ? CCV::CAS_G
+                                                             : CCV::CAS_S))
+            .add(MI.getOperand(0))
+            .add(MI.getOperand(1))
+            .addImm(qualFor(MI.getOperand(2).getReg(), /*Negate=*/false))
+            .add(MI.getOperand(3))
+            .add(MI.getOperand(4))
+            .add(MI.getOperand(5))
+            .add(MI.getOperand(6))
+            .add(MI.getOperand(7))
+            .add(MI.getOperand(8))
+            .setMemRefs(MI.memoperands());
+        break;
+
       case CCV::PSEUDO_PADDI:
         // operands: rd(tied), false, cond, imm  ->  @cond add rd, rd, imm
         BuildMI(MBB, MI, DL, TII->get(CCV::ADDI_P), MI.getOperand(0).getReg())

@@ -65,6 +65,9 @@ static cl::opt<unsigned> LaneContexts("lane-contexts", cl::init(4096),
     cl::desc("CCV_LANE_CONTEXTS: where O-69's spill space starts (default the "
              "core's params, the device's %lanectx range: 2^(CCV_P_W_DEV_CORE "
              "+ CCV_W_WARP_ID + 5))"));
+static cl::opt<bool> TestAtomNoIndex("ccv-test-atomic-no-index", cl::Hidden,
+    cl::desc("address atomics without their index register, as before O-72, "
+             "to test that it is caught"));
 static cl::opt<bool> TestSfuTruncate("ccv-test-sfu-truncate", cl::Hidden,
     cl::desc("truncate the FP SFU's values instead of rounding them, to test "
              "that it is caught"));
@@ -192,6 +195,7 @@ int main(int argc, char **argv) {
   nfp::TestNoSaturate = TestFpNoSat;
   nfp::TestHostNaN = TestFpHostNaN;
   sfu::TestTruncate = TestSfuTruncate;
+  nfp::TestAtomNoIndex = TestAtomNoIndex;
   nfp::SfuErrorUlps = SfuErrorUlps;
   nfp::TestByValue = TestMixedByValue;
   if (!FpCases.empty()) {
@@ -686,7 +690,11 @@ int main(int argc, char **argv) {
           }
           continue;
         }
-        if (Log.size() != NLanes) {
+        // An atomic (Format M) reads and writes each lane's word: two
+        // accesses a lane, read first, both attributed to it.
+        const unsigned PerLane =
+            D.mayLoad() && D.mayStore() && Log.size() == 2 * NLanes ? 2 : 1;
+        if (Log.size() != PerLane * NLanes) {
           errs() << "error: -oracle: " << Log.size() << " memory accesses for "
                  << NLanes << " lanes at " << format_hex(Target, 10)
                  << " -- cannot attribute them to lanes\n";
@@ -695,17 +703,19 @@ int main(int argc, char **argv) {
         unsigned K = 0;
         for (unsigned L = 0; L != kLanes; ++L) {
           if (!(Exec & (1u << L))) continue;
-          const auto &A = Log[K++];
-          std::fprintf(OF, "%s{\"lane\":%u,\"space\":\"%s\",\"w\":%d,"
-                           "\"addr\":%llu,\"bytes\":%u",
-                       Emitted ? "," : "", L, SpaceIdx ? "shared" : "global",
-                       int(A.Write), (unsigned long long)A.Addr, A.Bytes);
-          // A faulting instruction writes nothing, so it has no value.
-          if (!Faulted)
-            std::fprintf(OF, ",\"val\":%u", A.Val);
-          std::fputc('}', OF);
-          ++Emitted;
-          if (!SpaceIdx) Touched.push_back(A.Addr);
+          for (unsigned Rep = 0; Rep != PerLane; ++Rep) {
+            const auto &A = Log[K++];
+            std::fprintf(OF, "%s{\"lane\":%u,\"space\":\"%s\",\"w\":%d,"
+                             "\"addr\":%llu,\"bytes\":%u",
+                         Emitted ? "," : "", L, SpaceIdx ? "shared" : "global",
+                         int(A.Write), (unsigned long long)A.Addr, A.Bytes);
+            // A faulting instruction writes nothing, so it has no value.
+            if (!Faulted)
+              std::fprintf(OF, ",\"val\":%u", A.Val);
+            std::fputc('}', OF);
+            ++Emitted;
+            if (!SpaceIdx) Touched.push_back(A.Addr);
+          }
         }
       }
       std::fprintf(OF, "]}\n");

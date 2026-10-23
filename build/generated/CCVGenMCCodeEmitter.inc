@@ -295,6 +295,8 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(0),
     UINT64_C(0),
     UINT64_C(0),
+    UINT64_C(0),
+    UINT64_C(0),
     UINT64_C(1280),	// ABS
     UINT64_C(0),	// ADD
     UINT64_C(12),	// ADDI
@@ -314,6 +316,23 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(452),	// AND_P
     UINT64_C(448),	// AND_W16
     UINT64_C(36),	// ATOM_ADD_G
+    UINT64_C(1060),	// ATOM_ADD_S
+    UINT64_C(356),	// ATOM_AND_G
+    UINT64_C(1380),	// ATOM_AND_S
+    UINT64_C(548),	// ATOM_EXCH_G
+    UINT64_C(1572),	// ATOM_EXCH_S
+    UINT64_C(228),	// ATOM_MAX_S_G
+    UINT64_C(1252),	// ATOM_MAX_S_S
+    UINT64_C(292),	// ATOM_MAX_U_G
+    UINT64_C(1316),	// ATOM_MAX_U_S
+    UINT64_C(100),	// ATOM_MIN_S_G
+    UINT64_C(1124),	// ATOM_MIN_S_S
+    UINT64_C(164),	// ATOM_MIN_U_G
+    UINT64_C(1188),	// ATOM_MIN_U_S
+    UINT64_C(420),	// ATOM_OR_G
+    UINT64_C(1444),	// ATOM_OR_S
+    UINT64_C(484),	// ATOM_XOR_G
+    UINT64_C(1508),	// ATOM_XOR_S
     UINT64_C(560),	// BALLOT
     UINT64_C(232),	// BAR_INIT
     UINT64_C(296),	// BAR_WAIT_PHASE
@@ -322,6 +341,7 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(1536),	// BREV
     UINT64_C(168),	// CALL
     UINT64_C(1063),	// CAS_G
+    UINT64_C(1127),	// CAS_S
     UINT64_C(56),	// CHWIDTH_MULTI
     UINT64_C(1472),	// CLZ
     UINT64_C(1073742208),	// COS_F32
@@ -881,7 +901,24 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
       Value |= op;
       break;
     }
-    case CCV::ATOM_ADD_G: {
+    case CCV::ATOM_ADD_G:
+    case CCV::ATOM_ADD_S:
+    case CCV::ATOM_AND_G:
+    case CCV::ATOM_AND_S:
+    case CCV::ATOM_EXCH_G:
+    case CCV::ATOM_EXCH_S:
+    case CCV::ATOM_MAX_S_G:
+    case CCV::ATOM_MAX_S_S:
+    case CCV::ATOM_MAX_U_G:
+    case CCV::ATOM_MAX_U_S:
+    case CCV::ATOM_MIN_S_G:
+    case CCV::ATOM_MIN_S_S:
+    case CCV::ATOM_MIN_U_G:
+    case CCV::ATOM_MIN_U_S:
+    case CCV::ATOM_OR_G:
+    case CCV::ATOM_OR_S:
+    case CCV::ATOM_XOR_G:
+    case CCV::ATOM_XOR_S: {
       // op: rd
       op = getMachineOpValue(MI, MI.getOperand(0), Fixups, STI);
       op &= UINT64_C(15);
@@ -893,18 +930,29 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
       op <<= 15;
       Value |= op;
       // op: rs1
-      op = getMachineOpValue(MI, MI.getOperand(2), Fixups, STI);
+      op = getMachineOpValue(MI, MI.getOperand(5), Fixups, STI);
       op &= UINT64_C(15);
       op <<= 19;
       Value |= op;
-      // op: off
-      op = getMachineOpValue(MI, MI.getOperand(3), Fixups, STI);
-      op &= UINT64_C(511);
+      // op: rindex
+      op = getMachineOpValue(MI, MI.getOperand(2), Fixups, STI);
+      op &= UINT64_C(15);
       op <<= 23;
+      Value |= op;
+      // op: scale
+      op = getMachineOpValue(MI, MI.getOperand(3), Fixups, STI);
+      op &= UINT64_C(1);
+      op <<= 27;
+      Value |= op;
+      // op: disp
+      op = getMachineOpValue(MI, MI.getOperand(4), Fixups, STI);
+      op &= UINT64_C(15);
+      op <<= 28;
       Value |= op;
       break;
     }
-    case CCV::CAS_G: {
+    case CCV::CAS_G:
+    case CCV::CAS_S: {
       // op: rd
       op = getMachineOpValue(MI, MI.getOperand(0), Fixups, STI);
       op &= UINT64_C(15);
@@ -916,12 +964,12 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
       op <<= 15;
       Value |= op;
       // op: rs1
-      op = getMachineOpValue(MI, MI.getOperand(4), Fixups, STI);
+      op = getMachineOpValue(MI, MI.getOperand(7), Fixups, STI);
       op &= UINT64_C(15);
       op <<= 19;
       Value |= op;
       // op: rs2
-      op = getMachineOpValue(MI, MI.getOperand(5), Fixups, STI);
+      op = getMachineOpValue(MI, MI.getOperand(8), Fixups, STI);
       op &= UINT64_C(15);
       op <<= 23;
       Value |= op;
@@ -935,10 +983,20 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
       op &= UINT64_C(3);
       op <<= 30;
       Value |= op;
-      // op: off
-      op = getMachineOpValue(MI, MI.getOperand(6), Fixups, STI);
-      op &= UINT64_C(65535);
+      // op: rindex
+      op = getMachineOpValue(MI, MI.getOperand(4), Fixups, STI);
+      op &= UINT64_C(15);
       op <<= 32;
+      Value |= op;
+      // op: scale
+      op = getMachineOpValue(MI, MI.getOperand(5), Fixups, STI);
+      op &= UINT64_C(1);
+      op <<= 36;
+      Value |= op;
+      // op: disp
+      op = getMachineOpValue(MI, MI.getOperand(6), Fixups, STI);
+      op &= UINT64_C(2047);
+      op <<= 37;
       Value |= op;
       break;
     }
@@ -1973,7 +2031,24 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
       }
       break;
     }
-    case CCV::ATOM_ADD_G: {
+    case CCV::ATOM_ADD_G:
+    case CCV::ATOM_ADD_S:
+    case CCV::ATOM_AND_G:
+    case CCV::ATOM_AND_S:
+    case CCV::ATOM_EXCH_G:
+    case CCV::ATOM_EXCH_S:
+    case CCV::ATOM_MAX_S_G:
+    case CCV::ATOM_MAX_S_S:
+    case CCV::ATOM_MAX_U_G:
+    case CCV::ATOM_MAX_U_S:
+    case CCV::ATOM_MIN_S_G:
+    case CCV::ATOM_MIN_S_S:
+    case CCV::ATOM_MIN_U_G:
+    case CCV::ATOM_MIN_U_S:
+    case CCV::ATOM_OR_G:
+    case CCV::ATOM_OR_S:
+    case CCV::ATOM_XOR_G:
+    case CCV::ATOM_XOR_S: {
       switch (OpNum) {
       case 0:
         // op: rd
@@ -1981,12 +2056,18 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
       case 1:
         // op: rbase
         return 15;
-      case 2:
+      case 5:
         // op: rs1
         return 19;
-      case 3:
-        // op: off
+      case 2:
+        // op: rindex
         return 23;
+      case 3:
+        // op: scale
+        return 27;
+      case 4:
+        // op: disp
+        return 28;
       }
       break;
     }
@@ -2318,7 +2399,8 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
       }
       break;
     }
-    case CCV::CAS_G: {
+    case CCV::CAS_G:
+    case CCV::CAS_S: {
       switch (OpNum) {
       case 0:
         // op: rd
@@ -2326,10 +2408,10 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
       case 3:
         // op: rbase
         return 15;
-      case 4:
+      case 7:
         // op: rs1
         return 19;
-      case 5:
+      case 8:
         // op: rs2
         return 23;
       case 2:
@@ -2338,9 +2420,15 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
       case 1:
         // op: pd
         return 30;
-      case 6:
-        // op: off
+      case 4:
+        // op: rindex
         return 32;
+      case 5:
+        // op: scale
+        return 36;
+      case 6:
+        // op: disp
+        return 37;
       }
       break;
     }
