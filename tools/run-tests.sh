@@ -244,6 +244,9 @@ for l in sys.stdin:
     m = re.match(r"\s*frame-object (\S+) \S+ (-?\d+) (-?\d+)", l)
     if m:
         objs.setdefault(m[1], []).append((int(m[2]), int(m[3])))
+    m = re.match(r"\s*local-slot (\S+) (\d+) (\d+)", l)    # O-69
+    if m:
+        objs.setdefault("local " + m[1], []).append((int(m[2]), int(m[3])))
 bad = [f"{f}: [{a},{b})" for f, o in objs.items() for a, b in o if b <= a]
 for f, o in objs.items():
     o.sort()
@@ -253,9 +256,9 @@ print("\n".join(bad)); sys.exit(1 if bad else 0)'
 run_frames() {
   local f all="" n=0
   for f in test/accept/*.ll; do
-    all+=$(build/ccv-llc "$f" -o /dev/null -ccv-frame-stats 2>&1 | sed "s|frame-object |frame-object $(basename "$f"):|")$'\n'
+    all+=$(build/ccv-llc "$f" -o /dev/null -ccv-frame-stats 2>&1 | sed "s|frame-object |frame-object $(basename "$f"):|; s|local-slot |local-slot $(basename "$f"):|")$'\n'
   done
-  n=$(grep -c "frame-object" <<< "$all")
+  n=$(grep -c "frame-object\|local-slot" <<< "$all")
   local np; np=$(build/ccv-llc test/accept/fdiv-all.ll -o - 2>/dev/null | grep -c "st.pred")
   if ! out=$(frames_disjoint <<< "$all"); then
     echo "  FAIL  frame objects overlap or are empty:"; echo "$out" | head -5; return 1

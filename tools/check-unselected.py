@@ -180,11 +180,6 @@ UNREACHABLE = {
            for r in range(4) for p in ("", "_P")
            if not ((d, s, r) in {(0, 2, 0), (0, 3, 0), (2, 0, 1), (3, 0, 1), (2, 2, 0)}
                    or (d >= 2 and s >= 2 and r != 0))]},
-    # O-69's interleaved spill space: defined for ccv-sim and ccv-as; the
-    # spill lowering that uses it is O-69's stage B.
-    **{n: ("todo", "defined for ccv-sim and ccv-as; spills move to it in O-69's "
-                   "stage B (static slots over the call graph, the R15 rule)")
-       for n in "LD_LOCAL ST_LOCAL LD_PRED_LOCAL ST_PRED_LOCAL".split()},
     # Sub-word pack/unpack. These address MEMORY packing -- a lane still holds
     # one element at every width (O-13, F-79) -- and nothing in the backend
     # forms a packed load. F-122.
