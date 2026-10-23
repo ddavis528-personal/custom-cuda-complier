@@ -156,18 +156,22 @@ bool llvm::checkCCVModule(Module &M, raw_ostream &Err) {
                    "for the kernel's lifetime -- the launch block lives there",
                    Problems);
 
-        // --- an atomic read-modify-write (F-118, CP-26) -------------------
-        // Format M addresses .global as (rbase << 16) + an immediate, with no
-        // index register, so an atomic to a computed element -- every
-        // atomicAdd(&bins[i], ..) -- has no encoding; and nothing lowers the
-        // .shared forms yet. Before this rule, the type legalizer aborted.
-        if (isa<AtomicRMWInst>(I) || isa<AtomicCmpXchgInst>(I))
-          report(I, "atomic read-modify-write",
-                 "Format M's .global address is (rbase << 16) plus an "
-                 "immediate, with no index register, so an atomic to a "
-                 "computed address cannot be encoded (CP-26, raised with IS); "
-                 "the .shared forms are not lowered yet (F-118)",
-                 Problems);
+        // --- an atomic wider than a word (O-72) ---------------------------
+        // Format M's RMW and CAS are one word; a sub-word or float atomic is a
+        // CAS loop on its word (AtomicExpand). A 64-bit one has no CAS to
+        // loop on: there is no 64-bit compare-and-swap, nor a library.
+        {
+          Type *AT = nullptr;
+          if (auto *RMW = dyn_cast<AtomicRMWInst>(&I))
+            AT = RMW->getType();
+          else if (auto *CX = dyn_cast<AtomicCmpXchgInst>(&I))
+            AT = CX->getNewValOperand()->getType();
+          if (AT && AT->getPrimitiveSizeInBits() > 32)
+            report(I, "64-bit atomic",
+                   "Format M's atomics are one word (O-72), and there is no "
+                   "64-bit compare-and-swap to build one from",
+                   Problems);
+        }
 
         // --- a pointer that escapes an addressing mode --------------------
         // Invariant 11: there is no register to materialise one into, and the

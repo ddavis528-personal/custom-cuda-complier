@@ -28,6 +28,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Pass.h"
 #include "llvm/IR/ValueHandle.h"
@@ -87,6 +88,10 @@ bool isLaunchBlockLoad(const Instruction *I) {
 bool isRematerializable(const Instruction *I) {
   if (isa<LoadInst>(I))
     return isLaunchBlockLoad(I);
+  // A window address with its low bits masked: how AtomicExpand finds a
+  // sub-word atomic's word (O-72), in the block before its CAS loop.
+  if (const auto *II = dyn_cast<IntrinsicInst>(I))
+    return II->getIntrinsicID() == Intrinsic::ptrmask;
   switch (I->getOpcode()) {
   case Instruction::ZExt:
   case Instruction::SExt:
@@ -179,7 +184,10 @@ bool runOnFn(Function &F) {
   for (Instruction &I : instructions(F))
     if (isa<IntToPtrInst>(I) ||
         (isa<GetElementPtrInst>(I) &&
-         cast<GetElementPtrInst>(I).getAddressSpace() != 3 && crosses(I)))
+         cast<GetElementPtrInst>(I).getAddressSpace() != 3 && crosses(I)) ||
+        (isa<IntrinsicInst>(I) &&
+         cast<IntrinsicInst>(I).getIntrinsicID() == Intrinsic::ptrmask &&
+         I.getType()->getPointerAddressSpace() != 3 && crosses(I)))
       Roots.push_back(&I);
 
   bool Changed = false;

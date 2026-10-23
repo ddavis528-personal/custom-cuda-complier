@@ -1062,6 +1062,9 @@ def C_RET     : FormatKraw<53, (outs), (ins uimm8:$payload), "ret $payload">;
 let isTerminator = 1, isBarrier = 1 in
 def C_EXIT    : FormatKraw<54, (outs), (ins uimm8:$payload), "exit">;
 def C_RECONV  : FormatKraw<55, (outs), (ins uimm8:$payload), "reconv.hint $payload">;
+// A fence orders memory and has no other effect, which is exactly what must
+// not let it be deleted as dead.
+let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
 def C_FENCE   : FormatKraw<56, (outs), (ins uimm8:$payload), "fence $payload">;
 
 // Predicate logic (v1.3, O-20). Points 60-63. Three points reach every
@@ -1140,6 +1143,16 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
   // predicate (`add x, zext c`) is one predicated add, not a 0/1 materialized
   // and added. It is the carry of a 64-bit add and the borrow of a subtract
   // (IS-13 (2)), and §5.7's pointer-store carry.
+  // O-72's CAS, guarded by a predicate REGISTER the allocator can see, as
+  // PSEUDO_PMOV's condition is; §3 encodes the guard as a qualifier.
+  let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in
+  foreach sp = ["G", "S"] in
+    def PSEUDO_CAS_#sp : CCVInst<0, (outs GPR:$rd, PR:$pd),
+                                 (ins PR:$guard, GPR:$rbase, GPR:$rindex,
+                                  uimm2:$scale, simm11:$disp, GPR:$cmp,
+                                  GPR:$swap),
+                                 "# @$guard cas $rd, $pd">;
+
   let Constraints = "$rd = $false" in
   def PSEUDO_PADDI : CCVInst<0, (outs GPR:$rd),
                              (ins GPR:$false, PR:$cond, simm10:$imm),

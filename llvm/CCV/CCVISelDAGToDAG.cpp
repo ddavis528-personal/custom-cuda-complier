@@ -134,6 +134,22 @@ static unsigned atWidth(unsigned Opc, EVT MemVT) {
   }
 }
 
+/// O-72's RMW point for an operation, in §3's order (add, min.s, min.u, max.s,
+/// max.u, and, or, xor, exch), and an address space.
+static unsigned atomOpcode(unsigned Kind, bool Shared) {
+  switch (Kind) {
+  case 0:  return Shared ? CCV::ATOM_ADD_S : CCV::ATOM_ADD_G;
+  case 1:  return Shared ? CCV::ATOM_MIN_S_S : CCV::ATOM_MIN_S_G;
+  case 2:  return Shared ? CCV::ATOM_MIN_U_S : CCV::ATOM_MIN_U_G;
+  case 3:  return Shared ? CCV::ATOM_MAX_S_S : CCV::ATOM_MAX_S_G;
+  case 4:  return Shared ? CCV::ATOM_MAX_U_S : CCV::ATOM_MAX_U_G;
+  case 5:  return Shared ? CCV::ATOM_AND_S : CCV::ATOM_AND_G;
+  case 6:  return Shared ? CCV::ATOM_OR_S : CCV::ATOM_OR_G;
+  case 7:  return Shared ? CCV::ATOM_XOR_S : CCV::ATOM_XOR_G;
+  default: return Shared ? CCV::ATOM_EXCH_S : CCV::ATOM_EXCH_G;
+  }
+}
+
 void CCVDAGToDAGISel::Select(SDNode *N) {
   if (N->isMachineOpcode()) {
     N->setNodeId(-1);
@@ -235,6 +251,66 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
                                         DL, MVT::Other, Ops);
     CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
     ReplaceNode(N, MN);
+    return;
+  }
+  case CCVISD::ATOM: {
+    // O-72: operands chain, base, idx, scale, disp, value, op, shared.
+    SDValue Ops[] = {N->getOperand(1), N->getOperand(2), N->getOperand(3),
+                     N->getOperand(4), N->getOperand(5), N->getOperand(0)};
+    MachineSDNode *MN = CurDAG->getMachineNode(
+        atomOpcode(N->getConstantOperandVal(6), N->getConstantOperandVal(7)),
+        DL, MVT::i32, MVT::Other, Ops);
+    CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
+    ReplaceNode(N, MN);
+    return;
+  }
+  case CCVISD::CAS: {
+    // Operands chain, base, idx, scale, disp, cmp, swap, shared. Every lane
+    // the warp runs takes part, so the guard is a predicate of all ones.
+    SDValue All(CurDAG->getMachineNode(
+                    CCV::PMOV_IMM, DL, MVT::i1,
+                    CurDAG->getTargetConstant(0xFFFFFFFFu, DL, MVT::i32)),
+                0);
+    SDValue Ops[] = {All, N->getOperand(1), N->getOperand(2), N->getOperand(3),
+                     N->getOperand(4), N->getOperand(5), N->getOperand(6),
+                     N->getOperand(0)};
+    MachineSDNode *MN = CurDAG->getMachineNode(
+        N->getConstantOperandVal(7) ? CCV::PSEUDO_CAS_S : CCV::PSEUDO_CAS_G, DL,
+        MVT::i32, MVT::i1, MVT::Other, Ops);
+    CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
+    ReplaceNode(N, MN);
+    return;
+  }
+  case ISD::ATOMIC_FENCE: {
+    // §3's fence: scope at [10:8] and ordering at [12:11], payload bits
+    // [2:0] and [4:3]. The codes are provisional, pending IS (CP-29): scope
+    // 0 CTA, 1 device, 2 system; ordering 1 acquire, 2 release, 3 both. A
+    // single-thread fence orders nothing the hardware sees.
+    auto Ord = AtomicOrdering(N->getConstantOperandVal(1));
+    auto Scope = SyncScope::ID(N->getConstantOperandVal(2));
+    if (Scope == SyncScope::SingleThread) {
+      ReplaceUses(SDValue(N, 0), N->getOperand(0));
+      CurDAG->RemoveDeadNode(N);
+      return;
+    }
+    unsigned ScopeCode = 2;
+    SmallVector<StringRef, 8> Names;
+    CurDAG->getContext()->getSyncScopeNames(Names);
+    if (Scope < Names.size()) {
+      StringRef Nm = Names[Scope];
+      if (Nm == "block" || Nm == "cta" || Nm == "workgroup")
+        ScopeCode = 0;
+      else if (Nm == "device" || Nm == "gpu" || Nm == "agent")
+        ScopeCode = 1;
+    }
+    unsigned OrdCode = Ord == AtomicOrdering::Acquire   ? 1
+                       : Ord == AtomicOrdering::Release ? 2
+                                                        : 3;
+    ReplaceNode(N, CurDAG->getMachineNode(
+                       CCV::C_FENCE, DL, MVT::Other,
+                       {CurDAG->getTargetConstant(ScopeCode | OrdCode << 3, DL,
+                                                  MVT::i32),
+                        N->getOperand(0)}));
     return;
   }
   case CCVISD::DP4_SS: {

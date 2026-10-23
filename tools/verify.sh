@@ -132,6 +132,13 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-ptrmem.sh || fail=1
 fi
 
+# O-72: CUDA atomics on computed addresses, .global and .shared, integer and
+# float (a CAS loop), executed against Python, with two controls.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  atomics (O-72)"
+  ./tools/check-atomics.sh || fail=1
+fi
+
 # IS-13 (2): 64-bit integers through 32-bit pairs, every operation executed
 # against C's semantics, with a control; and the add.cc/addc measurement.
 if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then

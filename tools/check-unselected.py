@@ -147,11 +147,11 @@ UNREACHABLE = {
                       "§4 point 19 is never selected; F-58"),
 
     # -- todo: no lowering in the backend yet -------------------------------
-    # The intrinsic surface: atomics, the warp vote/ballot group, the barrier
+    # The intrinsic surface: the warp vote/ballot group, the barrier
     # phase operations, and predicate spill to shared. Each needs a PTX
     # intrinsic mapped in CCVISelLowering, not an encoding. F-118.
     **{n: ("todo", "no PTX intrinsic lowering yet; F-118")
-       for n in """ATOM_ADD_G CAS_G BALLOT UNBALLOT VOTE_ANY
+       for n in """BALLOT UNBALLOT VOTE_ANY
                    BAR_INIT BAR_WAIT_PHASE PMOV LD_PRED_S ST_PRED_S""".split()},
     # Format J's second FP format code is BF16/E5M2, and the backend has no
     # bfloat type, so nothing can produce a contract-flagged bf16 multiply-add
@@ -194,8 +194,6 @@ UNREACHABLE = {
        for n in "ADD_PP ADDI_PP".split()},
     "C_RECONV": ("todo", "reconvergence is opportunistic and the compiler emits "
                          "no hint; F-124"),
-    "C_FENCE": ("todo", "no fence lowering -- the barrier path covers what the "
-                        "kernels need; F-124"),
 }
 
 
