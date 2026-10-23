@@ -40,6 +40,9 @@
 // FP_CONTRACT -- an expression "evaluated as though it were a single
 // operation, thereby omitting rounding errors implied by the source code"
 // (C11 6.5p8). CUDA compiles with -ffp-contract=fast, so CUDA source has it.
+// §5.8 states this as the ISA's rule, value-changing in the last place where
+// the exact contractions are not, with -ccv-fp8-dot=false as the opt-out
+// (O-68).
 // The products themselves are exact in FP32 for both formats, so the only
 // roundings removed are the additions'.
 //
