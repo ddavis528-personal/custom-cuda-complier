@@ -18,7 +18,7 @@ FunctionPass *createCCVCompress();
 FunctionPass *createCCVSpillStats();
 FunctionPass *createCCVNarrowUses();
 FunctionPass *createCCVExpandPTXAsm();
-FunctionPass *createCCVFormFP8Dot();
+FunctionPass *createCCVFormFP8();
 FunctionPass *createCCVMaskUniform();
 FunctionPass *createCCVFuseRcpSeed();
 FunctionPass *createCCVInsertChwidth();
@@ -76,7 +76,7 @@ public:
     // Before anything can ask for a division libcall that does not exist.
     addPass(createCCVExpandDivision());
     // An FP8 dot product written in FP32 is one dp4 (CP-6, stage 3).
-    addPass(createCCVFormFP8Dot());
+    addPass(createCCVFormFP8());
     // Reporting only, behind -ccv-uniformity-stats; changes nothing.
     addPass(createCCVUniformity());
     TargetPassConfig::addIRPasses();

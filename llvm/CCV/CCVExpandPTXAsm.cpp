@@ -20,9 +20,9 @@
 // ordinary instructions: `float(fp8)` asks for an x2 conversion and reads one
 // half, and the other half's conversion is then dead.
 //
-// It also selects `ccv.dp4.e4m3` and `ccv.dp4.e5m2`, the templates
-// CCVFormFP8Dot writes for an FP8 dot product, since LLVM 18 has no IR for
-// one either.
+// It also selects the templates CCVFormFP8 writes, since LLVM 18 has no IR
+// for them either: `ccv.dp4.e4m3`/`.e5m2` for a dot product, and
+// `ccv.fadd.e4m3` and its kin for one native FP8 operation.
 //
 // Anything else written in inline PTX is refused by name, not emitted: the
 // asm printer would put PTX text into a CCV object.
@@ -48,6 +48,12 @@ static cl::opt<bool> TestSwapX2(
     "ccv-test-ptx-swap-x2", cl::init(false), cl::Hidden,
     cl::desc("swap the halves of an inline PTX x2 conversion, to test that it "
              "is caught"));
+
+// Mutation control for tools/check-fp8.sh: an FP8 add in the other format.
+static cl::opt<bool> TestWrongFormat(
+    "ccv-test-fp8-wrong-format", cl::init(false), cl::Hidden,
+    cl::desc("give a native FP8 add the other format code, to test that it is "
+             "caught"));
 
 namespace {
 
@@ -159,6 +165,9 @@ bool CCVExpandPTXAsm::runOnMachineFunction(MachineFunction &MF) {
       static const Regex Dot4(
           "^ccv\\.dp4\\.(e4m3|e5m2) \\$([0-9]+), \\$([0-9]+), \\$([0-9]+), "
           "\\$([0-9]+)$");
+      static const Regex Arith8(
+          "^ccv\\.(fadd|fsub|fmul)\\.(e4m3|e5m2) \\$([0-9]+), \\$([0-9]+), "
+          "\\$([0-9]+)$");
       static const Regex F32F16("^cvt\\.f32\\.f16 \\$([0-9]+), \\$([0-9]+)$");
       static const Regex F16F32(
           "^cvt\\.rn\\.f16\\.f32 \\$([0-9]+), \\$([0-9]+)$");
@@ -218,6 +227,22 @@ bool CCVExpandPTXAsm::runOnMachineFunction(MachineFunction &MF) {
         BuildMI(MBB, MI, DL, TII->get(CCV::SHLI), Sh).addReg(Hi).addImm(16);
         BuildMI(MBB, MI, DL, TII->get(CCV::OR), op(M[2]))
             .addReg(Sh).addReg(Lo).addReg(Sh);
+      } else if (Arith8.match(T, &M)) {
+        // CCVFormFP8's: the low bytes of two i16 sources, one native
+        // operation at chwidth 8, zero-extended into the i16 result (O-38).
+        bool F1 = M[2] == "e5m2";
+        unsigned Opc = M[1] == "fadd" ? (F1 ? CCV::FADD_F1_W8 : CCV::FADD_W8)
+                     : M[1] == "fsub" ? (F1 ? CCV::FSUB_F1_W8 : CCV::FSUB_W8)
+                                      : (F1 ? CCV::FMUL_F1_W8 : CCV::FMUL_W8);
+        if (TestWrongFormat)
+          Opc = Opc == CCV::FADD_W8 ? CCV::FADD_F1_W8
+              : Opc == CCV::FADD_F1_W8 ? CCV::FADD_W8 : Opc;
+        Register A8 = vreg(CCV::GPR8RegClass), B8 = vreg(CCV::GPR8RegClass);
+        Register R8 = vreg(CCV::GPR8RegClass);
+        copy(A8, op(M[4]));
+        copy(B8, op(M[5]));
+        BuildMI(MBB, MI, DL, TII->get(Opc), R8).addReg(A8).addReg(B8).addReg(A8);
+        copy(op(M[3]), R8);
       } else if (Dot4.match(T, &M)) {
         // CCVFormFP8Dot's: rd = rs2 + the four products of rs0's and rs1's
         // bytes, summed exactly and rounded once (O-44).

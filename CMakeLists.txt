@@ -88,7 +88,7 @@ add_library(CCVMC STATIC
   llvm/CCV/CCVSpillStats.cpp
   llvm/CCV/CCVNarrowUses.cpp
   llvm/CCV/CCVExpandPTXAsm.cpp
-  llvm/CCV/CCVFormFP8Dot.cpp
+  llvm/CCV/CCVFormFP8.cpp
   llvm/CCV/CCVExpandDivision.cpp
   llvm/CCV/CCVFrameLowering.cpp
   llvm/CCV/CCVTargetTransformInfo.cpp

@@ -225,6 +225,23 @@ defm FMAX_F1 : FpRR1<fpOp.FMAX, "fmax">;
 def FFMA_F1 : FormatA<FpOpc<fpOp.FFMA, 1>.V, (outs GPR:$rd),
                       (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
                       "ffma.f1 $rd, $rs0, $rs1, $rs2">;
+// The same at chwidth 8, for CCVFormFP8's `float(a) op float(b)` converted
+// back (CP-6, stage 4): E4M3 in format code 0, E5M2 in 1. Codegen-only width
+// variants, as ADD_W16 is: the encoding is their namesake's, and the GPR8
+// operands carry the width to CCVInsertChwidth.
+multiclass FpRRW8<int op, int fmt, string mnem> {
+  def NAME : FormatA<FpOpc<op, fmt>.V, (outs GPR8:$rd),
+                     (ins GPR8:$rs0, GPR8:$rs1, GPR8:$rs2),
+                     mnem#".f"#fmt#" $rd, $rs0, $rs1">;
+}
+let isCodeGenOnly = 1, hasSideEffects = 0 in {
+  defm FADD_W8    : FpRRW8<fpOp.FADD, 0, "fadd">;
+  defm FSUB_W8    : FpRRW8<fpOp.FSUB, 0, "fsub">;
+  defm FMUL_W8    : FpRRW8<fpOp.FMUL, 0, "fmul">;
+  defm FADD_F1_W8 : FpRRW8<fpOp.FADD, 1, "fadd">;
+  defm FSUB_F1_W8 : FpRRW8<fpOp.FSUB, 1, "fsub">;
+  defm FMUL_F1_W8 : FpRRW8<fpOp.FMUL, 1, "fmul">;
+}
 def FNEG_F1 : FormatA<FpOpc<fpOp.FNEG, 1>.V, (outs GPR:$rd),
                       (ins GPR:$rs0, GPR:$rs1, GPR:$rs2), "fneg.f1 $rd, $rs0">;
 def FABS_F1 : FormatA<FpOpc<fpOp.FABS, 1>.V, (outs GPR:$rd),
