@@ -48,6 +48,9 @@ inline bool TestFtz = false, TestNoSaturate = false, TestHostNaN = false,
 /// ccv-sim -sfu-error-ulps: how far, in O-70's units, the FP SFU's results may
 /// be from exact (sfu::evalWithin); 0 is correctly rounded.
 inline unsigned SfuErrorUlps = 0;
+/// ccv-sim -ccv-test-atomic-no-index: Format M addressed as before O-72,
+/// without its index register, to test that it is caught.
+inline bool TestAtomNoIndex = false;
 
 struct Format {
   unsigned Bits, ExpBits, ManBits;

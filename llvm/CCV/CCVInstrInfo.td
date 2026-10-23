@@ -21,7 +21,9 @@ def simm13  : SImm<13>;
 def simm10  : SImm<10>;
 def simm8   : SImm<8>;
 def simm9   : SImm<9>;
-def simm16  : SImm<16>;   // cas's offset: §3 says signed (F-155)
+def simm16  : SImm<16>;
+def simm4   : SImm<4>;    // Format M's displacement (O-72)
+def simm11  : SImm<11>;   // CAS's displacement (O-72); signed, as F-155 found
 def simm21  : SImm<21>;
 def simm17  : SImm<17>;
 def simm18  : SImm<18>;
@@ -861,12 +863,35 @@ def LD_GLOBAL_P : FormatDp<0b00000, (outs GPR:$rdata),
 // ---------------------------------------------------------------------------
 // Format M / M' -- atomics.
 // ---------------------------------------------------------------------------
-let mayLoad = 1, mayStore = 1 in {
-def ATOM_ADD_G : FormatM<0, (outs GPR:$rd), (ins GPR:$rbase, GPR:$rs1, simm9:$off),
-                         "atom.add.global $rd, [$rbase + $off], $rs1">;
+// O-72: the base + index address of Format D, so an atomic reaches a computed
+// element. The opcode numbers are provisional, pending IS (CP-29): the nine
+// operations in §3's order at 0-8 for .global and 16-24 for .shared, and CAS,
+// in the 48-bit space, at 16 and 17.
+class AtomOp<string n, string m, int o> {
+  string Name = n; string Mnem = m; int Opc = o;
+}
+class AtomSpace<string n, string m, int o> {
+  string Name = n; string Mnem = m; int Base = o;
+}
+let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in {
+foreach a = [AtomOp<"ADD", "add", 0>, AtomOp<"MIN_S", "min.s", 1>,
+             AtomOp<"MIN_U", "min.u", 2>, AtomOp<"MAX_S", "max.s", 3>,
+             AtomOp<"MAX_U", "max.u", 4>, AtomOp<"AND", "and", 5>,
+             AtomOp<"OR", "or", 6>, AtomOp<"XOR", "xor", 7>,
+             AtomOp<"EXCH", "exch", 8>] in
+  foreach sp = [AtomSpace<"G", "global", 0>, AtomSpace<"S", "shared", 16>] in
+    def ATOM_#a.Name#_#sp.Name
+        : FormatM<!add(a.Opc, sp.Base), (outs GPR:$rd),
+                  (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm4:$disp, GPR:$rs1),
+                  "atom."#a.Mnem#"."#sp.Mnem#" $rd, [$rbase, $rindex, $scale, $disp], $rs1">;
 def CAS_G : FormatMp<16, (outs GPR:$rd, PR:$pd),
-                     (ins pqual:$pq, GPR:$rbase, GPR:$rs1, GPR:$rs2, simm16:$off),
-                     "@$pq cas.global $rd, [$rbase + $off], $rs1, $rs2, $pd">;
+                     (ins pqual:$pq, GPR:$rbase, GPR:$rindex, uimm2:$scale,
+                      simm11:$disp, GPR:$rs1, GPR:$rs2),
+                     "@$pq cas.global $rd, [$rbase, $rindex, $scale, $disp], $rs1, $rs2, $pd">;
+def CAS_S : FormatMp<17, (outs GPR:$rd, PR:$pd),
+                     (ins pqual:$pq, GPR:$rbase, GPR:$rindex, uimm2:$scale,
+                      simm11:$disp, GPR:$rs1, GPR:$rs2),
+                     "@$pq cas.shared $rd, [$rbase, $rindex, $scale, $disp], $rs1, $rs2, $pd">;
 }
 
 // ---------------------------------------------------------------------------

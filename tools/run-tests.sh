@@ -293,6 +293,22 @@ run_fp_canon() {
     echo "  FAIL  fp-canon: got '$got', want '$want' (host NaN: '$nan', bit ignored: '$f0'); 32-bit .f1: $ff"; return 1
   fi
 }
+# --- Format M atomics (O-72) ---------------------------------------------------
+run_atomics() {
+  python3 "$AS" "$JSON" test/atomics.s "$TMP/at.bin" >/dev/null || return 1
+  local args="-poke 0x90004=4294967196 -poke 0x90008=1000 -poke 0x9000c=90 -poke 0xa0000=7
+              -peek 0x90000 -peek 0x90004 -peek 0x90008 -peek 0x9000c -peek 0x8007c -peek 0xa007c
+              -peek 0xc007c -peek 0xc0000 -peek 0xb0000 -peek 0xb0004 -peek 0xb0100"
+  local want="32 15 5 90 31 93 0 7 1 0 4294967295" got ctl
+  got=$("$SIM" "$TMP/at.bin" $args 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  # The control: the index register ignored, as before O-72.
+  ctl=$("$SIM" "$TMP/at.bin" $args -ccv-test-atomic-no-index 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+  if [ "${got% }" = "$want" ] && [ "${ctl% }" != "$want" ]; then
+    echo "  PASS  atomics: add, max.s, min.u, xor and exch on .global, CAS and or on .shared, at base + index addresses (O-72)"
+  else
+    echo "  FAIL  atomics: got '$got', want '$want' (no index: '$ctl')"; return 1
+  fi
+}
 # --- the FP SFU's values (O-70) --------------------------------------------
 run_sfu() {
   python3 "$AS" "$JSON" test/sfu.s "$TMP/sfu.bin" >/dev/null || return 1
@@ -377,6 +393,7 @@ echo
 echo "  --- canonical NaN, compare format (O-66, O-65) ---"
 run_fp_canon || fail=1
 run_sfu || fail=1
+run_atomics || fail=1
 echo
 echo "  --- the mixed-width rule (O-67) ---"
 run_mixed_width || fail=1
