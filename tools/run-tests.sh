@@ -218,7 +218,8 @@ run_warp() {
 # --- O-69's interleaved spill space --------------------------------------------
 run_local() {
   python3 "$AS" "$JSON" test/local.s "$TMP/lo.bin" >/dev/null || return 1
-  local args="-poke 0x20018=256 -context 2 -peek 0x90000 -peek 0x9007c -peek 0x5800100
+  # The addresses below are at CCV_LANE_CONTEXTS 1,024, one core's contexts.
+  local args="-lane-contexts 1024 -poke 0x20018=256 -context 2 -peek 0x90000 -peek 0x9007c -peek 0x5800100
               -peek 0x580017c -peek 0x5800084 -peek 0x58000fc -peek 0x5800280
               -peek 0x90080 -peek 0x900bc -peek 0x900c0"
   local want="101 132 100 131 3203334144 3203334144 65535 7 7 0" got ctl

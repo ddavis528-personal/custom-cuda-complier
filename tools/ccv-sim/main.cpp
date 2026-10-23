@@ -61,9 +61,10 @@ static cl::opt<unsigned> SfuErrorUlps("sfu-error-ulps", cl::init(0),
     cl::desc("return FP SFU values up to N units from the exact result, as an "
              "approximate SFU may: an ulp, or O-70's absolute unit for lg2 near "
              "1 and sin/cos on [-pi, pi]; N = 2 is O-70's bound (SfuMath.h)"));
-static cl::opt<unsigned> LaneContexts("lane-contexts", cl::init(1024),
+static cl::opt<unsigned> LaneContexts("lane-contexts", cl::init(4096),
     cl::desc("CCV_LANE_CONTEXTS: where O-69's spill space starts (default the "
-             "core's 32 warp contexts of 32 lanes)"));
+             "core's params, the device's %lanectx range: 2^(CCV_P_W_DEV_CORE "
+             "+ CCV_W_WARP_ID + 5))"));
 static cl::opt<bool> TestSfuTruncate("ccv-test-sfu-truncate", cl::Hidden,
     cl::desc("truncate the FP SFU's values instead of rounding them, to test "
              "that it is caught"));
