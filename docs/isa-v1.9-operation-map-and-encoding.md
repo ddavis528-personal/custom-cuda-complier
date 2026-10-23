@@ -148,8 +148,8 @@ applying at once. Arrivals pending at several IDs are legal. No encoding changes
 ### An effective address's arithmetic is written (O-75; CP-33)
 
 `.shared` addresses wrap modulo 2^32, which compiled CUDA relies on. `.global` addresses are
-exact, and a sum outside [0, 2^48) is `F-ADDR`. Both were implied by §5.1 and ccv-sim, and
-neither was stated. No encoding changes.
+exact, and a sum outside [0, 2^48) is `F-ADDR`. §5.1 implied both and stated neither. ccv-sim
+gains the `F-ADDR` check. No encoding changes.
 
 ### Still open
 
@@ -3222,7 +3222,8 @@ as a 32-bit base below the buffer plus an index: `buf[0][t - 64]` is `0xFFFFFF00
 reaches the buffer only if the sum wraps. ccv-sim had added in 64 bits and read past 2^32, so
 every read returned 0. Adopted: `.shared` wraps modulo 2^32, which a 32-bit AGU adder does for
 free and which LLVM's address space assumes. `.global` takes the exact 48-bit sum with no wrap,
-and a sum outside [0, 2^48) is `F-ADDR`, which is how ccv-sim has always computed it. Wrapping
+and a sum outside [0, 2^48) is `F-ADDR`. ccv-sim already formed that exact sum, but it raised no
+`F-ADDR`, so CP adds the check (TI's response to O-75). Wrapping
 `.global` at 2^48 would turn an out-of-range pointer into a silent access to the bottom of the
 address space. What lost: faulting a `.shared` sum that carries past 2^32, which would fault
 ordinary compiled code.
