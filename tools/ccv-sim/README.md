@@ -118,8 +118,11 @@ CTA of more than 32 threads stops the run. The oracle's `init` carries
 `-cta` runs every warp of the CTA instead: they share memory, `.shared` and the
 barriers, and issue in turn, one issue group each, warp 0 first. A barrier
 completes once every live lane of every warp has arrived. Warp w is context w,
-or `-context` + w. The oracle record is one warp's, so `-cta` refuses
-`-oracle` (TI-29, F-190).
+or `-context` + w. `-oracle FILE` then writes one record file per warp, FILE
+for warp 0 and FILE's `.jsonl` as `.<w>.jsonl` for warp w. Each holds that warp's
+records in its issue order, carries `warp_in_cta`, and ends in its own
+registers and the CTA's memory; a fault's record is in the faulting warp's
+file (TI-29, F-190, CP-30).
 
 `-oracle FILE` writes one JSON record per issue group for the CCV core's Stage 3
 skeleton, which takes *what* each instruction does from here and models only

@@ -6,6 +6,9 @@
 # Every thread's result, the CTA's sum plus its index, is compared with
 # Python. tools/check-atomics.sh runs O-72's atomics.cu on two warps too.
 #
+# With -oracle, the run writes one record file per warp (CP-30), checked for
+# shape here; and -cta on one warp must write what a plain run writes.
+#
 # Controls: ccv-sim -ccv-test-cta-warp-barrier, a barrier that waits for its
 # own warp only, which must give wrong sums; and the same run without -cta,
 # which must still be refused (a barrier with other warps unmodelled).
@@ -68,6 +71,52 @@ else:
     print(f"  FAIL  control -ccv-test-cta-warp-barrier " +
           ("did not run: " + info if bad is None else "still computed every thread right"))
     fail = 1
+# CP-30: -oracle with -cta writes one record file per warp, as the core's
+# loader reads a CTA: oracle.jsonl for warp 0, oracle.<w>.jsonl for warp w.
+import json, os
+tmp = os.path.dirname(sys.argv[1])
+bad, info = run(["-cta", "-oracle", f"{tmp}/o.jsonl"])
+files = [f"{tmp}/o.jsonl"] + [f"{tmp}/o.{w}.jsonl" for w in range(1, 4)]
+why = "" if bad == [] else f"did not run: {info}"
+recs = []
+if not why:
+    if not all(os.path.exists(f) for f in files) or os.path.exists(f"{tmp}/o.4.jsonl"):
+        why = "not one file per warp"
+    else:
+        recs = [[json.loads(l) for l in open(f)] for f in files]
+if recs:
+    inits = [r[0]["init"] for r in recs]
+    finals = [r[-1]["final"] for r in recs]
+    steps = [x for r in recs for x in r[1:-1]]
+    for w, (i, f, r) in enumerate(zip(inits, finals, recs)):
+        rest = {k: v for k, v in i.items() if k not in ("warp_in_cta", "lane_context")}
+        if rest != {k: v for k, v in inits[0].items() if k != "warp_in_cta"}:
+            why = f"warp {w}'s init differs from warp 0's"
+        elif i.get("warp_in_cta", 0) != w or "lane_context" in i:
+            why = f"warp {w}'s init names warp {i.get('warp_in_cta', 0)}"
+        elif f["mem"] != finals[0]["mem"]:
+            why = f"warp {w}'s final memory differs from warp 0's"
+        elif [x["seq"] for x in r[1:-1]] != list(range(len(r) - 2)) or \
+             f["issue_groups"] != len(r) - 2:
+            why = f"warp {w}'s records are not its own sequence"
+        elif f["gpr"][0] == finals[(w + 1) % 4]["gpr"][0]:
+            why = f"warp {w}'s final registers are another warp's"
+    if not why and len(steps) != int(info):
+        why = f"{len(steps)} records for {info} issue groups"
+if why:
+    print(f"  FAIL  -cta -oracle: {why}"); fail = 1
+else:
+    print(f"  PASS  -cta -oracle: one file per warp, each its own records "
+          f"({', '.join(str(len(r) - 2) for r in recs)}), init and final memory shared")
+# One warp under -cta is the plain run, record for record.
+one = ["-threads", "32"] + args[2:]
+for extra, f in ((["-cta"], "c1.jsonl"), ([], "p1.jsonl")):
+    subprocess.run(["build/ccv-sim", sys.argv[1], "-entry", sys.argv[2], *one, *extra,
+                    "-oracle", f"{tmp}/{f}"], capture_output=True)
+if open(f"{tmp}/c1.jsonl").read() == open(f"{tmp}/p1.jsonl").read():
+    print("  PASS  -cta on one warp writes the same oracle file as a run without it")
+else:
+    print("  FAIL  -cta on one warp changes the oracle file"); fail = 1
 bad, info = run([])
 if bad is None and "TI-29" in info:
     print("  PASS  without -cta, a barrier in a CTA of 128 is still refused")
