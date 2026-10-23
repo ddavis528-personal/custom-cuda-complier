@@ -12,6 +12,11 @@ Lfunc_end0:
 
 	.type	_Z9sub_frameiiPKi,@function
 _Z9sub_frameiiPKi:
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r0, 2
+	add r15, r0
+	mov r5, r14
 	sub r0, r1, r2
 	st.global r0, [r15 + -16]
 	mov r0, r1
@@ -24,10 +29,18 @@ _Z9sub_frameiiPKi:
 	shl r1, 1
 	sub r0, r1, r2
 	st.global r0, [r15 + -12]
-	ld.global r0, [r3, r4, 0, 4]
-	and r1, r2, 3
-	ld.global r1, [r15, r1, 1, -16]
-	sub r1, r0
+	and r0, r2, 3
+	ld.global r0, [r15, r0, 1, -16]
+	ld.global r1, [r3, r4, 0, 4]
+	sub r6, r0, r1
+	mov r1, r6
+	call r14, _Z6add_atiiPKi
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r3, 2
+	add r15, r3
+	xor r1, r6
+	mov r14, r5
 	ret 224
 Lfunc_end1:
 	.size	_Z9sub_frameiiPKi, Lfunc_end1-_Z9sub_frameiiPKi
@@ -73,6 +86,10 @@ Lfunc_end4:
 
 	.type	_Z7scratchii,@function
 _Z7scratchii:
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r0, 2
+	add r15, r0
 	mul.lo r0, r1, 5
 	add r0, r0, 100
 	st.global r0, [r15 + -4]
@@ -140,6 +157,10 @@ Lfunc_end9:
 	.type	_Z4manyiiiiiiisi,@function
 _Z4manyiiiiiiisi:
 	chwidth r7, 1
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r0, 2
+	add r15, r0
 	movi r0, 3
 	mad.lo r0, r3, r0, r1
 	shl r4, 2
@@ -167,9 +188,13 @@ Lfunc_end10:
 
 	.type	_Z5many2iiiiiiii,@function
 _Z5many2iiiiiiii:
-	st.global r8, [r15 + -24]
-	st.global r9, [r15 + -28]
-	st.global r10, [r15 + -32]
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r0, 2
+	add r15, r0
+	st.local r8, [12]
+	st.local r9, [16]
+	st.local r10, [20]
 	mov r8, r14
 	mov r0, r4
 	mov r7, r3
@@ -186,17 +211,25 @@ _Z5many2iiiiiiii:
 	mov r5, r0
 	mov r6, r7
 	call r14, _Z4manyiiiiiiisi
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r3, 2
+	add r15, r3
 	mad.acc r1, r10, r9
 	mov r14, r8
-	ld.global r10, [r15 + -32]
-	ld.global r9, [r15 + -28]
-	ld.global r8, [r15 + -24]
+	ld.local r10, [20]
+	ld.local r9, [16]
+	ld.local r8, [12]
 	ret 224
 Lfunc_end11:
 	.size	_Z5many2iiiiiiii, Lfunc_end11-_Z5many2iiiiiiii
 
 	.type	_Z4pickiiiiiPKi,@function
 _Z4pickiiiiiPKi:
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r0, 2
+	add r15, r0
 	add r0, r3, r5
 	add r2, r4
 	sub r0, r2, r0
@@ -212,21 +245,45 @@ Lfunc_end12:
 
 	.type	_Z5applyPFiiiPKiEiiS0_,@function
 _Z5applyPFiiiPKiEiiS0_:
-	st.global r8, [r15 + -20]
-	st.global r9, [r15 + -24]
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r0, 2
+	add r15, r0
+	st.local r8, [12]
+	st.local r9, [16]
+	st.local r10, [20]
 	mov r8, r14
-	mov r9, r2
+	mov r9, r3
+	mov r10, r2
+	movi r0, 3
+	mad.lo r0, r9, r0, r10
+	st.global r0, [r15 + -20]
+	add r0, r9, r10
+	st.global r0, [r15 + -28]
+	mov r0, r9
+	shl r0, 1
+	add r0, r10
+	st.global r0, [r15 + -24]
+	st.global r10, [r15 + -32]
 	mov r7, r1
-	mov r1, r9
-	mov r2, r3
+	mov r1, r10
+	mov r2, r9
 	mov r3, r4
 	mov r4, r5
 	call r14, .Lccv_icall__Z5applyPFiiiPKiEiiS0_
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r3, 2
+	add r15, r3
+	xor r0, r9, r10
 	shl r1, 1
-	add r1, r9
+	and r0, 3
+	ld.global r0, [r15, r0, 1, -32]
+	add r1, r0
 	mov r14, r8
-	ld.global r9, [r15 + -24]
-	ld.global r8, [r15 + -20]
+	ld.local r10, [20]
+	ld.local r9, [16]
+	ld.local r8, [12]
 	ret 224
 .Lccv_icall__Z5applyPFiiiPKiEiiS0_:
 	ret 112
@@ -251,22 +308,34 @@ _Z5callsPKiPii:
 	add r1, r9, r1
 	ld.global r11, [#0, r1, 0, 0]
 	ld.global r1, [r0 + 44]
-	st.global r1, [r15 + -56]
+	st.local r1, [28]
 	ld.global r13, [r0 + 40]
 	ld.global r10, [r0 + 32]
 	add r12, r11, 1
 	mov r1, r12
 	movi r2, 2
 	call r14, _Z5chainii
-	st.global r1, [r15 + -52]
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r3, 2
+	add r15, r3
+	st.local r1, [24]
 	add r1, r11, 2
 	movi r2, 3
 	call r14, _Z5chainii
-	st.global r1, [r15 + -64]
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r3, 2
+	add r15, r3
+	st.local r1, [36]
 	add r1, r11, 3
 	movi r2, 4
 	call r14, _Z5chainii
-	st.global r1, [r15 + -68]
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r3, 2
+	add r15, r3
+	st.local r1, [40]
 	mul.lo r0, r11, 7
 	add r1, r0, 3
 	st.global r1, [r15 + -36]
@@ -278,28 +347,48 @@ _Z5callsPKiPii:
 	mov r1, r11
 	movi r2, 1
 	call r14, _Z5chainii
-	st.global r1, [r15 + -72]
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r3, 2
+	add r15, r3
+	st.local r1, [44]
 	mov r1, r11
 	mov r2, r8
 	call r14, _Z7scratchii
-	st.global r1, [r15 + -76]
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r3, 2
+	add r15, r3
+	st.local r1, [48]
 	mov r2, r11
 	shr r2, 3
 	mov r1, r11
 	mov r3, r8
 	call r14, _Z7narrow3sss
-	st.global r1, [r15 + -80]
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r3, 2
+	add r15, r3
+	st.local r1, [52]
 	and r3, r8, 7
 	mov r1, r10
 	mov r2, r9
 	call r14, _Z8sum3_viaPKii
-	st.global r1, [r15 + -84]
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r3, 2
+	add r15, r3
+	st.local r1, [56]
 	mov r1, r13
-	ld.global r2, [r15 + -56]
+	ld.local r2, [28]
 	mov r3, r8
 	call r14, _Z7advancePii
-	st.global r1, [r15 + -56]
-	st.global r2, [r15 + -60]
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r3, 2
+	add r15, r3
+	st.local r1, [28]
+	st.local r2, [32]
 	mov r0, r11
 	sra r0, 2
 	st.global r0, [r15 + -20]
@@ -313,6 +402,10 @@ _Z5callsPKiPii:
 	mov r3, r13
 	mov r4, r12
 	call r14, _Z5many2iiiiiiii
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r3, 2
+	add r15, r3
 	and r0, r8, 1
 	setp.ne p0, r0, 0
 	movi r0, (_Z6add_atiiPKi-.Lccv_text)+4096
@@ -328,20 +421,20 @@ _Z5callsPKiPii:
 	mad.acc r0, r4, r13
 	xor r4, r5
 	add r0, r4
-	ld.global r4, [r15 + -52]
-	ld.global r5, [r15 + -72]
+	ld.local r4, [24]
+	ld.local r5, [44]
 	add r4, r5
-	ld.global r5, [r15 + -64]
+	ld.local r5, [36]
 	add r4, r5, r4
-	ld.global r5, [r15 + -68]
+	ld.local r5, [40]
 	add r4, r5, r4
 	add r0, r4
 	movi r4, 3
-	ld.global r5, [r15 + -76]
+	ld.local r5, [48]
 	mad.acc r0, r5, r4
-	ld.global r4, [r15 + -84]
+	ld.local r4, [56]
 	add r0, r4
-	ld.global r5, [r15 + -80]
+	ld.local r5, [52]
 	chwidth r5, 1
 	cvt.sint.sint r4, r5
 	chwidth r5, 0
@@ -356,6 +449,10 @@ _Z5callsPKiPii:
 	movi r4, 13
 	mov r6, r10
 	call r14, _Z4pickiiiiiPKi
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r3, 2
+	add r15, r3
 	add r13, r7, r1
 	add r5, r9, 16
 	mov r1, r12
@@ -363,6 +460,10 @@ _Z5callsPKiPii:
 	mov r3, r8
 	mov r4, r10
 	call r14, _Z5applyPFiiiPKiEiiS0_
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r3, 2
+	add r15, r3
 	add r13, r1
 	and r2, r11, 15
 	mov r7, r12
@@ -370,13 +471,17 @@ _Z5callsPKiPii:
 	mov r3, r10
 	mov r4, r9
 	call r14, .Lccv_icall__Z5callsPKiPii
+	movi r15, 2
+	ld.global r15, [r15 + 24]
+	srd r3, 2
+	add r15, r3
 	add r0, r13, r1
 	add r1, r8, 1
 	and r1, 3
 	ld.global r1, [r15, r1, 1, -48]
 	add r0, r1
-	ld.global r1, [r15 + -56]
-	ld.global r2, [r15 + -60]
+	ld.local r1, [28]
+	ld.local r2, [32]
 	st.global r0, [r1, r2, 0, 0]
 LBB14_2:
 	exit

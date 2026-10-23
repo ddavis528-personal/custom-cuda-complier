@@ -36,26 +36,26 @@ _Z9transposePfPKfi:
 	@p0 mov r2, r5
 	@!p3 shfl.idx r2, r2, 0
 	mul.lo r3, r2, r3
-	@p3 sub r4, r4, r3
-	@!p3 shfl.idx r4, r4, 0
-	srd r3, 0
-	and r5, r3, 15
-	shr r3, 4
-	shl r4, 4
+	@p3 sub r3, r4, r3
+	@!p3 shfl.idx r3, r3, 0
+	srd r4, 0
+	and r5, r4, 15
+	shr r4, 4
+	shl r3, 4
 	shl r2, 4
-	add r6, r2, r3
-	or r7, r4, r5
+	add r6, r2, r4
+	or r7, r3, r5
 	mad.lo r6, r6, r1, r7
 	shl r6, 2
 	@p3 ld.global r7, [r0 + 44]
 	@!p3 shfl.idx r7, r7, 0
 	add r6, r7, r6
 	ld.global r6, [#1, r6, 0, 0]
-	mul.lo r7, r3, 68
+	mul.lo r7, r4, 68
 	st.shared r6, [r7, r5, 1, 0]
 	or r2, r5
-	add r4, r3
-	mad.lo r1, r4, r1, r2
+	add r3, r4
+	mad.lo r1, r3, r1, r2
 	@p3 ld.global r0, [r0 + 36]
 	@!p3 shfl.idx r0, r0, 0
 	shl r1, 2
@@ -63,7 +63,7 @@ _Z9transposePfPKfi:
 	mul.lo r1, r5, 68
 	bar.arrive 0
 	bar.wait 0
-	ld.shared r1, [r1, r3, 1, 0]
+	ld.shared r1, [r1, r4, 1, 0]
 	st.global r1, [#0, r0, 0, 0]
 	exit
 Lfunc_end0:

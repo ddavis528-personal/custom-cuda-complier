@@ -1,8 +1,8 @@
   decode and fused shapes -- what binds when there is no tile to fill
   kernel         instrs     bits  spills  div/unif   uni-ld
   ------------------------------------------------------------
-  gemv              206     6352       3       6/7       3%
-  gemv8             206     6336       3       6/7       3%
+  gemv              202     6240       2       6/7       2%
+  gemv8             202     6240       2       6/7       2%
   fused NT=1         24      640       0       3/5      25%
   fused NT=4         36      976       0       3/8      25%
   fused NT=8         52     1424       0      3/12      25%
@@ -19,9 +19,9 @@
 
   For contrast, the same two columns on the GEMM this was compared against:
   ------------------------------------------------------------
-  sgemm 2x2         363    10592     102     60/10       0%
-  sgemm 2x4         582    17552     190     95/10       0%
-  sgemm 4x4         919    28192     397    131/10       0%
+  sgemm 2x2         361    10576     103     60/10       0%
+  sgemm 2x4         579    17488     192     95/10       0%
+  sgemm 4x4         894    27472     377    131/10       0%
 
   Read the div/unif column first. In `sgemm` the divergent peak alone is several
   times the 16-entry register file -- its addressing is indexed by `threadIdx`,

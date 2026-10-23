@@ -1,8 +1,8 @@
-# rope-diverged: opcodes issued over the launch's 2 CTAs, by ccv-sim's names; 434 issue groups
-ADD                44
+# rope-diverged: opcodes issued over the launch's 2 CTAs, by ccv-sim's names; 406 issue groups
+ADD                40
 ADD_P              4
 BRA_PRED           30
-C_ADD              38
+C_ADD              40
 C_ADDI             12
 C_BRA              10
 C_EXIT             2
@@ -14,12 +14,13 @@ C_SHRI             2
 FFMA_ACC_F0        6
 FFMA_F0            6
 FNEG_F0            6
-LD_GLOBAL          74
+LD_GLOBAL          12
 LD_GLOBAL_P        12
 LD_GLOBAL_SLOT     26
+LD_LOCAL           48
 MADLO              2
 MADLO_P            2
-MOVI               10
+MOVI               8
 MUL_LO             4
 PMOV_IMM           2
 SETP_EQ_NP         12
@@ -27,6 +28,6 @@ SETP_LE_U_NP       8
 SETP_LT_NPI        4
 SETP_LT_U_NP       6
 SHFL_IDX           16
-SRD                8
-ST_GLOBAL          20
+SRD                6
 ST_GLOBAL_SLOT     12
+ST_LOCAL           12

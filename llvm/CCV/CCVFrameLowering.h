@@ -20,6 +20,10 @@ public:
   CCVFrameLowering()
       : TargetFrameLowering(StackGrowsDown, Align(4), /*LocalAreaOffset=*/0) {}
   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
+  /// O-69: spill slots move to the interleaved spill space, laid out
+  /// statically over the call graph, and leave the R15 frame.
+  void processFunctionBeforeFrameFinalized(MachineFunction &MF,
+                                           RegScavenger *RS) const override;
   void emitEpilogue(MachineFunction &, MachineBasicBlock &) const override {}
   /// The call frame is static (F-21), so the call-sequence markers adjust
   /// nothing.
@@ -44,7 +48,17 @@ uint64_t ccvLaunchBase();
 /// written at its callee's base, so the callee must come first.
 bool ccvFrameLaidOut(const Function &F);
 /// Whether F is a kernel (!nvvm.annotations "kernel") rather than a device
-/// function. Only a kernel sets up R15 and ends in `exit`.
+/// function. Only a kernel ends in `exit`.
 bool ccvIsKernel(const Function &F);
+/// Whether spills go to O-69's interleaved space (-ccv-local-spills).
+bool ccvLocalSpills();
+/// Whether MF needs O-30's R15 frame: an address-taken object, a stack
+/// argument either way, or every spill when O-69's space is off. Decided
+/// from facts present before register allocation, so getReservedRegs gives
+/// the same answer whenever it is asked.
+bool ccvNeedsR15(const MachineFunction &MF);
+/// O-69: the byte offset in the warp's spill frame of MF's spill slot FI, or
+/// -1 if FI is not one there.
+int64_t ccvLocalSlot(const MachineFunction &MF, int FI);
 } // namespace llvm
 #endif

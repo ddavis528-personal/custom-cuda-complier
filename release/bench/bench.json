@@ -554,12 +554,12 @@
   {
     "kernel": "gemv",
     "ccv": {
-      "instrs": 206,
-      "bytes": 728
+      "instrs": 202,
+      "bytes": 712
     },
     "ccv_aligned": {
-      "instrs": 197,
-      "bytes": 698
+      "instrs": 193,
+      "bytes": 686
     },
     "amdgcn": {
       "instrs": 306,
@@ -570,13 +570,13 @@
       "instrs": 228
     },
     "dyn": {
-      "per_thread": 196.0,
+      "per_thread": 192.0,
       "simt": 100.0,
-      "lane_act": 6272,
-      "lane_instr": 6272,
-      "issues": 196,
+      "lane_act": 6144,
+      "lane_instr": 6144,
+      "issues": 192,
       "narrow": 0,
-      "element_work": 190
+      "element_work": 186
     },
     "arches": {
       "gfx900": {
@@ -606,13 +606,13 @@
       }
     },
     "mask_off": {
-      "per_thread": 196.0,
+      "per_thread": 192.0,
       "simt": 100.0,
-      "lane_act": 6272,
-      "lane_instr": 6272,
-      "issues": 196,
+      "lane_act": 6144,
+      "lane_instr": 6144,
+      "issues": 192,
       "narrow": 0,
-      "element_work": 190
+      "element_work": 186
     },
     "sass": {
       "instrs": 166,
@@ -623,12 +623,12 @@
   {
     "kernel": "sgemm",
     "ccv": {
-      "instrs": 387,
-      "bytes": 1362
+      "instrs": 386,
+      "bytes": 1370
     },
     "ccv_aligned": {
-      "instrs": 363,
-      "bytes": 1278
+      "instrs": 361,
+      "bytes": 1282
     },
     "amdgcn": {
       "instrs": 238,
@@ -639,13 +639,13 @@
       "instrs": 201
     },
     "dyn": {
-      "per_thread": 519.0,
+      "per_thread": 514.0,
       "simt": 100.0,
-      "lane_act": 16035,
-      "lane_instr": 16608,
-      "issues": 519,
+      "lane_act": 15875,
+      "lane_instr": 16448,
+      "issues": 514,
       "narrow": 0,
-      "element_work": 497
+      "element_work": 492
     },
     "arches": {
       "gfx900": {
@@ -675,13 +675,13 @@
       }
     },
     "mask_off": {
-      "per_thread": 501.0,
+      "per_thread": 498.0,
       "simt": 100.0,
-      "lane_act": 15936,
-      "lane_instr": 16032,
-      "issues": 501,
+      "lane_act": 15840,
+      "lane_instr": 15936,
+      "issues": 498,
       "narrow": 0,
-      "element_work": 482
+      "element_work": 479
     },
     "sass": {
       "instrs": 196,

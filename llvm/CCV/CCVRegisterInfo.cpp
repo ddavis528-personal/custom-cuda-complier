@@ -55,14 +55,13 @@ static cl::opt<bool> ReserveLaneIndex(
 BitVector CCVRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
   // R15 is the frame pointer: it holds the WINDOW INDEX of this thread's
-  // `.local` frame, so a spill is one base+offset instruction and needs no
-  // index register. See O-30.
-  //
-  // It has to be reserved unconditionally, which costs 6% of the file in every
-  // kernel: whether a function spills is decided during register allocation,
-  // and this is asked before. It only binds at 16 simultaneously live values,
-  // so no kernel measured so far pays anything for it.
-  Reserved.set(CCV::R15);
+  // `.local` frame (O-30). Spills used to need it too, so it was reserved
+  // unconditionally, 6% of the file in every function. Under O-69 spills go
+  // to the interleaved spill space, which names no register, so R15 is
+  // reserved only where O-30's frame is still needed -- an address-taken
+  // object or a stack argument, known before allocation (ccvNeedsR15).
+  if (ccvNeedsR15(MF))
+    Reserved.set(CCV::R15);
   // P3 is the lane-0 mask for O-33's mask-and-broadcast. Like R15 it has to be
   // reserved before allocation runs, because whether a function has uniform
   // work to mask is decided by a pass that runs after this is asked. Measured
@@ -99,6 +98,44 @@ bool CCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
       report_fatal_error("CCV: a frame object outside the window below R15's");
     I.getOperand(FIOperandNum).ChangeToImmediate(65536 + D);
     return false;
+  }
+
+  // O-69: a spill slot in the interleaved spill space. The access names no
+  // register; its offset is the slot's absolute byte in the warp's frame.
+  int64_t Local = ccvLocalSlot(MF, FI);
+  if (Local >= 0) {
+    const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+    MachineBasicBlock &MBB = *I.getParent();
+    int64_t Disp = I.getOperand(FIOperandNum + 1).getImm();
+    switch (I.getOpcode()) {
+    case CCV::ST_GLOBAL:
+      BuildMI(MBB, MI, I.getDebugLoc(), TII.get(CCV::ST_LOCAL))
+          .add(I.getOperand(0))
+          .addImm(Local + Disp);
+      break;
+    case CCV::LD_GLOBAL:
+      BuildMI(MBB, MI, I.getDebugLoc(), TII.get(CCV::LD_LOCAL))
+          .add(I.getOperand(0))
+          .addImm(Local + Disp);
+      break;
+    case CCV::PSEUDO_ST_PRED:
+    case CCV::PSEUDO_LD_PRED: {
+      // Positional, as ld.pred/st.pred are: Pi's word is at b + 4i, so a
+      // slot at b is addressed as b - 4i. Slots start at 12 (CCVFrameLowering).
+      const unsigned P = I.getOperand(0).getReg() - CCV::P0;
+      BuildMI(MBB, MI, I.getDebugLoc(),
+              TII.get(I.getOpcode() == CCV::PSEUDO_ST_PRED ? CCV::ST_PRED_LOCAL
+                                                           : CCV::LD_PRED_LOCAL))
+          .addImm(1u << P)
+          .addImm(Local + Disp - 4 * int64_t(P));
+      break;
+    }
+    default:
+      report_fatal_error("CCV: a spill slot reached by an instruction the "
+                         "interleaved spill space has no form for (O-69)");
+    }
+    I.eraseFromParent();
+    return true;
   }
 
   unsigned DispOp;
