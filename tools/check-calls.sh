@@ -25,7 +25,9 @@
 # every lane's result to out[0]), and stack arguments written as if every
 # callee's frame were at base 0 (many2 reads its seventh and eighth arguments
 # from slots nobody wrote), a caller laid out ignoring what its indirect
-# calls reach (sub_frame's array lands on apply's frame), and function
+# calls reach (sub_frame's array lands on apply's, and its saved register on
+# apply's spill cells), every function's spill cells laid out from the bottom
+# (a callee's saves land on its caller's spills), and function
 # pointers built for an image at 0 rather than at its load address (each
 # indirect call jumps 4 KiB short).
 set -uo pipefail
@@ -65,8 +67,10 @@ def many(a, b, c, d, e, f, g, h, k):
 def many2(a, b, c, d, e, f, g, h):
     return s32(many(h, g, f, e, d, c, b, a, s32(g + h)) + g * h)
 def add_at(a, b, p):    return s32(a + b + p[0])
-def sub_frame(a, b, p): return s32(s32(a * ((b & 3) + 1) - b) - p[1])
-def apply(f, a, b, p):  return s32(f(a, b, p) * 2 + a)
+def sub_frame(a, b, p):
+    r = s32(s32(a * ((b & 3) + 1) - b) - p[1])
+    return s32(add_at(r, b, p) ^ r)
+def apply(f, a, b, p):  return s32(f(a, b, p) * 2 + s32(a + ((a ^ b) & 3) * b))
 def narrow3(a, b, c):
     a, b, c = s16(a), s16(b), s16(c)
     x, y = s16(a + b), s16(c - a)
@@ -156,7 +160,7 @@ PY
 for c in "-ccv-test-flat-frames" "-ccv-test-mask-device-functions" \
          "-ccv-test-no-call-widths" "-ccv-test-drop-pair-offset" \
          "-ccv-test-stack-args-at-zero" "-ccv-test-ignore-indirect-frames" \
-         "-ccv-code-base=0"; do
+         "-ccv-test-flat-local" "-ccv-code-base=0"; do
   out=$(run $c)
   # Caught means it compiled and then computed wrong or never finished. A
   # control that fails to compile proves nothing about the property.

@@ -53,6 +53,17 @@ static DenseMap<const Function *, unsigned> FrameBase, FrameExtent;
 // of everything it calls, exactly as its R15 frame sits below theirs.
 static DenseMap<const Function *, unsigned> LocalExtent;
 static DenseMap<const MachineFunction *, DenseMap<int, unsigned>> LocalSlots;
+// The cell that keeps a callee-saved R0 while it forms R15 at entry.
+static DenseMap<const MachineFunction *, unsigned> ScratchSave;
+
+static bool scratchIsCalleeSaved(const MachineFunction &MF) {
+  for (const MCPhysReg *R =
+           MF.getSubtarget().getRegisterInfo()->getCalleeSavedRegs(&MF);
+       *R; ++R)
+    if (*R == CCV::R0)
+      return true;
+  return false;
+}
 
 static cl::opt<bool> LocalSpills(
     "ccv-local-spills", cl::init(true),
@@ -195,9 +206,19 @@ void CCVFrameLowering::processFunctionBeforeFrameFinalized(
   // forms are positional -- Pi's word is at b + 4i, emitted as b - 4i for a
   // slot at b (CCVRegisterInfo), and the offset is unsigned.
   unsigned Cursor = std::max(
-      TestFlatLocal ? 0u : calleeExtent(MF, LocalExtent, false), 12u);
+      TestFlatLocal ? 0u
+                    : calleeExtent(MF, LocalExtent, TestIgnoreIndirectFrames),
+      12u);
   auto &Slots = LocalSlots[&MF];
   Slots.clear();
+  // A device function forming R15 at entry borrows R0 as scratch; where R0 is
+  // callee-saved (-ccv-csr=eight) it is kept in a cell of its own meanwhile.
+  ScratchSave.erase(&MF);
+  if (!ccvIsKernel(MF.getFunction()) && ccvNeedsR15(MF) &&
+      scratchIsCalleeSaved(MF)) {
+    ScratchSave[&MF] = Cursor;
+    Cursor += 4;
+  }
   for (int FI = MFI.getObjectIndexBegin(); FI != MFI.getObjectIndexEnd(); ++FI) {
     if (FI < 0 || MFI.isDeadObjectIndex(FI) || !MFI.isSpillSlotObjectIndex(FI))
       continue;
@@ -256,11 +277,11 @@ void CCVFrameLowering::emitPrologue(MachineFunction &MF,
   const auto *TII = MF.getSubtarget<CCVSubtarget>().getInstrInfo();
   // R15 = launch-block window, then the context's .local window base, then this
   // thread's own window. The scratch is R14 in a kernel, where nothing is live
-  // at entry (§5.2), and R0 in a device function, where R14 holds the return
-  // address; R0 is neither an argument nor callee-saved, so it is free at
-  // entry and straight after a call.
-  const Register Scratch = ccvIsKernel(F) ? CCV::R14 : CCV::R0;
-  auto formR15 = [&](MachineBasicBlock &B, MachineBasicBlock::iterator I) {
+  // at entry (§5.2), and R0 at a device function's entry, where R14 holds the
+  // return address and R0 is not an argument (kept in a cell where it is
+  // callee-saved). After a call it is R3, below.
+  auto formR15 = [&](MachineBasicBlock &B, MachineBasicBlock::iterator I,
+                     Register Scratch) {
     DebugLoc DL;
     BuildMI(B, I, DL, TII->get(CCV::MOVI), CCV::R15)
         .addImm(LaunchBase >> kBaseShift);
@@ -281,7 +302,7 @@ void CCVFrameLowering::emitPrologue(MachineFunction &MF,
     // caller's, which is the same window. A kernel sets it when anything
     // below it has a frame.
     if (ccvIsKernel(F) && Base + Size != 0)
-      formR15(MBB, MBB.begin());
+      formR15(MBB, MBB.begin(), CCV::R14);
     return;
   }
   // O-69: a function that needs O-30's frame forms R15 itself, at entry and
@@ -289,9 +310,24 @@ void CCVFrameLowering::emitPrologue(MachineFunction &MF,
   // function allocates it as an ordinary register.
   if (!ccvNeedsR15(MF))
     return;
-  formR15(MBB, MBB.begin());
+  // After a call the scratch is R3: an argument register, so no convention
+  // keeps it across a call, and not a result (R1, R2).
   for (MachineBasicBlock &B : MF)
     for (MachineInstr &MI : llvm::make_early_inc_range(B))
       if (MI.isCall())
-        formR15(B, std::next(MI.getIterator()));
+        formR15(B, std::next(MI.getIterator()), CCV::R3);
+  if (ccvIsKernel(F)) {
+    formR15(MBB, MBB.begin(), CCV::R14);
+    return;
+  }
+  auto Save = ScratchSave.find(&MF);
+  MachineBasicBlock::iterator At = MBB.begin();
+  if (Save != ScratchSave.end())
+    BuildMI(MBB, At, DebugLoc(), TII->get(CCV::ST_LOCAL))
+        .addReg(CCV::R0)
+        .addImm(Save->second);
+  formR15(MBB, At, CCV::R0);
+  if (Save != ScratchSave.end())
+    BuildMI(MBB, At, DebugLoc(), TII->get(CCV::LD_LOCAL), CCV::R0)
+        .addImm(Save->second);
 }

@@ -78,8 +78,8 @@ questions and only one of them can be measured on both machines.
   dot        |     52    162   24.9 |     43    134 |     60    300   40.0 |     46
   reduce     |     48    150   25.0 |     41    128 |     54    268   39.7 |     41
   transpose  |     63    220   27.9 |     55    194 |     64    308   38.5 |     43
-  gemv       |    206    728   28.3 |    197    698 |    306   1688   44.1 |    228
-  sgemm      |    387   1362   28.2 |    363   1278 |    238   1376   46.3 |    201
+  gemv       |    202    712   28.2 |    193    686 |    306   1688   44.1 |    228
+  sgemm      |    386   1370   28.4 |    361   1282 |    238   1376   46.3 |    201
 ```
 
 **Dynamic — instructions actually issued, per thread of work.**
@@ -95,8 +95,8 @@ questions and only one of them can be measured on both machines.
   dot            74.9    66%         -- |      2397       100%   has 3 loops; not modelled
   reduce         72.9    66%         -- |      2333       100%   has 3 loops; not modelled
   transpose      55.0   100%         64 |      1189        68%   exact: no backward branch
-  gemv          196.0   100%         -- |      6272       100%   has 2 loops; not modelled
-  sgemm         519.0   100%         -- |     16035        97%   has 5 loops; not modelled
+  gemv          192.0   100%         -- |      6144       100%   has 2 loops; not modelled
+  sgemm         514.0   100%         -- |     15875        97%   has 5 loops; not modelled
 ```
 
 **CCV's dynamic column is measured** on the simulator — lane-instructions
@@ -139,10 +139,10 @@ spanning both encoding families and the datacentre line.
   dot                   24.9          128.0           40.0           41.5           40.9           42.3           42.1
   reduce                25.0          128.0           39.7           42.9           39.2           41.4           40.2
   transpose             27.9          128.0           38.5           41.1           39.6           39.2           38.7
-  gemv                  28.3          128.0           44.1           48.1           50.3           49.4           43.4
-  sgemm                 28.2          128.0           46.3           43.4           43.6           43.4           42.9
+  gemv                  28.2          128.0           44.1           48.1           50.3           49.4           43.4
+  sgemm                 28.4          128.0           46.3           43.4           43.6           43.4           42.9
   --------------------------------------------------------------------------------------------------------------------
-  pooled                27.5          128.0           43.4           45.2           45.0           45.6           43.1
+  pooled                27.6          128.0           43.4           45.2           45.0           45.6           43.1
 ```
 
 **Instruction counts, same sweep — the control:**
@@ -158,8 +158,8 @@ spanning both encoding families and the datacentre line.
   dot                     52             42             60             64             68             62             54
   reduce                  48             39             54             50             71             58             51
   transpose               63             53             64             60             76             76             62
-  gemv                   206            166            306            305            312            323            238
-  sgemm                  387            196            238            222            245            247            205
+  gemv                   202            166            306            305            312            323            238
+  sgemm                  386            196            238            222            245            247            205
 ```
 
 **The objection does not land.** AMD's density is flat across eight years and two
@@ -287,7 +287,7 @@ count claim was not.**
 
 On `sgemm` specifically the two columns say opposite things: 1352 bytes against
 gfx900's 1376 is a dead heat, reached with 384 instructions against 238. CCV
-issues 61% more instructions and fetches the same bytes. About 102 of those
+issues 61% more instructions and fetches the same bytes. About 103 of those
 instructions are spill traffic (§3's 2×2 row), and NVIDIA's ptxas uses 32
 registers with zero spill at that tile (§3's pressure table). That is the
 16-GPR decision, priced in the one comparison that had never been asked to price
@@ -327,7 +327,7 @@ GCN5 the counts are within 30% and CCV is *lower* on nine of ten:
 
 | | vadd | saxpy | vadd16 | vadd_loop | vadd16_loop | dot | reduce | transpose | gemv | sgemm |
 |---|---|---|---|---|---|---|---|---|---|---|
-| CCV | 20 | 19 | 21 | 24 | 25 | 52 | 48 | 63 | 206 | 387 |
+| CCV | 20 | 19 | 21 | 24 | 25 | 52 | 48 | 63 | 202 | 386 |
 | GCN | 29 | 25 | 29 | 35 | 35 | 60 | 54 | 64 | 306 | 238 |
 
 `sgemm` is the exception and it is not a small one: 384 against 238. Read it
@@ -611,8 +611,8 @@ had measured that. The simulator now counts it:
   dot              113         92       0   0.000       113.0       --
   reduce           111         90       0   0.000       111.0       --
   transpose         55         51       0   0.000        55.0       --
-  gemv             196        190       0   0.000       196.0       --
-  sgemm            519        497       0   0.000       519.0       --
+  gemv             192        186       0   0.000       192.0       --
+  sgemm            514        492       0   0.000       514.0       --
 ```
 
 **`vadd16` is exactly break-even.** 18 issued instructions, 4 of them narrow
@@ -927,22 +927,22 @@ only testable against an FP32 kernel of the same shape (F-113, F-121):
   FP32 -- test/cuda/sgemm.cu
   tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  div/unif
   ---------------------------------------------------------------------------------
-  1x1   1          187     5360    28.7      41     10   4.10       2      26     28/10
-  1x2   2          277     8016    28.9      73     22   3.32       2      54     46/10
-  2x2   4          363    10592    29.2     102     40   2.55       4      76     60/10
-  2x4   8          582    17552    30.2     190     75   2.53      17     116     95/10
-  4x4   16         919    28192    30.7     397    142   2.80     180     152    131/10
-  8x8   64        2533    79744    31.5    1441    521   2.77    1133     272    282/10
+  1x1   1          182     5200    28.6      39     10   3.90       2      20     28/10
+  1x2   2          270     7808    28.9      69     22   3.14       2      50     46/10
+  2x2   4          361    10576    29.3     103     40   2.58       4      78     60/10
+  2x4   8          579    17488    30.2     192     75   2.56      21     116     95/10
+  4x4   16         894    27472    30.7     377    142   2.65     162     152    131/10
+  8x8   64        2514    79232    31.5    1421    521   2.73    1112     272    282/10
 
   INT8 -- test/cuda/igemm.cu, four MACs per dp4
   tile  accs    instrs     bits b/instr  spills   macs sp/mac  acc-sp  ptr-sp  div/unif
   ---------------------------------------------------------------------------------
-  1x1   1          185     5248    28.4      37     34   1.09       2      22     28/10
-  1x2   2          276     7920    28.7      71     70   1.01       2      52     46/10
-  2x2   4          371    10752    29.0     105    136   0.77       4      76     60/10
-  2x4   8          592    17840    30.1     199    267   0.75      18     116     95/10
-  4x4   16         917    28192    30.7     392    526   0.75     165     152    131/10
-  8x8   64        2528    79664    31.5    1437   2057   0.70    1127     272    282/10
+  1x1   1          179     5152    28.8      34     34   1.00       2      20     28/10
+  1x2   2          270     7840    29.0      69     70   0.99       2      50     46/10
+  2x2   4          359    10544    29.4     101    136   0.74       4      76     60/10
+  2x4   8          575    17312    30.1     184    267   0.69      18     116     95/10
+  4x4   16         892    27280    30.6     373    526   0.71     154     152    131/10
+  8x8   64        2515    79248    31.5    1423   2057   0.69    1114     272    282/10
 
   sp/mac is the decision number: memory traffic the register file forced, per
   multiply-accumulate it bought. A bigger tile raises arithmetic intensity as
@@ -964,7 +964,6 @@ only testable against an FP32 kernel of the same shape (F-113, F-121):
   several times the 16-entry file at every tile -- so moving every uniform
   value out for free would not stop this kernel spilling. See sweep-decode.sh
   for the shape where it would.
-
 ```
 
 `sp/mac` — memory traffic the register file forced, per multiply-accumulate it
@@ -1092,8 +1091,8 @@ block:
   decode and fused shapes -- what binds when there is no tile to fill
   kernel         instrs     bits  spills  div/unif   uni-ld
   ------------------------------------------------------------
-  gemv              206     6352       3       6/7       3%
-  gemv8             206     6336       3       6/7       3%
+  gemv              202     6240       2       6/7       2%
+  gemv8             202     6240       2       6/7       2%
   fused NT=1         24      640       0       3/5      25%
   fused NT=4         36      976       0       3/8      25%
   fused NT=8         52     1424       0      3/12      25%
@@ -1110,9 +1109,9 @@ block:
 
   For contrast, the same two columns on the GEMM this was compared against:
   ------------------------------------------------------------
-  sgemm 2x2         363    10592     102     60/10       0%
-  sgemm 2x4         582    17552     190     95/10       0%
-  sgemm 4x4         919    28192     397    131/10       0%
+  sgemm 2x2         361    10576     103     60/10       0%
+  sgemm 2x4         579    17488     192     95/10       0%
+  sgemm 4x4         894    27472     377    131/10       0%
 
   Read the div/unif column first. In `sgemm` the divergent peak alone is several
   times the 16-entry register file -- its addressing is indexed by `threadIdx`,
@@ -1218,11 +1217,11 @@ parameterised on "number of tensors" would have counted as three.
   swiglu            2     1      39    1040      3       0      0      0      0       3/7
   rmsnorm           3     2      79    2128      4       0      0      0      0       6/9
   add_rmsnorm       3     2      84    2256      6       0      0      0      0       8/9
-  rope              4     4     144    4000     13      24     17      0      0     11/15
-  adamw             4     8     131    3728      7      19      8      0      2     10/15
+  rope              4     4     136    3760     13      19     17      0      0     11/15
+  adamw             4     8     121    3456      7      16      6      0      2     10/15
   dequant           6     1      61    1616      6       0      0      0      0      5/10
   layernorm         6     2     113    3040      7       0      0      0      0      8/14
-  attn_combine      4     2     219    6352     16      11      6      0      0      3/19
+  attn_combine      4     2     216    6208     16       6      4      0      0      3/19
 
   THE POINTER COUNTS ARE 2 TO 6. The synthetic `fused.cu` swept 1 to 16 and the
   conclusions drawn from it -- F-129's case for a uniform register file, F-140's

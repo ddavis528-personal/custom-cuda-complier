@@ -72,16 +72,23 @@ typedef int (*binop)(int, int, const int *);
 __device__ __noinline__ int add_at(int a, int b, const int *p) {
   return a + b + p[0];
 }
-// A frame of its own, which every caller that may reach it must clear.
+// A frame of its own, which every caller that may reach it must clear; and a
+// call with r live across it, so it saves a callee-saved register in its
+// spill cells, which must clear its callers' as well (O-69).
 __device__ __noinline__ int sub_frame(int a, int b, const int *p) {
   int t[4];
   for (int k = 0; k < 4; ++k)
     t[k] = a * (k + 1) - b;
-  return t[b & 3] - p[1];
+  int r = t[b & 3] - p[1];
+  return add_at(r, b, p) ^ r;
 }
-// a is live across the indirect call.
+// a and u[] are live across the indirect call: u[] in apply's frame, a in a
+// spill cell or a callee-saved register.
 __device__ __noinline__ int apply(binop f, int a, int b, const int *p) {
-  return f(a, b, p) * 2 + a;
+  int u[4];
+  for (int k = 0; k < 4; ++k)
+    u[k] = a + k * b;
+  return f(a, b, p) * 2 + u[(a ^ b) & 3];
 }
 
 __global__ void calls(const int *in, int *out, int n) {

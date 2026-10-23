@@ -653,14 +653,17 @@ int main(int argc, char **argv) {
       unsigned NLanes = llvm::popcount(Exec), Emitted = 0;
       const unsigned Opc = MI.getOpcode();
       const bool WarpScoped = Opc == CCV::LD_PRED_G || Opc == CCV::ST_PRED_G ||
-                              Opc == CCV::LD_PRED_S || Opc == CCV::ST_PRED_S;
+                              Opc == CCV::LD_PRED_S || Opc == CCV::ST_PRED_S ||
+                              Opc == CCV::LD_PRED_LOCAL ||
+                              Opc == CCV::ST_PRED_LOCAL;
       for (int SpaceIdx = 0; SpaceIdx != 2; ++SpaceIdx) {
         const auto &Log = SpaceIdx ? ShLog : MemLog;
         if (Log.empty()) continue;
         // A predicate transfer is warp-scoped: one word per predicate in the
         // mask, at lane 0's address (§3, §12.8), not one access per lane. Its
-        // words are attributed to lane 0, the lane whose rbase forms them,
-        // whether or not lane 0 is executing (TI's rev 115).
+        // words are attributed to lane 0, the lane whose rbase forms them (in
+        // the .local forms, the lane term is 0; O-69), whether or not lane 0
+        // is executing (TI's rev 115).
         if (WarpScoped) {
           unsigned L = 0;
           for (const auto &A : Log) {

@@ -18,7 +18,8 @@
 #              F-140 counted when it proposed widening the slot field.
 #   slots      accesses that took the O-45 launch-slot form, so their window
 #              base never entered the register file at all.
-#   spills     transfers through r15, the whole of them (O-30 reserves r15).
+#   spills     transfers through O-69's spill space (ld/st.local and the .pred
+#              forms), and through r15, the whole of them.
 #   uni/ptr/acc  those transfers by cause (F-113): warp-uniform values,
 #              pointer and index values, accumulators. They do not sum to
 #              `spills`; the residual is unclassified and is meant to be read.
@@ -50,7 +51,7 @@ row() {
   ptrs=$(echo "$layout" | tr ',' '\n' | grep -c '^p')
   scal=$(echo "$layout" | tr ',' '\n' | grep -c '^s')
   slots=$(grep -cE '\[#[0-9]+,' "$TMP/k.s")
-  sp=$(grep -cE '^\s*(st|ld)\.(global|pred).*\[r15' "$TMP/k.s")
+  sp=$(grep -cE '^\s*(st|ld)\.(global|pred).*\[r15|^\s*(st|ld)(\.pred)?\.local ' "$TMP/k.s")
   stats=$(build/ccv-llc "$TMP/k-lowered.ll" -o /dev/null -ccv-spill-stats 2>&1)
   uni=$(cause "$stats" "warp-uniform"); ptr=$(cause "$stats" "pointer/index")
   acc=$(cause "$stats" "accumulator")
