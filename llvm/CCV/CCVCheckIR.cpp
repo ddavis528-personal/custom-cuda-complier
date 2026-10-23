@@ -230,6 +230,31 @@ bool llvm::checkCCVModule(Module &M, raw_ostream &Err) {
                    "see F-22",
                    Problems);
 
+        // --- a named barrier the ISA cannot name (O-74) -------------------
+        // bar.init's ID and count are immediates, the ID below 16 (O-59), and
+        // PTX's thread count is a multiple of 32 up to 1024.
+        if (auto *II = dyn_cast<IntrinsicInst>(&I)) {
+          Intrinsic::ID IID = II->getIntrinsicID();
+          if (IID == Intrinsic::nvvm_bar_sync || IID == Intrinsic::nvvm_barrier_sync ||
+              IID == Intrinsic::nvvm_barrier_n || IID == Intrinsic::nvvm_barrier_sync_cnt ||
+              IID == Intrinsic::nvvm_barrier) {
+            auto *Id = dyn_cast<ConstantInt>(II->getArgOperand(0));
+            auto *Cnt = II->arg_size() > 1
+                            ? dyn_cast<ConstantInt>(II->getArgOperand(1))
+                            : nullptr;
+            bool Ok = Id && Id->getZExtValue() < 16 &&
+                      (II->arg_size() == 1 ||
+                       (Cnt && Cnt->getZExtValue() <= 1024 &&
+                        Cnt->getZExtValue() % 32 == 0));
+            if (!Ok)
+              report(I, "named barrier with a variable or out-of-range operand",
+                     "bar.init's barrier ID and thread count are immediates "
+                     "(O-74): the ID a constant below 16 (O-59), the count a "
+                     "constant multiple of 32 up to 1024",
+                     Problems);
+          }
+        }
+
         if (auto *CB = dyn_cast<CallBase>(&I)) {
           // __ccv_frame_offset is CCVPointerPairs' own: it names a frame
           // object to the backend and passes nothing at run time.

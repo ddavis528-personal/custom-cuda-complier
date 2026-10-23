@@ -46,6 +46,8 @@ uint64_t launchBlockBase() { return kLaunchBase; }
 
 /// O-69: lane L's byte B of the warp's interleaved spill frame.
 bool Interp::retireIfComplete(Warp &W, unsigned Id) {
+  if (Bars[Id].Count)
+    return false;                      // a count: exits never complete it
   // Live lanes are what the barrier waits for. A lane blocked at THIS barrier
   // is already accounted for; one that has exited never arrives. With every
   // warp of the CTA running, that is every warp's live lanes: a warp whose
@@ -70,7 +72,72 @@ bool Interp::retireIfComplete(Warp &W, unsigned Id) {
     std::for_each(All->begin(), All->end(), retire);
   else
     retire(W);
+  Bars[Id].Arrivals.clear();
   return true;
+}
+
+void Interp::arrive(Warp &W, unsigned Id, uint32_t Mask) {
+  CtaBarrier &C = Bars[Id];
+  auto retire = [&] {                  // the count's phase completes
+    auto one = [&](Warp &X) {
+      X.Bar[Id].Arrived = 0;
+      ++X.Bar[Id].Epoch;
+      X.Stalled = 0;
+    };
+    if (Cta)
+      std::for_each(Cta->begin(), Cta->end(), one);
+    else
+      one(W);
+    C.Arrivals.clear();
+  };
+  for (unsigned L = 0; L != kLanes; ++L) {
+    if (!((Mask >> L) & 1))
+      continue;
+    auto &B = W.Bar[Id];
+    // Under the default rule a lane's second arrival in a phase changes
+    // nothing; under a count every arrival counts.
+    if (!C.Count && ((B.Arrived >> L) & 1))
+      continue;
+    B.ArrivalEpoch[L] = B.Epoch;
+    B.Arrived |= 1u << L;
+    C.Arrivals.push_back({&W, L});
+    if (C.Count && C.Arrivals.size() == C.Count)
+      retire();                        // later lanes are the next phase's
+  }
+  if (!C.Count)
+    retireIfComplete(W, Id);
+}
+
+void Interp::initBarrier(Warp &W, unsigned Id, unsigned N) {
+  CtaBarrier &C = Bars[Id];
+  C.Count = TestIgnoreCount ? 0 : N;
+  if (!C.Count) {
+    retireIfComplete(W, Id);
+    return;
+  }
+  // At once: the arrivals already made meet the new count, the first n
+  // complete the phase and the rest are the next phase's, as if each had
+  // arrived after it -- repeatedly, if they fill it too.
+  while (C.Arrivals.size() >= C.Count) {
+    std::vector<std::pair<Warp *, unsigned>> Carry(
+        C.Arrivals.begin() + C.Count, C.Arrivals.end());
+    auto one = [&](Warp &X) {
+      X.Bar[Id].Arrived = 0;
+      ++X.Bar[Id].Epoch;
+      X.Stalled = 0;
+    };
+    if (Cta)
+      std::for_each(Cta->begin(), Cta->end(), one);
+    else
+      one(W);
+    C.Arrivals.clear();
+    for (auto [X, L] : Carry) {
+      auto &B = X->Bar[Id];
+      B.ArrivalEpoch[L] = B.Epoch;
+      B.Arrived |= 1u << L;
+      C.Arrivals.push_back({X, L});
+    }
+  }
 }
 
 uint64_t Interp::localAddr(const Warp &W, uint64_t B, unsigned L) {
@@ -1528,6 +1595,8 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       uint64_t A =
           (nfp::TestAtomNoIndex ? 0 : uint64_t(W.GPR[Idx][L]) << Scale) + Disp;
       A += Sh ? uint64_t(W.GPR[Base][L]) : uint64_t(W.GPR[Base][L]) << kBaseShift;
+      if (Sh)
+        A &= 0xFFFFFFFFu;                // .shared is 32 bits (§5.1)
       const uint32_t Old = M.readN(A, 4), X = W.GPR[S1][L];
       uint32_t New = Old;
       switch (Op) {
@@ -1559,7 +1628,10 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
 
   // ---- Format D: shared memory -------------------------------------------
   // §5.1: `.shared` does not shift. The AGU computes rbase + (rindex << scale)
-  // + disp -- a plain three-input add against a separate flat 32-bit space.
+  // + disp -- a plain three-input add against a separate flat 32-bit space,
+  // so the sum is taken modulo 2^32, as a 32-bit adder does. LLVM's .shared
+  // pointers are 32 bits and rely on it: `buf[t - 64]` becomes the base
+  // buf - 256 plus t * 4, which only reaches buf through the wrap.
   case CCV::LD_SHARED:
   case CCV::ST_SHARED: {
     bool IsLoad = Op == CCV::LD_SHARED;
@@ -1571,7 +1643,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     // nothing checked the claim. Same defect as F-67, one address space over.
     unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
     forEachLane([&](unsigned L) {
-      uint64_t A = uint64_t(W.GPR[Base][L]) + Off;   // O-39: base at 32 bits
+      uint64_t A = (uint64_t(W.GPR[Base][L]) + Off) & 0xFFFFFFFFu;  // O-39
       if (IsLoad)
         W.GPR[Data][L] =
             writeElem(W.GPR[Data][L], Shared.readN(A, Bytes), W.ChWidth[Data]);
@@ -1591,7 +1663,8 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     // unaligned .global (O-23).
     unsigned Sh = ScaleEn ? (2 - W.ChWidth[Data]) : 0;
     forEachLane([&](unsigned L) {
-      uint64_t A = uint64_t(W.GPR[Base][L]) + (uint64_t(W.GPR[Idx][L]) << Sh) + Disp;
+      uint64_t A = (uint64_t(W.GPR[Base][L]) + (uint64_t(W.GPR[Idx][L]) << Sh) +
+                    Disp) & 0xFFFFFFFFu;
       // 32-bit only (narrow is refused by the width guard), and through the
       // checked path so a misaligned lane raises F-ALIGN (O-58).
       if (IsLoad) W.GPR[Data][L] = Shared.readN(A, 4);
@@ -1890,18 +1963,15 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   // and the ones that arrive early have to block. That is why this needs a
   // stall rather than being a no-op on a single-warp simulator.
   case CCV::BAR_INIT:
-    // The expected arrival count is configuration for the table entry. Here
-    // every active lane is expected, so there is nothing to record.
+    // O-74: the count applies at once; 0 is the default rule. A guarded or
+    // diverged bar.init still sets one count for the CTA's barrier.
+    initBarrier(W, unsigned(MI.getOperand(0).getImm()) & 0x3f,
+                unsigned(MI.getOperand(1).getImm()) & 0x3ff);
     break;
 
-  case CCV::C_BAR_ARRIVE: {
-    unsigned Id = unsigned(MI.getOperand(0).getImm()) & 0x3f;
-    auto &B = W.Bar[Id];
-    forEachLane([&](unsigned L) { B.ArrivalEpoch[L] = B.Epoch; });
-    B.Arrived |= Mask;
-    retireIfComplete(W, Id);
+  case CCV::C_BAR_ARRIVE:
+    arrive(W, unsigned(MI.getOperand(0).getImm()) & 0x3f, Mask);
     break;
-  }
 
   case CCV::C_BAR_WAIT: {
     // O-27: the epoch is tracked in hardware, so the wait carries no phase and

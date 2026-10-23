@@ -3,7 +3,9 @@
 #define CCV_SIM_INTERP_H
 
 #include "Warp.h"
+#include <array>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 namespace llvm { class MCInst; }
@@ -33,9 +35,27 @@ public:
   /// Mutation control for tools/check-cta.sh: each warp's barriers wait for
   /// that warp alone, as if the others were not there.
   bool TestWarpBarrier = false;
+  /// Mutation control for tools/check-barcount.sh: bar.init is a no-op, as
+  /// before O-74, so every barrier waits for every live lane.
+  bool TestIgnoreCount = false;
   /// Retires barrier Id if every live lane it waits for has arrived, and
-  /// wakes every blocked lane; true if it did.
+  /// wakes every blocked lane; true if it did. Only under the default rule:
+  /// a barrier with a count completes on its nth arrival (O-74).
   bool retireIfComplete(Warp &W, unsigned Id);
+
+  /// O-74: a barrier's state for the CTA. Count 0 is the default rule, every
+  /// live lane; n is n lane arrivals. Arrivals are this phase's, in order,
+  /// each a warp and lane, so a bar.init that lowers the count below them can
+  /// complete the phase with the first n and carry the rest.
+  struct CtaBarrier {
+    unsigned Count = 0;
+    std::vector<std::pair<Warp *, unsigned>> Arrivals;
+  };
+  std::array<CtaBarrier, kBarriers> Bars{};
+  /// Lanes Mask of W arrive at Id, in ascending lane order (O-74).
+  void arrive(Warp &W, unsigned Id, uint32_t Mask);
+  /// bar.init #Id, N: the count applies at once (O-74).
+  void initBarrier(Warp &W, unsigned Id, unsigned N);
   /// CCV_LANE_CONTEXTS, the device's lane contexts (O-64): O-69's spill space
   /// starts at window local_base + this. ccv-sim's default is the core's
   /// params, 4,096, the device's %lanectx range; -lane-contexts sets it.

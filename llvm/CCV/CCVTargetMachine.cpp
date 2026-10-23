@@ -18,6 +18,7 @@ FunctionPass *createCCVCompress();
 FunctionPass *createCCVSpillStats();
 FunctionPass *createCCVNarrowUses();
 FunctionPass *createCCVExpandPTXAsm();
+FunctionPass *createCCVBarrierInit();
 FunctionPass *createCCVFormFP8();
 FunctionPass *createCCVMaskUniform();
 FunctionPass *createCCVFuseRcpSeed();
@@ -65,6 +66,9 @@ public:
     // CUDA's inline PTX conversions, while the machine code is still SSA and
     // before CSE and dead-code elimination see it (CP-6).
     addPass(createCCVExpandPTXAsm());
+    // O-74: every barrier was given its own bar.init; one per kernel, or
+    // none, where one count serves.
+    addPass(createCCVBarrierInit());
     return false;
   }
   /// §5.1 makes `.shared` flat 32-bit, so a shared object's address is a

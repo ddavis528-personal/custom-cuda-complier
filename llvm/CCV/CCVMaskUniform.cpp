@@ -38,6 +38,7 @@
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -303,9 +304,18 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
     CoIn[&MBB] = true;
     CoOut[&MBB] = true;
   }
-  auto isBarrier = [](const MachineInstr &MI) {
+  // O-74: a barrier with a count releases its waiters when n lanes have
+  // arrived, which need not be all of a warp's, so only an ID that is never
+  // given a count is a point every lane leaves together. bar.wait.phase
+  // never was one: it holds only its guarded lanes, and nothing emits it yet.
+  SmallSet<int64_t, 4> Counted;
+  for (MachineBasicBlock &MBB : MF)
+    for (MachineInstr &MI : MBB)
+      if (MI.getOpcode() == CCV::BAR_INIT && MI.getOperand(1).getImm())
+        Counted.insert(MI.getOperand(0).getImm());
+  auto isBarrier = [&](const MachineInstr &MI) {
     unsigned Op = MI.getOpcode();
-    return Op == CCV::C_BAR_WAIT || Op == CCV::BAR_WAIT_PHASE;
+    return Op == CCV::C_BAR_WAIT && !Counted.count(MI.getOperand(0).getImm());
   };
   auto endsDivergent = [&](MachineBasicBlock &MBB) {
     if (MBB.succ_size() < 2)

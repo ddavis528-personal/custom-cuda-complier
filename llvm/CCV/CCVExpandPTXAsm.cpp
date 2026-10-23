@@ -40,6 +40,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Regex.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -93,6 +94,25 @@ bool isPosZero(const MachineRegisterInfo &MRI, Register R) {
            D->getOperand(1).isImm() && D->getOperand(1).getImm() == 0;
   }
   return false;
+}
+
+/// R's value, if it is a constant through copies: an inline PTX barrier's
+/// operands arrive in registers, but O-74's ID and count are immediates.
+std::optional<int64_t> constantOf(const MachineRegisterInfo &MRI, Register R) {
+  while (R.isVirtual()) {
+    const MachineInstr *D = MRI.getUniqueVRegDef(R);
+    if (!D)
+      return std::nullopt;
+    if (D->isCopy()) {
+      R = D->getOperand(1).getReg();
+      continue;
+    }
+    if ((D->getOpcode() == CCV::MOVI || D->getOpcode() == CCV::MOVI48) &&
+        D->getOperand(1).isImm())
+      return D->getOperand(1).getImm();
+    return std::nullopt;
+  }
+  return std::nullopt;
 }
 
 /// Does every read of R take only its low 16 bits -- a `trunc` to i16, which
@@ -174,6 +194,12 @@ bool CCVExpandPTXAsm::runOnMachineFunction(MachineFunction &MF) {
           "^ccv\\.cvt\\.e2m1\\.f32 \\$([0-9]+), \\$([0-9]+)$");
       static const Regex FromE2M1(
           "^ccv\\.cvt\\.f32\\.e2m1 \\$([0-9]+), \\$([0-9]+)$");
+      // PTX's named barriers as CUDA code writes them, CUTLASS's
+      // NamedBarrier among it: `bar.arrive a, b` and `bar.sync a{, b}`, also
+      // spelled `barrier{.cta}.arrive/sync{.aligned}`.
+      static const Regex Bar(
+          "^(bar|barrier)(\\.cta)?\\.(arrive|sync)(\\.aligned)? "
+          "(\\$[0-9]+|[0-9]+)(, (\\$[0-9]+|[0-9]+))?$");
       static const Regex F16F32(
           "^cvt\\.rn\\.f16\\.f32 \\$([0-9]+), \\$([0-9]+)$");
 
@@ -273,6 +299,35 @@ bool CCVExpandPTXAsm::runOnMachineFunction(MachineFunction &MF) {
       } else if (F16F32.match(T, &M)) {
         unsigned Opc = CCV::CVT_D0_S0_R0_W16_32;
         cvt(Opc, op(M[1]), op(M[2]));
+      } else if (Bar.match(T, &M)) {
+        // O-74: bar.init #a, b, then the arrival, then for a sync the wait,
+        // as the intrinsics select (CCVISelDAGToDAG). a and b must be
+        // constants: the ISA's are immediates.
+        auto value = [&](StringRef V) -> int64_t {
+          int64_t K;
+          if (!V.starts_with("$")) {
+            V.getAsInteger(10, K);
+            return K;
+          }
+          if (auto C = constantOf(MRI, op(V.drop_front())))
+            return *C;
+          report_fatal_error("CCV: inline PTX '" + Twine(T) + "' names a " +
+                             "barrier or a thread count that is not a " +
+                             "constant; bar.init's are immediates (O-74)");
+        };
+        int64_t Id = value(M[5]), Count = M[7].empty() ? 0 : value(M[7]);
+        if (M[3] == "arrive" && M[7].empty())
+          report_fatal_error("CCV: inline PTX '" + Twine(T) +
+                             "' arrives with no thread count, which PTX refuses");
+        if (Id < 0 || Id >= 16 || Count < 0 || Count > 1024 || Count % 32)
+          report_fatal_error("CCV: inline PTX '" + Twine(T) + "' needs a " +
+                             "barrier below 16 (O-59) and a thread count that " +
+                             "is a multiple of 32, at most 1024");
+        BuildMI(MBB, MI, DL, TII->get(CCV::BAR_INIT))
+            .addImm(Id).addImm(Count == 1024 ? 0 : Count);
+        BuildMI(MBB, MI, DL, TII->get(CCV::C_BAR_ARRIVE)).addImm(Id);
+        if (M[3] == "sync")
+          BuildMI(MBB, MI, DL, TII->get(CCV::C_BAR_WAIT)).addImm(Id);
       } else if (ToE2M1.match(T, &M)) {
         // CCVFoldFP4's: FP32 to E2M1 at chwidth 4, widened into the i32
         // result, which clears bits [31:4] (O-38).
