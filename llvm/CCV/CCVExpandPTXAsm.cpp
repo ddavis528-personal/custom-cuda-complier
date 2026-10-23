@@ -1,0 +1,247 @@
+//===-- CCVExpandPTXAsm.cpp - CUDA's inline PTX conversions, made native --===//
+//
+// CP-6, stage 2. The compatibility contract is CUDA source (§5.8, O-55), and
+// CUDA's FP8 types are cuda_fp8.h's. For an architecture with FP8 conversion
+// (sm_89 and later) that header computes them in inline PTX, so this is the IR
+// clang hands the backend for `__nv_fp8_e4m3(x)` and `float(__nv_fp8_e4m3)`:
+//
+//   %h = call i16 asm "{cvt.rn.satfinite.e4m3x2.f32 $0, $2, $1;}\0A", "=h,f,f"
+//   %r = call i32 asm "{cvt.rn.f16x2.e4m3x2 $0, $1;}\0A", "=r,h"
+//   %f = call float asm "{cvt.f32.f16 $0, $1;}\0A", "=f,h"
+//
+// LLVM 18 has no NVVM intrinsic for any FP8 conversion, so there is nothing
+// else to select from. Each template here is one §4 conversion per element,
+// plus the packing PTX's x2 forms do: an x2 value's first-named source is its
+// HIGH element, as PTX defines it.
+//
+// The asm operands arrive in virtual registers of the constraint's class
+// (`h` GPR16, `r` and `f` GPR; CCVISelLowering), so this runs straight after
+// selection, in SSA form, and the CSE and dead-code passes that follow see
+// ordinary instructions: `float(fp8)` asks for an x2 conversion and reads one
+// half, and the other half's conversion is then dead.
+//
+// Anything else written in inline PTX is refused by name, not emitted: the
+// asm printer would put PTX text into a CCV object.
+//
+//===----------------------------------------------------------------------===//
+
+#include "CCVInstrInfo.h"
+#include "CCVSubtarget.h"
+#include "MCTargetDesc/CCVMCTargetDesc.h"
+#include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/IR/InlineAsm.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/Regex.h"
+
+using namespace llvm;
+
+// Mutation control for tools/check-fp8.sh: put an x2's elements in the wrong
+// halves, as a misreading of PTX's operand order would.
+static cl::opt<bool> TestSwapX2(
+    "ccv-test-ptx-swap-x2", cl::init(false), cl::Hidden,
+    cl::desc("swap the halves of an inline PTX x2 conversion, to test that it "
+             "is caught"));
+
+namespace {
+
+class CCVExpandPTXAsm : public MachineFunctionPass {
+public:
+  static char ID;
+  CCVExpandPTXAsm() : MachineFunctionPass(ID) {}
+  bool runOnMachineFunction(MachineFunction &MF) override;
+  StringRef getPassName() const override { return "CCV expand PTX asm"; }
+};
+
+char CCVExpandPTXAsm::ID = 0;
+
+/// The template's text without braces, the trailing newline and spacing, as
+/// cuda_fp8.hpp and cuda_fp16.hpp write it: "{cvt.f32.f16 $0, $1;}\n".
+std::string normalize(StringRef S) {
+  std::string Out;
+  for (char C : S)
+    if (C != '{' && C != '}' && C != '\n' && C != ';')
+      Out += C;
+  return StringRef(Out).trim().str();
+}
+
+/// Is R +0.0, through copies? cuda_fp8.hpp converts a scalar as the low half
+/// of an x2 whose high source is the constant 0.0f, so that half is known.
+bool isPosZero(const MachineRegisterInfo &MRI, Register R) {
+  while (R.isVirtual()) {
+    const MachineInstr *D = MRI.getUniqueVRegDef(R);
+    if (!D)
+      return false;
+    if (D->isCopy()) {
+      R = D->getOperand(1).getReg();
+      continue;
+    }
+    return (D->getOpcode() == CCV::MOVI || D->getOpcode() == CCV::MOVI48) &&
+           D->getOperand(1).isImm() && D->getOperand(1).getImm() == 0;
+  }
+  return false;
+}
+
+/// Does every read of R take only its low 16 bits -- a `trunc` to i16, which
+/// selection makes a COPY into GPR16? `float(fp8)` converts an x2 and keeps
+/// the low half, so the high half's conversion is then never needed.
+bool onlyLowHalfRead(const MachineRegisterInfo &MRI, Register R) {
+  for (const MachineInstr &U : MRI.use_nodbg_instructions(R))
+    if (!U.isCopy() || !U.getOperand(0).getReg().isVirtual() ||
+        MRI.getRegClass(U.getOperand(0).getReg()) != &CCV::GPR16RegClass)
+      return false;
+  return true;
+}
+
+bool CCVExpandPTXAsm::runOnMachineFunction(MachineFunction &MF) {
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
+  bool Changed = false;
+
+  for (MachineBasicBlock &MBB : MF)
+    for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
+      if (!MI.isInlineAsm())
+        continue;
+      StringRef Text =
+          MI.getOperand(InlineAsm::MIOp_AsmString).getSymbolName();
+      std::string T = normalize(Text);
+
+      // The asm's operands in $-number order: definitions first, then uses,
+      // as the constraint string lists them.
+      SmallVector<Register, 4> Ops;
+      for (unsigned I = InlineAsm::MIOp_FirstOperand, E = MI.getNumOperands();
+           I < E;) {
+        const MachineOperand &FO = MI.getOperand(I);
+        if (!FO.isImm())
+          break;
+        InlineAsm::Flag F(FO.getImm());
+        unsigned N = F.getNumOperandRegisters();
+        if ((F.isRegDefKind() || F.isRegUseKind()) && N == 1)
+          Ops.push_back(MI.getOperand(I + 1).getReg());
+        else if (!F.isClobberKind())
+          report_fatal_error("CCV: inline PTX '" + Twine(T) +
+                             "' has an operand CCV does not take (CP-6)");
+        I += 1 + N;
+      }
+
+      SmallVector<StringRef, 4> M;
+      auto op = [&](StringRef Num) -> Register {
+        unsigned K = 0;
+        if (Num.getAsInteger(10, K) || K >= Ops.size())
+          report_fatal_error("CCV: inline PTX '" + Twine(T) +
+                             "' names an operand it does not have");
+        return Ops[K];
+      };
+      const DebugLoc &DL = MI.getDebugLoc();
+      auto vreg = [&](const TargetRegisterClass &RC) {
+        return MRI.createVirtualRegister(&RC);
+      };
+      // One conversion: all three source fields name the one source, as the
+      // single-source conversions are emitted everywhere (CVT_SEXT).
+      auto cvt = [&](unsigned Opc, Register D, Register S) {
+        BuildMI(MBB, MI, DL, TII->get(Opc), D).addReg(S).addReg(S).addReg(S);
+      };
+      auto copy = [&](Register D, Register S) {
+        BuildMI(MBB, MI, DL, TII->get(TargetOpcode::COPY), D).addReg(S);
+      };
+
+      static const Regex ToX2(
+          "^cvt\\.rn\\.satfinite\\.(e4m3|e5m2)x2\\.f32 \\$([0-9]+), "
+          "\\$([0-9]+), \\$([0-9]+)$");
+      static const Regex FromX2(
+          "^cvt\\.rn\\.f16x2\\.(e4m3|e5m2)x2 \\$([0-9]+), \\$([0-9]+)$");
+      static const Regex F32F16("^cvt\\.f32\\.f16 \\$([0-9]+), \\$([0-9]+)$");
+      static const Regex F16F32(
+          "^cvt\\.rn\\.f16\\.f32 \\$([0-9]+), \\$([0-9]+)$");
+
+      if (ToX2.match(T, &M)) {
+        // d = {cvt(a) : cvt(b)}, a in bits [15:8]. Each converts at chwidth 8
+        // and saturates (O-53); widening zero-extends (O-38), so the pair is
+        // a shift and an or at 32 bits, narrowed to the 16-bit result.
+        unsigned Opc = M[1] == "e4m3" ? CCV::CVT_D0_S0_R0_W8_32
+                                      : CCV::CVT_D1_S0_R0_W8_32;
+        Register Hi8 = vreg(CCV::GPR8RegClass), Lo8 = vreg(CCV::GPR8RegClass);
+        cvt(Opc, Lo8, op(M[4]));
+        if (isPosZero(MRI, op(M[3]))) {
+          // The high element converts +0.0, which is 0x00: the result is the
+          // low element, zero-extended (O-38).
+          copy(op(M[2]), Lo8);
+          MI.eraseFromParent();
+          Changed = true;
+          continue;
+        }
+        cvt(Opc, Hi8, op(M[3]));
+        if (TestSwapX2)
+          std::swap(Hi8, Lo8);
+        Register Hi = vreg(CCV::GPRRegClass), Lo = vreg(CCV::GPRRegClass);
+        Register Sh = vreg(CCV::GPRRegClass), Or = vreg(CCV::GPRRegClass);
+        copy(Hi, Hi8);
+        copy(Lo, Lo8);
+        BuildMI(MBB, MI, DL, TII->get(CCV::SHLI), Sh).addReg(Hi).addImm(8);
+        BuildMI(MBB, MI, DL, TII->get(CCV::OR), Or)
+            .addReg(Sh).addReg(Lo).addReg(Sh);
+        copy(op(M[2]), Or);
+      } else if (FromX2.match(T, &M)) {
+        // d = {f16(a[15:8]) : f16(a[7:0])}: each byte converted at chwidth 8
+        // into an FP16 element, packed into the 32-bit result.
+        unsigned Opc = M[1] == "e4m3" ? CCV::CVT_D0_S0_R0_W16_8
+                                      : CCV::CVT_D0_S1_R0_W16_8;
+        Register Src = op(M[3]);
+        Register W = vreg(CCV::GPRRegClass), HiB = vreg(CCV::GPRRegClass);
+        copy(W, Src);
+        BuildMI(MBB, MI, DL, TII->get(CCV::SHRI), HiB).addReg(W).addImm(8);
+        Register Lo8 = vreg(CCV::GPR8RegClass), Hi8 = vreg(CCV::GPR8RegClass);
+        copy(Lo8, W);
+        copy(Hi8, HiB);
+        Register Lo16 = vreg(CCV::GPR16RegClass), Hi16 = vreg(CCV::GPR16RegClass);
+        cvt(Opc, Lo16, Lo8);
+        if (onlyLowHalfRead(MRI, op(M[2]))) {
+          copy(op(M[2]), Lo16);
+          MI.eraseFromParent();
+          Changed = true;
+          continue;
+        }
+        cvt(Opc, Hi16, Hi8);
+        Register Lo = vreg(CCV::GPRRegClass), Hi = vreg(CCV::GPRRegClass);
+        Register Sh = vreg(CCV::GPRRegClass);
+        copy(Lo, Lo16);
+        copy(Hi, Hi16);
+        BuildMI(MBB, MI, DL, TII->get(CCV::SHLI), Sh).addReg(Hi).addImm(16);
+        BuildMI(MBB, MI, DL, TII->get(CCV::OR), op(M[2]))
+            .addReg(Sh).addReg(Lo).addReg(Sh);
+      } else if (F32F16.match(T, &M)) {
+        // float(fp8) is fp8 -> f16 -> f32 in CUDA's header. FP16 holds every
+        // E4M3 and E5M2 value exactly, so the pair is one conversion from the
+        // byte; the f16 step is then dead.
+        Register S = op(M[2]);
+        const MachineInstr *D = MRI.getUniqueVRegDef(S);
+        while (D && D->isCopy() && D->getOperand(1).getReg().isVirtual())
+          D = MRI.getUniqueVRegDef(D->getOperand(1).getReg());
+        unsigned Opc = CCV::CVT_D0_S0_R0_W32_16;
+        if (D && (D->getOpcode() == CCV::CVT_D0_S0_R0_W16_8 ||
+                  D->getOpcode() == CCV::CVT_D0_S1_R0_W16_8)) {
+          Opc = D->getOpcode() == CCV::CVT_D0_S0_R0_W16_8
+                    ? CCV::CVT_D0_S0_R0_W32_8 : CCV::CVT_D0_S1_R0_W32_8;
+          S = D->getOperand(1).getReg();
+        }
+        cvt(Opc, op(M[1]), S);
+      } else if (F16F32.match(T, &M)) {
+        unsigned Opc = CCV::CVT_D0_S0_R0_W16_32;
+        cvt(Opc, op(M[1]), op(M[2]));
+      } else {
+        report_fatal_error("CCV: inline PTX '" + Twine(T) +
+                           "' is not one CCV implements (CP-6)");
+      }
+      MI.eraseFromParent();
+      Changed = true;
+    }
+  return Changed;
+}
+
+} // namespace
+
+namespace llvm {
+FunctionPass *createCCVExpandPTXAsm() { return new CCVExpandPTXAsm(); }
+} // namespace llvm
