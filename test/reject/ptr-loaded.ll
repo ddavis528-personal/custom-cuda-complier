@@ -1,3 +1,4 @@
+; expect: pointer loaded from memory
 ; A pointer read from memory ATOMICALLY. A pointer in memory is the host's
 ; flat 64-bit address (ISA v1.9 §5.7), read as two 32-bit loads, and two loads
 ; are not one atomic access, so this is diagnosed rather than torn. The plain

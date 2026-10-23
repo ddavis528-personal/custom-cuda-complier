@@ -1,3 +1,4 @@
+; expect: unsupported address shape
 ; address shape OUTSIDE the DAGCombine whitelist: a reassociated base
 define void @k(i32 %rb, i32 %i, i32 %j) {
   %w = zext i32 %rb to i64

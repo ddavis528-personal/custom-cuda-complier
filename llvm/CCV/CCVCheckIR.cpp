@@ -18,6 +18,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CCVCheckIR.h"
+#include "CCVFrameLowering.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
@@ -143,6 +144,31 @@ bool llvm::checkCCVModule(Module &M, raw_ostream &Err) {
              "a double-precision (FP64) argument or return",
              "FP64 is out of scope for V1 (ISA v1.8 §10, DA's response IS-13)",
              Problems);
+  }
+
+  // --- a kernel's pointer argument -------------------------------------------
+  // A kernel's arguments arrive in the launch block (§5.2), and
+  // ccv-lower-kernel-args rewrites every use into a load from it; a pointer
+  // argument that is still used means that step was skipped -- hand-written IR,
+  // say. Left alone, the 64-bit argument reached LLVM's store expansion and
+  // crashed it (F-186).
+  for (Function &F : M) {
+    if (F.isDeclaration() || !ccvIsKernel(F))
+      continue;
+    for (Argument &A : F.args())
+      // A .shared pointer, address space 3, is 32 bits and an ordinary
+      // register (§5.1), as is 5's; the module's own data layout cannot say
+      // so, since hand-written IR often has none.
+      if (A.getType()->isPointerTy() && !A.use_empty() &&
+          A.getType()->getPointerAddressSpace() != 3 &&
+          A.getType()->getPointerAddressSpace() != 5) {
+        report(*cast<Instruction>(*A.user_begin()), "a kernel's pointer argument",
+               "kernel arguments arrive in the launch block (§5.2); run "
+               "ccv-lower-kernel-args first (opt -passes=ccv-lower-kernel-args "
+               "with build/CCVLowerKernelArgs.so)",
+               Problems);
+        break;
+      }
   }
 
   for (Function &F : M) {
