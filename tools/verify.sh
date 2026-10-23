@@ -184,6 +184,13 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-fp8.sh || fail=1
 fi
 
+# CP-6 stage 2b: FP4 both ways and __NV_NOSAT FP8, from NVIDIA's headers'
+# software path, against NVIDIA's code compiled for the host, with a control.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  FP4 and __NV_NOSAT conversions (CP-6 stage 2b)"
+  ./tools/check-fp4.sh || fail=1
+fi
+
 # AR-20: CoreMark's list, matrix and state, unmodified, on 32 lanes; each lane's
 # CRCs against CoreMark's published values and the host's, with two controls.
 if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then

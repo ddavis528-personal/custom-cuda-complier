@@ -472,17 +472,23 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     // A predicate as 0 or 1: 0, plus 1 where the predicate holds -- two
     // instructions, where a select of two materialized constants took three.
     // (`x + zext c` itself, a stored pointer's carry (§5.7), is ISD::ADD's.)
-    if (N->getValueType(0) != MVT::i32 ||
+    // At 16 bits (NVIDIA's software FP8/FP4 conversions, CP-6 stage 2b) it
+    // is the 32-bit 0/1 read at width 16, as `trunc i32 -> i16` is.
+    EVT VT = N->getValueType(0);
+    if ((VT != MVT::i32 && VT != MVT::i16) ||
         N->getOperand(0).getValueType() != MVT::i1)
       break;
     SDValue Zero(CurDAG->getMachineNode(
                      CCV::MOVI, DL, MVT::i32,
                      CurDAG->getTargetConstant(0, DL, MVT::i32)),
                  0);
-    ReplaceNode(N, CurDAG->getMachineNode(
-                       CCV::PSEUDO_PADDI, DL, MVT::i32,
-                       {Zero, N->getOperand(0),
-                        CurDAG->getTargetConstant(1, DL, MVT::i32)}));
+    SDNode *Bit = CurDAG->getMachineNode(
+        CCV::PSEUDO_PADDI, DL, MVT::i32,
+        {Zero, N->getOperand(0), CurDAG->getTargetConstant(1, DL, MVT::i32)});
+    if (VT == MVT::i16)
+      Bit = CurDAG->getMachineNode(TargetOpcode::COPY, DL, MVT::i16,
+                                   SDValue(Bit, 0));
+    ReplaceNode(N, Bit);
     return;
   }
   case ISD::SELECT: {

@@ -194,6 +194,11 @@ static bool isWidthAware(unsigned Op) {
   case CCV::C_MAX_S: case CCV::C_MAX_U:
   case CCV::C_ADDI: case CCV::C_SUBI: case CCV::C_ANDI: case CCV::C_ORI:
   case CCV::C_XORI: case CCV::C_SHLI: case CCV::C_SHRI: case CCV::C_SRAI:
+  // Predicate logic reads and writes only predicates. Its operands are P
+  // numbers, which the guard below would read as GPR numbers, refusing a
+  // `pxor p0, ...` whenever r0 happened to be narrow.
+  case CCV::PAND: case CCV::POR: case CCV::PXOR: case CCV::PMOV:
+  case CCV::PMOV_IMM:
     return true;
   default:
     break;
