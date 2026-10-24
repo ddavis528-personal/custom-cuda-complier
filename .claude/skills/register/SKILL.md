@@ -125,7 +125,10 @@ resolves. In IS's ISA document CP takes IS's side when only IS changed the subst
 and otherwise aborts that merge and raises a row naming the owner. Push only after a
 clean `tools/verify.sh` on the merge. Report what was merged, by branch and commit count.
 
-**Release snapshots are TI's alone** (DA tab rev 79): TI's sweep merges every branch
-and runs `tools/make-release.sh --push` each night. CP pushes its branch after a clean
-gate and does not cut snapshots. A row cites the branch commit, which the next night's
-snapshot carries.
+**Compiler release snapshots are CP's alone** (Daniel, 2026-10-24, answering CP-37;
+DA tab rev 79 gives TI the core repository's). After the merge, if CP's head is not
+already in `origin/release`, the sweep runs `tools/make-release.sh --push` on it. Its
+gate is the clean gate for the merge, so the branch is pushed once it passes. A night
+with no new commit cuts no snapshot. Between sweeps CP may still cut one when a change
+another agent waits on is ready, which is how releases have always gone out. Nobody
+else cuts the compiler's.
