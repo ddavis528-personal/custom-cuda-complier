@@ -1,6 +1,6 @@
 ---
 name: register
-description: The CCV cross-agent register as CP works it — filing rows in the CP tab, sending a REGISTER-NOTICE for every row that names or answers another agent, what to do when a notice arrives, and the every-other-day sweep. Read this when a cross-session message headed REGISTER-NOTICE arrives, when the sweep fires, or before writing into the CP tab.
+description: The CCV cross-agent register as CP works it — filing rows in the CP tab, sending a REGISTER-NOTICE for every row that names or answers another agent, what to do when a notice arrives, and the daily sweep. Read this when a cross-session message headed REGISTER-NOTICE arrives, when the sweep fires, or before writing into the CP tab.
 ---
 
 # The register, from the compiler side
@@ -104,11 +104,11 @@ It comes as a `<cross-session-message>`, in whatever turn is running.
 3. Answer in the CP tab and notify per the section above; or, if the rows need nothing
    from CP (already answered, accepted, not CP's), end with one line and no write.
 
-## The sweep: the backstop, every other day
+## The sweep: the backstop, daily
 
-`trig_01Hp4MZnx61rMQL7Dd5qjd5z`, 01:58 America/Los_Angeles on every other day of the
-month, fired into this session. CP's cadence is every other day on Daniel's
-instruction (2026-10-17); the other agents sweep daily.
+`trig_01Hp4MZnx61rMQL7Dd5qjd5z` ("CP daily register sweep"), 02:19 America/Los_Angeles
+every day, fired into this session: CP's slot in the agents' stagger (DA tab rev 79,
+2026-10-24; it was every other day at 01:58 from 2026-10-17).
 
 It catches what the doorbell missed: a notice never sent, one sent to the wrong
 prefix, and a row whose `Needs` should have named CP and did not. Read every tab with
@@ -117,3 +117,15 @@ prefix, and a row whose `Needs` should have named CP and did not. Read every tab
 Search `"CP,"` for a `Needs` list: a bare `"CP"` also matches every `.cpp` filename,
 which is how two false hits once survived several checks. Answer and notify as above,
 update the bookmarks, and report in a few lines, or one if nothing changed.
+
+Then bring CP's branch current (DA tab rev 78, TI-43): `git fetch origin`, and merge
+into CP's branch, with merge commits and never a rebase or force-push, every remote
+branch with commits CP's lacks, except `release`. A conflict in CP's own files CP
+resolves. In IS's ISA document CP takes IS's side when only IS changed the substance,
+and otherwise aborts that merge and raises a row naming the owner. Push only after a
+clean `tools/verify.sh` on the merge. Report what was merged, by branch and commit count.
+
+**Release snapshots are TI's alone** (DA tab rev 79): TI's sweep merges every branch
+and runs `tools/make-release.sh --push` each night. CP pushes its branch after a clean
+gate and does not cut snapshots. A row cites the branch commit, which the next night's
+snapshot carries.
