@@ -126,8 +126,11 @@ and otherwise aborts that merge and raises a row naming the owner. Push only aft
 clean `tools/verify.sh` on the merge. Report what was merged, by branch and commit count.
 
 **Compiler release snapshots are CP's alone** (Daniel, 2026-10-24, answering CP-37;
-DA tab rev 79 gives TI the core repository's). After the merge, if CP's head is not
-already in `origin/release`, the sweep runs `tools/make-release.sh --push` on it. Its
+DA tab rev 79 gives TI the core repository's). After the merge, if the newest `origin/release` commit's
+subject is not "Snapshot of ccr-ea1c4e17-tem30u@<head's 7-character sha>", the sweep runs
+`tools/make-release.sh --push` on the head. (`git merge-base --is-ancestor HEAD
+origin/release` is no test: a snapshot is a commit of its own whose tree is the head's,
+so the branch is never an ancestor of it.) Its
 gate is the clean gate for the merge, so the branch is pushed once it passes. A night
 with no new commit cuts no snapshot. Between sweeps CP may still cut one when a change
 another agent waits on is ready, which is how releases have always gone out. Nobody
