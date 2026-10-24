@@ -604,6 +604,11 @@ bo=$(build/ccv-llc test/accept/base-offset-i16.ll -o - 2>/dev/null)
 if [ -z "$bo" ]; then
   echo "  FAIL  base-offset-i16.ll did not compile"
   fail=1
+elif grep -q "ld.global.u16" <<< "$bo" && grep -q "st.global.16" <<< "$bo" &&
+     ! grep -qE "^	(ld|st)\.global r" <<< "$bo"; then
+  # O-80: the sized forms name the transfer in the opcode, so a 16-bit access
+  # cannot move four bytes whatever the data register's width.
+  echo "  PASS  16-bit base+offset accesses take the sized forms ($(grep -cE 'global\.(u16|16)' <<< "$bo") accesses, O-80)"
 elif grep -qE "chwidth(\.multi)? [^,]+, 0$" <<< "$bo"; then
   echo "  FAIL  16-bit base+offset access selected the 32-bit form"
   echo "        (a widening chwidth in an all-16-bit kernel means the"

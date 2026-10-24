@@ -233,6 +233,9 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     // 48-bit width therefore exists only in the AGU -- invariant 11 holds all
     // the way down, and no register ever holds an address.
     bool IsLoad = N->getOpcode() == CCVISD::LD_BASEIDX;
+    // O-80: a sized access carries one more operand, the load's signedness
+    // (a store's is a marker), and selects by its memory type.
+    bool Sized = N->getNumOperands() == (IsLoad ? 6u : 7u);
     SmallVector<SDValue, 6> Ops;
     unsigned ScaleOp;
     if (IsLoad) {
@@ -261,11 +264,18 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     // element, and the value written is still correct, so nothing downstream
     // notices. That is exactly what happened before this check existed.
     EVT MemVT = cast<MemSDNode>(N)->getMemoryVT();
+    unsigned LdOpc = atWidth(CCV::LD_GLOBAL_IDX, MemVT),
+             StOpc = atWidth(CCV::ST_GLOBAL_IDX, MemVT);
+    if (Sized) {
+      bool B = MemVT == MVT::i8, S = IsLoad && N->getConstantOperandVal(5);
+      LdOpc = B ? (S ? CCV::SZ_GLOBAL_LD_S8 : CCV::SZ_GLOBAL_LD_U8)
+                : (S ? CCV::SZ_GLOBAL_LD_S16 : CCV::SZ_GLOBAL_LD_U16);
+      StOpc = B ? CCV::SZ_GLOBAL_ST_8 : CCV::SZ_GLOBAL_ST_16;
+    }
     MachineSDNode *MN =
-        IsLoad ? CurDAG->getMachineNode(atWidth(CCV::LD_GLOBAL_IDX, MemVT),
-                                        DL, N->getValueType(0), MVT::Other, Ops)
-               : CurDAG->getMachineNode(atWidth(CCV::ST_GLOBAL_IDX, MemVT),
-                                        DL, MVT::Other, Ops);
+        IsLoad ? CurDAG->getMachineNode(LdOpc, DL, N->getValueType(0),
+                                        MVT::Other, Ops)
+               : CurDAG->getMachineNode(StOpc, DL, MVT::Other, Ops);
     CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
     ReplaceNode(N, MN);
     return;
