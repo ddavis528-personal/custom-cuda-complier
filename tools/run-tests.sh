@@ -368,6 +368,24 @@ run_addr_narrow() {
     echo "  FAIL  addr-narrow: got '$got', want 17 (control: '$ctl', want 34)"; return 1
   fi
 }
+# --- sized loads and stores (O-80) ------------------------------------------
+run_sized() {
+  python3 "$AS" "$JSON" test/sized.s "$TMP/sz.bin" >/dev/null || return 1
+  python3 "$AS" "$JSON" test/faults/sized-width.s "$TMP/szw.bin" >/dev/null || return 1
+  local args="-poke 0x80000=2155999487 -poke 0x90010=2863311530 -poke 0x90014=2863311530"
+  local k got ctl fault
+  for k in 0 4 8 12 16 20 24 28 32 36; do args="$args -peek $(printf 0x%x $((0x90000 + k)))"; done
+  local want="255 4294967295 32897 4294934657 2863311480 2863289976 22136 86 32897 65535"
+  got=$("$SIM" "$TMP/sz.bin" $args 2>&1 | grep -oP '\] = \K\d+' | xargs)
+  # The control: ld.s8 and ld.s16 zero-extend.
+  ctl=$("$SIM" "$TMP/sz.bin" $args -ccv-test-sized-no-sext 2>&1 | grep -oP '\] = \K\d+' | xargs)
+  fault=$("$SIM" "$TMP/szw.bin" 2>&1 | grep -c 'FAULT F-WIDTH')
+  if [ "$got" = "$want" ] && [ "$ctl" != "$want" ] && [ "$fault" = 1 ]; then
+    echo "  PASS  sized loads and stores: u8, s8, u16, s16, st.8, st.16 on .global and .shared, scaled, into a narrow rdata, and F-WIDTH when the transfer is wider (O-80)"
+  else
+    echo "  FAIL  sized: got '$got', want '$want' (control '$ctl', F-WIDTH $fault)"; return 1
+  fi
+}
 # --- srd #2, %lanectx (O-64) -----------------------------------------------
 run_lanectx() {
   python3 "$AS" "$JSON" test/lanectx.s "$TMP/lc.bin" >/dev/null || return 1
@@ -428,6 +446,7 @@ echo
 echo "  --- the mixed-width rule (O-67) ---"
 run_mixed_width || fail=1
 run_addr_narrow || fail=1
+run_sized || fail=1
 
 # --- the fault model (ISA v1.9 section 12, O-57/O-58) ------------------------
 # Each case names the record it must produce. A fault exits 3, distinct from a

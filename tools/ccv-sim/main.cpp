@@ -68,6 +68,9 @@ static cl::opt<unsigned> LaneContexts("lane-contexts", cl::init(4096),
 static cl::opt<bool> TestFAddDescending("ccv-test-atomic-fadd-descending",
     cl::Hidden, cl::desc("apply atom.add.f32's lanes in descending order, to "
                          "test that the order is observed (O-76)"));
+static cl::opt<bool> TestSizedNoSext(
+    "ccv-test-sized-no-sext", cl::Hidden,
+    cl::desc("zero-extend ld.s8 and ld.s16, to test that the sign is checked"));
 static cl::opt<bool> TestAddrFull(
     "ccv-test-address-full-width", cl::Hidden,
     cl::desc("read a narrow address or return register at all 32 bits, as O-39 "
@@ -221,6 +224,7 @@ int main(int argc, char **argv) {
   sfu::TestTruncate = TestSfuTruncate;
   nfp::TestAtomNoIndex = TestAtomNoIndex;
   nfp::TestAddrFull = TestAddrFull;
+  nfp::TestSizedNoSext = TestSizedNoSext;
   nfp::TestFAddDescending = TestFAddDescending;
   nfp::SfuErrorUlps = SfuErrorUlps;
   nfp::TestByValue = TestMixedByValue;
@@ -833,10 +837,15 @@ int main(int argc, char **argv) {
       }
       else if (D.mayLoad() || D.mayStore()) {
         ++C.Mem;
+        // O-80's sized forms count with their space's loads and stores.
+        bool SzG = Op >= CCV::SZ_GLOBAL_LD_S16 && Op <= CCV::SZ_GLOBAL_ST_8;
+        bool SzS = Op >= CCV::SZ_SHARED_LD_S16 && Op <= CCV::SZ_SHARED_ST_8;
         int Slot = Op == CCV::LD_GLOBAL || Op == CCV::LD_GLOBAL_IDX ? 0
                    : Op == CCV::ST_GLOBAL || Op == CCV::ST_GLOBAL_IDX ? 1
                    : Op == CCV::LD_SHARED || Op == CCV::LD_SHARED_IDX ? 2
-                   : Op == CCV::ST_SHARED || Op == CCV::ST_SHARED_IDX ? 3 : -1;
+                   : Op == CCV::ST_SHARED || Op == CCV::ST_SHARED_IDX ? 3
+                   : SzG ? (D.mayLoad() ? 0 : 1)
+                   : SzS ? (D.mayLoad() ? 2 : 3) : -1;
         if (Slot >= 0) ++C.LdSt[Slot];
         // A transfer through the frame pointer is a spill; R15 is reserved
         // (O-30), so nothing else can be addressing through it.

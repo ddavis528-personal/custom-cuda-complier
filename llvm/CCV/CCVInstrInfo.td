@@ -824,6 +824,40 @@ def ST_SHARED_IDX : FormatDidx<0b00111, (outs),
                                (ins GPR:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
                                "st.shared $rdata, [$rbase, $rindex, $scale, $disp]">;
 
+// Sized loads and stores (O-80, DA tab rev 90): the opcode names the transfer,
+// so `rdata` keeps its width (32 in scalar code) and a byte or halfword access
+// needs no `chwidth`, which code that may be diverged cannot have (O-78). Base
+// + index layout at every point; .global shifts the base by 16 as the other
+// .global forms do, .shared does not. Scale-enable scales `rindex` by the
+// transfer size. A load zero- or sign-extends to `rdata`'s width.
+multiclass SizedMem<bits<5> ld8u, bits<5> ld8s, bits<5> ld16u, bits<5> ld16s,
+                    bits<5> st8, bits<5> st16, string sp> {
+  let mayLoad = 1 in {
+  def _LD_U8  : FormatDidx<ld8u, (outs GPR:$rdata),
+                  (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                  "ld."#sp#".u8 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _LD_S8  : FormatDidx<ld8s, (outs GPR:$rdata),
+                  (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                  "ld."#sp#".s8 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _LD_U16 : FormatDidx<ld16u, (outs GPR:$rdata),
+                  (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                  "ld."#sp#".u16 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _LD_S16 : FormatDidx<ld16s, (outs GPR:$rdata),
+                  (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                  "ld."#sp#".s16 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  }
+  let mayStore = 1 in {
+  def _ST_8   : FormatDidx<st8, (outs),
+                  (ins GPR:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                  "st."#sp#".8 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _ST_16  : FormatDidx<st16, (outs),
+                  (ins GPR:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                  "st."#sp#".16 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  }
+}
+defm SZ_GLOBAL : SizedMem<0b10100, 0b10101, 0b10110, 0b10111, 0b11000, 0b11001, "global">;
+defm SZ_SHARED : SizedMem<0b11010, 0b11011, 0b11100, 0b11101, 0b11110, 0b11111, "shared">;
+
 // Predicate transfer (v1.3, O-19). [14:11] is a predicate mask, not rdata.
 let mayLoad = 1 in
 def LD_PRED_G : FormatD<0b01000, (outs), (ins pmask4:$rdata, GPR:$rbase, simm13:$off),
