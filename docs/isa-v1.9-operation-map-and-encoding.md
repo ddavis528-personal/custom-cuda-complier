@@ -189,6 +189,14 @@ diverged, which O-78 forbids to narrow, then has a narrow access. In CoreMark-de
 remove up to 4.9% of the instructions on their own. This is an encoding change: twelve
 reserved points become defined. The span/wide-transfer reserve shrinks to `01110`–`01111`.
 
+### A width change requires a converged warp (O-81; IS-23)
+
+Adopted by DA on 2026-10-24. A `chwidth` or `chwidth.multi` issued while the warp is diverged,
+with its issue mask short of every live lane, raises `F-WIDTH` at dispatch. O-78 already asked
+this of the compiler, and the machine now checks it, so the core and ccv-sim agree even when
+the compiler errs. Narrow work in diverged code uses the sized forms (O-80) or runs at 32 bits.
+A new cause of an existing fault; no encoding changes.
+
 ### Still open
 
 Nothing from IS-2, IS-12 or IS-16 remains open. The SFU bound table is written (O-70).
@@ -1941,6 +1949,8 @@ operand Format K provides.
 
 The single-register `chwidth rd, width` is 8 bits of content and lives in Format K
 (opcode 48); it has no 32-bit encoding. Only the multi-register form needs this format.
+Both forms execute only in a converged warp: an issue mask short of every live lane raises
+`F-WIDTH` (O-81).
 
 **Accepted** (O-6). `chwidth` requires draining in-flight dependents on the affected
 register, and a kernel entering a packed section typically reconfigures several at once.
@@ -2897,8 +2907,11 @@ quantified on one side of it.
    `chwidth` and its use. *(This obligation first bounded the region by the branch's join,
    which O-33 does not make a meeting point. OA's rev 233 found the gap.)* So narrow memory
    access in code that may be diverged has no general form today, since its data register
-   would need a `chwidth` there. IS-23's sized loads and stores are its remedy, and a check in
-   hardware for the rule is DA's question in IS-23.
+   would need a `chwidth` there. Sized loads and stores (O-80) are its form. **The machine
+   enforces the rule (O-81):** a `chwidth` or `chwidth.multi` whose issue mask is not every
+   live lane of the warp raises `F-WIDTH` at dispatch, and nothing of it commits. A live lane
+   is one that has not exited. So no width change can be concurrent with another group, and
+   the compiler's obligation is a precondition the hardware checks, not one it trusts.
 3. **Width mismatches are compiler-correctness problems, not hardware hazards.** They
    produce deterministic results **or a defined fault**, never undefined behavior. Same for FP
    format mismatches. The faults are the two §12 names: `F-WIDTH` and `F-FORMAT`. **The
@@ -3322,6 +3335,23 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-81 — A width change requires a converged warp, checked in hardware — decided in 1.9.**
+IS-23, AR's rev 179, OA's revs 232–233. DA's words: "Yes I agree that we should have this added
+hardware check" (2026-10-24). A register has one width for the warp (O-78), and diverged groups
+issue in an order the ISA leaves free (O-60). So a width change while the warp is diverged
+either races another group or truncates its lanes' values. O-78 made avoiding it a compiler
+obligation, bounded by a convergence the compiler must prove, and CP-42 was such a proof gone
+wrong. Adopted: a `chwidth` or `chwidth.multi` whose issue mask is not every live lane raises
+`F-WIDTH` at dispatch, precisely and independent of predicate, and nothing of a cracked
+`chwidth.multi` commits. Cost (AR's rev 179, OA's rev 232): FET already computes the test for a
+barrier wait (the group is every live lane), and the bit rides an existing mark on the
+instruction, so the check is one AND in OOE's F-WIDTH logic. ccv-sim applies the same test, so
+core and oracle agree by construction. What lost: width changes in diverged code at all. Narrow
+access there uses O-80's sized forms, and narrow arithmetic there runs at 32 bits with explicit
+masking. Width state stays for converged code, the packed inner loops it was made for (O-6).
 
 ---
 
@@ -5146,7 +5176,7 @@ raises an execute-stage fault, whatever its operand values.
 |---|---|---|
 | `F-FETCH` | Fetch | Selected PC outside the kernel's code image, or not 16-bit aligned (including a `ret` to an odd offset, §3 Format E) |
 | `F-ILLEGAL` | Decode | Reserved opcode point; reserved field bit nonzero; reserved value in a defined field; non-canonical encoding |
-| `F-WIDTH` | Dispatch | Memory access (Formats D, D′, M, M′) whose `rdata` is at `chwidth`=4 |
+| `F-WIDTH` | Dispatch | Memory access (Formats D, D′, M, M′) whose `rdata` is at `chwidth`=4; sized access (O-80) whose transfer is wider than `rdata`'s `chwidth`; `chwidth` or `chwidth.multi` whose issue mask is not every live lane of the warp (O-81) |
 | `F-FORMAT` | Dispatch | FP or `cvt` format code reserved at its operand register's `chwidth` |
 | `F-ALIGN` | Execute | A lane's effective address not a multiple of its transfer size (O-58) |
 | `F-ADDR` | Execute | Effective address not mapped, or not permitted for the context |
