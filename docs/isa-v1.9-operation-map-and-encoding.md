@@ -159,6 +159,20 @@ hardware. Format M points 9 (`.global`) and 25 (`.shared`), which were reserved,
 rounds and returning the old value it saw. It replaces a CAS retry loop, saving 54–96% of a
 scatter-add's issue groups. This is an encoding change: two reserved points become defined.
 
+### Invariant 2 states its property, not a mechanism (O-77; OA-16, IS-23)
+
+Invariant 2 promised "no hidden mode state" and then named a drain as how. It now states only
+the property, every instruction sees the width its program-order predecessors set, and leaves the
+drain or a renamed width to the implementation. §12's dispatch stage and its obligation read the
+same way. No encoding or result changes, and the first build still drains.
+
+### Width under divergence is written (O-78; CP-42)
+
+A register's width is one for the warp, so a `chwidth` in one diverged group reaches every
+group's later instructions, in an issue order the ISA leaves free. The compiler now owes a rule:
+inside a divergent region, a register whose width a path changes is private to that path, and
+every path leaves every width as it found it. No encoding or hardware changes.
+
 ### Still open
 
 Nothing from IS-2, IS-12 or IS-16 remains open. The SFU bound table is written (O-70).
@@ -1419,8 +1433,8 @@ ordering rule is below (O-76). Where the operation executes is the implementatio
 with one condition DA set: `add.f32`'s add executes in the existing LANE FP hardware (O-76). *(1.7 and the first cut of 1.8 said "normal ALU execution on the
 buffered old value; existing load buffer and store buffer handle the memory side", which
 named the lane ALU as the site. That site cannot apply a same-address lane chain in one pass,
-and holds the line exclusive across a round trip to the lanes. Struck under AR-21, as
-invariant 2's mechanism clause was under OA-16; the site is AR's and DA's.)*
+and holds the line exclusive across a round trip to the lanes. Struck under AR-21; the site is
+AR's and DA's. Invariant 2's mechanism clause went the same way in O-77.)*
 
 **The address is base + index — normative (O-72).** Every Format M form addresses memory as
 Format D's base + index form does: `(rbase << 16) + (rindex << scale) + disp` for `.global`
@@ -2808,9 +2822,39 @@ quantified on one side of it.
    opcode space, not a width field, and the registers they read are ordinary full-width ones.
    `packi`/`unpacki` take element width from the narrow operand's `chwidth` like everything
    else; their immediate is a slot index, not a width.
-2. **No hidden mode state.** `chwidth` is architecturally committed and non-speculative by
-   the time anything downstream observes it (drain-before-issue), so it needs no rename, no
-   checkpoint, and no special rollback path.
+2. **No hidden mode state.** Width is register state, ordered in program order like any
+   register write. Every instruction observes, for each register it reads or writes, the width
+   set by the latest older `chwidth` in program order, or 32 if there is none. A squashed
+   `chwidth` is never observed. How that order is kept is the implementation's: it may drain
+   in-flight dependents before a width change issues, or rename the width with the register
+   (O-77). *(Through 1.9's first cut this read "committed and non-speculative ...
+   (drain-before-issue), so it needs no rename, no checkpoint, and no special rollback path",
+   a mechanism stated as an invariant.)*
+
+   **Width under divergence — normative (O-78).** A register has one width for the whole
+   warp (invariant 10). A `chwidth` issued by any PC group sets it for every lane, and its
+   narrowing or widening acts on every lane's value, including lanes outside its issue mask
+   (O-38). "Program order" across diverged groups is the order in which the warp issues them,
+   which the ISA does not fix: O-60 promises only that each group progresses. So a program
+   whose diverged paths set a register's width differently has a bounded set of outcomes
+   (invariant 12), one per interleaving, not one result. **The compiler's obligation**, which
+   makes every such program's result independent of the schedule: a register whose width a
+   `chwidth` changes while the warp may be diverged is private to the issuing group's path. It
+   is neither read nor written on any other path, and it is live in no other path's lanes,
+   until the warp is known converged again, and every path, including one that ends in `exit`,
+   leaves every width as it found it. **Where the region ends.** Reconvergence at a branch's
+   join is opportunistic, never guaranteed (O-33), so the join does not end it. It ends only
+   where the compiler can show every live lane is at one PC: kernel entry, or a point where no
+   divergent branch lies on any path since entry or since a barrier all of the warp's lanes
+   wait at. That is the convergence test the compiler already applies for lane-0 masking
+   (§1a.1). In practice the rule is: emit `chwidth` only where the warp is known converged,
+   unless its register is otherwise unused until the warp converges. Inserting a width change
+   before each use is not enough, because another group may issue between a group's
+   `chwidth` and its use. *(This obligation first bounded the region by the branch's join,
+   which O-33 does not make a meeting point. OA's rev 233 found the gap.)* So narrow memory
+   access in code that may be diverged has no general form today, since its data register
+   would need a `chwidth` there. IS-23's sized loads and stores are its remedy, and a check in
+   hardware for the rule is DA's question in IS-23.
 3. **Width mismatches are compiler-correctness problems, not hardware hazards.** They
    produce deterministic results **or a defined fault**, never undefined behavior. Same for FP
    format mismatches. The faults are the two §12 names: `F-WIDTH` and `F-FORMAT`. **The
@@ -3233,6 +3277,44 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-78 — Width under divergence: one per register for the warp, and a compiler obligation —
+decided in 1.9.** CP-42. CP found it building an opt-in mode that does 16-bit logic at 32 bits. In
+check-fp4's `to_e4m3_nosat`, lanes 0–26 narrowed `r1` to 8 bits in an exit block and exited.
+Lanes 27–28 then branched into that block, and its `shr`, placed at 32, ran at 8: 68 of 1,854
+inputs came out wrong. The compiler's width dataflow follows CFG edges, while a diverged warp
+runs its groups interleaved. CP asked whether a `chwidth` in one group sets the width a waiting
+group observes. Ruled yes. Invariant 10 already makes width register-wide, and ccv-sim keeps one
+width per register a warp. But the ISA fixes no issue order between groups (O-60), so a width
+that differs across concurrently diverged paths makes the result depend on the schedule. That
+is legal under invariant 12 and useless in practice, and it breaks the oracle, since ccv-sim's
+lowest-PC-first order is one schedule among many. Adopted: the semantics stated in invariant 2,
+and a normative compiler obligation that removes the dependence. A register whose width a path
+of a divergent region changes is private to that path, and every path leaves every width as it
+found it. CP's remedy (a), treating the region's blocks as mutually reachable, is not
+sufficient on its own, since a group may be interleaved between its own `chwidth` and the use;
+the obligation is CP's (c), made exact. What lost: (b), a width per PC group, or a restore at
+reconvergence. Either would be per-group register state in rename and the register file, which
+O-60's per-lane PCs do not carry, for code the compiler can keep out of divergent regions. No
+encoding changes.
+
+---
+
+**O-77 — Invariant 2 states its property; the drain is the implementation's — decided in 1.9.**
+OA-16 (2026-10-09), IS-23, OA's rev 229. Invariant 2's title, no hidden mode state, is a
+property: width is visible per-register state that every instruction sees in program order. Its
+body went on to name the mechanism, a drain before issue and so no rename or checkpoint. IS's
+OA-16 response said so on 2026-10-09 and recommended striking the clause, but the change was
+never applied, while Format M's AR-21 note claimed it had been. TI-45 made it live again:
+CoreMark-derived is 13.8% `chwidth`, and OA's renamed width (OA-16) satisfies the property with
+no drain. Adopted: the invariant states the property, and §12.2's dispatch stage and §12.9's
+obligation read the width as program order sets it, committed or renamed. A fault is still taken
+at retire in order, so precision is unchanged. This decides nothing about the hold. Whether OOE
+renames widths is OA-16, deferred to the perf register and DA's to bring forward on AR-24's
+figure (IS-23). What lost: the clause's guarantee to an implementer that width never needs a
+checkpoint, which bound every OOE design to a drain per width change.
 
 ---
 
@@ -4950,12 +5032,13 @@ deterministic result wherever that result is safe and forecloses nothing.
 |---|---|---|---|
 | **Fetch** | The selected PC | Lanes at that PC (the issue mask) | No — nothing is decoded yet |
 | **Decode** | Encoding bits alone | Whole instruction | No |
-| **Dispatch** | Encoding plus committed register state | Whole instruction | **No** |
+| **Dispatch** | Encoding plus register state in program order (invariant 2) | Whole instruction | **No** |
 | **Execute** | Per-lane operand values | **Per lane** | **Yes** — issue mask ∩ predicate |
 
 **Dispatch-stage faults are predicate-independent** because the predicate is a renamed source
-operand whose value arrives at execute, while `chwidth` is committed before anything downstream
-observes it (invariant 2). Dispatch checks exactly the state available there.
+operand whose value arrives at execute, while each register's width is exact in program order
+before the instruction issues (invariant 2), whether it is committed or renamed. Dispatch checks
+exactly the state available there.
 
 **Execute-stage faults are raised only for lanes in issue mask ∩ predicate.** This is the rule
 most likely to be implemented wrong and the one with the largest blast radius. Predication is
@@ -5090,8 +5173,9 @@ order of fault detection across SMs, which the hardware does not have.
 
 - **Every reserved field is checked at decode.** Every reserved bit is a comparator input to the
   `F-ILLEGAL` condition, which is a real decoder cost.
-- **The dispatch checks read `chwidth` from committed state.** No new state; invariant 2 makes it
-  available and non-speculative.
+- **The dispatch checks read each register's width as program order sets it**: from committed
+  state where width changes drain, or from the renamed width where they do not. Invariant 2
+  makes it exact either way, and a fault is taken at retire in order, so it stays precise.
 - **The execute checks receive the predicate and issue mask**, which already reach the lanes'
   gating logic.
 - **The memory pipe's fault path is shared** by `F-ALIGN`, `F-ADDR`, `F-SHARED` and `F-RO`; it
