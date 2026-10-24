@@ -858,6 +858,40 @@ multiclass SizedMem<bits<5> ld8u, bits<5> ld8s, bits<5> ld16u, bits<5> ld16s,
 defm SZ_GLOBAL : SizedMem<0b10100, 0b10101, 0b10110, 0b10111, 0b11000, 0b11001, "global">;
 defm SZ_SHARED : SizedMem<0b11010, 0b11011, 0b11100, 0b11101, 0b11110, 0b11111, "shared">;
 
+// F-200: the same forms with a 16-bit rdata, for a narrow kernel, whose 16-bit
+// integers live in R8-R13 at width 16. O-80 extends a load to rdata's width,
+// so a halfword or byte loads straight into the narrow register, with no move
+// between the partitions. Encoded identically, so isCodeGenOnly, as the W16
+// twins are.
+multiclass SizedMem16<bits<5> ld8u, bits<5> ld8s, bits<5> ld16u, bits<5> ld16s,
+                      bits<5> st8, bits<5> st16, string sp> {
+  let isCodeGenOnly = 1 in {
+  let mayLoad = 1 in {
+  def _LD_U8_R16  : FormatDidx<ld8u, (outs GPR16:$rdata),
+                      (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                      "ld."#sp#".u8 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _LD_S8_R16  : FormatDidx<ld8s, (outs GPR16:$rdata),
+                      (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                      "ld."#sp#".s8 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _LD_U16_R16 : FormatDidx<ld16u, (outs GPR16:$rdata),
+                      (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                      "ld."#sp#".u16 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _LD_S16_R16 : FormatDidx<ld16s, (outs GPR16:$rdata),
+                      (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                      "ld."#sp#".s16 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  }
+  let mayStore = 1 in {
+  def _ST_8_R16   : FormatDidx<st8, (outs),
+                      (ins GPR16:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                      "st."#sp#".8 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _ST_16_R16  : FormatDidx<st16, (outs),
+                      (ins GPR16:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                      "st."#sp#".16 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  }
+  }
+}
+defm SZ_GLOBAL : SizedMem16<0b10100, 0b10101, 0b10110, 0b10111, 0b11000, 0b11001, "global">;
+
 // Predicate transfer (v1.3, O-19). [14:11] is a predicate mask, not rdata.
 let mayLoad = 1 in
 def LD_PRED_G : FormatD<0b01000, (outs), (ins pmask4:$rdata, GPR:$rbase, simm13:$off),

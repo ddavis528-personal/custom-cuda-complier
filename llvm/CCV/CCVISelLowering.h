@@ -34,6 +34,14 @@ class CCVTargetLowering : public TargetLowering {
 public:
   explicit CCVTargetLowering(const TargetMachine &TM, const CCVSubtarget &STI);
 
+private:
+  /// i16 a legal type at width 16: a narrow kernel's subtarget (F-200),
+  /// or -ccv-test-i16-legal everywhere. Otherwise 16-bit integers run at 32
+  /// bits (F-199).
+  bool I16Legal;
+
+public:
+
   /// A compare writes a predicate, and a predicate is one bit per lane at every
   /// chwidth (invariant 5). The default here is a pointer-sized integer, which
   /// on a 64-bit pointer target means setcc produces an i64 that then has to be

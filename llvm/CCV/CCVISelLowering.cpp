@@ -49,13 +49,13 @@ static cl::opt<bool> TestWideLoadSext(
 
 CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
                                      const CCVSubtarget &STI)
-    : TargetLowering(TM) {
+    : TargetLowering(TM), I16Legal(TestI16Legal || STI.narrowInt()) {
   addRegisterClass(MVT::i32, &CCV::GPRRegClass);
   // §1: element width is per-register state, so the SAME sixteen registers
   // hold 16-bit elements. There is no separate class -- the width is a
   // property of the value, carried to the post-RA chwidth pass in TSFlags
   // (F-3). i8 and i4 are not legal yet; i4 has no MVT at all.
-  if (TestI16Legal)
+  if (I16Legal)
     addRegisterClass(MVT::i16, &CCV::GPR16RegClass);
   addRegisterClass(MVT::f32, &CCV::GPRRegClass);
   // A predicate is its own namespace with its own RAT (invariant 5), so i1
@@ -1117,7 +1117,7 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     }
     // With i16 not a legal type (F-199), a halfword load is handled
     // as a byte load is: its value lands in a 32-bit register.
-    const bool Byte = MemVT == MVT::i8 || (MemVT == MVT::i16 && !TestI16Legal);
+    const bool Byte = MemVT == MVT::i8 || (MemVT == MVT::i16 && !I16Legal);
     if (Byte ? !(VT == MVT::i8 || VT == MVT::i16 || VT == MVT::i32)
              : Ext != ISD::NON_EXTLOAD && (MemVT != MVT::i16 || VT != MVT::i32))
       return SDValue();
@@ -1132,7 +1132,11 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
                                  : Ext == ISD::NON_EXTLOAD ? VT
                                                            : MVT::i16,
                                  MVT::Other);
-    SDVTList SizedVTs = DAG.getVTList(MVT::i32, MVT::Other);
+    // F-200: in a narrow kernel an i16 value loads straight into a 16-bit
+    // register, extended to its width (O-80), with no move between the
+    // partitions.
+    const bool Into16 = I16Legal && VT == MVT::i16;
+    SDVTList SizedVTs = DAG.getVTList(Into16 ? MVT::i16 : MVT::i32, MVT::Other);
     auto SizedLoad = [&](SDValue Base, SDValue Idx, bool Scale, int64_t Disp) {
       SDValue Ops[] = {LD->getChain(), Base, Idx,
                        DAG.getTargetConstant(Scale, DL, MVT::i32),
@@ -1200,7 +1204,11 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     // value and leave the chain hanging off the dead original, which shows up
     // later as an unexpandable i64 rather than as anything recognisable.
     SDValue V = New.getValue(0);
-    if (IsSized) {
+    if (IsSized && Into16) {
+      if (MemVT == MVT::i8)
+        V = DAG.getNode(Signed ? ISD::AssertSext : ISD::AssertZext, DL,
+                        MVT::i16, V, DAG.getValueType(MemVT));
+    } else if (IsSized) {
       // Extended by the opcode, which the combiner may rely on.
       V = DAG.getNode(Signed ? ISD::AssertSext : ISD::AssertZext, DL, MVT::i32,
                       V, DAG.getValueType(MemVT));
@@ -1251,7 +1259,9 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
                                          (ST->isTruncatingStore() ||
                                           Val.getValueType() == MVT::i16)));
     if (Sized) {
-      SDValue V32 = Val.getValueType() == MVT::i32
+      // F-200: a narrow kernel stores an i16 straight from its 16-bit register.
+      SDValue V32 = Val.getValueType() == MVT::i32 ||
+                            (I16Legal && Val.getValueType() == MVT::i16)
                         ? Val
                         : DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i32, Val);
       auto SizedStore = [&](SDValue Base, SDValue Idx, bool Scale,
@@ -1284,7 +1294,7 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
       }
     }
     if (ST->getMemoryVT() == MVT::i8 ||
-        (ST->getMemoryVT() == MVT::i16 && !TestI16Legal)) {
+        (ST->getMemoryVT() == MVT::i16 && !I16Legal)) {
       if (Val.getValueType() != MVT::i32)
         Val = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i32, Val);
     } else if (ST->isTruncatingStore()) {
@@ -1342,7 +1352,7 @@ CCVTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
   if (Constraint.size() == 1 && (Constraint[0] == 'r' || Constraint[0] == 'f'))
     return {0U, &CCV::GPRRegClass};
   if (Constraint.size() == 1 && Constraint[0] == 'h')
-    return {0U, TestI16Legal ? &CCV::GPR16RegClass : &CCV::GPRRegClass};
+    return {0U, I16Legal ? &CCV::GPR16RegClass : &CCV::GPRRegClass};
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
 

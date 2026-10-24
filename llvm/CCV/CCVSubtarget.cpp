@@ -10,6 +10,7 @@ using namespace llvm;
 void CCVSubtarget::anchor() {}
 
 CCVSubtarget::CCVSubtarget(const Triple &TT, StringRef CPU, StringRef FS,
-                           const TargetMachine &TM)
-    : CCVGenSubtargetInfo(TT, CPU, /*TuneCPU=*/CPU, FS), InstrInfo(),
+                           const TargetMachine &TM, unsigned NarrowRegs)
+    : CCVGenSubtargetInfo(TT, CPU, /*TuneCPU=*/CPU, FS), NarrowRegs(NarrowRegs),
+      InstrInfo(),
       FrameLowering(), TLInfo(TM, *this) {}

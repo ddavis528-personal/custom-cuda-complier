@@ -17,12 +17,12 @@ mv "$OUT/x-clang.ll" "$OUT/2-clang.ll"; mv "$OUT/x-lowered.ll" "$OUT/3-lowered.l
 # §8's narrow-width case. Both widths of the same loop kernel, so the section
 # can put them side by side, plus the chwidth pass's own account of where it
 # put the mode switches and why.
-# Default scalar code changes no width (F-199: sized accesses, 16-bit integers
-# at 32 bits), so §8 shows it once and then shows the mode-switch machinery in
-# the configuration that still uses it for integers.
+# Default scalar code changes no width past the entry (F-199, F-200), so §8
+# shows it once and then shows the mode-switch machinery in the configuration
+# that still places width changes anywhere.
 CCV_CFLAGS=-DCCV_ALIGNED ./tools/cuda-to-asm.sh test/bench/vadd16_loop.cu \
     "$OUT/8-narrow-asm-sized.s" "$OUT/s" >/dev/null
-LEGACY="-ccv-test-i16-legal -ccv-test-no-sized"
+LEGACY="-ccv-test-i16-legal -ccv-test-no-sized -ccv-no-narrow-kernels"
 CCV_LLCFLAGS="$LEGACY" CCV_CFLAGS=-DCCV_ALIGNED ./tools/cuda-to-asm.sh test/bench/vadd16_loop.cu \
     "$OUT/8-narrow-asm.s" "$OUT/n" >/dev/null
 CCV_CFLAGS=-DCCV_ALIGNED ./tools/cuda-to-asm.sh test/bench/vadd_loop.cu \
