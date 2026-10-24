@@ -7,6 +7,7 @@
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
+#include "llvm/Support/KnownBits.h"
 #include "llvm/Support/Debug.h"
 
 using namespace llvm;
@@ -133,6 +134,21 @@ static unsigned atWidth(unsigned Opc, EVT MemVT) {
     return Opc;
   }
 }
+
+// Mutation control for tools/check-coremark-derived.sh: a truncation selected
+// as the COPY it was before F-195, which the coalescer can merge with a live
+// source, so F-169's control still has the shape it guards against.
+static cl::opt<bool> TestTruncAsCopy(
+    "ccv-test-trunc-as-copy", cl::init(false), cl::Hidden,
+    cl::desc("select trunc i32 -> i16 as a register-class copy, as before "
+             "F-195"));
+
+// Measurement control for F-195: a truncation narrows whatever its source's
+// known bits say.
+static cl::opt<bool> TestTruncIgnoreKnown(
+    "ccv-test-trunc-ignore-known", cl::init(false), cl::Hidden,
+    cl::desc("narrow a truncation even when its source is known zero-extended, "
+             "to measure what the known bits save"));
 
 /// O-72's RMW point for an operation, in §3's order (add, min.s, min.u, max.s,
 /// max.u, and, or, xor, exch, add.f32), and an address space.
@@ -427,6 +443,28 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     return;
   }
   case ISD::TRUNCATE: {
+    // trunc i32 -> i16 (F-195): the narrowing is needed only if the source's
+    // high bits may be set, which a 32-bit reader of the i16 would otherwise
+    // see. A source known zero-extended needs none.
+    if (N->getValueType(0) == MVT::i16 &&
+        N->getOperand(0).getValueType() == MVT::i32 && TestTruncAsCopy) {
+      ReplaceNode(N, CurDAG->getMachineNode(
+                         TargetOpcode::COPY_TO_REGCLASS, DL, MVT::i16,
+                         N->getOperand(0),
+                         CurDAG->getTargetConstant(CCV::GPR16RegClassID, DL,
+                                                   MVT::i32)));
+      return;
+    }
+    if (N->getValueType(0) == MVT::i16 &&
+        N->getOperand(0).getValueType() == MVT::i32) {
+      KnownBits K = CurDAG->computeKnownBits(N->getOperand(0));
+      bool Clear = !TestTruncIgnoreKnown && K.countMinLeadingZeros() >= 16;
+      ReplaceNode(N, CurDAG->getMachineNode(
+                         CCV::PSEUDO_TRUNC16, DL, MVT::i16,
+                         {N->getOperand(0),
+                          CurDAG->getTargetConstant(Clear ? 0 : 1, DL, MVT::i32)}));
+      return;
+    }
     // The low bit as a predicate. The combiner makes `(x & 1) == 0`, which a
     // select between two function pointers produced (F-21 step 5), into a
     // truncate to i1; it is (x & 1) != 0, an `andi` and an immediate compare.

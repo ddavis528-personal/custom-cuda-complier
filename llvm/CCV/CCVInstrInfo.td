@@ -1105,10 +1105,22 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
   // branch folder invert a condition rather than adding an instruction.
   // A narrow use's own copy of a value also read wider (F-169), made before
   // allocation by CCVNarrowUses. Not a COPY, so nothing folds it back into its
-  // source; CCVInsertChwidth makes it a move, or nothing when both landed in
-  // one register.
-  def PSEUDO_NARROW : CCVInst<0, (outs GPR:$rd), (ins GPR:$rs),
-                              "# narrow $rd, $rs">;
+  // source; CCVInsertChwidth makes it a move, if the two did not land in one
+  // register, and then, if $w is not 0, narrows $rd to width code $w
+  // (F-195): where the narrow value is read at 32 bits, which counts on a
+  // widening to clear the high bits (O-38), the register must be narrow.
+  def PSEUDO_NARROW : CCVInst<0, (outs GPR:$rd), (ins GPR:$rs, i32imm:$w),
+                              "# narrow $rd, $rs, $w">;
+
+  // `trunc i32 -> i16` (F-195). It was a COPY, and LLVM's copy folding takes a
+  // COPY into GPR16 and back out as the original value, so a 16-bit shift
+  // done through the 32-bit instruction read the i32's high bits. A pseudo
+  // nothing folds, expanded with PSEUDO_NARROW: a move if needed, then, when
+  // $narrow is 1, the narrowing chwidth that makes the high bits not part of
+  // the value. CCVNarrowUses clears $narrow where nothing reads the value at
+  // 32 bits through a widening copy, the only reader that sees those bits.
+  def PSEUDO_TRUNC16 : CCVInst<0, (outs GPR16:$rd), (ins GPR:$rs, i32imm:$narrow),
+                               "# trunc16 $rd, $rs, $narrow">;
 
   // O-33's broadcast. Tied because the shuffle is in-place: lanes 1-31 read
   // lane 0's copy of the SAME register, and lane 0 keeps its own value because

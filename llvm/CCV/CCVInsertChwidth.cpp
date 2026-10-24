@@ -93,7 +93,14 @@ static cl::opt<bool> ReportChwidth(
 // Mutation control for tools/check-bytes.sh: the dataflow models only
 // definitions, as before F-164, so a use that widened a register is invisible
 // to its successors.
-// Mutation control for tools/check-chwidth-noop.sh: condition 1 of the edge
+// Mutation control for tools/check-narrow-trunc.sh: a truncation's register
+// left at its source's width, as before F-195.
+static cl::opt<bool> TestNarrowNoWidth(
+    "ccv-test-trunc-no-narrow", cl::init(false), cl::Hidden,
+    cl::desc("leave a truncated value's register wide, to test that a 32-bit "
+             "read of it is caught seeing the high bits"));
+
+// Mutation control for tools/check-coremark-derived.sh: condition 1 of the edge
 // placement as it was before TI-45, any predecessor reachable from the block.
 static cl::opt<bool> TestReachBackEdge(
     "ccv-test-chwidth-reach-back-edge", cl::init(false), cl::Hidden,
@@ -266,15 +273,24 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
   const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
 
   // CCVNarrowUses' copies (F-169): a move, or nothing where the allocator put
-  // both values in one register. First, so every step sees the real move.
+  // both values in one register, then the narrowing itself (F-195). First, so
+  // every step sees the real move and the register's real width.
   for (MachineBasicBlock &MBB : MF)
     for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
-      if (MI.getOpcode() != CCV::PSEUDO_NARROW)
+      const bool Trunc = MI.getOpcode() == CCV::PSEUDO_TRUNC16;
+      if (MI.getOpcode() != CCV::PSEUDO_NARROW && !Trunc)
         continue;
       Register D = MI.getOperand(0).getReg(), S = MI.getOperand(1).getReg();
       if (D != S)
         TII->copyPhysReg(MBB, MI, MI.getDebugLoc(), D, S,
                          MI.getOperand(1).isKill());
+      // The width to narrow to, or 0 where CCVNarrowUses found no 32-bit
+      // read of the value and so no high bits to clear.
+      int64_t W = MI.getOperand(2).getImm();
+      if (!TestNarrowNoWidth && W)
+        BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(CCV::C_CHWIDTH))
+            .addReg(D)
+            .addImm(Trunc ? 1 : W);
       MI.eraseFromParent();
     }
   bool Changed = false;
@@ -542,6 +558,15 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
     ++Blocks;
 
     for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
+
+      // An explicit `chwidth` already here (a truncation's, F-195, or step
+      // 1b's on an edge) sets the state, as it does in the dataflow.
+      if (MI.getOpcode() == CCV::C_CHWIDTH) {
+        unsigned I = gprIndex(MI.getOperand(0).getReg());
+        if (I != ~0u)
+          S[I] = uint8_t(MI.getOperand(1).getImm());
+        continue;
+      }
 
       // F-21: widen everything still narrow, or of unknown width, before a
       // call or a device function's return. Widening a live register is a

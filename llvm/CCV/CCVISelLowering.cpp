@@ -23,6 +23,13 @@ static constexpr unsigned AS_CONST  = 4;
 
 #include "CCVGenCallingConv.inc"
 
+// Measurement control for TI-45: i16 and/or/xor selected at width 16, as
+// before, with the narrowing and widening around them.
+static cl::opt<bool> TestNarrowLogic(
+    "ccv-test-narrow-logic", cl::init(false), cl::Hidden,
+    cl::desc("select 16-bit and, or and xor at width 16, to measure what doing "
+             "them at 32 removes"));
+
 // Mutation control for tools/check-int64.sh: sign-extend every load widened
 // to 64 bits, whatever its extension.
 static cl::opt<bool> TestWideLoadSext(
@@ -121,6 +128,18 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   // reached an i16 multiply nothing selects (F-161).
   // Shifts are not here: LegalizeDAG does not promote them, so they have
   // patterns that do the same through the 32-bit instructions.
+  //
+  // And, or and xor too (TI-45), although they have 16-bit forms. Done at
+  // 16 they cost a narrowing before and a widening after, and need no width:
+  // the low 16 bits of the result depend only on the operands' low 16.
+  // CoreMark's CRC-16 narrowed 19,877 values a thread for nothing else. The
+  // promotion any-extends, so the i32 may carry high bits; the truncation
+  // back clears them wherever a 32-bit read would see them (F-195).
+  if (!TestNarrowLogic)
+    for (unsigned Op : {ISD::AND, ISD::OR, ISD::XOR}) {
+      setOperationAction(Op, MVT::i16, Promote);
+      AddPromotedToType(Op, MVT::i16, MVT::i32);
+    }
   for (unsigned Op : {ISD::MUL, ISD::MULHS, ISD::MULHU,
                       ISD::SDIV, ISD::UDIV, ISD::SREM, ISD::UREM,
                       ISD::UMIN, ISD::UMAX, ISD::ABS, ISD::CTPOP, ISD::CTLZ,
