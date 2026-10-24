@@ -7,213 +7,192 @@ _Z5bytesPKaPKhPhPiPKsPs:
 	ld.global r15, [r15 + 24]
 	srd r14, 2
 	add r15, r14
-	movi r6, 2
-	ld.global r1, [r6 + 36]
+	movi r14, 0
 	srd r0, 0
+	mul.lo r1, r0, 3
+	movi r3, 2
+	ld.global r2, [r3 + 76]
+	st.local r2, [32]
+	ld.global r2, [r3 + 72]
+	st.local r2, [28]
+	ld.global r2, [r3 + 68]
+	st.local r2, [16]
+	ld.global r2, [r3 + 64]
+	st.local r2, [12]
+	ld.global r9, [r3 + 52]
+	ld.global r7, [r3 + 48]
+	ld.global r11, [r3 + 44]
+	ld.global r12, [r3 + 40]
 	add r2, r0, 3
-	and r2, 15
-	add r2, r1, r2
-	and r3, r0, 15
-	add r3, r1, r3
-	add r4, r0, 2
-	and r4, 15
-	add r5, r0, 1
-	and r5, 15
-	add r5, r1, r5
-	add r4, r1, r4
-	chwidth r1, 2
-	movi r7, 0
-	mul.lo r8, r0, 3
-	ld.global r1, [#0, r3, 0, 0]
-	chwidth r3, 2
-	chwidth r1, 0
-	shl r1, r1, 24
-	sra r1, r1, 24
-	ld.global r3, [#0, r2, 0, 0]
-	chwidth r3, 0
-	shl r2, r3, 24
-	chwidth r3, 2
-	sra r2, r2, 24
-	ld.global r3, [#0, r4, 0, 0]
-	chwidth r4, 2
-	chwidth r3, 0
-	shl r3, r3, 24
-	sra r3, r3, 24
-	ld.global r4, [#0, r5, 0, 0]
-	chwidth r4, 0
-	shl r4, r4, 24
-	sra r4, r4, 24
-	movi r9, 128
-	movi r5, 0
+	and r4, r2, 15
+	add r2, r0, 2
+	and r5, r2, 15
+	add r2, r0, 1
+	and r6, r2, 15
+	ld.global r2, [r3 + 36]
+	add r10, r2, r6
+	add r5, r2, r5
+	add r4, r2, r4
+	and r6, r0, 15
+	add r6, r2, r6
+	ld.global r3, [r3 + 32]
+	ld.global.s8 r8, [r3, r6, 0, 0]
+	ld.global.s8 r4, [r3, r4, 0, 0]
+	st.local r4, [20]
+	ld.global.s8 r4, [r3, r5, 0, 0]
+	st.local r4, [24]
+	ld.global.s8 r10, [r3, r10, 0, 0]
+	movi r4, 128
+	movi r13, 0
 LBB0_1:
-	add r10, r8, r7
-	and r10, 15
-	ld.global r11, [r6 + 36]
-	add r10, r11, r10
-	chwidth r11, 2
-	ld.global r11, [#0, r10, 0, 0]
-	chwidth r11, 0
-	xor r5, r11
-	and r10, r5, 128
-	setp.eq p0, r10, 0
+	add r5, r1, r14
+	and r5, 15
+	add r5, r2, r5
+	ld.global.u8 r5, [r3, r5, 0, 0]
+	xor r5, r13, r5
+	and r13, r5, 128
+	setp.eq p0, r13, 0
 	shl r5, 1
 	and r5, r5, 254
-	xor r10, r5, 7
-	@p0 mov r10, r5
-	setp.lt.u p0, r10, r9
-	shl r10, 1
-	and r5, r10, 254
-	xor r10, r5, 7
-	@p0 mov r10, r5
-	setp.lt.u p0, r10, r9
-	shl r10, 1
-	and r5, r10, 254
-	xor r10, r5, 7
-	@p0 mov r10, r5
-	setp.lt.u p0, r10, r9
-	shl r10, 1
-	and r5, r10, 254
-	xor r10, r5, 7
-	@p0 mov r10, r5
-	setp.lt.u p0, r10, r9
-	shl r10, 1
-	and r5, r10, 254
-	xor r10, r5, 7
-	@p0 mov r10, r5
-	setp.lt.u p0, r10, r9
-	shl r10, 1
-	and r5, r10, 254
-	xor r10, r5, 7
-	@p0 mov r10, r5
-	setp.lt.u p0, r10, r9
-	shl r10, 1
-	and r5, r10, 254
-	xor r10, r5, 7
-	@p0 mov r10, r5
-	setp.lt.u p0, r10, r9
-	shl r10, 1
-	and r10, r10, 254
-	xor r5, r10, 7
-	@p0 mov r5, r10
-	add r7, 1
-	setp.eq p0, r7, 4
+	xor r13, r5, 7
+	@p0 mov r13, r5
+	setp.lt.u p0, r13, r4
+	shl r13, 1
+	and r5, r13, 254
+	xor r13, r5, 7
+	@p0 mov r13, r5
+	setp.lt.u p0, r13, r4
+	shl r13, 1
+	and r5, r13, 254
+	xor r13, r5, 7
+	@p0 mov r13, r5
+	setp.lt.u p0, r13, r4
+	shl r13, 1
+	and r5, r13, 254
+	xor r13, r5, 7
+	@p0 mov r13, r5
+	setp.lt.u p0, r13, r4
+	shl r13, 1
+	and r5, r13, 254
+	xor r13, r5, 7
+	@p0 mov r13, r5
+	setp.lt.u p0, r13, r4
+	shl r13, 1
+	and r5, r13, 254
+	xor r13, r5, 7
+	@p0 mov r13, r5
+	setp.lt.u p0, r13, r4
+	shl r13, 1
+	and r5, r13, 254
+	xor r13, r5, 7
+	@p0 mov r13, r5
+	setp.lt.u p0, r13, r4
+	shl r13, 1
+	and r5, r13, 254
+	xor r13, r5, 7
+	@p0 mov r13, r5
+	add r14, 1
+	setp.eq p0, r14, 4
 	@!p0 bra LBB0_1
-	movi r6, 0
-	and r7, r0, 3
-	movi r8, 2
+	movi r1, 0
+	and r2, r0, 3
+	movi r3, 65520
 LBB0_3:
-	chwidth r10, 0
-	add r10, r7, r6
-	ld.global r9, [r8 + 44]
-	add r11, r9, r10
-	chwidth r9, 2
-	ld.global r9, [#1, r11, 0, 0]
-	chwidth r9, 0
-	setp.eq p0, r9, 0
+	add r4, r2, r1
+	add r5, r11, r4
+	ld.global.u8 r5, [r12, r5, 0, 0]
+	setp.eq p0, r5, 0
 	@p0 bra LBB0_4
-	chwidth r9, 2
-	st.global r9, [r15, r6, 0, -16]
-	chwidth r9, 0
-	ld.global r9, [r8 + 44]
-	add r11, r10, r9
-	add r9, r6, 1
-	add r12, r11, 1
-	chwidth r11, 2
-	ld.global r11, [#1, r12, 0, 0]
-	chwidth r11, 0
-	setp.eq p0, r11, 0
+	add r14, r3, r1
+	add r6, r15, -1
+	st.global.8 r5, [r6, r14, 0, 0]
+	add r14, r4, r11
+	add r4, r14, 1
+	ld.global.u8 r5, [r12, r4, 0, 0]
+	add r4, r1, 1
+	setp.eq p0, r5, 0
 	@p0 bra LBB0_9
-	chwidth r11, 2
-	st.global r11, [r15, r9, 0, -16]
-	chwidth r11, 0
-	ld.global r9, [r8 + 44]
-	add r10, r9
-	add r9, r6, 2
-	add r11, r10, 2
-	chwidth r10, 2
-	ld.global r10, [#1, r11, 0, 0]
-	chwidth r10, 0
-	setp.eq p0, r10, 0
+	add r4, r3, r4
+	add r6, r15, -1
+	st.global.8 r5, [r6, r4, 0, 0]
+	add r4, r14, 2
+	ld.global.u8 r5, [r12, r4, 0, 0]
+	add r4, r1, 2
+	setp.eq p0, r5, 0
 	@p0 bra LBB0_9
-	chwidth r10, 2
-	st.global r10, [r15, r9, 0, -16]
-	add r6, 3
-	setp.eq p0, r6, 15
+	add r4, r3, r4
+	add r6, r15, -1
+	st.global.8 r5, [r6, r4, 0, 0]
+	add r1, 3
+	setp.eq p0, r1, 15
 	@!p0 bra LBB0_3
-	movi r9, 15
+	movi r4, 15
 	bra.short LBB0_9
 LBB0_4:
-	mov r9, r6
+	mov r4, r1
 LBB0_9:
-	movi r6, 0
-	chwidth r6, 2
-	st.global r6, [r15, r9, 0, -16]
-	chwidth r6, 0
-	f48 r8, 4294967294
-	f48 r6, 4294966296
+	movi r3, 65520
+	add r1, r3, r4
+	add r2, r15, -1
+	movi r4, 0
+	st.global.8 r4, [r2, r1, 0, 0]
+	f48 r2, 4294967294
+	f48 r1, 4294966296
+	add r5, r15, -1
 LBB0_10:
-	chwidth r10, 0
-	chwidth r9, 2
-	add r6, r6, 1000
-	add r7, r8, 1
-	add r8, 2
-	ld.global r9, [r15, r8, 0, -16]
-	chwidth r9, 0
-	setp.ne p0, r9, 0
-	mov r8, r7
+	add r4, r2, r3
+	add r4, 2
+	ld.global.u8 r4, [r5, r4, 0, 0]
+	add r1, r1, 1000
+	add r2, 1
+	setp.ne p0, r4, 0
 	@p0 bra LBB0_10
-	movi r8, 2
-	ld.global r9, [r8 + 52]
-	add r9, r0
-	mul.lo r10, r0, 7
-	chwidth r10, 1
-	add r10, r10, 1
-	chwidth r10, 2
-	st.global r10, [#2, r9, 0, 0]
-	chwidth r10, 0
-	ld.global r10, [r8 + 68]
-	mov r9, r0
-	shl r9, 1
-	add r11, r10, r9
-	chwidth r10, 1
-	mov r14, r0
-	ld.global r10, [#4, r11, 0, 0]
-	chwidth r10, 0
-	setp.eq p0, r10, 0
+	add r3, r9, r0
+	mul.lo r4, r0, 7
+	add r4, 1
+	st.global.8 r4, [r7, r3, 0, 0]
+	mov r3, r0
+	shl r3, 1
+	ld.local r4, [16]
+	add r4, r3
+	ld.local r5, [12]
+	ld.global.u16 r4, [r5, r4, 0, 0]
+	setp.eq p0, r4, 0
 	@p0 bra LBB0_13
-	chwidth r10, 1
-	ld.global r11, [r8 + 76]
-	add r9, r11, r9
-	st.global r10, [#5, r9, 0, 0]
+	ld.local r5, [32]
+	add r3, r5, r3
+	ld.local r5, [28]
+	st.global.16 r4, [r5, r3, 0, 0]
 LBB0_13:
-	chwidth r14, 1
-	add r14, r14, -56
-	chwidth r14, 2
-	st.shared r14, [r0 + 0]
-	add r1, r4
-	add r1, r3
-	add r1, r2
-	movi r2, 31
-	sub r2, r0
+	add r3, r0, -56
+	movi r4, 0
+	st.shared.8 r3, [r0, r4, 0, 0]
+	add r3, r8, r10
+	movi r5, 31
+	sub r5, r0
 	bar.arrive 0
 	bar.wait 0
+	ld.shared.u8 r4, [r5, r4, 0, 0]
+	ld.local r5, [24]
+	add r3, r5
+	ld.local r5, [20]
+	add r3, r5
 	shl r0, 4
-	ld.global r3, [r8 + 60]
-	add r0, r3, r0
-	chwidth r3, 2
-	ld.shared r3, [r2 + 0]
-	chwidth r3, 0
-	st.global r1, [#3, r0, 0, 0]
-	add r1, r0, 4
-	st.global r5, [#3, r1, 0, 0]
-	chwidth r1, 2
-	ld.global r1, [r15, r7, 0, -16]
-	chwidth r1, 0
-	add r1, r6
+	movi r5, 2
+	ld.global r5, [r5 + 60]
+	add r0, r5, r0
+	st.global r3, [#3, r0, 0, 0]
+	add r3, r0, 4
+	st.global r13, [#3, r3, 0, 0]
+	movi r3, 65520
+	add r2, r3, r2
+	add r3, r15, -1
+	ld.global.u8 r2, [r3, r2, 0, 0]
+	add r1, r2, r1
 	add r2, r0, 8
 	st.global r1, [#3, r2, 0, 0]
 	add r0, 12
-	st.global r3, [#3, r0, 0, 0]
+	st.global r4, [#3, r0, 0, 0]
 	exit
 Lfunc_end0:
 	.size	_Z5bytesPKaPKhPhPiPKsPs, Lfunc_end0-_Z5bytesPKaPKhPhPiPKsPs

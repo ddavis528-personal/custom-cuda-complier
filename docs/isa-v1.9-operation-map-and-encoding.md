@@ -180,6 +180,23 @@ upper bits. Under the sectioned register file those bits belong to other registe
 them is the cross-register read O-38 forbids. An address register is still read at 32 bits, never
 at `rdata`'s width, but a narrow one contributes its element zero-extended. No encoding changes.
 
+### Sized loads and stores (O-80; IS-23)
+
+Adopted by DA on 2026-10-24. Format D points `10100`–`11111` become `ld.u8`, `ld.s8`,
+`ld.u16`, `ld.s16`, `st.8` and `st.16` on `.global` and `.shared`, in the base + index layout.
+The opcode names the transfer size, so a narrow access needs no `chwidth`. Code that may be
+diverged, which O-78 forbids to narrow, then has a narrow access. In CoreMark-derived they
+remove up to 4.9% of the instructions on their own. This is an encoding change: twelve
+reserved points become defined. The span/wide-transfer reserve shrinks to `01110`–`01111`.
+
+### A width change requires a converged warp (O-81; IS-23)
+
+Adopted by DA on 2026-10-24. A `chwidth` or `chwidth.multi` issued while the warp is diverged,
+with its issue mask short of every live lane, raises `F-WIDTH` at dispatch. O-78 already asked
+this of the compiler, and the machine now checks it, so the core and ccv-sim agree even when
+the compiler errs. Narrow work in diverged code uses the sized forms (O-80) or runs at 32 bits.
+A new cause of an existing fault; no encoding changes.
+
 ### Still open
 
 Nothing from IS-2, IS-12 or IS-16 remains open. The SFU bound table is written (O-70).
@@ -1150,7 +1167,7 @@ it is the rarest of the four and the index register carries most of the addressi
 | `01100`–`01101` | **launch-slot + index** | `ld.global`, `st.global` (O-45) |
 | `01110`–`01111` | — | reserved (the O-45 form for other spaces, if wanted) |
 | `10000`–`10011` | **interleaved local, no base** | `ld.local`, `st.local`, `ld.pred.local`, `st.pred.local` (O-69); D only, reserved in D′ |
-| `10100`+ | — | reserved (span/wide transfers) — deferred, see §10 |
+| `10100`–`11111` | **sized, base + index** | `ld.u8`, `ld.s8`, `ld.u16`, `ld.s16`, `st.8`, `st.16` × `{global, shared}` (O-80); numbered below |
 
 *(This row first read `01100`–`01111` covering all four spaces. `.shared` is flat 32-bit and
 has no window — §5.1 exempts it — so a launch-slot base means nothing there, and `.const` is
@@ -1273,8 +1290,29 @@ no encoding benefit over a form the tag already precedents. If a second namespac
 wanted it should be wanted on its own merits, not arrive as a side effect of an addressing
 mode. See O-46.
 
-Transfer size is inherited from `rdata`'s `chwidth` — no size field. Address space is in
-the opcode. **A memory access whose `rdata` is at `chwidth`=4 raises `F-WIDTH`** (§12), at
+Transfer size is inherited from `rdata`'s `chwidth` — no size field — except in the sized
+forms below, whose opcode names it. Address space is in the opcode.
+
+**Sized loads and stores — normative (O-80).** Format D and D′ points `10100`–`11111` take the
+base + index layout (`rindex`, scale-enable, displacement) whatever `opcode[2]` is, as the local
+forms take their own:
+
+| Opcode | `.global` | `.shared` | Transfer | Effect |
+|---|---|---|---|---|
+| `ld.u8` | `10100` | `11010` | 1 byte | zero-extended to `rdata`'s `chwidth` |
+| `ld.s8` | `10101` | `11011` | 1 byte | sign-extended to `rdata`'s `chwidth` |
+| `ld.u16` | `10110` | `11100` | 2 bytes | zero-extended |
+| `ld.s16` | `10111` | `11101` | 2 bytes | sign-extended |
+| `st.8` | `11000` | `11110` | 1 byte | `rdata`'s low byte |
+| `st.16` | `11001` | `11111` | 2 bytes | `rdata`'s low two bytes |
+
+The opcode names the transfer size, and `rdata`'s `chwidth` is untouched: in scalar code
+`rdata` stays at 32 bits, and a byte or halfword access needs no `chwidth`. A transfer wider
+than `rdata`'s width raises `F-WIDTH` at dispatch, as does `rdata` at 4 bits. Alignment is the
+transfer size's (O-58). Scale-enable scales `rindex` by the transfer size, 1 or 2. The address
+is O-75's, and a narrow `rbase` or `rindex` contributes its element (O-79). Every §12 execute
+cause applies, gated per lane. These forms are how code that may be diverged makes a narrow
+access, since it cannot narrow a register there (O-78). **A memory access whose `rdata` is at `chwidth`=4 raises `F-WIDTH`** (§12), at
 dispatch, whole instruction, independent of predicate and issue mask; no memory access occurs.
 4-bit data reaches registers only through `packi` and `unpacki`.
 
@@ -1911,6 +1949,8 @@ operand Format K provides.
 
 The single-register `chwidth rd, width` is 8 bits of content and lives in Format K
 (opcode 48); it has no 32-bit encoding. Only the multi-register form needs this format.
+Both forms execute only in a converged warp: an issue mask short of every live lane raises
+`F-WIDTH` (O-81).
 
 **Accepted** (O-6). `chwidth` requires draining in-flight dependents on the affected
 register, and a kernel entering a packed section typically reconfigures several at once.
@@ -2832,6 +2872,8 @@ quantified on one side of it.
    set by `chwidth`, defaulting to max (32-bit). Every format — A, B, C, D, G, M, and the
    compressed J and K — respects it. `dp4`/`dp8` are not exceptions: their packing factor is
    opcode space, not a width field, and the registers they read are ordinary full-width ones.
+   Format D's sized loads and stores (O-80) are the same kind: their transfer size is opcode
+   space, and no register's width changes.
    `packi`/`unpacki` take element width from the narrow operand's `chwidth` like everything
    else; their immediate is a slot index, not a width.
 2. **No hidden mode state.** Width is register state, ordered in program order like any
@@ -2865,8 +2907,11 @@ quantified on one side of it.
    `chwidth` and its use. *(This obligation first bounded the region by the branch's join,
    which O-33 does not make a meeting point. OA's rev 233 found the gap.)* So narrow memory
    access in code that may be diverged has no general form today, since its data register
-   would need a `chwidth` there. IS-23's sized loads and stores are its remedy, and a check in
-   hardware for the rule is DA's question in IS-23.
+   would need a `chwidth` there. Sized loads and stores (O-80) are its form. **The machine
+   enforces the rule (O-81):** a `chwidth` or `chwidth.multi` whose issue mask is not every
+   live lane of the warp raises `F-WIDTH` at dispatch, and nothing of it commits. A live lane
+   is one that has not exited. So no width change can be concurrent with another group, and
+   the compiler's obligation is a precondition the hardware checks, not one it trusts.
 3. **Width mismatches are compiler-correctness problems, not hardware hazards.** They
    produce deterministic results **or a defined fault**, never undefined behavior. Same for FP
    format mismatches. The faults are the two §12 names: `F-WIDTH` and `F-FORMAT`. **The
@@ -3290,6 +3335,43 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-81 — A width change requires a converged warp, checked in hardware — decided in 1.9.**
+IS-23, AR's rev 179, OA's revs 232–233. DA's words: "Yes I agree that we should have this added
+hardware check" (2026-10-24). A register has one width for the warp (O-78), and diverged groups
+issue in an order the ISA leaves free (O-60). So a width change while the warp is diverged
+either races another group or truncates its lanes' values. O-78 made avoiding it a compiler
+obligation, bounded by a convergence the compiler must prove, and CP-42 was such a proof gone
+wrong. Adopted: a `chwidth` or `chwidth.multi` whose issue mask is not every live lane raises
+`F-WIDTH` at dispatch, precisely and independent of predicate, and nothing of a cracked
+`chwidth.multi` commits. Cost (AR's rev 179, OA's rev 232): FET already computes the test for a
+barrier wait (the group is every live lane), and the bit rides an existing mark on the
+instruction, so the check is one AND in OOE's F-WIDTH logic. ccv-sim applies the same test, so
+core and oracle agree by construction. What lost: width changes in diverged code at all. Narrow
+access there uses O-80's sized forms, and narrow arithmetic there runs at 32 bits with explicit
+masking. Width state stays for converged code, the packed inner loops it was made for (O-6).
+
+---
+
+**O-80 — Sized loads and stores — decided in 1.9.** IS-23, from TI-45 and CP-42/43. DA's words:
+"Yes, the results for forcing divergent warps into a single width do not look good. We will need
+the sized loads and stores as the proper solution" (2026-10-24). Format D took every transfer size
+from `rdata`'s `chwidth` (invariant 1), so a byte or halfword access needed its data register
+narrowed and widened again. TI counted that at 79.6% of CoreMark-derived's 108,186 chwidths on
+f99190e. Then CP-42 and O-78 showed a width change is unsafe wherever the warp may be diverged.
+With a seed per lane, 98.7% of CoreMark's chwidths and 97.7% of its narrow accesses run diverged,
+and release 541a476 faulted under every fetch schedule tried (CP-43). So narrow scalar code had no
+sound form. Adopted: six sized forms over `.global` and `.shared`, base + index only. CP measured
+99.95% of narrow accesses in that mode, and both spaces fit in Format D's twelve points
+`10100`–`11111`. The transfer size is opcode space, as `dp4`'s packing factor is under invariant 1.
+Datapath cost: a byte or halfword fill at write-back, since MIU already sizes 1- and 2-byte
+transfers (AR's rev 175). On 541a476, option A alone removes up to 37,323 instructions (4.87%,
+TI's count), with `cvt.sext` on top. It also restores O-39's register economy, because a sized
+load's destination is 32-bit. What lost: Format D's span/wide reserve, now `01110`–`01111` only.
+Also lost: a single way to express a narrow access, so the compiler and verification carry two.
+The base + offset sized forms were left out for lack of points and of use.
 
 ---
 
@@ -5094,7 +5176,7 @@ raises an execute-stage fault, whatever its operand values.
 |---|---|---|
 | `F-FETCH` | Fetch | Selected PC outside the kernel's code image, or not 16-bit aligned (including a `ret` to an odd offset, §3 Format E) |
 | `F-ILLEGAL` | Decode | Reserved opcode point; reserved field bit nonzero; reserved value in a defined field; non-canonical encoding |
-| `F-WIDTH` | Dispatch | Memory access (Formats D, D′, M, M′) whose `rdata` is at `chwidth`=4 |
+| `F-WIDTH` | Dispatch | Memory access (Formats D, D′, M, M′) whose `rdata` is at `chwidth`=4; sized access (O-80) whose transfer is wider than `rdata`'s `chwidth`; `chwidth` or `chwidth.multi` whose issue mask is not every live lane of the warp (O-81) |
 | `F-FORMAT` | Dispatch | FP or `cvt` format code reserved at its operand register's `chwidth` |
 | `F-ALIGN` | Execute | A lane's effective address not a multiple of its transfer size (O-58) |
 | `F-ADDR` | Execute | Effective address not mapped, or not permitted for the context |
@@ -5103,7 +5185,7 @@ raises an execute-stage fault, whatever its operand values.
 | `F-BARRIER` | Dispatch | Barrier ID (`bar.arrive`, `bar.wait`, `bar.init`, `bar.wait.phase`) at or above the CTA's allocated barrier count (O-59) |
 
 **`F-ILLEGAL` covers every encoding that names no operation.** Reserved opcode points (Format K
-29–31, §4 integer 26–31, `dp` 60–63, Format D `01110`–`01111` and `10100`+, the local forms `10000`–`10011` in D′, Format E `00101`+, Format M 10–15 and 26–31, M′ other than 16–17, any tag at a length it
+29–31, §4 integer 26–31, `dp` 60–63, Format D `01110`–`01111`, the local forms `10000`–`10011` in D′, Format E `00101`+, Format M 10–15 and 26–31, M′ other than 16–17, any tag at a length it
 has no form for); reserved field bits nonzero (Format I `[47:37]`, `bar.wait`'s `[14:15]`, and
 every other field §3 marks reserved); reserved values in defined fields (`srd` selectors 3–15, `fence` scopes 3–7,
 the meaningless-rounding points of the conversion product); and non-canonical encodings (A′ long

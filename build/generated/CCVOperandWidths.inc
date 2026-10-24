@@ -418,6 +418,18 @@ static const CCVOperandInfo Operands_SUBI[] = {{4, false}, {4, false}, {13, true
 static const CCVOperandInfo Operands_SUBI_P[] = {{4, false}, {3, false}, {4, false}, {10, true}};
 static const CCVOperandInfo Operands_SUB_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SUB_W16[] = {{4, false}, {4, false}, {4, false}, {4, false}};
+static const CCVOperandInfo Operands_SZ_GLOBAL_LD_S16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_GLOBAL_LD_S8[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_GLOBAL_LD_U16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_GLOBAL_LD_U8[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_GLOBAL_ST_16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_GLOBAL_ST_8[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_SHARED_LD_S16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_SHARED_LD_S8[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_SHARED_LD_U16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_SHARED_LD_U8[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_SHARED_ST_16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_SHARED_ST_8[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
 static const CCVOperandInfo Operands_UNBALLOT[] = {{2, false}, {3, false}, {4, false}};
 static const CCVOperandInfo Operands_UNPACKI[] = {{4, false}, {4, false}, {13, false}};
 static const CCVOperandInfo Operands_VOTE_ANY[] = {{2, false}, {3, false}, {3, false}};
@@ -840,6 +852,18 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"SUBI_P", 4, Operands_SUBI_P},
   {"SUB_P", 5, Operands_SUB_P},
   {"SUB_W16", 4, Operands_SUB_W16},
+  {"SZ_GLOBAL_LD_S16", 5, Operands_SZ_GLOBAL_LD_S16},
+  {"SZ_GLOBAL_LD_S8", 5, Operands_SZ_GLOBAL_LD_S8},
+  {"SZ_GLOBAL_LD_U16", 5, Operands_SZ_GLOBAL_LD_U16},
+  {"SZ_GLOBAL_LD_U8", 5, Operands_SZ_GLOBAL_LD_U8},
+  {"SZ_GLOBAL_ST_16", 5, Operands_SZ_GLOBAL_ST_16},
+  {"SZ_GLOBAL_ST_8", 5, Operands_SZ_GLOBAL_ST_8},
+  {"SZ_SHARED_LD_S16", 5, Operands_SZ_SHARED_LD_S16},
+  {"SZ_SHARED_LD_S8", 5, Operands_SZ_SHARED_LD_S8},
+  {"SZ_SHARED_LD_U16", 5, Operands_SZ_SHARED_LD_U16},
+  {"SZ_SHARED_LD_U8", 5, Operands_SZ_SHARED_LD_U8},
+  {"SZ_SHARED_ST_16", 5, Operands_SZ_SHARED_ST_16},
+  {"SZ_SHARED_ST_8", 5, Operands_SZ_SHARED_ST_8},
   {"UNBALLOT", 3, Operands_UNBALLOT},
   {"UNPACKI", 3, Operands_UNPACKI},
   {"VOTE_ANY", 3, Operands_VOTE_ANY},
@@ -849,4 +873,4 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"XOR_P", 5, Operands_XOR_P},
   {"XOR_W16", 4, Operands_XOR_W16},
 };
-static const unsigned CCVNumInstOperands = 420;
+static const unsigned CCVNumInstOperands = 432;

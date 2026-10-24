@@ -53,6 +53,10 @@ inline unsigned SfuErrorUlps = 0;
 inline bool TestAtomNoIndex = false;
 /// O-79's control: address and PC registers read at all 32 bits, as O-39 did.
 inline bool TestAddrFull = false;
+/// O-80's control: ld.s8 and ld.s16 zero-extend.
+inline bool TestSizedNoSext = false;
+/// O-81's control: a chwidth from a diverged warp executes, as before.
+inline bool TestDivergedChwidth = false;
 // Mutation control for test/atomics.s: add.f32's lanes in descending order.
 inline bool TestFAddDescending = false;
 

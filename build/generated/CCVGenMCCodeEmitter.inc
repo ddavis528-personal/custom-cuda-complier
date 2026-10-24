@@ -710,6 +710,18 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(80),	// SUBI_P
     UINT64_C(68),	// SUB_P
     UINT64_C(64),	// SUB_W16
+    UINT64_C(1504),	// SZ_GLOBAL_LD_S16
+    UINT64_C(1376),	// SZ_GLOBAL_LD_S8
+    UINT64_C(1440),	// SZ_GLOBAL_LD_U16
+    UINT64_C(1312),	// SZ_GLOBAL_LD_U8
+    UINT64_C(1632),	// SZ_GLOBAL_ST_16
+    UINT64_C(1568),	// SZ_GLOBAL_ST_8
+    UINT64_C(1888),	// SZ_SHARED_LD_S16
+    UINT64_C(1760),	// SZ_SHARED_LD_S8
+    UINT64_C(1824),	// SZ_SHARED_LD_U16
+    UINT64_C(1696),	// SZ_SHARED_LD_U8
+    UINT64_C(2016),	// SZ_SHARED_ST_16
+    UINT64_C(1952),	// SZ_SHARED_ST_8
     UINT64_C(624),	// UNBALLOT
     UINT64_C(1420),	// UNPACKI
     UINT64_C(304),	// VOTE_ANY
@@ -1819,7 +1831,19 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     case CCV::ST_GLOBAL_IDX:
     case CCV::ST_GLOBAL_IDX_W8:
     case CCV::ST_GLOBAL_IDX_W16:
-    case CCV::ST_SHARED_IDX: {
+    case CCV::ST_SHARED_IDX:
+    case CCV::SZ_GLOBAL_LD_S8:
+    case CCV::SZ_GLOBAL_LD_S16:
+    case CCV::SZ_GLOBAL_LD_U8:
+    case CCV::SZ_GLOBAL_LD_U16:
+    case CCV::SZ_GLOBAL_ST_8:
+    case CCV::SZ_GLOBAL_ST_16:
+    case CCV::SZ_SHARED_LD_S8:
+    case CCV::SZ_SHARED_LD_S16:
+    case CCV::SZ_SHARED_LD_U8:
+    case CCV::SZ_SHARED_LD_U16:
+    case CCV::SZ_SHARED_ST_8:
+    case CCV::SZ_SHARED_ST_16: {
       // op: rdata
       op = getMachineOpValue(MI, MI.getOperand(0), Fixups, STI);
       op &= UINT64_C(15);
@@ -2669,7 +2693,19 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
     case CCV::ST_GLOBAL_IDX:
     case CCV::ST_GLOBAL_IDX_W8:
     case CCV::ST_GLOBAL_IDX_W16:
-    case CCV::ST_SHARED_IDX: {
+    case CCV::ST_SHARED_IDX:
+    case CCV::SZ_GLOBAL_LD_S8:
+    case CCV::SZ_GLOBAL_LD_S16:
+    case CCV::SZ_GLOBAL_LD_U8:
+    case CCV::SZ_GLOBAL_LD_U16:
+    case CCV::SZ_GLOBAL_ST_8:
+    case CCV::SZ_GLOBAL_ST_16:
+    case CCV::SZ_SHARED_LD_S8:
+    case CCV::SZ_SHARED_LD_S16:
+    case CCV::SZ_SHARED_LD_U8:
+    case CCV::SZ_SHARED_LD_U16:
+    case CCV::SZ_SHARED_ST_8:
+    case CCV::SZ_SHARED_ST_16: {
       switch (OpNum) {
       case 0:
         // op: rdata

@@ -11,7 +11,9 @@ void *iterate(void *p) { return 0; }
 int main(int argc, char **argv) {
   static ee_u8 mem[TOTAL_DATA_SIZE];
   core_results r;
-  r.seed1 = 0; r.seed2 = 0; r.seed3 = 0x66; r.iterations = atoi(argv[1]);
+  // argv[2], if given, is seed1: the per-lane-seed kernel's lane t uses t.
+  r.seed1 = argc > 2 ? atoi(argv[2]) : 0;
+  r.seed2 = 0; r.seed3 = 0x66; r.iterations = atoi(argv[1]);
   r.execs = ALL_ALGORITHMS_MASK;
   r.size = TOTAL_DATA_SIZE / NUM_ALGORITHMS;
   ee_u8 *b = mem;

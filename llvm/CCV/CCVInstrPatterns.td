@@ -312,6 +312,56 @@ def : Pat<(st_shared_8 (i32 GPR:$v), (add GPR:$rbase, GPR:$ri)),
           (ST_SHARED_W8 (COPY_TO_REGCLASS (i32 GPR:$v), GPR8),
                         (i32 (ADD GPR:$rbase, GPR:$ri, GPR:$rbase)), 0)>;
 
+// O-80: bytes and halfwords in .shared take the sized forms, which name the
+// transfer in the opcode, so the data register stays at 32 bits and nothing
+// narrows. They take base + index only: a register index is the index, an
+// immediate one is materialised (the add pattern's GPR operand selects it),
+// and a bare base indexes by a zero. Ahead of the chwidth forms above and
+// below, which only -ccv-test-no-sized's frame accesses and the 16-bit
+// register patterns still reach.
+let AddedComplexity = 100 in {
+foreach ld = [ld_shared_u8, ld_shared_z8] in {
+  def : Pat<(i32 (ld (add GPR:$rbase, GPR:$ri))),
+            (SZ_SHARED_LD_U8 GPR:$rbase, GPR:$ri, 0, 0)>;
+  def : Pat<(i32 (ld GPR:$rbase)),
+            (SZ_SHARED_LD_U8 GPR:$rbase, (MOVI 0), 0, 0)>;
+}
+def : Pat<(i32 (ld_shared_s8 (add GPR:$rbase, GPR:$ri))),
+          (SZ_SHARED_LD_S8 GPR:$rbase, GPR:$ri, 0, 0)>;
+def : Pat<(i32 (ld_shared_s8 GPR:$rbase)),
+          (SZ_SHARED_LD_S8 GPR:$rbase, (MOVI 0), 0, 0)>;
+def : Pat<(st_shared_8 (i32 GPR:$v), (add GPR:$rbase, GPR:$ri)),
+          (SZ_SHARED_ST_8 GPR:$v, GPR:$rbase, GPR:$ri, 0, 0)>;
+def : Pat<(st_shared_8 (i32 GPR:$v), GPR:$rbase),
+          (SZ_SHARED_ST_8 GPR:$v, GPR:$rbase, (MOVI 0), 0, 0)>;
+def : Pat<(st_shared_8 GPR16:$v, (add GPR:$rbase, GPR:$ri)),
+          (SZ_SHARED_ST_8 (COPY_TO_REGCLASS GPR16:$v, GPR), GPR:$rbase, GPR:$ri, 0, 0)>;
+def : Pat<(st_shared_8 GPR16:$v, GPR:$rbase),
+          (SZ_SHARED_ST_8 (COPY_TO_REGCLASS GPR16:$v, GPR), GPR:$rbase, (MOVI 0), 0, 0)>;
+foreach ld = [SharedLoad<extloadi16>, SharedLoad<zextloadi16>] in {
+  def : Pat<(i32 (ld (add GPR:$rbase, GPR:$ri))),
+            (SZ_SHARED_LD_U16 GPR:$rbase, GPR:$ri, 0, 0)>;
+  def : Pat<(i32 (ld GPR:$rbase)),
+            (SZ_SHARED_LD_U16 GPR:$rbase, (MOVI 0), 0, 0)>;
+}
+def : Pat<(i32 (SharedLoad<sextloadi16> (add GPR:$rbase, GPR:$ri))),
+          (SZ_SHARED_LD_S16 GPR:$rbase, GPR:$ri, 0, 0)>;
+def : Pat<(i32 (SharedLoad<sextloadi16> GPR:$rbase)),
+          (SZ_SHARED_LD_S16 GPR:$rbase, (MOVI 0), 0, 0)>;
+def : Pat<(SharedStore<truncstorei16> (i32 GPR:$v), (add GPR:$rbase, GPR:$ri)),
+          (SZ_SHARED_ST_16 GPR:$v, GPR:$rbase, GPR:$ri, 0, 0)>;
+def : Pat<(SharedStore<truncstorei16> (i32 GPR:$v), GPR:$rbase),
+          (SZ_SHARED_ST_16 GPR:$v, GPR:$rbase, (MOVI 0), 0, 0)>;
+def : Pat<(i16 (ld_shared (add GPR:$rbase, GPR:$ri))),
+          (PSEUDO_TRUNC16 (SZ_SHARED_LD_U16 GPR:$rbase, GPR:$ri, 0, 0), 0)>;
+def : Pat<(i16 (ld_shared GPR:$rbase)),
+          (PSEUDO_TRUNC16 (SZ_SHARED_LD_U16 GPR:$rbase, (MOVI 0), 0, 0), 0)>;
+def : Pat<(st_shared GPR16:$v, (add GPR:$rbase, GPR:$ri)),
+          (SZ_SHARED_ST_16 (COPY_TO_REGCLASS GPR16:$v, GPR), GPR:$rbase, GPR:$ri, 0, 0)>;
+def : Pat<(st_shared GPR16:$v, GPR:$rbase),
+          (SZ_SHARED_ST_16 (COPY_TO_REGCLASS GPR16:$v, GPR), GPR:$rbase, (MOVI 0), 0, 0)>;
+}
+
 // ---------------------------------------------------------------------------
 // Predicate logic (O-20). These are the i1 domain -- a predicate is 32 bits,
 // one per lane, and never narrows (invariant 5), so i1 operations are real
@@ -430,13 +480,10 @@ def : Pat<(i32 (sext GPR16:$a)), (CVT_SEXT GPR16:$a, GPR16:$a, GPR16:$a)>;
 
 // `sext i16 to i32` on a value that is already in a 32-bit register arrives as
 // sign_extend_inreg, not sext -- a kernel argument is the common case, since
-// the ABI passes it 32-bit wide. Same instruction; the source is reinterpreted
-// at 16 bits first, which is a COPY between classes and costs nothing but the
-// `chwidth` CCVInsertChwidth places.
-def : Pat<(i32 (sext_inreg GPR:$a, i16)),
-          (CVT_SEXT (i16 (COPY_TO_REGCLASS GPR:$a, GPR16)),
-                    (i16 (COPY_TO_REGCLASS GPR:$a, GPR16)),
-                    (i16 (COPY_TO_REGCLASS GPR:$a, GPR16)))>;
+// the ABI passes it 32-bit wide. It is a shift pair at 32 bits: a chwidth may
+// issue only where the warp is converged (O-81), and `cvt.sext` at 16 bits
+// would need one to reinterpret the register.
+def : Pat<(i32 (sext_inreg GPR:$a, i16)), (SRAI (SHLI GPR:$a, 16), 16)>;
 
 def : Pat<(add GPR16:$a, GPR16:$b), (ADD_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
 def : Pat<(sub GPR16:$a, GPR16:$b), (SUB_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;

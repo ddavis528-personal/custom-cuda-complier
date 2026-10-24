@@ -140,12 +140,12 @@
   {
     "kernel": "vadd16",
     "ccv": {
-      "instrs": 21,
-      "bytes": 68
+      "instrs": 23,
+      "bytes": 78
     },
     "ccv_aligned": {
-      "instrs": 14,
-      "bytes": 48
+      "instrs": 16,
+      "bytes": 56
     },
     "amdgcn": {
       "instrs": 29,
@@ -156,13 +156,13 @@
       "instrs": 21
     },
     "dyn": {
-      "per_thread": 14.0,
+      "per_thread": 16.0,
       "simt": 100.0,
-      "lane_act": 448,
-      "lane_instr": 448,
-      "issues": 14,
-      "narrow": 4,
-      "element_work": 11
+      "lane_act": 512,
+      "lane_instr": 512,
+      "issues": 16,
+      "narrow": 0,
+      "element_work": 14
     },
     "arches": {
       "gfx900": {
@@ -192,13 +192,13 @@
       }
     },
     "mask_off": {
-      "per_thread": 14.0,
+      "per_thread": 16.0,
       "simt": 100.0,
-      "lane_act": 448,
-      "lane_instr": 448,
-      "issues": 14,
-      "narrow": 4,
-      "element_work": 11
+      "lane_act": 512,
+      "lane_instr": 512,
+      "issues": 16,
+      "narrow": 0,
+      "element_work": 14
     },
     "sass": {
       "instrs": 17,
@@ -278,12 +278,12 @@
   {
     "kernel": "vadd16_loop",
     "ccv": {
-      "instrs": 25,
-      "bytes": 80
+      "instrs": 27,
+      "bytes": 92
     },
     "ccv_aligned": {
-      "instrs": 17,
-      "bytes": 56
+      "instrs": 19,
+      "bytes": 64
     },
     "amdgcn": {
       "instrs": 35,
@@ -294,13 +294,13 @@
       "instrs": 23
     },
     "dyn": {
-      "per_thread": 66.0,
+      "per_thread": 68.0,
       "simt": 100.0,
-      "lane_act": 2112,
-      "lane_instr": 2112,
-      "issues": 66,
-      "narrow": 32,
-      "element_work": 55
+      "lane_act": 2176,
+      "lane_instr": 2176,
+      "issues": 68,
+      "narrow": 0,
+      "element_work": 58
     },
     "arches": {
       "gfx900": {
@@ -330,13 +330,13 @@
       }
     },
     "mask_off": {
-      "per_thread": 66.0,
+      "per_thread": 68.0,
       "simt": 100.0,
-      "lane_act": 2112,
-      "lane_instr": 2112,
-      "issues": 66,
-      "narrow": 32,
-      "element_work": 55
+      "lane_act": 2176,
+      "lane_instr": 2176,
+      "issues": 68,
+      "narrow": 0,
+      "element_work": 58
     },
     "sass": {
       "instrs": 20,

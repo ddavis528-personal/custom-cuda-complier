@@ -201,6 +201,25 @@ static uint32_t addrReg(const Warp &W, unsigned R, unsigned L) {
   return nfp::TestAddrFull ? W.GPR[R][L] : narrow(W.GPR[R][L], W.ChWidth[R]);
 }
 
+/// O-80's sized forms: the transfer, its space and its extension.
+struct SizedOp { unsigned Bytes; bool Load, Signed, Shared; };
+static SizedOp sizedOp(unsigned Op) {
+  switch (Op) {
+  case CCV::SZ_GLOBAL_LD_U8:  return {1, true, false, false};
+  case CCV::SZ_GLOBAL_LD_S8:  return {1, true, true, false};
+  case CCV::SZ_GLOBAL_LD_U16: return {2, true, false, false};
+  case CCV::SZ_GLOBAL_LD_S16: return {2, true, true, false};
+  case CCV::SZ_GLOBAL_ST_8:   return {1, false, false, false};
+  case CCV::SZ_GLOBAL_ST_16:  return {2, false, false, false};
+  case CCV::SZ_SHARED_LD_U8:  return {1, true, false, true};
+  case CCV::SZ_SHARED_LD_S8:  return {1, true, true, true};
+  case CCV::SZ_SHARED_LD_U16: return {2, true, false, true};
+  case CCV::SZ_SHARED_LD_S16: return {2, true, true, true};
+  case CCV::SZ_SHARED_ST_8:   return {1, false, false, true};
+  default:                    return {2, false, false, true};   // SZ_SHARED_ST_16
+  }
+}
+
 /// O-67, the mixed-width rule: a source read at its operation's operating
 /// width OpW (the destination's chwidth, or rs0's for a compare) is its raw
 /// element at its own width Src, zero-extended or truncated to OpW as a bit
@@ -285,6 +304,12 @@ static bool isWidthAware(unsigned Op) {
   case CCV::LD_GLOBAL_IDX: case CCV::ST_GLOBAL_IDX:
   case CCV::LD_GLOBAL_SLOT: case CCV::ST_GLOBAL_SLOT:
   case CCV::LD_SHARED: case CCV::ST_SHARED:
+  case CCV::SZ_GLOBAL_LD_U8:  case CCV::SZ_GLOBAL_LD_S8:
+  case CCV::SZ_GLOBAL_LD_U16: case CCV::SZ_GLOBAL_LD_S16:
+  case CCV::SZ_GLOBAL_ST_8:   case CCV::SZ_GLOBAL_ST_16:
+  case CCV::SZ_SHARED_LD_U8:  case CCV::SZ_SHARED_LD_S8:
+  case CCV::SZ_SHARED_LD_U16: case CCV::SZ_SHARED_LD_S16:
+  case CCV::SZ_SHARED_ST_8:   case CCV::SZ_SHARED_ST_16:
   case CCV::MAD_ACC:
   case CCV::DP2_BF16: case CCV::DP2_F16:
   case CCV::DP4_E4M3: case CCV::DP4_E5M2:
@@ -859,6 +884,19 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     }
   }
 
+  // ---- F-WIDTH from a diverged warp (O-81) --------------------------------
+  // Width is one per register for the warp (O-78), so a chwidth may issue only
+  // where the warp is converged: its issue mask every live lane. Otherwise the
+  // whole instruction faults at dispatch, a chwidth.multi included, and no
+  // width changes. -ccv-test-diverged-chwidth lets it through, as before O-81.
+  if ((Op == CCV::C_CHWIDTH || Op == CCV::CHWIDTH_MULTI) && Mask != W.Active &&
+      !nfp::TestDivergedChwidth) {
+    Result F{Result::Fault, 0};
+    F.Cause = "F-WIDTH";
+    F.TakenMask = Mask;
+    return F;
+  }
+
   // ---- F-WIDTH (ISA v1.9 §12.3): dispatch stage, whole instruction --------
   // A memory access whose rdata is at chwidth = 4 names no transfer. Checked
   // from committed width state before anything executes, and independent of
@@ -879,6 +917,23 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       }
     }
     break;
+  // O-80: a sized access's transfer wider than `rdata`'s element, or `rdata`
+  // at 4 bits.
+  case CCV::SZ_GLOBAL_LD_U8:  case CCV::SZ_GLOBAL_LD_S8:
+  case CCV::SZ_GLOBAL_LD_U16: case CCV::SZ_GLOBAL_LD_S16:
+  case CCV::SZ_GLOBAL_ST_8:   case CCV::SZ_GLOBAL_ST_16:
+  case CCV::SZ_SHARED_LD_U8:  case CCV::SZ_SHARED_LD_S8:
+  case CCV::SZ_SHARED_LD_U16: case CCV::SZ_SHARED_LD_S16:
+  case CCV::SZ_SHARED_ST_8:   case CCV::SZ_SHARED_ST_16: {
+    uint8_t WD = W.ChWidth[regOf(MI, 0)];
+    if (WD == 3 || 8 * sizedOp(Op).Bytes > widthBits(WD)) {
+      Result F{Result::Fault, 0};
+      F.Cause = "F-WIDTH";
+      F.TakenMask = Mask;
+      return F;
+    }
+    break;
+  }
   default:
     break;
   }
@@ -1692,6 +1747,41 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       // checked path so a misaligned lane raises F-ALIGN (O-58).
       if (IsLoad) W.GPR[Data][L] = Shared.readN(A, 4);
       else        Shared.writeN(A, W.GPR[Data][L], 4);
+    });
+    break;
+  }
+
+  // ---- Format D: sized loads and stores (O-80) ----------------------------
+  // The opcode names the transfer, 1 or 2 bytes, and `rdata` keeps its width:
+  // a load zero- or sign-extends into it, a store takes its low bytes. The
+  // address is the base + index form's, .global windowed and .shared flat, with
+  // scale-enable scaling the index by the transfer size.
+  case CCV::SZ_GLOBAL_LD_U8:  case CCV::SZ_GLOBAL_LD_S8:
+  case CCV::SZ_GLOBAL_LD_U16: case CCV::SZ_GLOBAL_LD_S16:
+  case CCV::SZ_GLOBAL_ST_8:   case CCV::SZ_GLOBAL_ST_16:
+  case CCV::SZ_SHARED_LD_U8:  case CCV::SZ_SHARED_LD_S8:
+  case CCV::SZ_SHARED_LD_U16: case CCV::SZ_SHARED_LD_S16:
+  case CCV::SZ_SHARED_ST_8:   case CCV::SZ_SHARED_ST_16: {
+    const SizedOp Z = sizedOp(Op);
+    unsigned Data = regOf(MI, 0), Base = regOf(MI, 1), Idx = regOf(MI, 2);
+    unsigned ScaleEn = unsigned(MI.getOperand(3).getImm());
+    int64_t Disp = MI.getOperand(4).getImm();
+    unsigned Sh = ScaleEn ? (Z.Bytes == 2 ? 1 : 0) : 0;
+    uint8_t WD = W.ChWidth[Data];
+    forEachLane([&](unsigned L) {
+      uint64_t Ix = uint64_t(addrReg(W, Idx, L)) << Sh;
+      uint64_t A = Z.Shared
+                       ? (uint64_t(addrReg(W, Base, L)) + Ix + Disp) & 0xFFFFFFFFu
+                       : (uint64_t(addrReg(W, Base, L)) << kBaseShift) + Ix + Disp;
+      Memory &M = Z.Shared ? Shared : Mem;
+      if (Z.Load) {
+        uint32_t V = M.readN(A, Z.Bytes);
+        if (Z.Signed && !nfp::TestSizedNoSext)
+          V = sextTo32(V, Z.Bytes == 1 ? 2 : 1);
+        W.GPR[Data][L] = writeElem(W.GPR[Data][L], V, WD);
+      } else {
+        M.writeN(A, W.GPR[Data][L] & ((1u << (8 * Z.Bytes)) - 1), Z.Bytes);
+      }
     });
     break;
   }

@@ -2,7 +2,6 @@
 	.file	"globals.cu"
 	.type	_Z10via_calleei,@function
 _Z10via_calleei:
-	chwidth r7, 1
 	f48 r0, 1431655766
 	mul.hi.s r0, r1, r0
 	shr r2, r0, 31
@@ -12,12 +11,10 @@ _Z10via_calleei:
 	shl r0, 3
 	movi r1, 2
 	ld.global r1, [r1 + 28]
-	ld.global r2, [r1, r0, 0, 28]
-	ld.global r7, [r1, r0, 0, 24]
-	cvt.sint.sint r0, r7
-	chwidth r7, 0
+	ld.global.s16 r2, [r1, r0, 0, 24]
+	ld.global r0, [r1, r0, 0, 28]
 	ld.global r1, [r1 + 208]
-	mad.acc r1, r2, r0
+	mad.acc r1, r0, r2
 	ret 224
 Lfunc_end0:
 	.size	_Z10via_calleei, Lfunc_end0-_Z10via_calleei
@@ -45,18 +42,18 @@ _Z7globalsPi:
 	ld.global r0, [r0 + 36]
 	mov r1, r3
 	shl r1, 3
-	add r8, r0, r1
+	add r7, r0, r1
 	mov r1, r3
 	call r14, _Z10via_calleei
 	add r0, r1, r6
 	ld.global r1, [r4, r3, 1, 80]
 	add r0, r1
 	st.global r0, [r4, r3, 1, 80]
-	st.global r0, [#0, r8, 0, 0]
+	st.global r0, [#0, r7, 0, 0]
 	ld.global r0, [r4, r5, 1, 16]
 	cvt.f32.s32 r1, r3
 	fmul r0, r1
-	add r1, r8, 4
+	add r1, r7, 4
 	cvt.s32.f32 r0, r0
 	st.global r0, [#0, r1, 0, 0]
 	exit

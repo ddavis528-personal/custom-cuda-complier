@@ -39,6 +39,7 @@ def count_chwidth(text):
 
 narrow_asm    = listing(W/"8-narrow-asm.s")
 narrow_body   = body_of(W/"8-narrow-asm.s")
+sized_body    = body_of(W/"8-narrow-asm-sized.s")
 wide_body     = body_of(W/"8-wide-asm.s")
 noedge_body   = body_of(W/"8-narrow-asm-noedge.s")
 unal_body     = body_of(W/"8-narrow-asm-unaligned.s")
@@ -240,6 +241,21 @@ nothing but width:
 ```cuda
 {narrow_src}
 ```
+
+Compiled as it is today, it changes no width at all:
+
+```
+{sized_body}
+```
+
+The loads and the store are §3's sized forms (O-80), whose opcode names the
+transfer, and the add runs at 32 bits, whose low half is the 16-bit sum
+(F-199). That is not an optimisation but the rule: a `chwidth` may issue only
+where the warp is converged (O-81), and in scalar code the compiler cannot
+know that, since lanes diverge on their data. Width state remains for packed
+narrow formats such as FP8 and FP16. The rest of this section shows the
+machinery on the same kernel in the configuration that still narrows its
+integers, `-ccv-test-i16-legal -ccv-test-no-sized`.
 
 ### The mode switches are not in the loop
 

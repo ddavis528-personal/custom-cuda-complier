@@ -16,7 +16,15 @@ extern "C" __host__ __device__ void *iterate(void *) { return 0; }
 __global__ void coremark(ee_u8 *mem, ee_u16 *out, int iterations) {
   int t = TID_X;
   core_results r;
-  r.seed1 = 0; r.seed2 = 0; r.seed3 = 0x66; r.iterations = iterations;
+  // CCV_SEED_PER_LANE: lane t seeds with t, so the lanes take their own
+  // data-dependent paths and the warp diverges (CP-43, O-81). Otherwise every
+  // lane runs CoreMark's performance-run seeds and the warp never diverges.
+#ifdef CCV_SEED_PER_LANE
+  r.seed1 = t;
+#else
+  r.seed1 = 0;
+#endif
+  r.seed2 = 0; r.seed3 = 0x66; r.iterations = iterations;
   r.execs = ALL_ALGORITHMS_MASK;
   r.size = TOTAL_DATA_SIZE / NUM_ALGORITHMS;
   ee_u8 *b = mem + t * TOTAL_DATA_SIZE;

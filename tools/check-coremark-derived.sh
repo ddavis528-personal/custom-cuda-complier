@@ -50,14 +50,19 @@ for c in core_list_join core_matrix core_state core_util; do
         -I"$D" -emit-llvm -S "$D/upstream/$c.c" -o "$TMP/$c.ll" 2>"$TMP/cc.err" ||
     { echo "  FAIL  $c.c did not compile: $(head -1 "$TMP/cc.err")"; exit 1; }
 done
-CCV_CFLAGS="-Itest/bench -I$D -I$D/upstream -fno-vectorize -fno-slp-vectorize" \
-  ./tools/cuda-to-ir.sh "$D/kernel.cu" "$TMP/kernel.ll" >/dev/null 2>"$TMP/cc.err" ||
-  { echo "  FAIL  kernel.cu did not compile: $(head -1 "$TMP/cc.err")"; exit 1; }
-llvm-link -S "$TMP"/kernel.ll "$TMP"/core_*.ll -o "$TMP/cm.ll" &&
-opt -load-pass-plugin=build/CCVLowerKernelArgs.so \
-    -passes='function(infer-address-spaces),ccv-lower-kernel-args,function(instcombine,gvn,simplifycfg)' \
-    -S "$TMP/cm.ll" -o "$TMP/cm-lowered.ll" 2>/dev/null ||
-  { echo "  FAIL  the module did not link or lower"; exit 1; }
+# The module twice: CoreMark's seeds on every lane (cm), and a seed per lane
+# (pl), whose lanes take their own paths, so the warp diverges (O-81).
+for v in "cm:" "pl:-DCCV_SEED_PER_LANE"; do
+  n=${v%%:*}
+  CCV_CFLAGS="-Itest/bench -I$D -I$D/upstream -fno-vectorize -fno-slp-vectorize ${v#*:}" \
+    ./tools/cuda-to-ir.sh "$D/kernel.cu" "$TMP/kernel-$n.ll" >/dev/null 2>"$TMP/cc.err" ||
+    { echo "  FAIL  kernel.cu did not compile (${v#*:}): $(head -1 "$TMP/cc.err")"; exit 1; }
+  llvm-link -S "$TMP/kernel-$n.ll" "$TMP"/core_*.ll -o "$TMP/$n.ll" &&
+  opt -load-pass-plugin=build/CCVLowerKernelArgs.so \
+      -passes='function(infer-address-spaces),ccv-lower-kernel-args,function(instcombine,gvn,simplifycfg)' \
+      -S "$TMP/$n.ll" -o "$TMP/$n-lowered.ll" 2>/dev/null ||
+    { echo "  FAIL  the module did not link or lower"; exit 1; }
+done
 
 cc -O1 -I"$D" -I"$D/upstream" -o "$TMP/host" "$D/host.c" "$D"/upstream/core_*.c 2>/dev/null ||
   { echo "  FAIL  the host reference did not build"; exit 1; }
@@ -66,17 +71,20 @@ case "$want" in
   *" e714 1fd7 8e3a") ;;
   *) echo "  FAIL  the host reference is not CoreMark's: $want"; exit 1 ;;
 esac
+# Lane t of the per-lane-seed module against the host at seed t.
+wantpl=$(for t in $(seq 0 31); do "$TMP/host" $ITER $t; done | paste -sd'|')
 
+MOD=cm
 run() {
-  build/ccv-llc "$TMP/cm-lowered.ll" -o "$TMP/cm.o" -obj "$@" 2>"$TMP/llc.err" ||
+  build/ccv-llc "$TMP/$MOD-lowered.ll" -o "$TMP/cm.o" -obj "$@" 2>"$TMP/llc.err" ||
     { echo "compile failed: $(head -1 "$TMP/llc.err")"; return; }
   for s in text ccv_data ccv_reloc ccv_info; do
     llvm-objcopy -O binary --only-section=.$s "$TMP/cm.o" "$TMP/$s.bin" || return
   done
   local entry; entry=$(llvm-nm "$TMP/cm.o" | awk '/ T _Z8coremark/ {print "0x"$1}')
-  python3 - "$TMP" "$entry" "$want" <<'PY'
+  python3 - "$TMP" "$entry" "$([ $MOD = pl ] && echo "$wantpl" || echo "$want")" <<'PY'
 import os, subprocess, sys
-tmp, entry, want = sys.argv[1], sys.argv[2], sys.argv[3]
+tmp, entry, wants = sys.argv[1], sys.argv[2], sys.argv[3].split("|")
 N, MEM, OUT, ITER = 32, 3, 7, 2
 args = ["-entry", entry, "-data", f"{tmp}/ccv_data.bin", "-data-info", f"{tmp}/ccv_info.bin",
         "-max-steps", "100000000", "-counters",
@@ -90,7 +98,9 @@ for w in range(2 * N):
     args += ["-poke", f"{(OUT << 16) + 4 * w:#x}=3735928559", "-peek", f"{(OUT << 16) + 4 * w:#x}"]
 r = subprocess.run(["build/ccv-sim", f"{tmp}/text.bin"] + args, capture_output=True, text=True)
 if r.returncode:
-    print("did not run:", (r.stderr or r.stdout).strip().splitlines()[0]); sys.exit()
+    lines = (r.stdout + r.stderr).strip().splitlines()
+    print("did not run:", next((l.strip() for l in lines if "FAULT" in l), lines[0] if lines else "?"))
+    sys.exit()
 got = {}
 for line in r.stdout.splitlines():
     if line.strip().startswith("[0x"):
@@ -98,6 +108,7 @@ for line in r.stdout.splitlines():
         got[int(a.strip()[1:-1], 16)] = int(v.split()[0]) & 0xffffffff
 bad = []
 for t in range(N):
+    want = wants[t % len(wants)]
     w0, w1 = got.get((OUT << 16) + 8 * t, 0), got.get((OUT << 16) + 8 * t + 4, 0)
     have = f"{w0 & 0xffff:04x} {w0 >> 16:04x} {w1 & 0xffff:04x} {w1 >> 16:04x}"
     if have != want:
@@ -117,11 +128,23 @@ case "$out" in
        echo "  PASS  CoreMark-derived: list, matrix and state on 32 lanes give CoreMark's CRCs, and the host's after $ITER iterations ($want; $groups issue groups, $noop no-op widths)" ;;
   *)   echo "  FAIL  CoreMark-derived: $out"; fail=1; groups=0; noop=0 ;;
 esac
+# The chwidth machinery's controls. Default code has no narrow integer width
+# left to place (F-199): 16-bit integers run at 32 bits and narrow accesses
+# take O-80's sized forms. The machinery still serves narrow FP, so its
+# controls run on the configuration that exercises it, LEGACY, against
+# LEGACY's own counts.
+LEGACY="-ccv-test-i16-legal -ccv-test-no-sized"
+out=$(run $LEGACY)
+case "$out" in
+  ok*) read -r _ groups noop <<< "$out"
+       echo "  PASS  the same at width 16 and with chwidth accesses ($LEGACY): $groups issue groups, $noop no-op widths" ;;
+  *)   echo "  FAIL  CoreMark-derived under $LEGACY: $out"; fail=1; groups=0; noop=0 ;;
+esac
 # TI-45's controls: each must still compute every lane right, at a cost.
 for c in "-ccv-test-chwidth-reach-back-edge:noop" "-ccv-test-no-byte-assertzext:groups" \
          "-ccv-test-trunc-ignore-known:groups" \
          "-ccv-test-trunc-always-narrow:groups"; do
-  out=$(run ${c%%:*})
+  out=$(run $LEGACY ${c%%:*})
   read -r tag cg cn <<< "$out"
   if [ "$tag" != ok ]; then
     echo "  FAIL  control ${c%%:*} broke the workload: $out"; fail=1
@@ -133,8 +156,10 @@ for c in "-ccv-test-chwidth-reach-back-edge:noop" "-ccv-test-no-byte-assertzext:
     echo "  FAIL  control ${c%%:*} costs nothing ($cg issue groups, $cn no-op widths)"; fail=1
   fi
 done
-for c in -ccv-test-hoist-past-calls -ccv-test-no-data-reloc -ccv-test-narrow-data-shared \
-         "-ccv-test-narrow-in-place -ccv-test-trunc-as-copy"; do
+for c in "$LEGACY -ccv-test-hoist-past-calls" -ccv-test-no-data-reloc \
+         "$LEGACY -ccv-test-narrow-data-shared" \
+         "$LEGACY -ccv-test-narrow-in-place -ccv-test-trunc-as-copy" \
+         "$LEGACY -ccv-test-chwidth-defs-only"; do
   out=$(run $c)
   case "$out" in
     ok*) echo "  FAIL  control $c still computed every lane right"; fail=1 ;;
@@ -142,6 +167,26 @@ for c in -ccv-test-hoist-past-calls -ccv-test-no-data-reloc -ccv-test-narrow-dat
     *)   echo "  FAIL  control $c broke something else: $out"; fail=1 ;;
   esac
 done
+# F-199 (O-81): the per-lane-seed module diverges, so any chwidth there faults;
+# every lane must match the host at its own seed. Controls: 16-bit integers
+# at width 16 (-ccv-test-i16-legal) and narrow accesses by chwidth
+# (-ccv-test-no-sized) each put chwidths into divergent code, and must fail.
+MOD=pl
+out=$(run)
+case "$out" in
+  ok*) read -r _ pg pn <<< "$out"
+       echo "  PASS  CoreMark-derived with a seed per lane: every lane diverges on its own data and matches the host at its seed ($pg issue groups)" ;;
+  *)   echo "  FAIL  CoreMark-derived with a seed per lane: $out"; fail=1 ;;
+esac
+for c in -ccv-test-i16-legal -ccv-test-no-sized; do
+  out=$(run $c)
+  case "$out" in
+    ok*) echo "  FAIL  control $c still computed every per-lane-seed lane right"; fail=1 ;;
+    *)   echo "  PASS  control $c is caught on the per-lane-seed module: $out" ;;
+  esac
+done
+MOD=cm
+
 # F-198: no narrow access names its data register as its base or index, so no
 # chwidth before it narrows an address register. The control shares them again,
 # as O-39 allows, and must show the sites.
@@ -159,7 +204,7 @@ for i, l in enumerate(L[:-1]):
 print(n)
 PY
 }
-n=$(shared); c=$(shared -ccv-test-narrow-data-shared)
+n=$(shared $LEGACY); c=$(shared $LEGACY -ccv-test-narrow-data-shared)
 if [ "$n" = 0 ] && [ "$c" != x ] && [ "$c" -gt 0 ]; then
   echo "  PASS  no narrow access shares its data register with its address (control -ccv-test-narrow-data-shared: $c sites)"
 else
