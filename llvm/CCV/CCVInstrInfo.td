@@ -678,17 +678,15 @@ let isCodeGenOnly = 1 in {
   def ST_SHARED_W16 : FormatD<0b00011, (outs),
                              (ins GPR16:$rdata, GPR:$rbase, simm13:$off),
                              "st.shared $rdata, [$rbase + $off]">;
-  // No earlyclobber: the destination MAY share a register with the base or the
-  // index. §3 now says the base and index are read at 32 bits whatever the
-  // register's `chwidth` (O-39), so
+  // No earlyclobber here: §3 lets the destination share a register with the
+  // base or the index, read at 32 bits whatever its `chwidth` (O-39), so
   //
   //     chwidth   r2, 1
   //     ld.global r2, [r3, r2, 0, 0]
   //
-  // is well defined -- the index read takes all 32 bits, which narrowing left
-  // intact because `chwidth` reinterprets rather than converts, and the load
-  // then writes the 16-bit element. An earlyclobber was there while F-68 was
-  // open and cost an extra register per narrow load.
+  // is defined. CCVNarrowUses keeps them apart anyway (F-198), by marking the
+  // destination early-clobber per instruction: a sliced register (OI-29) holds
+  // nothing above its element for that 32-bit read to take.
   let mayLoad = 1 in
   def LD_GLOBAL_IDX_W16 : FormatDidx<0b00100, (outs GPR16:$rdata),
                              (ins GPR:$rbase, GPR:$rindex, uimm2:$scale,
