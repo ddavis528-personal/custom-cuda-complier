@@ -944,6 +944,12 @@ static cl::opt<bool> TestNoSized(
     cl::desc("make byte and halfword accesses with the chwidth forms, not "
              "O-80's sized loads and stores"));
 
+namespace llvm {
+/// For CCVWindowRemat: whether narrow accesses take O-80's sized forms, which
+/// have no launch-slot variant.
+bool ccvSizedAccesses() { return !TestNoSized; }
+} // namespace llvm
+
 static cl::opt<bool> TestNoByteAssertZext(
     "ccv-test-no-byte-assertzext", cl::init(false), cl::Hidden,
     cl::desc("do not mark a byte load as zero-extended, to measure the masks "

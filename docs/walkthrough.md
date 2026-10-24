@@ -362,6 +362,28 @@ __global__ void vadd16_loop(short *ALIGNED c, const short *ALIGNED a,
 }
 ```
 
+Compiled as it is today, it changes no width at all:
+
+```
+LBB0_1:
+	ld.global.u16 r6, [r3, r1, 1, 0]
+	ld.global.u16 r7, [r2, r1, 1, 0]
+	add r6, r7, r6
+	st.global.16 r6, [r4, r1, 1, 0]
+	add r1, r0
+	setp.lt.u p0, r1, r5
+	@p0 bra LBB0_1
+```
+
+The loads and the store are §3's sized forms (O-80), whose opcode names the
+transfer, and the add runs at 32 bits, whose low half is the 16-bit sum
+(F-199). That is not an optimisation but the rule: a `chwidth` may issue only
+where the warp is converged (O-81), and in scalar code the compiler cannot
+know that, since lanes diverge on their data. Width state remains for packed
+narrow formats such as FP8 and FP16. The rest of this section shows the
+machinery on the same kernel in the configuration that still narrows its
+integers, `-ccv-test-i16-legal -ccv-test-no-sized`.
+
 ### The mode switches are not in the loop
 
 ```
