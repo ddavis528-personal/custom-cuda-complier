@@ -877,6 +877,13 @@ static SDValue combineAtomic(AtomicSDNode *AN, TargetLowering::DAGCombinerInfo &
   return DCI.CombineTo(AN, Old, New.getValue(1));
 }
 
+// Measurement control for TI-45: a byte load's zero extension left unsaid,
+// as before, so the masks it lets the combiner drop come back.
+static cl::opt<bool> TestNoByteAssertZext(
+    "ccv-test-no-byte-assertzext", cl::init(false), cl::Hidden,
+    cl::desc("do not mark a byte load as zero-extended, to measure the masks "
+             "that marking removes"));
+
 // Mutation control for tools/check-atomics.sh: every atomic a plain load,
 // operation and store, which lanes racing on one word expose.
 static cl::opt<bool> TestAtomicPlain(
@@ -1089,8 +1096,15 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     // later as an unexpandable i64 rather than as anything recognisable.
     SDValue V = New.getValue(0);
     if (Byte) {
+      // Any other byte load is zero-extended by construction: its 32-bit
+      // reader sees it only after a widening chwidth, which clears [31:8]
+      // (O-38). Said, so the combiner can drop the `and 255` a later zext of
+      // the i8 becomes (TI-45: 684 a thread on CoreMark-derived).
       if (Ext == ISD::SEXTLOAD)
         V = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, MVT::i32, V,
+                        DAG.getValueType(MVT::i8));
+      else if (!TestNoByteAssertZext)
+        V = DAG.getNode(ISD::AssertZext, DL, MVT::i32, V,
                         DAG.getValueType(MVT::i8));
       if (VT != MVT::i32)
         V = DAG.getNode(ISD::TRUNCATE, DL, VT, V);

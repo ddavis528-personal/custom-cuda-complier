@@ -97,6 +97,9 @@ static cl::opt<bool> WholeCta(
 static cl::opt<bool> TestWarpBarrier("ccv-test-cta-warp-barrier", cl::Hidden,
     cl::desc("with -cta, a barrier waits for its own warp only, to test that "
              "it is caught"));
+static cl::opt<bool> NoopWidthPCs("noop-width-pcs", cl::Hidden,
+    cl::desc("with -counters, list the PCs of chwidths that set a register to "
+             "the width it already had (TI-45)"));
 static cl::opt<bool> TestIgnoreCount("ccv-test-bar-ignore-count", cl::Hidden,
     cl::desc("make bar.init a no-op, as before O-74, to test that it is "
              "caught"));
@@ -291,6 +294,9 @@ int main(int argc, char **argv) {
     I.Cta = &Warps;
   I.TestWarpBarrier = TestWarpBarrier;
   I.TestIgnoreCount = TestIgnoreCount;
+  std::map<uint64_t, uint64_t> NoopPCs;
+  if (NoopWidthPCs)
+    I.NoopWidthPCs = &NoopPCs;
 
   std::vector<std::string> AllPokes;
   if (!DataImage.empty()) {
@@ -932,6 +938,8 @@ int main(int argc, char **argv) {
                      unsigned(WholeCta ? NumThreads : Threads))
            << format("  SIMT efficiency         %9.1f%%   (lanes active per issue, of %u)\n",
                      pct(C.LaneInstrs, C.IssueGroups * Threads), Threads)
+           << format("  no-op widths            %10llu   (registers a chwidth set to the "
+                     "width they had, TI-45)\n", (unsigned long long)I.NoopWidths)
            << format("  fairness overrides      %10llu   (O-60 picks that left min-PC)\n",
                      (unsigned long long)C.FairPicks)
            << format("  predicate-file ops      %10llu   (no GPR lane activates)\n",
@@ -987,5 +995,8 @@ int main(int argc, char **argv) {
     }
     outs() << format("  [%#llx] = %u\n", (unsigned long long)Addr, I.Mem.read32(Addr));
   }
+  for (auto [PC, N] : NoopPCs)
+    outs() << format("  no-op width at %#llx: %llu\n", (unsigned long long)PC,
+                     (unsigned long long)N);
   return 0;
 }

@@ -43,6 +43,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
+#include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
@@ -92,6 +93,13 @@ static cl::opt<bool> ReportChwidth(
 // Mutation control for tools/check-bytes.sh: the dataflow models only
 // definitions, as before F-164, so a use that widened a register is invisible
 // to its successors.
+// Mutation control for tools/check-chwidth-noop.sh: condition 1 of the edge
+// placement as it was before TI-45, any predecessor reachable from the block.
+static cl::opt<bool> TestReachBackEdge(
+    "ccv-test-chwidth-reach-back-edge", cl::init(false), cl::Hidden,
+    cl::desc("treat every predecessor reachable from a block as its back edge, "
+             "to test that the no-op widths come back"));
+
 static cl::opt<bool> TestDefsOnly(
     "ccv-test-chwidth-defs-only", cl::init(false), cl::Hidden,
     cl::desc("model only definitions in chwidth's dataflow, to test that it "
@@ -384,11 +392,14 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
   // Three conditions, all necessary:
   //
   //   1. NO BACK-EDGE MAY NEED THE INSERT. If the predecessor that needs it is
-  //      reachable from the block itself, the edge runs once per iteration and
-  //      placement has moved the instruction from the top of the loop to the
-  //      bottom, which is not a saving. Reachability is computed here rather
-  //      than through MachineLoopInfo: it is a handful of blocks and it avoids
-  //      an analysis dependency in a pre-emit pass.
+  //      a latch of a loop the block heads (the block dominates it), the edge
+  //      runs once per iteration and placement has moved the instruction from
+  //      the top of the loop to the bottom, which is not a saving. Only a true
+  //      back edge: TI-45 found the test as "reachable from the block" also
+  //      refusing a predecessor in an ENCLOSING loop, which is reachable round
+  //      the outer back edge but runs once per entry. CoreMark-derived's
+  //      inner-loop headers then widened a register on every entry, 6,107
+  //      times out of 6,120 for nothing.
   //
   //   2. THE REGISTER MUST BE DEAD ON THE PREDECESSOR'S OTHER EDGES. A
   //      terminator's `chwidth` is executed whichever way the branch goes, so
@@ -431,17 +442,22 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
       }
     }
 
-    // Blocks reachable from B, for condition 1.
-    auto reachableFrom = [&](MachineBasicBlock *B) {
+    // Dominance, for condition 1. Inserts change no edges, so it stays valid.
+    DomTreeBase<MachineBasicBlock> DT;
+    DT.recalculate(MF);
+    // The control's test: is To reachable from From?
+    auto isReachable = [&](MachineBasicBlock *From, MachineBasicBlock *To) {
       SmallPtrSet<MachineBasicBlock *, 8> Seen;
-      SmallVector<MachineBasicBlock *, 8> Stack{B};
+      SmallVector<MachineBasicBlock *, 8> Stack{From};
       while (!Stack.empty()) {
         MachineBasicBlock *X = Stack.pop_back_val();
         for (MachineBasicBlock *S : X->successors())
-          if (Seen.insert(S).second)
+          if (S == To)
+            return true;
+          else if (Seen.insert(S).second)
             Stack.push_back(S);
       }
-      return Seen;
+      return false;
     };
 
     // The width the block wants for register I on entry: the width of the
@@ -469,7 +485,6 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
       for (MachineBasicBlock &MBB : MF) {
         if (MBB.pred_empty())
           continue;
-        auto Reach = reachableFrom(&MBB);
         for (unsigned I = 0; I != kNumGPR && !Progress; ++I) {
           if (In.lookup(&MBB)[I] != kUnknown)
             continue;
@@ -482,7 +497,8 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
           for (MachineBasicBlock *P : MBB.predecessors()) {
             if (Out.lookup(P)[I] == Want)
               continue;
-            if (Reach.count(P)) {          // condition 1: a back edge
+            if (TestReachBackEdge ? isReachable(&MBB, P)  // condition 1:
+                                  : DT.dominates(&MBB, P)) {  // a back edge
               Legal = false;
               break;
             }

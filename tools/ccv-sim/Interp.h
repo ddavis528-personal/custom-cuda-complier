@@ -4,6 +4,7 @@
 
 #include "Warp.h"
 #include <array>
+#include <map>
 #include <cstdint>
 #include <utility>
 #include <vector>
@@ -38,6 +39,10 @@ public:
   /// Mutation control for tools/check-barcount.sh: bar.init is a no-op, as
   /// before O-74, so every barrier waits for every live lane.
   bool TestIgnoreCount = false;
+  /// TI-45: register widths a chwidth set to the width the register already
+  /// had, which change nothing; by PC when NoopWidthPCs is set.
+  uint64_t NoopWidths = 0;
+  std::map<uint64_t, uint64_t> *NoopWidthPCs = nullptr;
   /// Retires barrier Id if every live lane it waits for has arrived, and
   /// wakes every blocked lane; true if it did. Only under the default rule:
   /// a barrier with a count completes on its nth arrival (O-74).

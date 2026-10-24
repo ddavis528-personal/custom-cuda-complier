@@ -18,6 +18,13 @@
 # (the state benchmark's pattern tables) unrelocated; and
 # -ccv-test-narrow-in-place narrows a register for a 16-bit read while its
 # 32-bit value is still live.
+#
+# TI-45: width changes that buy nothing. The run counts the chwidths that set
+# a register to the width it already had (ccv-sim -counters), and two controls
+# put back what made them, each of which must cost more: placing a loop
+# header's transition on an outer-loop predecessor refused as a back edge
+# (-ccv-test-chwidth-reach-back-edge), and a byte load not marked as
+# zero-extended, so a zext's `and 255` stays (-ccv-test-no-byte-assertzext).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
@@ -58,7 +65,7 @@ import os, subprocess, sys
 tmp, entry, want = sys.argv[1], sys.argv[2], sys.argv[3]
 N, MEM, OUT, ITER = 32, 3, 7, 2
 args = ["-entry", entry, "-data", f"{tmp}/ccv_data.bin", "-data-info", f"{tmp}/ccv_info.bin",
-        "-max-steps", "100000000",
+        "-max-steps", "100000000", "-counters",
         "-poke", f"0x20000={N}", "-poke", "0x20018=256",
         "-poke", f"0x20020={MEM}", "-poke", "0x20024=66000",  # mem, past 64 KiB
         "-poke", f"0x20028={OUT}", "-poke", "0x2002c=0",      # out
@@ -84,16 +91,32 @@ for t in range(N):
 if bad:
     print(f"{len(bad)} of {N} lanes wrong; {bad[0]}")
 else:
-    print("ok", next((l.split()[1] for l in r.stdout.splitlines() if "executed" in l), "?"))
+    noop = next((l.split()[2] for l in r.stdout.splitlines() if "no-op widths" in l), "?")
+    print("ok", next((l.split()[1] for l in r.stdout.splitlines() if "executed" in l), "?"), noop)
 PY
 }
 
 fail=0
 out=$(run)
 case "$out" in
-  ok*) echo "  PASS  CoreMark-derived: list, matrix and state on 32 lanes give CoreMark's CRCs, and the host's after $ITER iterations ($want; ${out#ok } issue groups)" ;;
-  *)   echo "  FAIL  CoreMark-derived: $out"; fail=1 ;;
+  ok*) read -r _ groups noop <<< "$out"
+       echo "  PASS  CoreMark-derived: list, matrix and state on 32 lanes give CoreMark's CRCs, and the host's after $ITER iterations ($want; $groups issue groups, $noop no-op widths)" ;;
+  *)   echo "  FAIL  CoreMark-derived: $out"; fail=1; groups=0; noop=0 ;;
 esac
+# TI-45's controls: each must still compute every lane right, at a cost.
+for c in "-ccv-test-chwidth-reach-back-edge:noop" "-ccv-test-no-byte-assertzext:groups"; do
+  out=$(run ${c%%:*})
+  read -r tag cg cn <<< "$out"
+  if [ "$tag" != ok ]; then
+    echo "  FAIL  control ${c%%:*} broke the workload: $out"; fail=1
+  elif [ "${c#*:}" = noop ] && [ "$cn" -gt "$noop" ]; then
+    echo "  PASS  control ${c%%:*}: $cn no-op widths, against $noop"
+  elif [ "${c#*:}" = groups ] && [ "$cg" -gt "$groups" ]; then
+    echo "  PASS  control ${c%%:*}: $cg issue groups, against $groups"
+  else
+    echo "  FAIL  control ${c%%:*} costs nothing ($cg issue groups, $cn no-op widths)"; fail=1
+  fi
+done
 for c in -ccv-test-hoist-past-calls -ccv-test-no-data-reloc -ccv-test-narrow-in-place; do
   out=$(run $c)
   case "$out" in
