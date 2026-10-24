@@ -586,6 +586,33 @@ static bool matchFrame(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
   return false;
 }
 
+/// O-80 in the frame: a sized access takes base + index only, whose 8-bit
+/// displacement cannot reach a frame object past 127 bytes. So it addresses the
+/// frame as a frame pointer does (CCVPointerPairs): the window below R15's as
+/// the base, and the object's offset in it (FRAMEOFF, which eliminateFrameIndex
+/// fills in) plus the access's own offsets as the index.
+static void frameSized(SelectionDAG &DAG, const SDLoc &DL, EVT MemVT,
+                       SDValue FI, SDValue Idx, SDValue Disp, bool Scale,
+                       SDValue &Base, SDValue &Index) {
+  SDValue R15 = DAG.getCopyFromReg(DAG.getEntryNode(), DL, CCV::R15, MVT::i32);
+  Base = DAG.getNode(ISD::ADD, DL, MVT::i32, R15,
+                     DAG.getConstant(-1, DL, MVT::i32));
+  int FIdx = cast<FrameIndexSDNode>(FI)->getIndex();
+  Index = DAG.getNode(CCVISD::FRAMEOFF, DL, MVT::i32,
+                      DAG.getTargetFrameIndex(FIdx, MVT::i32));
+  if (int64_t D = cast<ConstantSDNode>(Disp)->getSExtValue())
+    Index = DAG.getNode(ISD::ADD, DL, MVT::i32, Index,
+                        DAG.getConstant(D, DL, MVT::i32));
+  if (!Idx.isUndef()) {
+    SDValue I = Idx;
+    if (Scale && MemVT.getSizeInBits() > 8)
+      I = DAG.getNode(ISD::SHL, DL, MVT::i32, I,
+                      DAG.getConstant(Log2_32(MemVT.getSizeInBits() / 8), DL,
+                                      MVT::i32));
+    Index = DAG.getNode(ISD::ADD, DL, MVT::i32, Index, I);
+  }
+}
+
 static bool matchBaseOff(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
                          SDValue &Base, SDValue &Off) {
   // A window plus a constant, or a window alone: a global at a fixed offset
@@ -1145,15 +1172,9 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     } else if (SDValue Disp; Sized && matchFrame(DAG, DL, LD->getBasePtr(),
                                                  LD->getMemoryVT(), Base, Idx,
                                                  Disp, Scale)) {
-      // The frame: R15 is the base once eliminateFrameIndex has run, and a
-      // constant offset indexes by zero, its offset in the displacement.
-      SDValue Ops[] = {LD->getChain(), Base,
-                       Idx.isUndef() ? DAG.getConstant(0, DL, MVT::i32) : Idx,
-                       DAG.getTargetConstant(Idx.isUndef() ? false : Scale, DL,
-                                             MVT::i32),
-                       Disp, DAG.getTargetConstant(Signed, DL, MVT::i32)};
-      New = DAG.getMemIntrinsicNode(CCVISD::LD_BASEIDX, DL, SizedVTs, Ops,
-                                    LD->getMemoryVT(), LD->getMemOperand());
+      SDValue W, I;
+      frameSized(DAG, DL, MemVT, Base, Idx, Disp, Scale, W, I);
+      New = SizedLoad(W, I, false, 0);
       IsSized = true;
     } else if (SDValue Disp; matchFrame(DAG, DL, LD->getBasePtr(),
                                         LD->getMemoryVT(), Base, Idx, Disp,
@@ -1251,14 +1272,9 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
             false, 0);
       if (SDValue Disp; matchFrame(DAG, DL, ST->getBasePtr(), ST->getMemoryVT(),
                                    Base, Idx, Disp, Scale)) {
-        SDValue Ops[] = {ST->getChain(), V32, Base,
-                         Idx.isUndef() ? DAG.getConstant(0, DL, MVT::i32) : Idx,
-                         DAG.getTargetConstant(Idx.isUndef() ? false : Scale,
-                                               DL, MVT::i32),
-                         Disp, DAG.getTargetConstant(1, DL, MVT::i32)};
-        return DAG.getMemIntrinsicNode(CCVISD::ST_BASEIDX, DL,
-                                       DAG.getVTList(MVT::Other), Ops,
-                                       ST->getMemoryVT(), ST->getMemOperand());
+        SDValue W, I;
+        frameSized(DAG, DL, ST->getMemoryVT(), Base, Idx, Disp, Scale, W, I);
+        return SizedStore(W, I, false, 0);
       }
     }
     if (ST->getMemoryVT() == MVT::i8 ||
