@@ -192,6 +192,15 @@ static uint32_t narrow(uint32_t V, uint8_t Code) {
   return N >= 32 ? V : (V & ((1u << N) - 1));
 }
 
+/// O-79, amending O-39: an address register (`rbase`, `rindex`) is read at 32
+/// bits, but a narrow one contributes only its element, zero-extended. The bits
+/// above the element are no longer the register's: a sliced register file
+/// (OI-29) gives those sections to other registers. -ccv-test-address-full-width
+/// reads all 32 bits, as O-39 did.
+static uint32_t addrReg(const Warp &W, unsigned R, unsigned L) {
+  return nfp::TestAddrFull ? W.GPR[R][L] : narrow(W.GPR[R][L], W.ChWidth[R]);
+}
+
 /// O-67, the mixed-width rule: a source read at its operation's operating
 /// width OpW (the destination's chwidth, or rs0's for a compare) is its raw
 /// element at its own width Src, zero-extended or truncated to OpW as a bit
@@ -1389,7 +1398,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     // half the memory traffic of a 32-bit one.
     unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
     forEachLane([&](unsigned L) {
-      uint64_t A = (uint64_t(W.GPR[Base][L]) << kBaseShift) + Off;
+      uint64_t A = (uint64_t(addrReg(W, Base, L)) << kBaseShift) + Off;
       if (IsLoad) W.GPR[Data][L] =
               writeElem(W.GPR[Data][L], Mem.readN(A, Bytes), W.ChWidth[Data]);
       else        Mem.writeN(A, narrow(W.GPR[Data][L], W.ChWidth[Data]), Bytes);
@@ -1406,7 +1415,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::ST_PRED_G: {
     unsigned PMask = unsigned(MI.getOperand(0).getImm()) & 0xf;
     unsigned Base = regOf(MI, 1);
-    uint64_t A = (uint64_t(W.GPR[Base][0]) << kBaseShift) +
+    uint64_t A = (uint64_t(addrReg(W, Base, 0)) << kBaseShift) +
                  MI.getOperand(2).getImm();
     Mem.CurLane = 0;
     for (unsigned P = 0; P != kPreds; ++P) {
@@ -1504,8 +1513,8 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     unsigned Sh = ScaleEn ? (2 - W.ChWidth[Data]) : 0;
     unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
     forEachLane([&](unsigned L) {
-      uint64_t A = (uint64_t(W.GPR[Base][L]) << kBaseShift) +
-                   (uint64_t(W.GPR[Idx][L]) << Sh) + Disp;
+      uint64_t A = (uint64_t(addrReg(W, Base, L)) << kBaseShift) +
+                   (uint64_t(addrReg(W, Idx, L)) << Sh) + Disp;
       if (IsLoad)
         W.GPR[Data][L] =
             writeElem(W.GPR[Data][L], Mem.readN(A, Bytes), W.ChWidth[Data]);
@@ -1540,7 +1549,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
     forEachLane([&](unsigned L) {
       uint64_t A = (uint64_t(Window) << kBaseShift) +
-                   (uint64_t(W.GPR[Idx][L]) << Sh) + Disp;
+                   (uint64_t(addrReg(W, Idx, L)) << Sh) + Disp;
       if (IsLoad)
         W.GPR[Data][L] =
             writeElem(W.GPR[Data][L], Mem.readN(A, Bytes), W.ChWidth[Data]);
@@ -1603,8 +1612,9 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
         continue;
       Mem.CurLane = Shared.CurLane = L;
       uint64_t A =
-          (nfp::TestAtomNoIndex ? 0 : uint64_t(W.GPR[Idx][L]) << Scale) + Disp;
-      A += Sh ? uint64_t(W.GPR[Base][L]) : uint64_t(W.GPR[Base][L]) << kBaseShift;
+          (nfp::TestAtomNoIndex ? 0 : uint64_t(addrReg(W, Idx, L)) << Scale) + Disp;
+      A += Sh ? uint64_t(addrReg(W, Base, L))
+              : uint64_t(addrReg(W, Base, L)) << kBaseShift;
       if (Sh)
         A &= 0xFFFFFFFFu;                // .shared is 32 bits (§5.1)
       const uint32_t Old = M.readN(A, 4), X = W.GPR[S1][L];
@@ -1656,7 +1666,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     // nothing checked the claim. Same defect as F-67, one address space over.
     unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
     forEachLane([&](unsigned L) {
-      uint64_t A = (uint64_t(W.GPR[Base][L]) + Off) & 0xFFFFFFFFu;  // O-39
+      uint64_t A = (uint64_t(addrReg(W, Base, L)) + Off) & 0xFFFFFFFFu;  // O-79
       if (IsLoad)
         W.GPR[Data][L] =
             writeElem(W.GPR[Data][L], Shared.readN(A, Bytes), W.ChWidth[Data]);
@@ -1676,7 +1686,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     // unaligned .global (O-23).
     unsigned Sh = ScaleEn ? (2 - W.ChWidth[Data]) : 0;
     forEachLane([&](unsigned L) {
-      uint64_t A = (uint64_t(W.GPR[Base][L]) + (uint64_t(W.GPR[Idx][L]) << Sh) +
+      uint64_t A = (uint64_t(addrReg(W, Base, L)) + (uint64_t(addrReg(W, Idx, L)) << Sh) +
                     Disp) & 0xFFFFFFFFu;
       // 32-bit only (narrow is refused by the width guard), and through the
       // checked path so a misaligned lane raises F-ALIGN (O-58).
@@ -1808,7 +1818,8 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
         return;                  // invariant 10: excluded lanes preserved
       // Through the checked path: a misaligned predicated-on lane raises
       // F-ALIGN, a predicated-off one never reaches here (O-58, §12.2).
-      W.GPR[Data][L] = Mem.readN((uint64_t(W.GPR[Base][L]) << kBaseShift) + Off, 4);
+      W.GPR[Data][L] =
+          Mem.readN((uint64_t(addrReg(W, Base, L)) << kBaseShift) + Off, 4);
     });
     break;
   }
@@ -1964,9 +1975,9 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::C_RET: {
     // rs is in [15:12], the high nibble of the payload. It is not a register
     // operand to the MC layer, so the width guard above cannot see it.
+    // A narrow rs is read as its element, zero-extended (O-79), in main.cpp's
+    // redirect.
     unsigned S = unsigned(MI.getOperand(0).getImm() >> 4) & 15;
-    if (W.ChWidth[S] != 0)
-      return {Result::Unimplemented, 0};
     R.Kind = Result::Return;
     R.Target = S;
     break;
