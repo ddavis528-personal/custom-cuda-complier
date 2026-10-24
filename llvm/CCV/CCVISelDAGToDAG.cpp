@@ -266,7 +266,11 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     EVT MemVT = cast<MemSDNode>(N)->getMemoryVT();
     unsigned LdOpc = atWidth(CCV::LD_GLOBAL_IDX, MemVT),
              StOpc = atWidth(CCV::ST_GLOBAL_IDX, MemVT);
-    if (Sized) {
+    if (Sized && TestBytesAt32 && MemVT == MVT::i8) {
+      // The control: a byte moves four bytes, through the 32-bit forms.
+      LdOpc = CCV::LD_GLOBAL_IDX;
+      StOpc = CCV::ST_GLOBAL_IDX;
+    } else if (Sized) {
       bool B = MemVT == MVT::i8, S = IsLoad && N->getConstantOperandVal(5);
       LdOpc = B ? (S ? CCV::SZ_GLOBAL_LD_S8 : CCV::SZ_GLOBAL_LD_U8)
                 : (S ? CCV::SZ_GLOBAL_LD_S16 : CCV::SZ_GLOBAL_LD_U16);

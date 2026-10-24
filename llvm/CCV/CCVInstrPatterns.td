@@ -480,13 +480,10 @@ def : Pat<(i32 (sext GPR16:$a)), (CVT_SEXT GPR16:$a, GPR16:$a, GPR16:$a)>;
 
 // `sext i16 to i32` on a value that is already in a 32-bit register arrives as
 // sign_extend_inreg, not sext -- a kernel argument is the common case, since
-// the ABI passes it 32-bit wide. Same instruction; the source is reinterpreted
-// at 16 bits first, which is a COPY between classes and costs nothing but the
-// `chwidth` CCVInsertChwidth places.
-def : Pat<(i32 (sext_inreg GPR:$a, i16)),
-          (CVT_SEXT (i16 (COPY_TO_REGCLASS GPR:$a, GPR16)),
-                    (i16 (COPY_TO_REGCLASS GPR:$a, GPR16)),
-                    (i16 (COPY_TO_REGCLASS GPR:$a, GPR16)))>;
+// the ABI passes it 32-bit wide. It is a shift pair at 32 bits: a chwidth may
+// issue only where the warp is converged (O-81), and `cvt.sext` at 16 bits
+// would need one to reinterpret the register.
+def : Pat<(i32 (sext_inreg GPR:$a, i16)), (SRAI (SHLI GPR:$a, 16), 16)>;
 
 def : Pat<(add GPR16:$a, GPR16:$b), (ADD_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;
 def : Pat<(sub GPR16:$a, GPR16:$b), (SUB_W16 GPR16:$a, GPR16:$b, GPR16:$a)>;

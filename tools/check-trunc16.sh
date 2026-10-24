@@ -13,7 +13,10 @@ opt -load-pass-plugin=build/CCVLowerKernelArgs.so \
     -passes='function(infer-address-spaces),ccv-lower-kernel-args' \
     -S test/cuda/trunc16.ll -o "$TMP/t.ll" 2>/dev/null ||
   { echo "  FAIL  trunc16.ll did not lower"; exit 1; }
-for v in "0:" "1:-ccv-test-trunc-no-narrow" "2:-ccv-test-trunc-as-copy"; do
+# The truncation exists only with i16 a legal type (F-199 runs 16-bit code at
+# 32 bits), so every build here is -ccv-test-i16-legal.
+for v in "0:-ccv-test-i16-legal" "1:-ccv-test-i16-legal -ccv-test-trunc-no-narrow" \
+         "2:-ccv-test-i16-legal -ccv-test-trunc-as-copy"; do
   build/ccv-llc "$TMP/t.ll" -o "$TMP/t${v%%:*}.o" -obj ${v#*:} 2>"$TMP/err" ||
     { echo "  FAIL  trunc16.ll did not compile${v#*:+ (${v#*:})}: $(head -1 "$TMP/err")"; exit 1; }
   llvm-objcopy -O binary --only-section=.text "$TMP/t${v%%:*}.o" "$TMP/t${v%%:*}.bin"

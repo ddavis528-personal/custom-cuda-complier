@@ -23,11 +23,14 @@ static constexpr unsigned AS_CONST  = 4;
 
 #include "CCVGenCallingConv.inc"
 
-// O-78 experiment: i16 not a legal type, so 16-bit integer code is promoted
-// to 32 bits and needs no chwidth.
-static cl::opt<bool> Int16At32(
-    "ccv-int16-at-32", cl::init(false), cl::Hidden,
-    cl::desc("make i16 illegal, so 16-bit integer code runs at 32 bits"));
+// O-81: a chwidth may issue only where the warp is converged, and scalar code
+// cannot tell where it is. So i16 is not a legal type: 16-bit integer code is
+// promoted to 32 bits by the type legalizer and needs no width, and memory
+// takes O-80's sized forms. -ccv-test-i16-legal puts the 16-bit register class
+// back, whose chwidths a diverged warp then faults on (F-197, F-199).
+static cl::opt<bool> TestI16Legal(
+    "ccv-test-i16-legal", cl::init(false), cl::Hidden,
+    cl::desc("make i16 a legal type at width 16 again, as before F-199"));
 
 // TI-45's measurement, off until F-197 is settled: i16 and/or/xor done at 32
 // bits change the shape of the width code enough to expose F-197 (check-fp4's
@@ -52,7 +55,7 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   // hold 16-bit elements. There is no separate class -- the width is a
   // property of the value, carried to the post-RA chwidth pass in TSFlags
   // (F-3). i8 and i4 are not legal yet; i4 has no MVT at all.
-  if (!Int16At32)
+  if (TestI16Legal)
     addRegisterClass(MVT::i16, &CCV::GPR16RegClass);
   addRegisterClass(MVT::f32, &CCV::GPRRegClass);
   // A predicate is its own namespace with its own RAT (invariant 5), so i1
@@ -1079,7 +1082,9 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
       if (MemVT == MVT::i32)
         Ext = ISD::NON_EXTLOAD;
     }
-    const bool Byte = MemVT == MVT::i8;
+    // With i16 not a legal type (F-199), a halfword load is handled
+    // as a byte load is: its value lands in a 32-bit register.
+    const bool Byte = MemVT == MVT::i8 || (MemVT == MVT::i16 && !TestI16Legal);
     if (Byte ? !(VT == MVT::i8 || VT == MVT::i16 || VT == MVT::i32)
              : Ext != ISD::NON_EXTLOAD && (MemVT != MVT::i16 || VT != MVT::i32))
       return SDValue();
@@ -1088,7 +1093,7 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     // chwidth, which code that may be diverged cannot have (O-78). Sized forms
     // exist in the base + index layout only, so a base + offset or launch-slot
     // address becomes base + index here; the frame keeps its chwidth forms.
-    const bool Sized = !TestNoSized && (Byte || MemVT == MVT::i16);
+    const bool Sized = !TestNoSized && (MemVT == MVT::i8 || MemVT == MVT::i16);
     const bool Signed = Ext == ISD::SEXTLOAD;
     SDVTList VTs = DAG.getVTList(Byte                      ? MVT::i32
                                  : Ext == ISD::NON_EXTLOAD ? VT
@@ -1137,6 +1142,19 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
       SDValue Ops[] = {LD->getChain(), Base, Idx};
       New = DAG.getMemIntrinsicNode(CCVISD::LD_BASEOFF, DL, VTs, Ops,
                                     LD->getMemoryVT(), LD->getMemOperand());
+    } else if (SDValue Disp; Sized && matchFrame(DAG, DL, LD->getBasePtr(),
+                                                 LD->getMemoryVT(), Base, Idx,
+                                                 Disp, Scale)) {
+      // The frame: R15 is the base once eliminateFrameIndex has run, and a
+      // constant offset indexes by zero, its offset in the displacement.
+      SDValue Ops[] = {LD->getChain(), Base,
+                       Idx.isUndef() ? DAG.getConstant(0, DL, MVT::i32) : Idx,
+                       DAG.getTargetConstant(Idx.isUndef() ? false : Scale, DL,
+                                             MVT::i32),
+                       Disp, DAG.getTargetConstant(Signed, DL, MVT::i32)};
+      New = DAG.getMemIntrinsicNode(CCVISD::LD_BASEIDX, DL, SizedVTs, Ops,
+                                    LD->getMemoryVT(), LD->getMemOperand());
+      IsSized = true;
     } else if (SDValue Disp; matchFrame(DAG, DL, LD->getBasePtr(),
                                         LD->getMemoryVT(), Base, Idx, Disp,
                                         Scale)) {
@@ -1168,10 +1186,10 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
       // the i8 becomes (TI-45: 684 a thread on CoreMark-derived).
       if (Ext == ISD::SEXTLOAD)
         V = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, MVT::i32, V,
-                        DAG.getValueType(MVT::i8));
+                        DAG.getValueType(MemVT));
       else if (!TestNoByteAssertZext)
         V = DAG.getNode(ISD::AssertZext, DL, MVT::i32, V,
-                        DAG.getValueType(MVT::i8));
+                        DAG.getValueType(MemVT));
       if (VT != MVT::i32)
         V = DAG.getNode(ISD::TRUNCATE, DL, VT, V);
     } else if (Ext != ISD::NON_EXTLOAD) {
@@ -1231,8 +1249,20 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
             DAG.getConstant(cast<ConstantSDNode>(Idx)->getSExtValue(), DL,
                             MVT::i32),
             false, 0);
+      if (SDValue Disp; matchFrame(DAG, DL, ST->getBasePtr(), ST->getMemoryVT(),
+                                   Base, Idx, Disp, Scale)) {
+        SDValue Ops[] = {ST->getChain(), V32, Base,
+                         Idx.isUndef() ? DAG.getConstant(0, DL, MVT::i32) : Idx,
+                         DAG.getTargetConstant(Idx.isUndef() ? false : Scale,
+                                               DL, MVT::i32),
+                         Disp, DAG.getTargetConstant(1, DL, MVT::i32)};
+        return DAG.getMemIntrinsicNode(CCVISD::ST_BASEIDX, DL,
+                                       DAG.getVTList(MVT::Other), Ops,
+                                       ST->getMemoryVT(), ST->getMemOperand());
+      }
     }
-    if (ST->getMemoryVT() == MVT::i8) {
+    if (ST->getMemoryVT() == MVT::i8 ||
+        (ST->getMemoryVT() == MVT::i16 && !TestI16Legal)) {
       if (Val.getValueType() != MVT::i32)
         Val = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i32, Val);
     } else if (ST->isTruncatingStore()) {
@@ -1290,7 +1320,7 @@ CCVTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
   if (Constraint.size() == 1 && (Constraint[0] == 'r' || Constraint[0] == 'f'))
     return {0U, &CCV::GPRRegClass};
   if (Constraint.size() == 1 && Constraint[0] == 'h')
-    return {0U, Int16At32 ? &CCV::GPRRegClass : &CCV::GPR16RegClass};
+    return {0U, TestI16Legal ? &CCV::GPR16RegClass : &CCV::GPRRegClass};
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
 

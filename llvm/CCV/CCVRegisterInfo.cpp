@@ -142,6 +142,9 @@ bool CCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
   switch (I.getOpcode()) {
   case CCV::LD_GLOBAL_IDX: case CCV::LD_GLOBAL_IDX_W16: case CCV::LD_GLOBAL_IDX_W8:
   case CCV::ST_GLOBAL_IDX: case CCV::ST_GLOBAL_IDX_W16: case CCV::ST_GLOBAL_IDX_W8:
+  case CCV::SZ_GLOBAL_LD_U8:  case CCV::SZ_GLOBAL_LD_S8:
+  case CCV::SZ_GLOBAL_LD_U16: case CCV::SZ_GLOBAL_LD_S16:
+  case CCV::SZ_GLOBAL_ST_8:   case CCV::SZ_GLOBAL_ST_16:
     DispOp = FIOperandNum + 3;
     break;
   default:

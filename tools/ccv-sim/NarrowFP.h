@@ -55,6 +55,8 @@ inline bool TestAtomNoIndex = false;
 inline bool TestAddrFull = false;
 /// O-80's control: ld.s8 and ld.s16 zero-extend.
 inline bool TestSizedNoSext = false;
+/// O-81's control: a chwidth from a diverged warp executes, as before.
+inline bool TestDivergedChwidth = false;
 // Mutation control for test/atomics.s: add.f32's lanes in descending order.
 inline bool TestFAddDescending = false;
 

@@ -386,6 +386,19 @@ run_sized() {
     echo "  FAIL  sized: got '$got', want '$want' (control '$ctl', F-WIDTH $fault)"; return 1
   fi
 }
+# --- a chwidth from a diverged warp (O-81) ----------------------------------
+run_diverged_chwidth() {
+  python3 "$AS" "$JSON" test/faults/diverged-chwidth.s "$TMP/dc.bin" >/dev/null || return 1
+  local got ctl
+  got=$("$SIM" "$TMP/dc.bin" 2>&1 | grep -c 'FAULT F-WIDTH  pc=0x100e  lanes=0000ffff')
+  # The control: the diverged chwidth executes, as before O-81.
+  ctl=$("$SIM" "$TMP/dc.bin" -ccv-test-diverged-chwidth 2>&1 | grep -c 'FAULT')
+  if [ "$got" = 1 ] && [ "$ctl" = 0 ]; then
+    echo "  PASS  a chwidth from a diverged warp raises F-WIDTH, a converged one does not (O-81)"
+  else
+    echo "  FAIL  diverged-chwidth: fault $got, want 1 (control faults $ctl, want 0)"; return 1
+  fi
+}
 # --- srd #2, %lanectx (O-64) -----------------------------------------------
 run_lanectx() {
   python3 "$AS" "$JSON" test/lanectx.s "$TMP/lc.bin" >/dev/null || return 1
@@ -447,6 +460,7 @@ echo "  --- the mixed-width rule (O-67) ---"
 run_mixed_width || fail=1
 run_addr_narrow || fail=1
 run_sized || fail=1
+run_diverged_chwidth || fail=1
 
 # --- the fault model (ISA v1.9 section 12, O-57/O-58) ------------------------
 # Each case names the record it must produce. A fault exits 3, distinct from a
@@ -573,8 +587,10 @@ echo "  --- call and ret (F-21) ---"
 run_call || fail=1
 
 # The compiler side: CCVInsertChwidth places the mode switches, and the two
-# things that are easy to get wrong are both pinned here.
-chw=$(build/ccv-llc test/accept/chwidth-i16.ll -o - 2>/dev/null)
+# things that are easy to get wrong are both pinned here. Default code has no
+# 16-bit integer width to place (F-199: i16 runs at 32 bits, narrow accesses
+# are sized), so this runs the configuration that still has one.
+chw=$(build/ccv-llc test/accept/chwidth-i16.ll -o - -ccv-test-i16-legal -ccv-test-no-sized 2>/dev/null)
 if ! grep -q "chwidth r" <<< "$chw"; then
   echo "  FAIL  no chwidth emitted for a 16-bit kernel"
   fail=1

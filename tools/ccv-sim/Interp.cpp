@@ -884,6 +884,19 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     }
   }
 
+  // ---- F-WIDTH from a diverged warp (O-81) --------------------------------
+  // Width is one per register for the warp (O-78), so a chwidth may issue only
+  // where the warp is converged: its issue mask every live lane. Otherwise the
+  // whole instruction faults at dispatch, a chwidth.multi included, and no
+  // width changes. -ccv-test-diverged-chwidth lets it through, as before O-81.
+  if ((Op == CCV::C_CHWIDTH || Op == CCV::CHWIDTH_MULTI) && Mask != W.Active &&
+      !nfp::TestDivergedChwidth) {
+    Result F{Result::Fault, 0};
+    F.Cause = "F-WIDTH";
+    F.TakenMask = Mask;
+    return F;
+  }
+
   // ---- F-WIDTH (ISA v1.9 §12.3): dispatch stage, whole instruction --------
   // A memory access whose rdata is at chwidth = 4 names no transfer. Checked
   // from committed width state before anything executes, and independent of

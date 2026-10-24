@@ -68,6 +68,10 @@ static cl::opt<unsigned> LaneContexts("lane-contexts", cl::init(4096),
 static cl::opt<bool> TestFAddDescending("ccv-test-atomic-fadd-descending",
     cl::Hidden, cl::desc("apply atom.add.f32's lanes in descending order, to "
                          "test that the order is observed (O-76)"));
+static cl::opt<bool> TestDivergedChwidth(
+    "ccv-test-diverged-chwidth", cl::Hidden,
+    cl::desc("execute a chwidth whose issue mask is not every live lane, as "
+             "before O-81, rather than raise F-WIDTH"));
 static cl::opt<bool> TestSizedNoSext(
     "ccv-test-sized-no-sext", cl::Hidden,
     cl::desc("zero-extend ld.s8 and ld.s16, to test that the sign is checked"));
@@ -225,6 +229,7 @@ int main(int argc, char **argv) {
   nfp::TestAtomNoIndex = TestAtomNoIndex;
   nfp::TestAddrFull = TestAddrFull;
   nfp::TestSizedNoSext = TestSizedNoSext;
+  nfp::TestDivergedChwidth = TestDivergedChwidth;
   nfp::TestFAddDescending = TestFAddDescending;
   nfp::SfuErrorUlps = SfuErrorUlps;
   nfp::TestByValue = TestMixedByValue;
