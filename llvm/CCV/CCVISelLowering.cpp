@@ -23,12 +23,13 @@ static constexpr unsigned AS_CONST  = 4;
 
 #include "CCVGenCallingConv.inc"
 
-// Measurement control for TI-45: i16 and/or/xor selected at width 16, as
-// before, with the narrowing and widening around them.
-static cl::opt<bool> TestNarrowLogic(
-    "ccv-test-narrow-logic", cl::init(false), cl::Hidden,
-    cl::desc("select 16-bit and, or and xor at width 16, to measure what doing "
-             "them at 32 removes"));
+// TI-45's measurement, off until F-197 is settled: i16 and/or/xor done at 32
+// bits change the shape of the width code enough to expose F-197 (check-fp4's
+// __NV_NOSAT kernels), so they are opt-in.
+static cl::opt<bool> Logic16At32(
+    "ccv-logic16-at-32", cl::init(false), cl::Hidden,
+    cl::desc("do 16-bit and, or and xor at 32 bits (TI-45; unsound until "
+             "F-197)"));
 
 // Mutation control for tools/check-int64.sh: sign-extend every load widened
 // to 64 bits, whatever its extension.
@@ -129,13 +130,14 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   // Shifts are not here: LegalizeDAG does not promote them, so they have
   // patterns that do the same through the 32-bit instructions.
   //
-  // And, or and xor too (TI-45), although they have 16-bit forms. Done at
-  // 16 they cost a narrowing before and a widening after, and need no width:
-  // the low 16 bits of the result depend only on the operands' low 16.
+  // And, or and xor too, with -ccv-logic16-at-32 (TI-45, opt-in until F-197),
+  // although they have 16-bit forms. Done at 16 they cost a narrowing before
+  // and a widening after, and need no width: the low 16 bits of the result
+  // depend only on the operands' low 16.
   // CoreMark's CRC-16 narrowed 19,877 values a thread for nothing else. The
   // promotion any-extends, so the i32 may carry high bits; the truncation
   // back clears them wherever a 32-bit read would see them (F-195).
-  if (!TestNarrowLogic)
+  if (Logic16At32)
     for (unsigned Op : {ISD::AND, ISD::OR, ISD::XOR}) {
       setOperationAction(Op, MVT::i16, Promote);
       AddPromotedToType(Op, MVT::i16, MVT::i32);

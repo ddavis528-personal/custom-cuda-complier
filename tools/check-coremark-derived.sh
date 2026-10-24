@@ -17,26 +17,23 @@
 # resets it; -ccv-test-no-data-reloc leaves the pointers in the module's data
 # (the state benchmark's pattern tables) unrelocated; and
 # -ccv-test-narrow-in-place narrows a register for a 16-bit read while its
-# 32-bit value is still live. That shape is gone from CoreMark: TI-45 moved
-# its CRC's 16-bit and, or and xor to 32 bits, and F-195 made a truncation an
-# instruction of its own, which never shares a register with a live source.
-# So that control runs with -ccv-test-narrow-logic and -ccv-test-trunc-as-copy,
-# which put both back, and must still be caught there.
+# 32-bit value is still live. F-195 made a truncation an instruction of its
+# own, which never shares a register with a live source, so that control runs
+# with -ccv-test-trunc-as-copy, which puts the old shape back, and must still
+# be caught there.
 #
 # F-195: a truncation to 16 bits clears the high half whenever a 32-bit read
-# may see it. -ccv-test-trunc-no-narrow drops that clearing and must be
-# caught; -ccv-test-trunc-ignore-known and -ccv-test-trunc-always-narrow clear
-# where the source's known bits or its readers say it is not needed, and must
-# cost more.
+# may see it (tools/check-trunc16.sh has its soundness control). Here
+# -ccv-test-trunc-ignore-known and -ccv-test-trunc-always-narrow clear where
+# the source's known bits or its readers say it is not needed, and must cost
+# more.
 #
 # TI-45: width changes that buy nothing. The run counts the chwidths that set
 # a register to the width it already had (ccv-sim -counters), and two controls
 # put back what made them, each of which must cost more: placing a loop
 # header's transition on an outer-loop predecessor refused as a back edge
 # (-ccv-test-chwidth-reach-back-edge), a byte load not marked as
-# zero-extended, so a zext's `and 255` stays (-ccv-test-no-byte-assertzext),
-# and 16-bit and, or and xor done at width 16, each narrowed and widened
-# round (-ccv-test-narrow-logic).
+# zero-extended, so a zext's `and 255` stays (-ccv-test-no-byte-assertzext).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
@@ -117,7 +114,7 @@ case "$out" in
 esac
 # TI-45's controls: each must still compute every lane right, at a cost.
 for c in "-ccv-test-chwidth-reach-back-edge:noop" "-ccv-test-no-byte-assertzext:groups" \
-         "-ccv-test-narrow-logic:groups" "-ccv-test-trunc-ignore-known:groups" \
+         "-ccv-test-trunc-ignore-known:groups" \
          "-ccv-test-trunc-always-narrow:groups"; do
   out=$(run ${c%%:*})
   read -r tag cg cn <<< "$out"
@@ -131,8 +128,8 @@ for c in "-ccv-test-chwidth-reach-back-edge:noop" "-ccv-test-no-byte-assertzext:
     echo "  FAIL  control ${c%%:*} costs nothing ($cg issue groups, $cn no-op widths)"; fail=1
   fi
 done
-for c in -ccv-test-hoist-past-calls -ccv-test-no-data-reloc -ccv-test-trunc-no-narrow \
-         "-ccv-test-narrow-in-place -ccv-test-narrow-logic -ccv-test-trunc-as-copy"; do
+for c in -ccv-test-hoist-past-calls -ccv-test-no-data-reloc \
+         "-ccv-test-narrow-in-place -ccv-test-trunc-as-copy"; do
   out=$(run $c)
   case "$out" in
     ok*) echo "  FAIL  control $c still computed every lane right"; fail=1 ;;
