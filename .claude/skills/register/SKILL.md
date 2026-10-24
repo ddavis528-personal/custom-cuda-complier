@@ -1,6 +1,6 @@
 ---
 name: register
-description: The CCV cross-agent register as CP works it — filing rows in the CP tab, sending a REGISTER-NOTICE for every row that names or answers another agent, what to do when a notice arrives, and the every-other-day sweep. Read this when a cross-session message headed REGISTER-NOTICE arrives, when the sweep fires, or before writing into the CP tab.
+description: The CCV cross-agent register as CP works it — filing rows in the CP tab, sending a REGISTER-NOTICE for every row that names or answers another agent, what to do when a notice arrives, and the daily sweep. Read this when a cross-session message headed REGISTER-NOTICE arrives, when the sweep fires, or before writing into the CP tab.
 ---
 
 # The register, from the compiler side
@@ -104,11 +104,11 @@ It comes as a `<cross-session-message>`, in whatever turn is running.
 3. Answer in the CP tab and notify per the section above; or, if the rows need nothing
    from CP (already answered, accepted, not CP's), end with one line and no write.
 
-## The sweep: the backstop, every other day
+## The sweep: the backstop, daily
 
-`trig_01Hp4MZnx61rMQL7Dd5qjd5z`, 01:58 America/Los_Angeles on every other day of the
-month, fired into this session. CP's cadence is every other day on Daniel's
-instruction (2026-10-17); the other agents sweep daily.
+`trig_01Hp4MZnx61rMQL7Dd5qjd5z` ("CP daily register sweep"), 02:19 America/Los_Angeles
+every day, fired into this session: CP's slot in the agents' stagger (DA tab rev 79,
+2026-10-24; it was every other day at 01:58 from 2026-10-17).
 
 It catches what the doorbell missed: a notice never sent, one sent to the wrong
 prefix, and a row whose `Needs` should have named CP and did not. Read every tab with
@@ -117,3 +117,44 @@ prefix, and a row whose `Needs` should have named CP and did not. Read every tab
 Search `"CP,"` for a `Needs` list: a bare `"CP"` also matches every `.cpp` filename,
 which is how two false hits once survived several checks. Answer and notify as above,
 update the bookmarks, and report in a few lines, or one if nothing changed.
+
+Then bring CP's branch current (DA tab rev 78, TI-43): `git fetch origin`, and merge
+into CP's branch, with merge commits and never a rebase or force-push, every remote
+branch with commits CP's lacks, except `release`. A conflict in CP's own files CP
+resolves. In IS's ISA document CP takes IS's side when only IS changed the substance,
+and otherwise aborts that merge and raises a row naming the owner. Push only after a
+clean `tools/verify.sh` on the merge. Report what was merged, by branch and commit count.
+
+**Compiler release snapshots are CP's alone** (Daniel, 2026-10-24, answering CP-37;
+DA tab rev 79 gives TI the core repository's). After the merge, if CP's head is not
+already in `origin/release`, the sweep runs `tools/make-release.sh --push` on it. Its
+gate is the clean gate for the merge, so the branch is pushed once it passes. A night
+with no new commit cuts no snapshot. Between sweeps CP may still cut one when a change
+another agent waits on is ready, which is how releases have always gone out. Nobody
+else cuts the compiler's.
+
+## Ping and pong: is every agent still reachable, and the right one?
+
+Daniel, 2026-10-24 (DA tab rev 81, TI-44): after a migration, agents went on messaging
+replaced sessions for days, and a lost notice says nothing. So each daily sweep, after
+the merge and the snapshot, checks the pongs to its previous pings and then pings every
+other agent. The directory is `docs/register/roster.json` in custom-cuda-core, read from
+the merged branch (`git show origin/claude/custom-cuda-core-infra-6msg93:docs/register/roster.json`).
+Every prefix with a non-null session is pinged; DA is a person and has none. The core
+repository's register skill section 6 and `tools/notice.py` define the line formats. If
+they differ from the ones below, theirs win. CP's repository has no notice.py, so CP
+writes the lines by hand:
+
+- **Ping**, sent with `send_message` (`priority: "later"`) to the roster's session for P:
+  `REGISTER-PING v1 from=CP to=<P> date=<YYYY-MM-DD> session=<CP's session> -- reply if you are <P>`.
+  Record each in the scratchpad file `cp-pings.json` as {prefix, session, date}.
+- **Pong**, CP's answer to a ping, sent once to the ping's from-session:
+  `REGISTER-PONG v1 from=CP to=<sender> date=<the ping's> session=<CP's> addressed=yes|no me=ok|stale sender=ok|stale`.
+  addressed is whether the ping named CP. me is whether the roster still names this
+  session for CP. sender is whether it names the ping's from-session for the sender.
+- **Check**, at the next sweep: each pong to a recorded ping must come from the roster's
+  session for that prefix and read addressed=yes me=ok sender=ok. A missing pong, or any
+  no or stale, goes in the sweep's report to Daniel, naming the prefix and session.
+
+A pong is never answered, and a ping is answered only with a pong, so the loop guard
+holds. A ping or pong is not a REGISTER-NOTICE: it carries no row and needs no tab read.
