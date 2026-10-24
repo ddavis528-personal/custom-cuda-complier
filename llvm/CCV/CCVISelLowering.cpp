@@ -23,6 +23,14 @@ static constexpr unsigned AS_CONST  = 4;
 
 #include "CCVGenCallingConv.inc"
 
+// TI-45's measurement, off until F-197 is settled: i16 and/or/xor done at 32
+// bits change the shape of the width code enough to expose F-197 (check-fp4's
+// __NV_NOSAT kernels), so they are opt-in.
+static cl::opt<bool> Logic16At32(
+    "ccv-logic16-at-32", cl::init(false), cl::Hidden,
+    cl::desc("do 16-bit and, or and xor at 32 bits (TI-45; unsound until "
+             "F-197)"));
+
 // Mutation control for tools/check-int64.sh: sign-extend every load widened
 // to 64 bits, whatever its extension.
 static cl::opt<bool> TestWideLoadSext(
@@ -121,6 +129,19 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   // reached an i16 multiply nothing selects (F-161).
   // Shifts are not here: LegalizeDAG does not promote them, so they have
   // patterns that do the same through the 32-bit instructions.
+  //
+  // And, or and xor too, with -ccv-logic16-at-32 (TI-45, opt-in until F-197),
+  // although they have 16-bit forms. Done at 16 they cost a narrowing before
+  // and a widening after, and need no width: the low 16 bits of the result
+  // depend only on the operands' low 16.
+  // CoreMark's CRC-16 narrowed 19,877 values a thread for nothing else. The
+  // promotion any-extends, so the i32 may carry high bits; the truncation
+  // back clears them wherever a 32-bit read would see them (F-195).
+  if (Logic16At32)
+    for (unsigned Op : {ISD::AND, ISD::OR, ISD::XOR}) {
+      setOperationAction(Op, MVT::i16, Promote);
+      AddPromotedToType(Op, MVT::i16, MVT::i32);
+    }
   for (unsigned Op : {ISD::MUL, ISD::MULHS, ISD::MULHU,
                       ISD::SDIV, ISD::UDIV, ISD::SREM, ISD::UREM,
                       ISD::UMIN, ISD::UMAX, ISD::ABS, ISD::CTPOP, ISD::CTLZ,
@@ -877,6 +898,13 @@ static SDValue combineAtomic(AtomicSDNode *AN, TargetLowering::DAGCombinerInfo &
   return DCI.CombineTo(AN, Old, New.getValue(1));
 }
 
+// Measurement control for TI-45: a byte load's zero extension left unsaid,
+// as before, so the masks it lets the combiner drop come back.
+static cl::opt<bool> TestNoByteAssertZext(
+    "ccv-test-no-byte-assertzext", cl::init(false), cl::Hidden,
+    cl::desc("do not mark a byte load as zero-extended, to measure the masks "
+             "that marking removes"));
+
 // Mutation control for tools/check-atomics.sh: every atomic a plain load,
 // operation and store, which lanes racing on one word expose.
 static cl::opt<bool> TestAtomicPlain(
@@ -1089,8 +1117,15 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     // later as an unexpandable i64 rather than as anything recognisable.
     SDValue V = New.getValue(0);
     if (Byte) {
+      // Any other byte load is zero-extended by construction: its 32-bit
+      // reader sees it only after a widening chwidth, which clears [31:8]
+      // (O-38). Said, so the combiner can drop the `and 255` a later zext of
+      // the i8 becomes (TI-45: 684 a thread on CoreMark-derived).
       if (Ext == ISD::SEXTLOAD)
         V = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, MVT::i32, V,
+                        DAG.getValueType(MVT::i8));
+      else if (!TestNoByteAssertZext)
+        V = DAG.getNode(ISD::AssertZext, DL, MVT::i32, V,
                         DAG.getValueType(MVT::i8));
       if (VT != MVT::i32)
         V = DAG.getNode(ISD::TRUNCATE, DL, VT, V);

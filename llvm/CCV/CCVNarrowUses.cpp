@@ -24,6 +24,7 @@
 #include "CCVSubtarget.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 
@@ -34,6 +35,13 @@ uint8_t operandWidth(const MCInstrDesc &D, unsigned OpNo);
 bool lowBitsClosed(unsigned Op);
 bool ccvTestNarrowInPlace();   // -ccv-test-narrow-in-place, CCVInsertChwidth's
 } // namespace llvm
+
+// Measurement control for F-195: every truncation narrows its register,
+// whether or not anything reads it at 32 bits.
+static cl::opt<bool> TestTruncAlwaysNarrow(
+    "ccv-test-trunc-always-narrow", cl::init(false), cl::Hidden,
+    cl::desc("narrow every truncation's register, to measure what narrowing "
+             "only where a 32-bit read needs it saves"));
 
 namespace {
 
@@ -94,8 +102,46 @@ bool CCVNarrowUses::runOnMachineFunction(MachineFunction &MF) {
     return ID == CCV::GPR16RegClassID ? 1 : ID == CCV::GPR8RegClassID ? 2
          : ID == CCV::GPR4RegClassID ? 3 : 0;
   };
+  // F-195: does the narrow value in D reach a 32-bit read? Only such a read
+  // sees the high bits a truncation leaves, and only then must the register
+  // be narrowed, so that the read's widening clears them (O-38). Copy folding
+  // can re-class a register to GPR, so what counts is how each use reads it:
+  // a copy is followed, and any other use is wide if its operand is 32-bit.
+  // A phi keeps the narrowing.
+  auto readWide = [&](Register D) {
+    SmallVector<Register, 4> Work{D};
+    SmallPtrSet<MachineInstr *, 8> Seen;
+    while (!Work.empty()) {
+      Register R = Work.pop_back_val();
+      for (MachineOperand &MO : MRI.use_nodbg_operands(R)) {
+        MachineInstr &U = *MO.getParent();
+        if (U.isPHI())
+          return true;
+        if (U.isCopy()) {
+          Register C = U.getOperand(0).getReg();
+          if (!C.isVirtual() || width(C) < 1)
+            return true;
+          if (Seen.insert(&U).second)
+            Work.push_back(C);
+          continue;
+        }
+        if (operandWidth(U.getDesc(), U.getOperandNo(&MO)) == 0)
+          return true;
+      }
+    }
+    return false;
+  };
   for (MachineBasicBlock &MBB : MF)
     for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
+      // A truncation (F-195) takes its source's register where it can, as a
+      // narrowing COPY does below, and narrows it only if readWide says so.
+      if (MI.getOpcode() == CCV::PSEUDO_TRUNC16) {
+        Register D = MI.getOperand(0).getReg();
+        if (MI.getOperand(1).getReg().isVirtual())
+          MRI.setSimpleHint(D, MI.getOperand(1).getReg());
+        if (MI.getOperand(2).getImm() && !readWide(D) && !TestTruncAlwaysNarrow)
+          MI.getOperand(2).setImm(0);
+      }
       if (!MI.isCopy())
         continue;
       Register D = MI.getOperand(0).getReg(), S = MI.getOperand(1).getReg();
@@ -103,7 +149,8 @@ bool CCVNarrowUses::runOnMachineFunction(MachineFunction &MF) {
           width(D) <= width(S))
         continue;
       BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(CCV::PSEUDO_NARROW), D)
-          .addReg(S);
+          .addReg(S)
+          .addImm(readWide(D) || TestTruncAlwaysNarrow ? width(D) : 0);
       MRI.setSimpleHint(D, S);
       MI.eraseFromParent();
       Changed = true;
@@ -119,7 +166,8 @@ bool CCVNarrowUses::runOnMachineFunction(MachineFunction &MF) {
                                             : &CCV::GPR8RegClass);
     BuildMI(*MI->getParent(), MI, MI->getDebugLoc(),
             TII->get(CCV::PSEUDO_NARROW), N)
-        .addReg(R);
+        .addReg(R)
+        .addImm(0);             // read at W by MI alone, which narrows it
     MRI.setSimpleHint(N, R);
     MI->getOperand(O).setReg(N);
     MI->getOperand(O).setIsKill(false);

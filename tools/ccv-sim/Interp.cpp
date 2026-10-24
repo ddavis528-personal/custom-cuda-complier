@@ -44,7 +44,6 @@ static constexpr unsigned kBaseShift = 16;
 static constexpr uint64_t kLaunchBase = 0x20000;
 uint64_t launchBlockBase() { return kLaunchBase; }
 
-/// O-69: lane L's byte B of the warp's interleaved spill frame.
 bool Interp::retireIfComplete(Warp &W, unsigned Id) {
   if (Bars[Id].Count)
     return false;                      // a count: exits never complete it
@@ -140,6 +139,7 @@ void Interp::initBarrier(Warp &W, unsigned Id, unsigned N) {
   }
 }
 
+/// O-69: lane L's byte B of the warp's interleaved spill frame.
 uint64_t Interp::localAddr(const Warp &W, uint64_t B, unsigned L) {
   uint64_t LocalBase = Mem.peek32(kLaunchBase + 24);
   return ((LocalBase + LaneContexts) << 16) + (uint64_t(W.WarpCtx) << 22) +
@@ -1899,15 +1899,25 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   // many of them are the element.
   case CCV::C_CHWIDTH: {
     unsigned D = regOf(MI, 0);
-    setWidth(W, D, uint8_t(MI.getOperand(1).getImm() & 3));
+    uint8_t Code = uint8_t(MI.getOperand(1).getImm() & 3);
+    if (W.ChWidth[D] == Code) {
+      ++NoopWidths;
+      if (NoopWidthPCs) ++(*NoopWidthPCs)[PC];
+    }
+    setWidth(W, D, Code);
     break;
   }
   case CCV::CHWIDTH_MULTI: {
     uint32_t Mask32 = uint32_t(MI.getOperand(0).getImm());
     uint8_t Code = uint8_t(MI.getOperand(1).getImm() & 3);
     for (unsigned R = 0; R != kGPRs; ++R)
-      if ((Mask32 >> R) & 1)
+      if ((Mask32 >> R) & 1) {
+        if (W.ChWidth[R] == Code) {
+          ++NoopWidths;
+          if (NoopWidthPCs) ++(*NoopWidthPCs)[PC];
+        }
         setWidth(W, R, Code);
+      }
     break;
   }
 

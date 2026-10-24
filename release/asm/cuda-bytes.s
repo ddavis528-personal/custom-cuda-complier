@@ -109,8 +109,8 @@ LBB0_3:
 	chwidth r9, 2
 	ld.global r9, [#1, r9, 0, 0]
 	chwidth r9, 0
-	and r11, r9, 255
-	setp.eq p0, r11, 0
+	setp.eq p0, r9, 0
+	chwidth r11, 0
 	@p0 bra LBB0_4
 	chwidth r9, 2
 	st.global r9, [r15, r6, 0, -16]
@@ -122,12 +122,10 @@ LBB0_3:
 	chwidth r11, 2
 	ld.global r11, [#1, r11, 0, 0]
 	chwidth r11, 0
-	and r12, r11, 255
-	setp.eq p0, r12, 0
+	setp.eq p0, r11, 0
 	@p0 bra LBB0_9
 	chwidth r11, 2
 	st.global r11, [r15, r9, 0, -16]
-	chwidth r11, 0
 	ld.global r9, [r8 + 44]
 	add r10, r9
 	add r9, r6, 2
@@ -135,8 +133,7 @@ LBB0_3:
 	chwidth r10, 2
 	ld.global r10, [#1, r10, 0, 0]
 	chwidth r10, 0
-	and r11, r10, 255
-	setp.eq p0, r11, 0
+	setp.eq p0, r10, 0
 	@p0 bra LBB0_9
 	chwidth r10, 2
 	st.global r10, [r15, r9, 0, -16]
@@ -155,14 +152,13 @@ LBB0_9:
 	f48 r8, 4294967294
 	f48 r6, 4294966296
 LBB0_10:
-	chwidth.multi 1024, 0
+	chwidth r10, 0
 	add r6, r6, 1000
 	add r7, r8, 1
 	add r8, 2
 	chwidth r8, 2
 	ld.global r8, [r15, r8, 0, -16]
 	chwidth r8, 0
-	and r8, r8, 255
 	setp.ne p0, r8, 0
 	mov r8, r7
 	@p0 bra LBB0_10
@@ -180,9 +176,11 @@ LBB0_10:
 	shl r9, 1
 	add r10, r9
 	chwidth r10, 1
+	mov r14, r0
 	ld.global r10, [#4, r10, 0, 0]
 	chwidth r10, 0
 	setp.eq p0, r10, 0
+	chwidth r11, 0
 	@p0 bra LBB0_13
 	chwidth r10, 1
 	ld.global r11, [r8 + 76]
@@ -190,7 +188,7 @@ LBB0_10:
 	st.global r10, [#5, r9, 0, 0]
 LBB0_13:
 	chwidth r14, 1
-	add r14, r0, -56
+	add r14, r14, -56
 	chwidth r14, 2
 	st.shared r14, [r0 + 0]
 	add r1, r4

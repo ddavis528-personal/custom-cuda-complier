@@ -6,7 +6,7 @@
 # and must be e714 e714 1fd7 8e3a (1 iteration).
 threads 32
 ctas 1
-entry 0x3a44
+entry 0x3b94
 const 0x2000000:0x2000100
 cta 0
 -poke 0x2000000=33554560

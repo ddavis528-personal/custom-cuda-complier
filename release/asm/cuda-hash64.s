@@ -548,7 +548,7 @@ _Z6hash64PKjPKhPji:
 	add r0, r3, r4
 	mul.hi.u r3, r15, r2
 	shl r15, 8
-	add r3, r15
+	or r3, r15
 	mad.acc r0, r3, r2
 	mul.hi.u r3, r14, r2
 	shl r14, 8
