@@ -276,9 +276,9 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
       bool R16 = IsLoad ? N->getValueType(0) == MVT::i16
                         : N->getOperand(1).getValueType() == MVT::i16;
       if (R16) {
-        LdOpc = B ? (S ? CCV::SZ_GLOBAL_LD_S8_R16 : CCV::SZ_GLOBAL_LD_U8_R16)
-                  : (S ? CCV::SZ_GLOBAL_LD_S16_R16 : CCV::SZ_GLOBAL_LD_U16_R16);
-        StOpc = B ? CCV::SZ_GLOBAL_ST_8_R16 : CCV::SZ_GLOBAL_ST_16_R16;
+        LdOpc = B ? (S ? CCV::SZ_GLOBAL_LD_S8_W16 : CCV::SZ_GLOBAL_LD_U8_W16)
+                  : (S ? CCV::SZ_GLOBAL_LD_S16_W16 : CCV::SZ_GLOBAL_LD_U16_W16);
+        StOpc = B ? CCV::SZ_GLOBAL_ST_8_W16 : CCV::SZ_GLOBAL_ST_16_W16;
       } else {
         LdOpc = B ? (S ? CCV::SZ_GLOBAL_LD_S8 : CCV::SZ_GLOBAL_LD_U8)
                   : (S ? CCV::SZ_GLOBAL_LD_S16 : CCV::SZ_GLOBAL_LD_U16);

@@ -867,24 +867,24 @@ multiclass SizedMem16<bits<5> ld8u, bits<5> ld8s, bits<5> ld16u, bits<5> ld16s,
                       bits<5> st8, bits<5> st16, string sp> {
   let isCodeGenOnly = 1 in {
   let mayLoad = 1 in {
-  def _LD_U8_R16  : FormatDidx<ld8u, (outs GPR16:$rdata),
+  def _LD_U8_W16  : FormatDidx<ld8u, (outs GPR16:$rdata),
                       (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
                       "ld."#sp#".u8 $rdata, [$rbase, $rindex, $scale, $disp]">;
-  def _LD_S8_R16  : FormatDidx<ld8s, (outs GPR16:$rdata),
+  def _LD_S8_W16  : FormatDidx<ld8s, (outs GPR16:$rdata),
                       (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
                       "ld."#sp#".s8 $rdata, [$rbase, $rindex, $scale, $disp]">;
-  def _LD_U16_R16 : FormatDidx<ld16u, (outs GPR16:$rdata),
+  def _LD_U16_W16 : FormatDidx<ld16u, (outs GPR16:$rdata),
                       (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
                       "ld."#sp#".u16 $rdata, [$rbase, $rindex, $scale, $disp]">;
-  def _LD_S16_R16 : FormatDidx<ld16s, (outs GPR16:$rdata),
+  def _LD_S16_W16 : FormatDidx<ld16s, (outs GPR16:$rdata),
                       (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
                       "ld."#sp#".s16 $rdata, [$rbase, $rindex, $scale, $disp]">;
   }
   let mayStore = 1 in {
-  def _ST_8_R16   : FormatDidx<st8, (outs),
+  def _ST_8_W16   : FormatDidx<st8, (outs),
                       (ins GPR16:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
                       "st."#sp#".8 $rdata, [$rbase, $rindex, $scale, $disp]">;
-  def _ST_16_R16  : FormatDidx<st16, (outs),
+  def _ST_16_W16  : FormatDidx<st16, (outs),
                       (ins GPR16:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
                       "st."#sp#".16 $rdata, [$rbase, $rindex, $scale, $disp]">;
   }
