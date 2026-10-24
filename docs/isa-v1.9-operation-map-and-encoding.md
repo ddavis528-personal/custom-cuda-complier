@@ -173,6 +173,13 @@ group's later instructions, in an issue order the ISA leaves free. The compiler 
 inside a divergent region, a register whose width a path changes is private to that path, and
 every path leaves every width as it found it. No encoding or hardware changes.
 
+### A narrow address register contributes only its element (O-79; AR-24)
+
+O-39 read `rbase` and `rindex` at 32 bits on the premise that a narrowed register still holds its
+upper bits. Under the sectioned register file those bits belong to other registers, and reading
+them is the cross-register read O-38 forbids. An address register is still read at 32 bits, never
+at `rdata`'s width, but a narrow one contributes its element zero-extended. No encoding changes.
+
 ### Still open
 
 Nothing from IS-2, IS-12 or IS-16 remains open. The SFU bound table is written (O-70).
@@ -1282,11 +1289,16 @@ transfer size: 4 bytes at `chwidth`=32, 2 at 16, any at 8. A lane that violates 
 an unaligned base, or a byte-offset index with scale clear can misalign; the compiler proves its
 §5.5 fold preserves alignment, and the hardware checks it regardless.
 
-**`rbase` and `rindex` are read at 32 bits, whatever their own `chwidth`** (O-39). They are
-address components, and invariant 11 keeps addresses outside the element-width model
-entirely; only `rdata` is narrow. A consequence worth stating because a compiler will rely
-on it: `rdata` may name the same register as `rbase` or `rindex`, since the address read
-takes all 32 bits and the narrow write lands inside them.
+**`rbase` and `rindex` are read as 32-bit values, never at `rdata`'s width** (O-39, amended
+by O-79). They are address components, and invariant 11 keeps addresses outside the
+element-width model; only `rdata` is narrow. **A narrow address register contributes its own
+element, zero-extended to 32 bits** (O-79). Its row holds nothing else of its own, since a
+narrow register's neighbouring sections belong to other registers, possibly another warp's
+(O-38, OI-29). So a register narrowed before the access indexes with its narrow value. The
+same holds for every register read as an address or a PC component: `ret`'s `rs` and Format
+M's `rbase` and `rindex`. *(Through 1.9's first cut this said `rdata` may share a register with
+`rindex` because "the address read takes all 32 bits and the narrow write lands inside them".
+That relied on bits above a narrow element that the sectioned register file does not keep.)*
 
 Effective address in the base+index modes is `rbase + (rindex << scale) + disp`, where
 `scale` is `log2(element_size)` taken from `rdata`'s current `chwidth` when bit `[23]` is
@@ -2863,7 +2875,8 @@ quantified on one side of it.
    raw element at its own `chwidth`, zero-extended or truncated to the operating width as a
    bit field, and only then interpreted in the operation's format. No source is converted.
    The operations defined to mix widths keep their definitions: `cvt`, `mad.lo`, `dp4`/`dp8`,
-   `packi`/`unpacki`, and address registers (O-39). Zero-extension is required, not merely
+   `packi`/`unpacki`, and address registers (O-39), which are read at 32 bits rather than at
+   the operating width, each as its own element zero-extended (O-79). Zero-extension is required, not merely
    cheap. A narrow register's neighbouring sections hold other registers, possibly another
    warp's (OI-29), so reading them would leak state across registers.
 4. **Predication is bounded and signalled by format tag**, never a universal guard operand
@@ -3277,6 +3290,26 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-79 — A narrow address register contributes only its element — decided in 1.9, amending
+O-39.** AR-24's first timed run (TI's rev 185). CoreMark-derived narrows R3, which holds 0x704,
+to 8 bits, then loads one byte into R3 with R3 as its own index. ccv-sim formed the address from
+all 32 bits, as O-39 says, and so read 0x700 above the element. The core's sliced register holds
+only the element, so the core indexed with 0x04: 2,317 loads took different addresses. O-39
+contradicts the rest of the ISA. Its premise, that a narrowing "reinterprets" and leaves the upper
+bits intact, predates the sectioned register file (O-48, OI-29), in which a narrow register's
+neighbouring sections belong to other registers, possibly another warp's. Reading them is exactly
+the cross-register read O-38 and the mixed-width rule (O-67) forbid on security grounds, and no
+sliced implementation can perform it. Adopted: O-39's real content stands, that an address register
+is read at 32 bits and never at `rdata`'s width. A narrow address register contributes its own
+element, zero-extended, as O-67 reads every source, and the same applies to `ret`'s `rs`.
+Consequences. ccv-sim reads address and PC registers that way. The compiler may no longer narrow a
+register before it is used as a full-width address. O-39's register-sharing idiom needs a separate
+register (the earlyclobber O-39 removed), until IS-23's sized loads give a narrow load a 32-bit
+destination. What lost: O-39's sharing consequence, which saved a register per narrow indexed load
+and depended on bits the machine does not keep. No encoding changes.
 
 ---
 
@@ -4898,6 +4931,8 @@ sixteen-register machine — a real price for a sentence that was missing.
 says so, along with the consequence that `rdata` may share a register with `rbase` or
 `rindex`: the address read takes all 32 bits, which a narrowing `chwidth` leaves intact
 because it reinterprets rather than converts, and the narrow write then lands inside them.
+*(Amended by O-79: the 32-bit read stands, but a narrow register contributes only its element,
+zero-extended, so the register-sharing consequence is withdrawn.)*
 
 ---
 

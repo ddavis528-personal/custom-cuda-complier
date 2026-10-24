@@ -83,7 +83,7 @@ checked 420 instructions
   PASS  static frames: scratch at -16..-4, the kernel below it at -48..-36; stack arguments at [-20, -16, -12, -8, -4]
   PASS  control -ccv-test-flat-frames is caught: 32 of 32 lanes wrong; lane 0: got 2100053410, want 2099963488
   PASS  control -ccv-test-mask-device-functions is caught: 31 of 32 lanes wrong; lane 1: got 1256366471, want 1256146136
-  PASS  control -ccv-test-no-call-widths is caught: did not run: error: C_RET has no semantics in the simulator yet
+  PASS  control -ccv-test-no-call-widths is caught: 32 of 32 lanes wrong; lane 0: got -334240, want 2099963488
   PASS  control -ccv-test-drop-pair-offset is caught: 32 of 32 lanes wrong; lane 0: got -638511925, want 2099963488
   PASS  control -ccv-test-stack-args-at-zero is caught: 32 of 32 lanes wrong; lane 0: got 2099614111, want 2099963488
   PASS  control -ccv-test-ignore-indirect-frames is caught: 15 of 32 lanes wrong; lane 2: got 472433552, want 472433554
@@ -174,6 +174,7 @@ checked 420 instructions
   PASS  control -ccv-test-trunc-always-narrow: 1503165 issue groups, against 1502683
   PASS  control -ccv-test-hoist-past-calls is caught: did not run: error: SRD has no semantics in the simulator yet
   PASS  control -ccv-test-no-data-reloc is caught: 32 of 32 lanes wrong; lane 0: 0026 bd52 1fd7 6f31, want 72be e714 1fd7 8e3a
+  PASS  control -ccv-test-narrow-data-shared is caught: 32 of 32 lanes wrong; lane 0: ac96 d793 1fd7 ad85, want 72be e714 1fd7 8e3a
   PASS  control -ccv-test-narrow-in-place -ccv-test-trunc-as-copy is caught: 32 of 32 lanes wrong; lane 0: 7795 88c3 4192 9e9e, want 72be e714 1fd7 8e3a
   PASS  no narrow access shares its data register with its address (control -ccv-test-narrow-data-shared: 13 sites)
   forward progress between diverged lanes (O-60)
@@ -195,7 +196,7 @@ checked 420 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 202 findings and 78 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 202 findings and 79 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -266,6 +267,7 @@ checked 420 instructions
 
   --- the mixed-width rule (O-67) ---
   PASS  mixed widths read as raw fields at the operating width: shr, min.s, an FP16 add (O-67)
+  PASS  a narrow index contributes only its element (O-79; control reads 32 bits)
 
   --- the fault model (ISA v1.9 section 12) ---
   PASS  faults: F-ALIGN precise and predicate-gated, F-WIDTH ignores the predicate, F-ILLEGAL, F-FETCH, F-BARRIER

@@ -355,6 +355,19 @@ run_mixed_width() {
     echo "  FAIL  mixed-width: got '$got', want '$want' (by value: '$ctl')"; return 1
   fi
 }
+# --- a narrow address register (O-79) ---------------------------------------
+run_addr_narrow() {
+  python3 "$AS" "$JSON" test/addr-narrow.s "$TMP/an.bin" >/dev/null || return 1
+  local args="-poke 0x80004=17 -poke 0x80704=34 -peek 0x90000" got ctl
+  got=$("$SIM" "$TMP/an.bin" $args 2>&1 | grep -oP '\] = \K\d+')
+  # The control: the index read at all 32 bits, as O-39 had it.
+  ctl=$("$SIM" "$TMP/an.bin" $args -ccv-test-address-full-width 2>&1 | grep -oP '\] = \K\d+')
+  if [ "$got" = 17 ] && [ "$ctl" = 34 ]; then
+    echo "  PASS  a narrow index contributes only its element (O-79; control reads 32 bits)"
+  else
+    echo "  FAIL  addr-narrow: got '$got', want 17 (control: '$ctl', want 34)"; return 1
+  fi
+}
 # --- srd #2, %lanectx (O-64) -----------------------------------------------
 run_lanectx() {
   python3 "$AS" "$JSON" test/lanectx.s "$TMP/lc.bin" >/dev/null || return 1
@@ -414,6 +427,7 @@ run_atomics_fadd || fail=1
 echo
 echo "  --- the mixed-width rule (O-67) ---"
 run_mixed_width || fail=1
+run_addr_narrow || fail=1
 
 # --- the fault model (ISA v1.9 section 12, O-57/O-58) ------------------------
 # Each case names the record it must produce. A fault exits 3, distinct from a

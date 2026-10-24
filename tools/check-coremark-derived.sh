@@ -29,7 +29,9 @@
 # more.
 #
 # F-198 (TI's rev 185): a narrow load's destination never shares a register
-# with its base or index; checked on the assembly, with a control.
+# with its base or index, checked on the assembly. Its control,
+# -ccv-test-narrow-data-shared, must show the sites there, and must compute
+# wrong lanes, since ccv-sim reads a narrow index as its element (O-79).
 #
 # TI-45: width changes that buy nothing. The run counts the chwidths that set
 # a register to the width it already had (ccv-sim -counters), and two controls
@@ -131,7 +133,7 @@ for c in "-ccv-test-chwidth-reach-back-edge:noop" "-ccv-test-no-byte-assertzext:
     echo "  FAIL  control ${c%%:*} costs nothing ($cg issue groups, $cn no-op widths)"; fail=1
   fi
 done
-for c in -ccv-test-hoist-past-calls -ccv-test-no-data-reloc \
+for c in -ccv-test-hoist-past-calls -ccv-test-no-data-reloc -ccv-test-narrow-data-shared \
          "-ccv-test-narrow-in-place -ccv-test-trunc-as-copy"; do
   out=$(run $c)
   case "$out" in

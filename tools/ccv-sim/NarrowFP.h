@@ -51,6 +51,8 @@ inline unsigned SfuErrorUlps = 0;
 /// ccv-sim -ccv-test-atomic-no-index: Format M addressed as before O-72,
 /// without its index register, to test that it is caught.
 inline bool TestAtomNoIndex = false;
+/// O-79's control: address and PC registers read at all 32 bits, as O-39 did.
+inline bool TestAddrFull = false;
 // Mutation control for test/atomics.s: add.f32's lanes in descending order.
 inline bool TestFAddDescending = false;
 

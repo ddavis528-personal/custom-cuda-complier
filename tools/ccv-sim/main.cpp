@@ -68,6 +68,10 @@ static cl::opt<unsigned> LaneContexts("lane-contexts", cl::init(4096),
 static cl::opt<bool> TestFAddDescending("ccv-test-atomic-fadd-descending",
     cl::Hidden, cl::desc("apply atom.add.f32's lanes in descending order, to "
                          "test that the order is observed (O-76)"));
+static cl::opt<bool> TestAddrFull(
+    "ccv-test-address-full-width", cl::Hidden,
+    cl::desc("read a narrow address or return register at all 32 bits, as O-39 "
+             "did, rather than its element (O-79)"));
 static cl::opt<bool> TestAtomNoIndex("ccv-test-atomic-no-index", cl::Hidden,
     cl::desc("address atomics without their index register, as before O-72, "
              "to test that it is caught"));
@@ -216,6 +220,7 @@ int main(int argc, char **argv) {
   nfp::TestHostNaN = TestFpHostNaN;
   sfu::TestTruncate = TestSfuTruncate;
   nfp::TestAtomNoIndex = TestAtomNoIndex;
+  nfp::TestAddrFull = TestAddrFull;
   nfp::TestFAddDescending = TestFAddDescending;
   nfp::SfuErrorUlps = SfuErrorUlps;
   nfp::TestByValue = TestMixedByValue;
@@ -878,8 +883,14 @@ int main(int argc, char **argv) {
         // §3 Format E (v1.8, 3013036): the PC is {PC[47:32] of the ret,
         // rs[31:0]} -- a concatenation under the ret's own 4 GiB code window,
         // not an add, so no image base reaches the redirect.
-        if (Mask & (1u << L))
-          W.PC[L] = (Target & ~uint64_t(0xffffffff)) | W.GPR[R.Target][L];
+        // A narrow rs contributes its element, zero-extended (O-79).
+        if (Mask & (1u << L)) {
+          uint32_t RS = W.GPR[R.Target][L];
+          unsigned N = 32 >> W.ChWidth[R.Target];
+          if (N < 32 && !TestAddrFull)
+            RS &= (1u << N) - 1;
+          W.PC[L] = (Target & ~uint64_t(0xffffffff)) | RS;
+        }
       break;
     case Interp::Result::BranchPred:
       // Lanes split here. No bracket, no mask stack -- they simply hold
