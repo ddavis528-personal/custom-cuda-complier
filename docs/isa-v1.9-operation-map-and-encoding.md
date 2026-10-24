@@ -2838,13 +2838,23 @@ quantified on one side of it.
    which the ISA does not fix: O-60 promises only that each group progresses. So a program
    whose diverged paths set a register's width differently has a bounded set of outcomes
    (invariant 12), one per interleaving, not one result. **The compiler's obligation**, which
-   makes every such program's result independent of the schedule: in a region where the warp
-   may be diverged, a register whose width any path changes is private to that path. It is
-   neither read nor written on any other path of the region, and it is live in no other path's
-   lanes across the region. Every path, including one that ends in `exit`, leaves every
-   register's width as it found it on entering the region. Uniform control flow is outside
-   the rule. Inserting a width change before each use is not enough, because another group may
-   issue between a group's `chwidth` and its use.
+   makes every such program's result independent of the schedule: a register whose width a
+   `chwidth` changes while the warp may be diverged is private to the issuing group's path. It
+   is neither read nor written on any other path, and it is live in no other path's lanes,
+   until the warp is known converged again, and every path, including one that ends in `exit`,
+   leaves every width as it found it. **Where the region ends.** Reconvergence at a branch's
+   join is opportunistic, never guaranteed (O-33), so the join does not end it. It ends only
+   where the compiler can show every live lane is at one PC: kernel entry, or a point where no
+   divergent branch lies on any path since entry or since a barrier all of the warp's lanes
+   wait at. That is the convergence test the compiler already applies for lane-0 masking
+   (§1a.1). In practice the rule is: emit `chwidth` only where the warp is known converged,
+   unless its register is otherwise unused until the warp converges. Inserting a width change
+   before each use is not enough, because another group may issue between a group's
+   `chwidth` and its use. *(This obligation first bounded the region by the branch's join,
+   which O-33 does not make a meeting point. OA's rev 233 found the gap.)* So narrow memory
+   access in code that may be diverged has no general form today, since its data register
+   would need a `chwidth` there. IS-23's sized loads and stores are its remedy, and a check in
+   hardware for the rule is DA's question in IS-23.
 3. **Width mismatches are compiler-correctness problems, not hardware hazards.** They
    produce deterministic results **or a defined fault**, never undefined behavior. Same for FP
    format mismatches. The faults are the two §12 names: `F-WIDTH` and `F-FORMAT`. **The
