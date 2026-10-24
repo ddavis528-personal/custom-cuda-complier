@@ -1,4 +1,4 @@
-# coremark-derived: opcodes issued by one warp of 32 lanes, by ccv-sim's names; 767049 issue groups
+# coremark-derived: opcodes issued by one warp of 32 lanes, by ccv-sim's names; 765184 issue groups
 ADD                37362
 ADDI               15211
 ADDI_P             1299
@@ -8,18 +8,18 @@ ANDN               613
 BRA                1478
 BRA_PRED           69285
 CALL               241
-CHWIDTH_MULTI      10438
+CHWIDTH_MULTI      10540
 CVT_SEXT           7654
 C_ADD              7372
 C_ADDI             9478
 C_AND              13906
 C_ANDI             7010
 C_ANDN             8058
-C_BRA              5079
-C_CHWIDTH          95921
+C_BRA              5012
+C_CHWIDTH          95282
 C_EXIT             1
-C_MOV              50844
-C_MUL_LO           324
+C_MOV              48728
+C_MUL_LO           1692
 C_NEG              2
 C_NOT              8
 C_OR               12980
@@ -30,15 +30,15 @@ C_SUB              101
 C_XOR              768
 LD_GLOBAL          367
 LD_GLOBAL_IDX      69580
-LD_LOCAL           14721
+LD_LOCAL           15369
 MADLO              3565
 MAD_ACC            3321
-MOVI               19726
+MOVI               19933
 MOVI48             228
 MOV_P              7533
 MULI               56
 MUL_HI_U           2
-MUL_LO             3269
+MUL_LO             1901
 OR                 38775
 PAND               159
 POR                1

@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-10-24-f6912ca
+# Snapshot snapshot-2026-10-24-e9eaeeb
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `f6912caebe056c1eed9f44e8262df3da0c02a0e6`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `e9eaeeb435e1290642aca2733aab205469e348bb`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -24,7 +24,7 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `f6912caebe056c1eed9f44e8262df3da0c02a0e6` |
+| Source | `ccr-ea1c4e17-tem30u` @ `e9eaeeb435e1290642aca2733aab205469e348bb` |
 | Built | 2026-10-24 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
@@ -45,7 +45,7 @@ dd05714aa352e4b46c5fa8aaaa531d4c219c2a44ca1fc1a83f131bb72d4df5b5  release/asm/be
 1ab4360d07e9db8b92b340ce99306c8bfe7392e51ac96c61a3e69e445c895d02  release/asm/bench-vadd_loop.s
 ce633b5713036d7524e482dc2f7870435037bfaa79302180f904d5cff0fe285c  release/asm/cuda-argorder.s
 ceac272e48381e4db55ac4cd3d2653de7f5ab86a1159602e695ef2e00430f8a8  release/asm/cuda-atomics.s
-fd7c7f0b6cf50be7fe8133cd5a4beff1deae2fe54ebbecd7fc4c6a8fed76b4ff  release/asm/cuda-bytes.s
+0c5072f926de88e6f188d94146ce018a253ff540085b3549909ee727fe9bd579  release/asm/cuda-bytes.s
 1f26d7ee153520931e5eb272ef77d1c8d75cf8fa6a33ef5ef9c790edf555d872  release/asm/cuda-byval.s
 af3128bff7c030f933359bd2f54ffab4eafb444001dc32b60f857e34f3626996  release/asm/cuda-calls.s
 b0884b117bd4bf68ca9bb1ba2b72a78fae453157cb8312c8ee19abc1a02a1bf8  release/asm/cuda-cta-reduce.s
@@ -55,7 +55,7 @@ c0a3175bcf36b3b9a65b50d78fade10df23ff64e851bb2866a6a899f9900f362  release/asm/cu
 5f48fd53df460cea398bcc9c32961919a304163d74aac72ef309e5b59afb98db  release/asm/cuda-gemv.s
 e3d98220dec36b9082057a5c921d03baa84b309f9f910385ec7d4f0f0b1b225f  release/asm/cuda-gemv8.s
 664d5e1b49848b8b3d24b46ac785ebb7b9fdd4559b4a3fdec18087e78a68ba05  release/asm/cuda-globals.s
-423f08378468ec0a9ae756692c7789be97adec619f4909787aceac499a3a4c1b  release/asm/cuda-hash64.s
+6e6a2ed470b76344b06f57921b289bebb1dad0d9f6eef4406b2967c33a8f1429  release/asm/cuda-hash64.s
 56c5f6e7462c7055f26fe7c4cf9e1b16dc5f832b6a543e807667a8dc13ee29f6  release/asm/cuda-igemm.s
 cc381121b5dedda68e70a176b72d8d91dee837891dd3104e9f6f743dda0ad573  release/asm/cuda-int64.s
 f648d1a15e56c231f8e641c259112a09e452c6eed741e6bd1f3667728ce760fb  release/asm/cuda-ptrlist.s
@@ -69,16 +69,16 @@ e4703fb1c0b5a880ab1554c695dc2dc0f81743a655255af45ad7aa0f2e054526  release/asm/cu
 f540a502bf7063cfb75450053c5163bc8986871d7cb0aa9bc2b8ee8cb9637a3c  release/asm/cuda-vadd.s
 244b084a07dcb12950d6548fbdb3ddff536707dd962ca8da8a63ca4f574f6008  release/bench/bench.json
 9ff74d90bf22133e1b98224e3933e72a4fdd730ed70e604cf71ac49e0616ed58  release/bench/bench.txt
-ce75a0e409c946fa3008cec5ef67961955aa003a18edfef054b6144016c9988f  release/bench/sweep-coremark.txt
+99caab3eed9be1d324a7e44fb82e2e08cbf2d81c6afbb973de7cf508ef2b4e60  release/bench/sweep-coremark.txt
 0529582a0572b0828fefa8b9e57ba448529f16369affe535b1acbb20816662de  release/bench/sweep-decode.txt
-9bef6fa5a67fb7bb9ec0172309e06b102faac2aacee075ca9c0d0e80c9a66e7d  release/bench/sweep-frames.txt
+9d399bf62f2103e57a42b7d7294ce1a7136bbb9e5ebb2c526acd6b745aa5d5c3  release/bench/sweep-frames.txt
 28c14ebc8397a6ec18b69bcb5ebe93a64c94cd04b97c971dd526f78ff72f423b  release/bench/sweep-tiles.txt
 99252740a2b4132f2be70b2294c014b27d8707cba9f7e6a8c4b811859d4e2cdb  release/bin/ccv-sim
-fce4d907b7abc0e3dd4e15f681c55c4ad529f69114ac377514e0b3a3abe257d9  release/bin/ccv-sim.txt
-785a3d90f0dd7da0ce97263e26ac52daf9f709888278b313ddd385173def462f  release/kernels/coremark-derived/kernel.bin
-fae888445c78b3aa00909e2d9a4ea3f7e7735ee97a94f5c10b5508871d961d04  release/kernels/coremark-derived/kernel.s
-6015c96ce60f411aab812449da030e5e9f404668ad9a8841d277ad655b33d4e4  release/kernels/coremark-derived/launch.txt
-5204221e208faf49d1b9b419a9b073f8fb5499bc1654ff6ce773cf9d5c927767  release/kernels/coremark-derived/ops.txt
+4566e4b23d1945882a884fb1e0233ffc14060d44b8bc8f5370c1d3e4711528a3  release/bin/ccv-sim.txt
+391b6ece940cb2ef6af7342b2dba2d98c5441f6b36963d115ca488ff188be5e8  release/kernels/coremark-derived/kernel.bin
+b89fae32d4046e7eb8088592cf879f456c15433af7b9dbf21ed9fb15f32fc449  release/kernels/coremark-derived/kernel.s
+fa875ea23b51e6270336db3a6028d992a02f52677cf9e0f80a5eb4905b845029  release/kernels/coremark-derived/launch.txt
+9cc27abf1937db7ec9be34c722d8df2e4b8a5b211cd87954428054f620b8045d  release/kernels/coremark-derived/ops.txt
 0ddda9feb5145350dcfd3d94a9eb5028bfbd1d0ad41f12851bfce048c0c7ffc9  release/kernels/layernorm/kernel.bin
 d881d8dc76c9b594ec1f203de485ce16f3f6b281d657610e97483bc8400feea5  release/kernels/layernorm/kernel.s
 e5769fbef4614ef8aed74537de07a82c9018d4215845ec73a517026f606d6d54  release/kernels/layernorm/launch.txt
@@ -91,5 +91,5 @@ ce8e645c8b285ff035aa6d701ee7dc1207459bf060c85e27f4239d48b84d580b  release/kernel
 ba1f77ebad84a1da78c82e9c3ef4f1e466cb8da7d8634dc0f234f7303a1ab069  release/kernels/rope/kernel.s
 12795ff2ace11fc143ad508c1a541846387f492fba37433e1502316ec19c65b3  release/kernels/rope/launch.txt
 1fd038c15e2c80787853fb2af63019b6d6fa9e86459b373fee9974181eb0c477  release/kernels/rope/ops.txt
-2a86bb482b2a63600f30facb67aaab516aeee38bbd029644ea88ba65bbdff636  release/verify.log
+2b8a8392ae5cc6bfb414539f0a5a8e9234276e9c5f96b8d23b89c5e58f155319  release/verify.log
 ```

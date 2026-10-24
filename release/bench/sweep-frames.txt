@@ -69,11 +69,11 @@
   sgemm                    514      251       0          2       0     0.0%
   rope                     177       53       5          2       0     0.0%
   layernorm                268       93       0          0       1     1.1%
-  coremark-derived      767049   106822    5212       6394   18157    17.0%
-  total                 768651   107456    5218       6399   18159    16.9%
+  coremark-derived      765184   107470    6508       5094   18157    16.9%
+  total                 766786   108104    6514       5099   18159    16.8%
 
   frame traffic by kind, issued (IS-19)
   kernel               spill   args  object  via ptr
   gemv                     1      0       0        0
   rope                     5      0       0        0
-  coremark-derived      5174      8      30      135
+  coremark-derived      6470      8      30      135

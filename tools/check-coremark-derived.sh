@@ -28,6 +28,9 @@
 # the source's known bits or its readers say it is not needed, and must cost
 # more.
 #
+# F-198 (TI's rev 185): a narrow load's destination never shares a register
+# with its base or index; checked on the assembly, with a control.
+#
 # TI-45: width changes that buy nothing. The run counts the chwidths that set
 # a register to the width it already had (ccv-sim -counters), and two controls
 # put back what made them, each of which must cost more: placing a loop
@@ -137,4 +140,27 @@ for c in -ccv-test-hoist-past-calls -ccv-test-no-data-reloc \
     *)   echo "  FAIL  control $c broke something else: $out"; fail=1 ;;
   esac
 done
+# F-198: no narrow access names its data register as its base or index, so no
+# chwidth before it narrows an address register. The control shares them again,
+# as O-39 allows, and must show the sites.
+shared() {
+  build/ccv-llc "$TMP/cm-lowered.ll" -o "$TMP/cm.s" "$@" 2>/dev/null || { echo x; return; }
+  python3 - "$TMP/cm.s" <<'PY'
+import re, sys
+L = open(sys.argv[1]).read().splitlines()
+n = 0
+for i, l in enumerate(L[:-1]):
+    m = re.match(r'\s*chwidth\s+(r\d+),\s*[123]\s*$', l)
+    a = re.match(r'\s*(?:ld|st)\.\w+\s+r\d+,\s*\[(.*)\]', L[i + 1])
+    if m and a and m.group(1) in re.findall(r'r\d+', a.group(1)):
+        n += 1
+print(n)
+PY
+}
+n=$(shared); c=$(shared -ccv-test-narrow-data-shared)
+if [ "$n" = 0 ] && [ "$c" != x ] && [ "$c" -gt 0 ]; then
+  echo "  PASS  no narrow access shares its data register with its address (control -ccv-test-narrow-data-shared: $c sites)"
+else
+  echo "  FAIL  narrow accesses sharing data and address registers: $n (control: $c)"; fail=1
+fi
 exit $fail

@@ -13,7 +13,6 @@ _Z5bytesPKaPKhPhPiPKsPs:
 	add r2, r0, 3
 	and r2, 15
 	add r2, r1, r2
-	chwidth r2, 2
 	and r3, r0, 15
 	add r3, r1, r3
 	add r4, r0, 2
@@ -30,9 +29,10 @@ _Z5bytesPKaPKhPhPiPKsPs:
 	chwidth r1, 0
 	shl r1, r1, 24
 	sra r1, r1, 24
-	ld.global r2, [#0, r2, 0, 0]
-	chwidth r2, 0
-	shl r2, r2, 24
+	ld.global r3, [#0, r2, 0, 0]
+	chwidth r3, 0
+	shl r2, r3, 24
+	chwidth r3, 2
 	sra r2, r2, 24
 	ld.global r3, [#0, r4, 0, 0]
 	chwidth r4, 2
@@ -50,10 +50,10 @@ LBB0_1:
 	and r10, 15
 	ld.global r11, [r6 + 36]
 	add r10, r11, r10
-	chwidth r10, 2
-	ld.global r10, [#0, r10, 0, 0]
-	chwidth r10, 0
-	xor r5, r10
+	chwidth r11, 2
+	ld.global r11, [#0, r10, 0, 0]
+	chwidth r11, 0
+	xor r5, r11
 	and r10, r5, 128
 	setp.eq p0, r10, 0
 	shl r5, 1
@@ -105,12 +105,11 @@ LBB0_3:
 	chwidth r10, 0
 	add r10, r7, r6
 	ld.global r9, [r8 + 44]
-	add r9, r10
+	add r11, r9, r10
 	chwidth r9, 2
-	ld.global r9, [#1, r9, 0, 0]
+	ld.global r9, [#1, r11, 0, 0]
 	chwidth r9, 0
 	setp.eq p0, r9, 0
-	chwidth r11, 0
 	@p0 bra LBB0_4
 	chwidth r9, 2
 	st.global r9, [r15, r6, 0, -16]
@@ -118,20 +117,21 @@ LBB0_3:
 	ld.global r9, [r8 + 44]
 	add r11, r10, r9
 	add r9, r6, 1
-	add r11, 1
+	add r12, r11, 1
 	chwidth r11, 2
-	ld.global r11, [#1, r11, 0, 0]
+	ld.global r11, [#1, r12, 0, 0]
 	chwidth r11, 0
 	setp.eq p0, r11, 0
 	@p0 bra LBB0_9
 	chwidth r11, 2
 	st.global r11, [r15, r9, 0, -16]
+	chwidth r11, 0
 	ld.global r9, [r8 + 44]
 	add r10, r9
 	add r9, r6, 2
-	add r10, 2
+	add r11, r10, 2
 	chwidth r10, 2
-	ld.global r10, [#1, r10, 0, 0]
+	ld.global r10, [#1, r11, 0, 0]
 	chwidth r10, 0
 	setp.eq p0, r10, 0
 	@p0 bra LBB0_9
@@ -153,13 +153,13 @@ LBB0_9:
 	f48 r6, 4294966296
 LBB0_10:
 	chwidth r10, 0
+	chwidth r9, 2
 	add r6, r6, 1000
 	add r7, r8, 1
 	add r8, 2
-	chwidth r8, 2
-	ld.global r8, [r15, r8, 0, -16]
-	chwidth r8, 0
-	setp.ne p0, r8, 0
+	ld.global r9, [r15, r8, 0, -16]
+	chwidth r9, 0
+	setp.ne p0, r9, 0
 	mov r8, r7
 	@p0 bra LBB0_10
 	movi r8, 2
@@ -174,13 +174,12 @@ LBB0_10:
 	ld.global r10, [r8 + 68]
 	mov r9, r0
 	shl r9, 1
-	add r10, r9
+	add r11, r10, r9
 	chwidth r10, 1
 	mov r14, r0
-	ld.global r10, [#4, r10, 0, 0]
+	ld.global r10, [#4, r11, 0, 0]
 	chwidth r10, 0
 	setp.eq p0, r10, 0
-	chwidth r11, 0
 	@p0 bra LBB0_13
 	chwidth r10, 1
 	ld.global r11, [r8 + 76]
@@ -196,14 +195,14 @@ LBB0_13:
 	add r1, r2
 	movi r2, 31
 	sub r2, r0
-	chwidth r2, 2
 	bar.arrive 0
 	bar.wait 0
 	shl r0, 4
 	ld.global r3, [r8 + 60]
 	add r0, r3, r0
-	ld.shared r2, [r2 + 0]
-	chwidth r2, 0
+	chwidth r3, 2
+	ld.shared r3, [r2 + 0]
+	chwidth r3, 0
 	st.global r1, [#3, r0, 0, 0]
 	add r1, r0, 4
 	st.global r5, [#3, r1, 0, 0]
@@ -211,10 +210,10 @@ LBB0_13:
 	ld.global r1, [r15, r7, 0, -16]
 	chwidth r1, 0
 	add r1, r6
-	add r3, r0, 8
-	st.global r1, [#3, r3, 0, 0]
+	add r2, r0, 8
+	st.global r1, [#3, r2, 0, 0]
 	add r0, 12
-	st.global r2, [#3, r0, 0, 0]
+	st.global r3, [#3, r0, 0, 0]
 	exit
 Lfunc_end0:
 	.size	_Z5bytesPKaPKhPhPiPKsPs, Lfunc_end0-_Z5bytesPKaPKhPhPiPKsPs

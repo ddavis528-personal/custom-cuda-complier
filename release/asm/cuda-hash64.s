@@ -377,6 +377,7 @@ _Z6hash64PKjPKhPji:
 	shr r0, r9, 31
 	xor r0, r9
 	add r0, r13
+	chwidth r13, 2
 	shl r9, 1
 	shr r8, r3, 31
 	or r8, r9
@@ -403,8 +404,8 @@ _Z6hash64PKjPKhPji:
 	shl r14, 1
 	shr r0, r2, 31
 	or r0, r14
-	xor r0, r2
-	st.local r0, [40]
+	chwidth r14, 2
+	xor r15, r0, r2
 	add r2, r10, r7
 	setp.lt.u p0, r2, r10
 	@p0 add r8, r8, 1
@@ -451,56 +452,53 @@ _Z6hash64PKjPKhPji:
 	ld.global r1, [#1, r2, 0, 0]
 	chwidth r1, 0
 	st.local r1, [36]
+	chwidth r1, 2
 	add r2, r0, 10
-	ld.global r7, [#1, r2, 0, 0]
-	chwidth r7, 0
+	ld.global r1, [#1, r2, 0, 0]
+	chwidth r1, 0
+	st.local r1, [40]
 	add r2, r0, 9
 	ld.global r8, [#1, r2, 0, 0]
 	chwidth r8, 0
 	add r2, r0, 8
 	ld.global r9, [#1, r2, 0, 0]
 	chwidth r9, 0
-	add r2, r0, 7
-	ld.global r6, [#1, r2, 0, 0]
-	chwidth r6, 0
 	chwidth r2, 2
+	add r12, r0, 7
+	ld.global r7, [#1, r12, 0, 0]
+	chwidth r7, 0
 	add r12, r0, 6
+	ld.global r6, [#1, r12, 0, 0]
+	chwidth r6, 0
+	add r12, r0, 5
 	ld.global r5, [#1, r12, 0, 0]
 	chwidth r5, 0
-	add r12, r0, 5
+	add r12, r0, 4
 	ld.global r2, [#1, r12, 0, 0]
 	chwidth r2, 0
-	add r12, r0, 4
-	chwidth r12, 2
-	ld.global r12, [#1, r12, 0, 0]
-	chwidth r12, 0
-	add r13, r0, 3
-	chwidth r13, 2
-	ld.global r13, [#1, r13, 0, 0]
+	add r12, r0, 3
+	ld.global r13, [#1, r12, 0, 0]
 	chwidth r13, 0
-	add r14, r0, 2
-	chwidth r14, 2
+	add r12, r0, 2
 	mov r1, r0
 	chwidth r0, 2
-	ld.global r14, [#1, r14, 0, 0]
+	ld.global r14, [#1, r12, 0, 0]
 	chwidth r14, 0
-	add r15, r1, 1
-	chwidth r1, 2
-	ld.global r0, [#1, r15, 0, 0]
+	add r12, r1, 1
+	ld.global r0, [#1, r12, 0, 0]
 	chwidth r0, 0
-	ld.global r1, [#1, r1, 0, 0]
-	chwidth r1, 0
-	ld.local r3, [40]
-	add r11, r3, r11
-	ld.local r15, [12]
-	st.global r11, [#2, r15, 0, 0]
-	setp.lt.u p0, r11, r3
+	chwidth r12, 2
+	ld.global r12, [#1, r1, 0, 0]
+	chwidth r12, 0
+	add r1, r15, r11
+	ld.local r3, [12]
+	st.global r1, [#2, r3, 0, 0]
+	setp.lt.u p0, r1, r15
 	@p0 add r10, r10, 1
-	add r11, r15, 4
-	mov r3, r15
-	st.global r10, [#2, r11, 0, 0]
-	f48 r10, 2216829733
-	xor r15, r1, r10
+	add r1, r3, 4
+	st.global r10, [#2, r1, 0, 0]
+	f48 r1, 2216829733
+	xor r15, r12, r1
 	mul.lo r1, r15, 435
 	xor r4, r1, r0
 	mul.lo r1, r4, 435
@@ -508,19 +506,20 @@ _Z6hash64PKjPKhPji:
 	mul.lo r1, r14, 435
 	xor r13, r1, r13
 	mul.lo r1, r13, 435
-	xor r12, r1, r12
+	xor r12, r1, r2
 	mul.lo r1, r12, 435
-	xor r11, r1, r2
+	xor r11, r1, r5
 	mul.lo r1, r11, 435
-	xor r1, r5
+	xor r1, r6
 	mul.lo r2, r1, 435
-	xor r10, r2, r6
+	xor r10, r2, r7
 	mul.lo r2, r10, 435
 	xor r9, r2, r9
 	mul.lo r2, r9, 435
 	xor r8, r2, r8
 	mul.lo r2, r8, 435
-	xor r7, r2, r7
+	ld.local r0, [40]
+	xor r7, r2, r0
 	mul.lo r2, r7, 435
 	ld.local r0, [36]
 	xor r6, r2, r0

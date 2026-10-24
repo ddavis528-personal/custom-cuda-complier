@@ -43,6 +43,14 @@ static cl::opt<bool> TestTruncAlwaysNarrow(
     cl::desc("narrow every truncation's register, to measure what narrowing "
              "only where a 32-bit read needs it saves"));
 
+// Mutation control for tools/check-coremark-derived.sh (F-198): a narrow
+// load's destination may share a register with its base or index again, as
+// O-39 allows.
+static cl::opt<bool> TestNarrowDataShared(
+    "ccv-test-narrow-data-shared", cl::init(false), cl::Hidden,
+    cl::desc("let a narrow load's destination share a register with its base "
+             "or index, as before F-198"));
+
 namespace {
 
 class CCVNarrowUses : public MachineFunctionPass {
@@ -60,6 +68,20 @@ bool CCVNarrowUses::runOnMachineFunction(MachineFunction &MF) {
     return false;
   MachineRegisterInfo &MRI = MF.getRegInfo();
   const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
+
+  // F-198: a narrow load's destination gets a register of its own. Shared with
+  // the base or index, the chwidth before the load narrows the address
+  // register too, and O-39's 32-bit read of it then takes bits above the
+  // element that a sliced register (OI-29) does not hold. Kept apart, the
+  // address never depends on them, whichever way IS rules, and CoreMark-derived
+  // runs 1,865 fewer issue groups a warp, since the chwidth no longer has to be
+  // undone for the index's next reader.
+  if (!TestNarrowDataShared)
+    for (MachineBasicBlock &MBB : MF)
+      for (MachineInstr &MI : MBB)
+        if (MI.mayLoad() && MI.getNumExplicitDefs() == 1 &&
+            MI.getOperand(0).isReg() && operandWidth(MI.getDesc(), 0) != 0)
+          MI.getOperand(0).setIsEarlyClobber(true);
 
   // Each virtual GPR's narrowest and widest reads. A use whose width the
   // descriptor does not give (a COPY, a PHI, a call's argument) counts as 32.
