@@ -244,7 +244,9 @@ def build(name, tmp):
 
 def run(name, spec, binf, layout):
     """Lay out memory per the kernel's own argument layout, run, read back."""
-    pokes = ["-poke", f"{hex(LAUNCH)}={NTID}"]
+    # .local from window 256: left at 0, thread t's frame is window t - 1,
+    # and thread 3's lands in the launch window, which is read-only (O-61).
+    pokes = ["-poke", f"{hex(LAUNCH)}={NTID}", "-poke", f"{hex(LAUNCH + 24)}=256"]
     if "nctaid" in spec:
         pokes += ["-poke", f"{hex(LAUNCH + 12)}={spec['nctaid']}"]
     ptrs, win = [], 3
@@ -274,10 +276,11 @@ def run(name, spec, binf, layout):
     # corpus is where that claim has to hold -- eight real kernels, every
     # addressing shape the backend emits -- so a reported misalignment fails
     # the kernel rather than being counted and forgotten.
-    if "misaligned lane accesses" in r.stdout:
-        line = next(l.strip() for l in r.stdout.splitlines()
-                    if "misaligned" in l)
-        return None, f"IS-1 violation: {line}"
+    # ISA v1.9 (O-57, O-58): a misaligned access, like every other fault, now
+    # ends the run with a FAULT record, so any fault fails the kernel.
+    if "FAULT " in r.stdout:
+        line = next(l.strip() for l in r.stdout.splitlines() if "FAULT " in l)
+        return None, f"faulted: {line}"
     if "step limit" in r.stderr:
         return None, ("did not terminate -- lanes were still active at the "
                       "step limit, which is what a barrier waiting for a lane "

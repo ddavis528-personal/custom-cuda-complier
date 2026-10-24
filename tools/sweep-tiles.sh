@@ -37,10 +37,11 @@ sweep() {                      # $1 = label, $2 = source
       continue
     fi
     read -r n b <<<"$(python3 tools/count-code.py "$TMP/s.s")"
-    # A spill is a transfer through the frame pointer. Nothing else uses r15:
-    # it is reserved (O-30), so this count is exact rather than a heuristic.
-    sst=$(grep -cE '^\s*st\.(global|pred).*\[r15' "$TMP/s.s")
-    sld=$(grep -cE '^\s*ld\.(global|pred).*\[r15' "$TMP/s.s")
+    # A spill is a transfer through O-69's spill space, or through the frame
+    # pointer where that is off (-ccv-local-spills=false). Nothing else uses
+    # either here -- sgemm has no frame objects -- so the count is exact.
+    sst=$(grep -cE '^\s*st\.(global|pred).*\[r15|^\s*st(\.pred)?\.local ' "$TMP/s.s")
+    sld=$(grep -cE '^\s*ld\.(global|pred).*\[r15|^\s*ld(\.pred)?\.local ' "$TMP/s.s")
     sp=$((sst + sld))
     # Multiply-accumulates, weighted: dp4 is four.
     m1=$(grep -cE '^\s*(ffma|mad)' "$TMP/s.s")

@@ -63,13 +63,19 @@ private:
 
 } // namespace
 
-unsigned CCVMCCodeEmitter::getMachineOpValue(const MCInst &, const MCOperand &MO,
-                                             SmallVectorImpl<MCFixup> &,
+unsigned CCVMCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &MO,
+                                             SmallVectorImpl<MCFixup> &Fixups,
                                              const MCSubtargetInfo &) const {
   if (MO.isReg())
     return Ctx.getRegisterInfo()->getEncodingValue(MO.getReg());
   if (MO.isImm())
     return static_cast<unsigned>(MO.getImm());
+  // A function's code address in `movi` (F-21 step 5), resolved at layout.
+  if (MO.isExpr() && MI.getOpcode() == CCV::MOVI) {
+    Fixups.push_back(MCFixup::create(0, MO.getExpr(),
+                                     MCFixupKind(CCV::fixup_ccv_abs17)));
+    return 0;
+  }
   // Branch targets go through the per-operand encoders above, which create
   // fixups; anything else reaching here with an expression is a bug.
   llvm_unreachable("CCV: unhandled operand kind in getMachineOpValue");
@@ -138,6 +144,11 @@ static void verifyImmediatesFit(const MCInst &MI, StringRef Name) {
       continue;
     int64_t V = MO.getImm();
     bool Fits = OI->Signed ? isIntN(OI->Bits, V) : isUIntN(OI->Bits, uint64_t(V));
+    // A 32-bit field holds any i32, and selection sign-normalizes an i32
+    // immediate: `pmov p, 0xffffffff`, a predicate true in every lane, arrives
+    // as -1. Its low 32 bits are the field exactly; nothing is truncated.
+    if (OI->Bits == 32 && !OI->Signed)
+      Fits = isInt<32>(V) || isUInt<32>(V);
     if (!Fits)
       report_fatal_error(Twine("CCV: ") + Name + " operand " + Twine(I) +
                          " value " + Twine(V) + " does not fit its " +

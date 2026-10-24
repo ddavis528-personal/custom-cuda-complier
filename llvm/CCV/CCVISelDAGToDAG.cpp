@@ -1,5 +1,6 @@
 //===-- CCVISelDAGToDAG.cpp - CCV instruction selection ------------------===//
 #include "CCVISelLowering.h"
+#include "llvm/Support/CommandLine.h"
 #include "CCVFrameLowering.h"
 #include "CCVSubtarget.h"
 #include "CCVTargetMachine.h"
@@ -99,6 +100,57 @@ static unsigned immediateCompare(unsigned Opc) {
   }
 }
 
+/// A memory access's opcode at its element width. §3 takes the transfer size
+/// from `rdata`'s chwidth, so a 16- or 8-bit access must select the twin whose
+/// data operand is GPR16 or GPR8: the 32-bit form moves four bytes and
+/// clobbers the neighbouring elements with nothing downstream noticing (F-125,
+/// F-111). One table for every addressing path, so no path can miss a width
+/// again -- the frame path had no narrow form at all until F-161.
+// Mutation control for tools/check-bytes.sh: byte accesses select the 32-bit
+// forms, so every transfer moves four bytes. It must be caught by the values.
+static cl::opt<bool> TestBytesAt32(
+    "ccv-test-bytes-at-32", cl::init(false), cl::Hidden,
+    cl::desc("select 32-bit forms for byte accesses, to test that it is caught"));
+
+static unsigned atWidth(unsigned Opc, EVT MemVT) {
+  if (TestBytesAt32 && MemVT == MVT::i8)
+    return Opc;
+  const bool W16 = MemVT == MVT::i16, W8 = MemVT == MVT::i8;
+  switch (Opc) {
+  case CCV::LD_GLOBAL:
+    return W16 ? CCV::LD_GLOBAL_W16 : W8 ? CCV::LD_GLOBAL_W8 : CCV::LD_GLOBAL;
+  case CCV::ST_GLOBAL:
+    return W16 ? CCV::ST_GLOBAL_W16 : W8 ? CCV::ST_GLOBAL_W8 : CCV::ST_GLOBAL;
+  case CCV::LD_GLOBAL_IDX:
+    return W16 ? CCV::LD_GLOBAL_IDX_W16 : W8 ? CCV::LD_GLOBAL_IDX_W8 : CCV::LD_GLOBAL_IDX;
+  case CCV::ST_GLOBAL_IDX:
+    return W16 ? CCV::ST_GLOBAL_IDX_W16 : W8 ? CCV::ST_GLOBAL_IDX_W8 : CCV::ST_GLOBAL_IDX;
+  case CCV::LD_GLOBAL_SLOT:
+    return W16 ? CCV::LD_GLOBAL_SLOT_W16 : W8 ? CCV::LD_GLOBAL_SLOT_W8 : CCV::LD_GLOBAL_SLOT;
+  case CCV::ST_GLOBAL_SLOT:
+    return W16 ? CCV::ST_GLOBAL_SLOT_W16 : W8 ? CCV::ST_GLOBAL_SLOT_W8 : CCV::ST_GLOBAL_SLOT;
+  default:
+    return Opc;
+  }
+}
+
+/// O-72's RMW point for an operation, in §3's order (add, min.s, min.u, max.s,
+/// max.u, and, or, xor, exch, add.f32), and an address space.
+static unsigned atomOpcode(unsigned Kind, bool Shared) {
+  switch (Kind) {
+  case 0:  return Shared ? CCV::ATOM_ADD_S : CCV::ATOM_ADD_G;
+  case 1:  return Shared ? CCV::ATOM_MIN_S_S : CCV::ATOM_MIN_S_G;
+  case 2:  return Shared ? CCV::ATOM_MIN_U_S : CCV::ATOM_MIN_U_G;
+  case 3:  return Shared ? CCV::ATOM_MAX_S_S : CCV::ATOM_MAX_S_G;
+  case 4:  return Shared ? CCV::ATOM_MAX_U_S : CCV::ATOM_MAX_U_G;
+  case 5:  return Shared ? CCV::ATOM_AND_S : CCV::ATOM_AND_G;
+  case 6:  return Shared ? CCV::ATOM_OR_S : CCV::ATOM_OR_G;
+  case 7:  return Shared ? CCV::ATOM_XOR_S : CCV::ATOM_XOR_G;
+  case 8:  return Shared ? CCV::ATOM_EXCH_S : CCV::ATOM_EXCH_G;
+  default: return Shared ? CCV::ATOM_ADD_F_S : CCV::ATOM_ADD_F_G;   // O-76
+  }
+}
+
 void CCVDAGToDAGISel::Select(SDNode *N) {
   if (N->isMachineOpcode()) {
     N->setNodeId(-1);
@@ -107,6 +159,33 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
   SDLoc DL(N);
 
   switch (N->getOpcode()) {
+  case CCVISD::CODEADDR:
+    // A function's code address: a `movi` the asm printer gives its
+    // link-time value (F-21 step 5).
+    ReplaceNode(N, CurDAG->getMachineNode(CCV::MOVI, DL, MVT::i32,
+                                          N->getOperand(0)));
+    return;
+  case CCVISD::FRAMEOFF:
+    // movi of a frame object; eliminateFrameIndex makes it the offset.
+    ReplaceNode(N, CurDAG->getMachineNode(CCV::MOVI, DL, MVT::i32,
+                                          N->getOperand(0)));
+    return;
+  case CCVISD::CALL: {
+    // An indirect call targets its function's `ret` stub, an MCSymbol, which
+    // the i32-typed declarative pattern cannot match (mcsym is pointer-typed).
+    if (!isa<MCSymbolSDNode>(N->getOperand(1)))
+      break;
+    SmallVector<SDValue, 8> Ops;
+    unsigned E = N->getNumOperands();
+    bool HasGlue = N->getOperand(E - 1).getValueType() == MVT::Glue;
+    for (unsigned I = 1, Last = HasGlue ? E - 1 : E; I != Last; ++I)
+      Ops.push_back(N->getOperand(I));
+    Ops.push_back(N->getOperand(0));
+    if (HasGlue)
+      Ops.push_back(N->getOperand(E - 1));
+    ReplaceNode(N, CurDAG->getMachineNode(CCV::PSEUDO_CALL, DL, N->getVTList(), Ops));
+    return;
+  }
   case CCVISD::RET: {
     // A device function returns through its link value, operand 1, carrying
     // the return registers as uses so they stay live to the `ret` (F-21).
@@ -165,16 +244,75 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     // through the 32-bit form writes FOUR bytes and clobbers the neighbouring
     // element, and the value written is still correct, so nothing downstream
     // notices. That is exactly what happened before this check existed.
-    bool Narrow = cast<MemSDNode>(N)->getMemoryVT() == MVT::i16;
+    EVT MemVT = cast<MemSDNode>(N)->getMemoryVT();
     MachineSDNode *MN =
-        IsLoad ? CurDAG->getMachineNode(Narrow ? CCV::LD_GLOBAL_IDX_W16
-                                               : CCV::LD_GLOBAL_IDX,
+        IsLoad ? CurDAG->getMachineNode(atWidth(CCV::LD_GLOBAL_IDX, MemVT),
                                         DL, N->getValueType(0), MVT::Other, Ops)
-               : CurDAG->getMachineNode(Narrow ? CCV::ST_GLOBAL_IDX_W16
-                                               : CCV::ST_GLOBAL_IDX,
+               : CurDAG->getMachineNode(atWidth(CCV::ST_GLOBAL_IDX, MemVT),
                                         DL, MVT::Other, Ops);
     CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
     ReplaceNode(N, MN);
+    return;
+  }
+  case CCVISD::ATOM: {
+    // O-72: operands chain, base, idx, scale, disp, value, op, shared.
+    SDValue Ops[] = {N->getOperand(1), N->getOperand(2), N->getOperand(3),
+                     N->getOperand(4), N->getOperand(5), N->getOperand(0)};
+    MachineSDNode *MN = CurDAG->getMachineNode(
+        atomOpcode(N->getConstantOperandVal(6), N->getConstantOperandVal(7)),
+        DL, MVT::i32, MVT::Other, Ops);
+    CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
+    ReplaceNode(N, MN);
+    return;
+  }
+  case CCVISD::CAS: {
+    // Operands chain, base, idx, scale, disp, cmp, swap, shared. Every lane
+    // the warp runs takes part, so the guard is a predicate of all ones.
+    SDValue All(CurDAG->getMachineNode(
+                    CCV::PMOV_IMM, DL, MVT::i1,
+                    CurDAG->getTargetConstant(0xFFFFFFFFu, DL, MVT::i32)),
+                0);
+    SDValue Ops[] = {All, N->getOperand(1), N->getOperand(2), N->getOperand(3),
+                     N->getOperand(4), N->getOperand(5), N->getOperand(6),
+                     N->getOperand(0)};
+    MachineSDNode *MN = CurDAG->getMachineNode(
+        N->getConstantOperandVal(7) ? CCV::PSEUDO_CAS_S : CCV::PSEUDO_CAS_G, DL,
+        MVT::i32, MVT::i1, MVT::Other, Ops);
+    CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
+    ReplaceNode(N, MN);
+    return;
+  }
+  case ISD::ATOMIC_FENCE: {
+    // §3's fence: scope at [10:8] and ordering at [12:11], payload bits
+    // [2:0] and [4:3], with O-73's codes: scope 0 CTA, 1 device, 2 system;
+    // ordering 0 sequentially consistent, 1 acquire, 2 release, 3
+    // acquire-release. A single-thread fence orders nothing the hardware sees.
+    auto Ord = AtomicOrdering(N->getConstantOperandVal(1));
+    auto Scope = SyncScope::ID(N->getConstantOperandVal(2));
+    if (Scope == SyncScope::SingleThread) {
+      ReplaceUses(SDValue(N, 0), N->getOperand(0));
+      CurDAG->RemoveDeadNode(N);
+      return;
+    }
+    unsigned ScopeCode = 2;
+    SmallVector<StringRef, 8> Names;
+    CurDAG->getContext()->getSyncScopeNames(Names);
+    if (Scope < Names.size()) {
+      StringRef Nm = Names[Scope];
+      if (Nm == "block" || Nm == "cta" || Nm == "workgroup")
+        ScopeCode = 0;
+      else if (Nm == "device" || Nm == "gpu" || Nm == "agent")
+        ScopeCode = 1;
+    }
+    unsigned OrdCode = Ord == AtomicOrdering::Acquire          ? 1
+                       : Ord == AtomicOrdering::Release        ? 2
+                       : Ord == AtomicOrdering::AcquireRelease ? 3
+                                                               : 0;
+    ReplaceNode(N, CurDAG->getMachineNode(
+                       CCV::C_FENCE, DL, MVT::Other,
+                       {CurDAG->getTargetConstant(ScopeCode | OrdCode << 3, DL,
+                                                  MVT::i32),
+                        N->getOperand(0)}));
     return;
   }
   case CCVISD::DP4_SS: {
@@ -205,13 +343,11 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     // Transfer size comes from `rdata`'s chwidth, so a 16-bit access must select
     // the narrow form to put its data register in GPR16 (F-125, and F-139 for
     // the repeat).
-    bool Narrow = cast<MemSDNode>(N)->getMemoryVT() == MVT::i16;
+    EVT MemVT = cast<MemSDNode>(N)->getMemoryVT();
     MachineSDNode *MN =
-        IsLoad ? CurDAG->getMachineNode(Narrow ? CCV::LD_GLOBAL_SLOT_W16
-                                               : CCV::LD_GLOBAL_SLOT,
+        IsLoad ? CurDAG->getMachineNode(atWidth(CCV::LD_GLOBAL_SLOT, MemVT),
                                         DL, N->getValueType(0), MVT::Other, Ops)
-               : CurDAG->getMachineNode(Narrow ? CCV::ST_GLOBAL_SLOT_W16
-                                               : CCV::ST_GLOBAL_SLOT,
+               : CurDAG->getMachineNode(atWidth(CCV::ST_GLOBAL_SLOT, MemVT),
                                         DL, MVT::Other, Ops);
     CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
     ReplaceNode(N, MN);
@@ -250,6 +386,7 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     }
     Ops.push_back(N->getOperand(0));                      // chain
 
+    Opc = atWidth(Opc, cast<MemSDNode>(N)->getMemoryVT());
     MachineSDNode *MN =
         IsLoad ? CurDAG->getMachineNode(Opc, DL, N->getValueType(0), MVT::Other,
                                         Ops)
@@ -279,16 +416,28 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     // base+index path got the check; this one was missed, and F-111's audit
     // found it by noticing that nothing could produce LD_GLOBAL_W16 or
     // ST_GLOBAL_W16.
-    bool Narrow = cast<MemSDNode>(N)->getMemoryVT() == MVT::i16;
+    EVT MemVT = cast<MemSDNode>(N)->getMemoryVT();
     MachineSDNode *MN =
-        IsLoad ? CurDAG->getMachineNode(Narrow ? CCV::LD_GLOBAL_W16
-                                               : CCV::LD_GLOBAL,
+        IsLoad ? CurDAG->getMachineNode(atWidth(CCV::LD_GLOBAL, MemVT),
                                         DL, N->getValueType(0), MVT::Other, Ops)
-               : CurDAG->getMachineNode(Narrow ? CCV::ST_GLOBAL_W16
-                                               : CCV::ST_GLOBAL, DL,
+               : CurDAG->getMachineNode(atWidth(CCV::ST_GLOBAL, MemVT), DL,
                                         MVT::Other, Ops);
     CurDAG->setNodeMemRefs(MN, {cast<MemSDNode>(N)->getMemOperand()});
     ReplaceNode(N, MN);
+    return;
+  }
+  case ISD::TRUNCATE: {
+    // The low bit as a predicate. The combiner makes `(x & 1) == 0`, which a
+    // select between two function pointers produced (F-21 step 5), into a
+    // truncate to i1; it is (x & 1) != 0, an `andi` and an immediate compare.
+    if (N->getValueType(0) != MVT::i1)
+      break;
+    SDNode *And = CurDAG->getMachineNode(
+        CCV::ANDI, DL, MVT::i32,
+        {N->getOperand(0), CurDAG->getTargetConstant(1, DL, MVT::i32)});
+    ReplaceNode(N, CurDAG->getMachineNode(
+                       immediateCompare(CCV::SETP_NE_NP), DL, MVT::i1, MVT::i32,
+                       {SDValue(And, 0), CurDAG->getTargetConstant(0, DL, MVT::i32)}));
     return;
   }
   case ISD::SETCC: {
@@ -372,7 +521,68 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     ReplaceNode(N, SDValue(New, 0).getNode());
     return;
   }
+  case ISD::ADD:
+  case ISD::SUB: {
+    // x + zext c, or x - zext c: one predicated add of +1 or -1 rather than
+    // the predicate materialized as 0/1 and then added. The carry of a
+    // 64-bit add and the borrow of a subtract are this shape (IS-13 (2)).
+    if (N->getValueType(0) != MVT::i32)
+      break;
+    auto IsBit = [](SDValue V) {
+      return (V.getOpcode() == ISD::ZERO_EXTEND ||
+              V.getOpcode() == ISD::ANY_EXTEND) &&
+             V.getOperand(0).getValueType() == MVT::i1;
+    };
+    SDValue X = N->getOperand(0), C = N->getOperand(1);
+    if (N->getOpcode() == ISD::ADD && !IsBit(C) && IsBit(X))
+      std::swap(X, C);
+    if (!IsBit(C))
+      break;
+    ReplaceNode(N, CurDAG->getMachineNode(
+                       CCV::PSEUDO_PADDI, DL, MVT::i32,
+                       {X, C.getOperand(0),
+                        CurDAG->getTargetConstant(
+                            N->getOpcode() == ISD::ADD ? 1 : -1, DL, MVT::i32)}));
+    return;
+  }
+  case ISD::ZERO_EXTEND:
+  case ISD::ANY_EXTEND: {
+    // A predicate as 0 or 1: 0, plus 1 where the predicate holds -- two
+    // instructions, where a select of two materialized constants took three.
+    // (`x + zext c` itself, a stored pointer's carry (§5.7), is ISD::ADD's.)
+    // At 16 bits (NVIDIA's software FP8/FP4 conversions, CP-6 stage 2b) it
+    // is the 32-bit 0/1 read at width 16, as `trunc i32 -> i16` is.
+    EVT VT = N->getValueType(0);
+    if ((VT != MVT::i32 && VT != MVT::i16) ||
+        N->getOperand(0).getValueType() != MVT::i1)
+      break;
+    SDValue Zero(CurDAG->getMachineNode(
+                     CCV::MOVI, DL, MVT::i32,
+                     CurDAG->getTargetConstant(0, DL, MVT::i32)),
+                 0);
+    SDNode *Bit = CurDAG->getMachineNode(
+        CCV::PSEUDO_PADDI, DL, MVT::i32,
+        {Zero, N->getOperand(0), CurDAG->getTargetConstant(1, DL, MVT::i32)});
+    if (VT == MVT::i16)
+      Bit = CurDAG->getMachineNode(TargetOpcode::COPY, DL, MVT::i16,
+                                   SDValue(Bit, 0));
+    ReplaceNode(N, Bit);
+    return;
+  }
   case ISD::SELECT: {
+    // A select between predicates -- a 64-bit compare joining its halves'
+    // compares (IS-13 (2)) -- is b ^ (c & (a ^ b)): three predicate
+    // operations, where going through a GPR cost a materialized 0/1 per arm.
+    if (N->getValueType(0) == MVT::i1) {
+      auto P = [&](unsigned Opc, SDValue L, SDValue R) {
+        return SDValue(CurDAG->getMachineNode(Opc, DL, MVT::i1, {L, R}), 0);
+      };
+      SDValue C = N->getOperand(0), A = N->getOperand(1), B = N->getOperand(2);
+      ReplaceNode(N, P(CCV::PSEUDO_PXOR, B,
+                       P(CCV::PSEUDO_PAND, C, P(CCV::PSEUDO_PXOR, A, B)))
+                         .getNode());
+      return;
+    }
     // (select cond, a, b) -- cond is an i1 in a predicate register.
     if (N->getValueType(0) != MVT::i32 && N->getValueType(0) != MVT::f32)
       break;
@@ -382,6 +592,30 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
     ReplaceNode(N, CurDAG->getMachineNode(
                        CCV::PSEUDO_PMOV, DL, N->getValueType(0),
                        {N->getOperand(2), N->getOperand(0), N->getOperand(1)}));
+    return;
+  }
+  case ISD::BR_CC: {
+    // A branch on a predicate compared with a predicate: the combiner makes
+    // `br (xor c, true)` into `br_cc setne c, true`, which a list walk's
+    // `if (!found)` reached (the CoreMark-derived port). The branch's negate
+    // bit is the comparison against a constant; two predicates are an xor.
+    SDValue LHS = N->getOperand(2), RHS = N->getOperand(3);
+    if (LHS.getValueType() != MVT::i1)
+      break;
+    ISD::CondCode CC = cast<CondCodeSDNode>(N->getOperand(1))->get();
+    if (CC != ISD::SETEQ && CC != ISD::SETNE)
+      report_fatal_error("CCV: ordered compare of two predicates");
+    bool Neg = CC == ISD::SETEQ;
+    SDValue Guard = LHS;
+    if (auto *C = dyn_cast<ConstantSDNode>(RHS))
+      Neg ^= C->isAllOnes();
+    else
+      Guard = SDValue(CurDAG->getMachineNode(CCV::PSEUDO_PXOR, DL, MVT::i1,
+                                             {LHS, RHS}), 0);
+    ReplaceNode(N, CurDAG->getMachineNode(
+                       CCV::PSEUDO_BRA_PRED, DL, MVT::Other,
+                       {Guard, CurDAG->getTargetConstant(Neg, DL, MVT::i32),
+                        N->getOperand(4), N->getOperand(0)}));
     return;
   }
   case ISD::BRCOND: {
@@ -395,19 +629,39 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
   case ISD::INTRINSIC_VOID: {
     // __syncthreads() is an arrive followed by a wait on the same barrier
     // (O-12): arriving and blocking are separate operations here, because with
-    // per-thread PCs a thread arrives individually.
-    if (N->getConstantOperandVal(1) != Intrinsic::nvvm_barrier0)
+    // per-thread PCs a thread arrives individually. PTX's named barriers,
+    // `bar.sync a{, b}` (`__syncthreads()` is a = 0 with no b), are the same
+    // on barrier a, after `bar.init #a, b` (O-74): b lane arrivals complete a
+    // phase, and no b, or b = 1024 (only legal in a CTA of exactly 1024,
+    // where it is the same rule), is count 0, every live lane. Every use gets
+    // its own bar.init; CCVBarrierInit then keeps one at the entry, or none,
+    // wherever one count serves the whole kernel. CCVCheckIR has refused an
+    // a or b that is not a constant in range.
+    unsigned IID = N->getConstantOperandVal(1);
+    if (IID != Intrinsic::nvvm_barrier0 && IID != Intrinsic::nvvm_bar_sync &&
+        IID != Intrinsic::nvvm_barrier_sync && IID != Intrinsic::nvvm_barrier_n &&
+        IID != Intrinsic::nvvm_barrier_sync_cnt && IID != Intrinsic::nvvm_barrier)
       break;
+    const bool HasId = IID != Intrinsic::nvvm_barrier0;
+    const bool HasCount = IID == Intrinsic::nvvm_barrier_sync_cnt ||
+                          IID == Intrinsic::nvvm_barrier;
     // Format K payload: [13:8] is the 6-bit barrier ID, so the ID sits in
     // payload bits [5:0]. The compressed wait carries no phase -- O-27 puts
     // the epoch in hardware, so "wait until the arrival I just made has
     // retired" needs no operand. A wait on a phase this warp did not arrive
     // in is bar.wait.phase, a different instruction (Format E).
-    const unsigned BarrierID = 0;      // one CTA-wide barrier
+    const unsigned BarrierID = HasId ? N->getConstantOperandVal(2) : 0;
+    uint64_t Count = HasCount ? N->getConstantOperandVal(3) : 0;
+    if (Count == 1024)
+      Count = 0;
     SDValue Chain = N->getOperand(0);
+    SDNode *Init = CurDAG->getMachineNode(
+        CCV::BAR_INIT, DL, MVT::Other,
+        {CurDAG->getTargetConstant(BarrierID, DL, MVT::i32),
+         CurDAG->getTargetConstant(Count, DL, MVT::i32), Chain});
     SDNode *Arrive = CurDAG->getMachineNode(
         CCV::C_BAR_ARRIVE, DL, MVT::Other,
-        {CurDAG->getTargetConstant(BarrierID, DL, MVT::i32), Chain});
+        {CurDAG->getTargetConstant(BarrierID, DL, MVT::i32), SDValue(Init, 0)});
     ReplaceNode(N, CurDAG->getMachineNode(
                        CCV::C_BAR_WAIT, DL, MVT::Other,
                        {CurDAG->getTargetConstant(BarrierID, DL, MVT::i32),

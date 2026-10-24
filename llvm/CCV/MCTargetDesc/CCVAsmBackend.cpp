@@ -48,6 +48,7 @@ public:
         {"fixup_ccv_brapred18",    0,      32,   MCFixupKindInfo::FKF_IsPCRel},
         {"fixup_ccv_call17",       15,     17,   MCFixupKindInfo::FKF_IsPCRel},
         {"fixup_ccv_bra8",          8,      8,   MCFixupKindInfo::FKF_IsPCRel},
+        {"fixup_ccv_abs17",        15,     17,   0},
     };
     if (Kind < FirstTargetFixupKind)
       return MCAsmBackend::getFixupKindInfo(Kind);
@@ -135,6 +136,14 @@ void CCVAsmBackend::applyFixup(const MCAssembler &, const MCFixup &Fixup,
       report_fatal_error("CCV: bra.short target out of range -- relaxation "
                          "should have grown this to Format E's bra");
     Data[Off + 1] = char(uint8_t(D8));      // payload is [15:8]
+    return;
+  }
+
+  if (Kind == CCV::fixup_ccv_abs17) {
+    if (!IsResolved || !isUInt<17>(Value))
+      report_fatal_error("CCV: a function's code address does not fit movi's "
+                         "17-bit immediate, or is not resolved within the image");
+    write32le(Data, Off, read32le(Data, Off) | uint32_t(Value) << 15);
     return;
   }
 

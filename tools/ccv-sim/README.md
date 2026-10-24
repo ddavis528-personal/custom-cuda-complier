@@ -39,6 +39,10 @@ Formats A/A′, B/B′, C/C′/C″, D/D′, E, F, G, I, J and K, as listed in
 `Interp.cpp`: integer and FP ALU with their predicated twins, the full compare
 family across all four encodings, global and shared memory in both addressing
 modes, barriers, `shfl.idx`, `srd`, conversions and the SFU points O-31 added.
+`srd #2` (`%lanectx`, O-64) is `(context << 5) | lane`, with warp *w* of the CTA
+(`-warp`) in context *w* unless `-context N` names the one the core's dispatcher
+gives it (TI-35; the oracle's `init` then carries `lane_context`); selectors 3-15
+are F-ILLEGAL.
 An instruction without semantics stops the run and names itself rather than
 silently doing nothing.
 
@@ -54,8 +58,11 @@ show up in a result comparison.
 
 The compares were the last addition and they are the cautionary one. A compare's
 operands are read at their element width — signed relations sign-extending,
-unsigned zero-extending — and a narrow *floating-point* compare refuses, because
-§4 has no narrow FP. Format C's materialization destination `rd` is exempt from
+unsigned zero-extending — and a narrow *floating-point* compare decodes both at
+`rs0`'s width in the format bit `[23]` names (O-65; an immediate is read in
+format `00`). **Mixed widths follow O-67:** an operation works at its operating
+width, the destination's `chwidth` or `rs0`'s for a compare, and every other
+source is its raw field zero-extended or truncated to it, never converted. Format C's materialization destination `rd` is exempt from
 the width guard, since these semantics never write it; that exemption is what
 lets the compiler leave a dead `rd` narrow instead of spending a `chwidth`
 restoring a register no one reads (F-89). **The order matters:** the semantics
@@ -95,6 +102,28 @@ rather than element work, and Format C's `rd` is a register the compare never
 writes. Counting the latter made a 32-bit comparison read as narrow work once
 per loop iteration and overstated a published speedup (F-91).
 
+Narrow FP (CP-6) is exact: `NarrowFP.h` decodes every format of §4's table to
+sign × integer × 2^e and rounds once, saturating at 8 and 4 bits (O-53, O-56).
+FP32-only executions keep host arithmetic, with a NaN result made canonical:
+every format's NaN is NVIDIA's (O-66), FP32 `0x7FFFFFFF`, FP16 and BF16 `0x7FFF`,
+E4M3 and E5M2 `0x7F`. `-fp-cases FILE` evaluates single lanes, compares
+included, for `tools/check-narrow-fp.py`.
+
+`-warp W` runs warp W of a CTA of `-threads` threads: lane L is thread
+32W + L, and lanes [0, min(32, T - 32W)) are live. A CTA's warps share
+`.shared` and barriers, which one warp's run cannot model, so a barrier in a
+CTA of more than 32 threads stops the run. The oracle's `init` carries
+`warp_in_cta` when W is not 0 (TI-29).
+
+`-cta` runs every warp of the CTA instead: they share memory, `.shared` and the
+barriers, and issue in turn, one issue group each, warp 0 first. A barrier
+completes once every live lane of every warp has arrived. Warp w is context w,
+or `-context` + w. `-oracle FILE` then writes one record file per warp, FILE
+for warp 0 and FILE's `.jsonl` as `.<w>.jsonl` for warp w. Each holds that warp's
+records in its issue order, carries `warp_in_cta`, and ends in its own
+registers and the CTA's memory; a fault's record is in the faulting warp's
+file (TI-29, F-190, CP-30).
+
 `-oracle FILE` writes one JSON record per issue group for the CCV core's Stage 3
 skeleton, which takes *what* each instruction does from here and models only
 *when*. A record holds the bytes, the issue mask, every register the group reads
@@ -104,7 +133,9 @@ though they are encoded as fields), its immediate operands in operand order
 predicate qualifiers as encoded (`quals`: guard, logic sources, masks --
 index plus negate, which `uses` cannot show), every
 register it writes with its value
-after, and each memory access attributed to its lane. The file opens with an
+after, and each memory access attributed to its lane (a predicate transfer is
+warp-scoped, one word per predicate at lane 0's address, and is attributed to
+lane 0, whose `rbase` forms it, whether or not lane 0 executes). The file opens with an
 `init` record (code, launch geometry, seeded memory) and closes with a `final`
 one (all GPRs and predicates, and every memory word the run touched). It is
 strict rather than approximate: a step whose accesses cannot be matched one per

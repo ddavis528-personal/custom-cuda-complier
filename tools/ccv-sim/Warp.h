@@ -45,7 +45,11 @@ public:
   /// One architectural access, for the oracle record (`-oracle`). Only
   /// recorded while `Log` is set, so the simulator's own runs pay nothing,
   /// and pokes/peeks made from outside a step never appear.
-  struct Access { uint64_t Addr; unsigned Bytes; uint32_t Val; bool Write; };
+  /// Refused: the access was not made, for F-ALIGN or F-RO. It is logged so
+  /// a faulting instruction's oracle record still has every executing lane's
+  /// address (TI-28).
+  struct Access { uint64_t Addr; unsigned Bytes; uint32_t Val; bool Write;
+                  bool Refused = false; };
   std::vector<Access> *Log = nullptr;
 
   uint32_t read32(uint64_t Addr) {
@@ -56,8 +60,10 @@ public:
     return V;
   }
   void write32(uint64_t Addr, uint32_t V) {
-    for (unsigned I = 0; I != 4; ++I)
+    for (unsigned I = 0; I != 4; ++I) {
+      journal(Addr + I);
       *byteAt(Addr + I) = uint8_t(V >> (8 * I));
+    }
     if (Log) Log->push_back({Addr, 4, V, true});
   }
   uint8_t read8(uint64_t Addr) {
@@ -66,36 +72,102 @@ public:
     return V;
   }
   void write8(uint64_t Addr, uint8_t V) {
+    journal(Addr);
     *byteAt(Addr) = V;
     if (Log) Log->push_back({Addr, 1, V, true});
   }
   /// A raw byte, never logged: for dumping final state.
   uint8_t peekByte(uint64_t Addr) { return *byteAt(Addr); }
+  /// A word the AGU reads to form an address -- the launch-slot form's window
+  /// (O-45) -- which is not one of the lanes' accesses, so it is never logged.
+  uint32_t peek32(uint64_t Addr) {
+    uint32_t V = 0;
+    for (unsigned I = 0; I != 4; ++I)
+      V |= uint32_t(*byteAt(Addr + I)) << (8 * I);
+    return V;
+  }
 
-  /// IS-1: a lane's effective address must be a multiple of its element size
-  /// -- 4 for 32-bit, 2 for 16-bit, unconstrained for 8-bit. A violation will
-  /// raise F-ALIGN at execute once the fault model lands (blocked on IS-2);
-  /// until then it is COUNTED here rather than faulted, so the obligation can
-  /// be checked without pretending a fault exists that the ISA has not yet
-  /// defined.
-  ///
-  /// Counting rather than asserting is deliberate. The compiler-side claim
-  /// IS-1 asks CP to prove is about the whole corpus, not about one kernel, so
-  /// what is wanted is a number that must be zero over every kernel that
-  /// executes -- `tools/check-align.sh`. An assert would stop at the first one
-  /// and tell you nothing about the rest.
-  uint64_t Misaligned = 0;
+  /// O-58 (ISA v1.9, from IS-1): a lane's effective address must be a multiple
+  /// of its transfer size -- 4 at 32 bits, 2 at 16, any at 8. A violation is
+  /// F-ALIGN, an execute-stage fault, per lane (§12). The access is not made;
+  /// the lane is recorded, and Interp::step turns the record into the fault.
+  /// Only the lanes an instruction actually executes reach here, so the
+  /// predicate gating §12.2 requires is the simulator's ordinary lane loop.
+  /// The first lane recorded is the lowest, since lanes run in ascending
+  /// order, which is the address §12.6's record reports.
+  unsigned CurLane = 0;
+  uint32_t AlignLanes = 0;
+  uint64_t AlignAddr = 0;
 
-  void noteAlign(uint64_t Addr, unsigned Bytes) {
-    if (Bytes > 1 && (Addr % Bytes) != 0)
-      ++Misaligned;
+  bool alignOK(uint64_t Addr, unsigned Bytes) {
+    if (Bytes <= 1 || (Addr % Bytes) == 0)
+      return true;
+    if (!AlignLanes)
+      AlignAddr = Addr;
+    AlignLanes |= 1u << CurLane;
+    return false;
+  }
+
+  /// F-ADDR (O-75): a .global effective address is the exact sum, and one
+  /// below 0 or at or above 2^48 maps nothing. Refused per lane and recorded,
+  /// as F-ALIGN is; Interp::step raises it after F-ALIGN and before F-RO
+  /// (§12.5). 0 is no limit: .shared wraps at 2^32 instead (O-75), and its
+  /// own fault, F-SHARED, needs the CTA's allocation, which ccv-sim does not
+  /// take.
+  uint64_t AddrLimit = 0;
+  uint32_t AddrLanes = 0;
+  uint64_t AddrAddr = 0;
+  bool addrOK(uint64_t Addr) {
+    if (!AddrLimit || Addr < AddrLimit)
+      return true;
+    if (!AddrLanes)
+      AddrAddr = Addr;
+    AddrLanes |= 1u << CurLane;
+    return false;
+  }
+
+  /// F-RO (O-51, O-61; ISA v1.9 §5.2): a store any byte of which lies in
+  /// read-only memory -- the whole launch window, and the module's .const
+  /// range [ConstBase, ConstLimit) -- is refused per lane and recorded, as
+  /// F-ALIGN is, and Interp::step raises it after F-ALIGN (§12.5). Loads are
+  /// unaffected.
+  uint64_t LaunchWindow = 2;
+  uint64_t ConstBase = 0, ConstLimit = 0;
+  uint32_t RoLanes = 0;
+  uint64_t RoAddr = 0;
+  bool roOK(uint64_t Addr, unsigned Bytes) {
+    bool InLaunch = (Addr >> 16) == LaunchWindow ||
+                    ((Addr + Bytes - 1) >> 16) == LaunchWindow;
+    bool InConst = Addr < ConstLimit && Addr + Bytes > ConstBase;
+    if (!InLaunch && !InConst)
+      return true;
+    if (!RoLanes)
+      RoAddr = Addr;
+    RoLanes |= 1u << CurLane;
+    return false;
+  }
+
+  /// A fault is precise (§12.4): the faulting instruction has no architectural
+  /// effect, though other lanes of it may already have written. While a step
+  /// runs, every byte written is journalled, and a fault undoes them.
+  struct Undo { uint64_t Addr; uint8_t Old; };
+  std::vector<Undo> *Journal = nullptr;
+  void journal(uint64_t Addr) {
+    if (Journal) Journal->push_back({Addr, *byteAt(Addr)});
+  }
+  void rollBack() {
+    for (auto It = Journal->rbegin(); It != Journal->rend(); ++It)
+      *byteAt(It->Addr) = It->Old;
   }
 
   /// §3: "Transfer size is inherited from `rdata`'s `chwidth` -- no size
   /// field." So a load is 4, 2 or 1 bytes depending on the destination
   /// register's current width, and the 4-bit width has no byte transfer at all.
   uint32_t readN(uint64_t Addr, unsigned Bytes) {
-    noteAlign(Addr, Bytes);
+    if (!alignOK(Addr, Bytes) || !addrOK(Addr)) {
+      if (Log) Log->push_back({Addr, Bytes, 0, false, true});
+      return 0;
+    }
     uint32_t V = 0;
     for (unsigned I = 0; I != Bytes; ++I)
       V |= uint32_t(*byteAt(Addr + I)) << (8 * I);
@@ -103,9 +175,14 @@ public:
     return V;
   }
   void writeN(uint64_t Addr, uint32_t V, unsigned Bytes) {
-    noteAlign(Addr, Bytes);
-    for (unsigned I = 0; I != Bytes; ++I)
+    if (!alignOK(Addr, Bytes) || !addrOK(Addr) || !roOK(Addr, Bytes)) {
+      if (Log) Log->push_back({Addr, Bytes, V, true, true});
+      return;
+    }
+    for (unsigned I = 0; I != Bytes; ++I) {
+      journal(Addr + I);
       *byteAt(Addr + I) = uint8_t(V >> (8 * I));
+    }
     if (Log) Log->push_back({Addr, Bytes, V, true});
   }
 };
@@ -127,6 +204,7 @@ struct Counters {
   uint64_t Bytes = 0;         ///< dynamic instruction bytes fetched
   uint64_t Stalls = 0;        ///< issue slots spent blocked at a barrier
   uint64_t Diverged = 0;      ///< predicated branches where the mask split
+  uint64_t FairPicks = 0;     ///< issues O-60's fairness rule redirected
   uint64_t Regrouped = 0;     ///< issues that reunited lanes previously apart
 
   // By class. Taken from MCInstrDesc where possible rather than from an opcode
@@ -137,6 +215,9 @@ struct Counters {
   // pointer, which nothing else uses because R15 is reserved (O-30).
   uint64_t LdSt[4] = {};      ///< ld.global, st.global, ld.shared, st.shared
   uint64_t Spill = 0;
+  // Calls issued, for AR-20's traffic per call. A call is control; it used to
+  // fall through to ALU, being neither a branch nor a return.
+  uint64_t Calls = 0;
 
   // Issued instructions by element width (0 = 32, 1 = 16, 2 = 8, 3 = 4), split
   // by pipe. O-40 gives narrow operations a higher retire rate by splitting the
@@ -167,6 +248,10 @@ struct Warp {
   /// the only value the launch block structurally cannot carry.
   std::array<uint32_t, kLanes> CtaTid{};
   uint32_t CtaId = 0;
+  // The warp's hardware context, which srd #2 (%lanectx) reads (O-64). Which
+  // context a warp gets is the dispatcher's choice; ccv-sim gives warp w of
+  // the CTA context w unless -context names another (TI-35).
+  uint32_t WarpCtx = 0;
 
   /// Lanes blocked at a barrier. They hold their PC and are skipped when the
   /// scheduler picks an issue group -- otherwise a lowest-PC scheduler would

@@ -31,6 +31,9 @@ static cl::opt<std::string> InputFile(cl::Positional, cl::Required,
                                       cl::desc("<input.ll>"));
 static cl::opt<std::string> OutputFile("o", cl::Required, cl::desc("output"));
 static cl::opt<bool> EmitObj("obj", cl::desc("emit an object file (default: assembly)"));
+static cl::opt<bool> PrintLowered(
+    "ccv-print-lowered-ir", cl::Hidden,
+    cl::desc("print the module after the pointer rewrites, before codegen"));
 
 int main(int argc, char **argv) {
   cl::ParseCommandLineOptions(argc, argv, "CCV code generator\n");
@@ -51,7 +54,13 @@ int main(int argc, char **argv) {
 
   // Pointers crossing a call become (rbase, roffset) pairs first, so the check
   // below sees only the ones that could not be split (F-22).
+  lowerCCVModuleData(*M);
+  lowerCCVCodePointers(*M);
   lowerCCVPointerPairs(*M);
+  foldCCVFP4(*M);
+  lowerCCVFP64Bits(*M);
+  if (PrintLowered)
+    M->print(errs(), nullptr);
 
   // Before codegen: constructs the target cannot lower become diagnostics here
   // rather than crashes inside the type legalizer (F-20, F-22).

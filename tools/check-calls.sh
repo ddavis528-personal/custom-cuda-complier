@@ -5,7 +5,8 @@
 # two-deep chain whose middle function must keep its own link value across its
 # inner call, four register arguments, a 16-bit argument and return, values
 # live across calls in a loop, and a local array in both the kernel and a
-# callee, live at once. Every one of those compiles, assembles and round-trips
+# callee, live at once, and arguments past the sixth on the callee's frame.
+# Every one of those compiles, assembles and round-trips
 # whether or not it is right; only running it says so (F-147). So the kernel
 # runs on all 32 lanes against a reference written from the source, under each
 # callee-saved set the backend offers (-ccv-csr), since CP-9 leaves that set
@@ -21,7 +22,14 @@
 # function (every lane gets lane 0's answer), and the call frame's width rule
 # dropped (half_step leaves a register narrow behind it), and a pointer split
 # without its GEP offset (sum3_via reads one element short, advance stores
-# every lane's result to out[0]).
+# every lane's result to out[0]), and stack arguments written as if every
+# callee's frame were at base 0 (many2 reads its seventh and eighth arguments
+# from slots nobody wrote), a caller laid out ignoring what its indirect
+# calls reach (sub_frame's array lands on apply's, and its saved register on
+# apply's spill cells), every function's spill cells laid out from the bottom
+# (a callee's saves land on its caller's spills), and function
+# pointers built for an image at 0 rather than at its load address (each
+# indirect call jumps 4 KiB short).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
@@ -54,6 +62,15 @@ def mix(a, b, c, d): return s32(s32(a * 3 + b) ^ s32(c - d))
 def half_step(x):    return s16(s16(x) + 3)
 def chain(x, k):     return s32(mix(x, k, s32(x + 7), s32(k - 2)) + half_step(x) + s32(x * k))
 def scratch(x, j):   return s32(x * ((j & 3) + 2) + 100)
+def many(a, b, c, d, e, f, g, h, k):
+    return s32(a - b * 2 + c * 3 - d * 4 + e * 5 - f * 6 + g * 7 - s16(h) * 8 + k * 9)
+def many2(a, b, c, d, e, f, g, h):
+    return s32(many(h, g, f, e, d, c, b, a, s32(g + h)) + g * h)
+def add_at(a, b, p):    return s32(a + b + p[0])
+def sub_frame(a, b, p):
+    r = s32(s32(a * ((b & 3) + 1) - b) - p[1])
+    return s32(add_at(r, b, p) ^ r)
+def apply(f, a, b, p):  return s32(f(a, b, p) * 2 + s32(a + ((a ^ b) & 3) * b))
 def narrow3(a, b, c):
     a, b, c = s16(a), s16(b), s16(c)
     x, y = s16(a + b), s16(c - a)
@@ -70,7 +87,11 @@ for i, v in enumerate(inp):
     q = s32(s32(p0 * p1) + s32(p2 * p3) + s32(p4 * w) + (p0 ^ p3) + s32(p1 - p4))
     j = (i & 7) + 1
     s3 = s32(inp[j] + inp[j + 1] + inp[j + 2])
-    want.append(s32(acc + scratch(v, i) * 3 + s32(v * 7 + ((i + 1) & 3)) + q + s3))
+    m = many2(v, i, v ^ i, s32(v + 1), i * 3, s32(v - 7), i + 11, v >> 2)
+    pk = s32(inp[2 + (i & 3)] + v - i * 5 + 13 - (v >> 4))
+    g = add_at if i & 1 else sub_frame
+    ic = s32(apply(g, v, i, inp[4:]) + g(i, v & 15, inp))
+    want.append(s32(acc + scratch(v, i) * 3 + s32(v * 7 + ((i + 1) & 3)) + q + s3 + m + pk + ic))
 L = 0x20000
 args = [f"-poke {hex(L + 24)}=256",            # .local windows from 256
         f"-poke {hex(L + 32)}=3", f"-poke {hex(L + 36)}=0",   # in  -> window 3
@@ -108,28 +129,38 @@ for csr in none six eight; do
 done
 
 # The static layout is visible in the code: scratch's array and the kernel's
-# must not share an offset below R15.
+# must not share an offset below R15. The kernel also stores its callees'
+# stack arguments into their frames, which is where they belong; a slot a
+# device function loads and never stores is such an argument, so it is not
+# counted as the kernel's.
 build/ccv-llc "$TMP/c.low.ll" -o "$TMP/c.s" 2>/dev/null
 python3 - "$TMP/c.s" <<'PY' || fail=1
 import re, sys
-offs, fn = {}, None
+loads, stores, fn = {}, {}, None
 for line in open(sys.argv[1]):
     m = re.match(r'^(\w+):', line)
     if m: fn = m.group(1)
-    for o in re.findall(r'\[r15 \+ (-\d+)\]', line):
-        offs.setdefault(fn, set()).add(int(o))
-k = next(f for f in offs if "calls" in f)
-s = next(f for f in offs if "scratch" in f)
-if offs[k] & offs[s]:
-    print(f"  FAIL  the kernel's and scratch's frames share offsets {sorted(offs[k] & offs[s])}")
+    for op, o in re.findall(r'(ld|st)\.global r\d+, \[r15 \+ (-\d+)\]', line):
+        (loads if op == "ld" else stores).setdefault(fn, set()).add(int(o))
+k = next(f for f in stores if "calls" in f)
+s = next(f for f in stores if "scratch" in f)
+args = set()
+for f in loads:
+    if f != k:
+        args |= loads[f] - stores.get(f, set())
+own = (loads.get(k, set()) | stores[k]) - args
+if own & stores[s]:
+    print(f"  FAIL  the kernel's and scratch's frames share offsets {sorted(own & stores[s])}")
     sys.exit(1)
-print(f"  PASS  static frames: scratch at {min(offs[s])}..{max(offs[s])}, the kernel "
-      f"below it at {min(offs[k])}..{max(offs[k])}")
+print(f"  PASS  static frames: scratch at {min(stores[s])}..{max(stores[s])}, the kernel "
+      f"below it at {min(own)}..{max(own)}; stack arguments at {sorted(args)}")
 PY
 
 # Controls. Each breaks one thing the passes above depend on.
 for c in "-ccv-test-flat-frames" "-ccv-test-mask-device-functions" \
-         "-ccv-test-no-call-widths" "-ccv-test-drop-pair-offset"; do
+         "-ccv-test-no-call-widths" "-ccv-test-drop-pair-offset" \
+         "-ccv-test-stack-args-at-zero" "-ccv-test-ignore-indirect-frames" \
+         "-ccv-test-flat-local" "-ccv-code-base=0"; do
   out=$(run $c)
   # Caught means it compiled and then computed wrong or never finished. A
   # control that fails to compile proves nothing about the property.

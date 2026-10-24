@@ -61,6 +61,7 @@
 #include "CCVInstrInfo.h"
 #include "CCVSubtarget.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
@@ -91,15 +92,15 @@ const char *causeName(unsigned C) {
 /// True when operand `I` of `MI` is a memory instruction's base or index.
 bool isAddressOperand(const MachineInstr &MI, unsigned I) {
   switch (MI.getOpcode()) {
-  case CCV::LD_GLOBAL:      case CCV::LD_GLOBAL_W16:
-  case CCV::LD_SHARED:      case CCV::LD_SHARED_W16:
-  case CCV::ST_GLOBAL:      case CCV::ST_GLOBAL_W16:
-  case CCV::ST_SHARED:      case CCV::ST_SHARED_W16:
+  case CCV::LD_GLOBAL:      case CCV::LD_GLOBAL_W16:  case CCV::LD_GLOBAL_W8:
+  case CCV::LD_SHARED:      case CCV::LD_SHARED_W16:  case CCV::LD_SHARED_W8:
+  case CCV::ST_GLOBAL:      case CCV::ST_GLOBAL_W16:  case CCV::ST_GLOBAL_W8:
+  case CCV::ST_SHARED:      case CCV::ST_SHARED_W16:  case CCV::ST_SHARED_W8:
   case CCV::C_LD_GLOBAL:    case CCV::C_ST_GLOBAL:
   case CCV::LD_GLOBAL_P:
     return I == 1;                       // rbase
-  case CCV::LD_GLOBAL_IDX:  case CCV::LD_GLOBAL_IDX_W16:
-  case CCV::ST_GLOBAL_IDX:  case CCV::ST_GLOBAL_IDX_W16:
+  case CCV::LD_GLOBAL_IDX:  case CCV::LD_GLOBAL_IDX_W16: case CCV::LD_GLOBAL_IDX_W8:
+  case CCV::ST_GLOBAL_IDX:  case CCV::ST_GLOBAL_IDX_W16: case CCV::ST_GLOBAL_IDX_W8:
   case CCV::LD_SHARED_IDX:  case CCV::ST_SHARED_IDX:
     return I == 1 || I == 2;             // rbase, rindex
   default:
@@ -127,7 +128,7 @@ bool isAccumulatorOperand(const MachineInstr &MI, unsigned I) {
 /// True when this opcode produces a value staged out of shared memory.
 bool isStagedDef(const MachineInstr &MI) {
   switch (MI.getOpcode()) {
-  case CCV::LD_SHARED:     case CCV::LD_SHARED_W16:
+  case CCV::LD_SHARED:     case CCV::LD_SHARED_W16: case CCV::LD_SHARED_W8:
   case CCV::LD_SHARED_IDX:
     return true;
   default:
@@ -161,7 +162,8 @@ bool isUniformDef(const MachineInstr &MI, const MachineBasicBlock &MBB) {
     return true;
   case CCV::SRD:
     return MI.getOperand(1).getImm() == 1;              // %ctaid, not %ctatid
-  case CCV::LD_GLOBAL: case CCV::LD_GLOBAL_W16: case CCV::C_LD_GLOBAL:
+  case CCV::LD_GLOBAL: case CCV::LD_GLOBAL_W16: case CCV::LD_GLOBAL_W8:
+  case CCV::C_LD_GLOBAL:
   case CCV::LD_GLOBAL_P:
     break;
   default:
@@ -238,8 +240,8 @@ public:
 /// The frame index a spill or reload names, or std::nullopt.
 std::optional<int> spillSlot(const MachineInstr &MI, bool &IsStore) {
   switch (MI.getOpcode()) {
-  case CCV::ST_GLOBAL: case CCV::ST_PRED_G: IsStore = true;  break;
-  case CCV::LD_GLOBAL: case CCV::LD_PRED_G: IsStore = false; break;
+  case CCV::ST_GLOBAL: case CCV::PSEUDO_ST_PRED: IsStore = true;  break;
+  case CCV::LD_GLOBAL: case CCV::PSEUDO_LD_PRED: IsStore = false; break;
   default: return std::nullopt;
   }
   for (const MachineOperand &MO : MI.operands())
@@ -274,8 +276,25 @@ bool CCVSpillStats::runOnMachineFunction(MachineFunction &MF) {
       // Predicate spill is neither an address nor an accumulator, and there is
       // no third thing it could be: §3's predicate file is 4 entries and they
       // hold control-flow conditions.
-      if (MI.getOpcode() == CCV::ST_PRED_G || MI.getOpcode() == CCV::LD_PRED_G)
+      //
+      // What it does report is whether a GPR is free there (IS-18): a
+      // predicate spilled per lane, outside converged code, goes through a
+      // scratch GPR, a predicated move and the thread's own slot.
+      if (MI.getOpcode() == CCV::PSEUDO_ST_PRED ||
+          MI.getOpcode() == CCV::PSEUDO_LD_PRED) {
+        LivePhysRegs Live(*TRI);
+        Live.addLiveOuts(MBB);
+        for (auto It = MBB.rbegin(); &*It != &MI; ++It)
+          Live.stepBackward(*It);
+        Live.stepBackward(MI);         // live across the transfer itself
+        unsigned Free = 0;
+        for (unsigned R = CCV::R0; R != CCV::R15; ++R)
+          if (Live.available(MF.getRegInfo(), R))
+            ++Free;
+        errs() << "    predicate " << (IsStore ? "spill" : "reload") << " in "
+               << MF.getName() << ": " << Free << " GPRs free\n";
         continue;
+      }
 
       Register R = MI.getOperand(0).getReg();
       if (!R.isPhysical())

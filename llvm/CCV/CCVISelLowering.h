@@ -23,6 +23,10 @@ enum NodeType : unsigned {
   ST_SLOTIDX, ///< store to   (launch[slot] << 16) + idx -- chain, value, slot, idx, scale
   LD_FRAME,   ///< load  from a .local frame slot -- chain, FI, idx, scale
   ST_FRAME,   ///< store to   a .local frame slot -- chain, value, FI, idx, scale
+  CODEADDR,   ///< a function's 32-bit code address -- target global (F-21)
+  FRAMEOFF,   ///< a frame object's offset in the window below R15's -- target FI
+  ATOM,       ///< O-72 RMW -- chain, base, idx, scale, disp, value, op, shared
+  CAS,        ///< O-72 CAS -- chain, base, idx, scale, disp, cmp, swap, shared
 };
 } // namespace CCVISD
 
@@ -38,6 +42,23 @@ public:
   EVT getSetCCResultType(const DataLayout &, LLVMContext &,
                          EVT VT) const override {
     return MVT::i1;
+  }
+
+  /// O-72's atomics take every ordering as relaxed between fences, which
+  /// AtomicExpand places; the rest is CCVISelLowering.cpp's.
+  bool shouldInsertFencesForAtomic(const Instruction *) const override {
+    return true;
+  }
+  AtomicExpansionKind shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const override;
+  AtomicExpansionKind
+  shouldExpandAtomicCmpXchgInIR(AtomicCmpXchgInst *CX) const override;
+
+  /// No access is wider than 32 bits, so adjacent stores merge no further: a
+  /// merged i64 store reached the type legalizer with its address already a
+  /// frame or window node, and splitting it again crashed.
+  bool canMergeStoresTo(unsigned, EVT MemVT,
+                        const MachineFunction &) const override {
+    return MemVT.getSizeInBits() <= 32;
   }
 
   SDValue LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv,
@@ -66,7 +87,13 @@ public:
   const char *getTargetNodeName(unsigned Opcode) const override;
 
   /// 'r' is a GPR. Predicates are a separate namespace (invariant 5) and get
-  /// their own constraint letter when if-conversion needs one.
+  /// their own constraint letter when if-conversion needs one. PTX's 'f' and
+  /// 'h' are register classes too (CP-6, CCVExpandPTXAsm).
+  ConstraintType getConstraintType(StringRef Constraint) const override {
+    if (Constraint.size() == 1 && (Constraint[0] == 'f' || Constraint[0] == 'h'))
+      return C_RegisterClass;
+    return TargetLowering::getConstraintType(Constraint);
+  }
   std::pair<unsigned, const TargetRegisterClass *>
   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                StringRef Constraint, MVT VT) const override;
@@ -77,6 +104,13 @@ public:
   MVT getScalarShiftAmountTy(const DataLayout &, EVT) const override {
     return MVT::i32;
   }
+
+  /// A jump table is a table of code addresses in data, indexed at the
+  /// pointer's width, then an indirect branch; none of the three exists here.
+  /// A dense switch with an unreachable default (the CoreMark-derived port's
+  /// state machine) became one, and stopped the type legalizer. Without
+  /// tables a switch is compares and bit tests.
+  bool areJTsAllowed(const Function *) const override { return false; }
 };
 } // namespace llvm
 #endif

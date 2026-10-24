@@ -9,6 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "Interp.h"
+#include "NarrowFP.h"
+#include "SfuMath.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
@@ -40,6 +42,109 @@ static constexpr unsigned kBaseShift = 16;
 // itself produces a kernel that reads the wrong argument and nothing that looks
 // like a compile error.
 static constexpr uint64_t kLaunchBase = 0x20000;
+uint64_t launchBlockBase() { return kLaunchBase; }
+
+/// O-69: lane L's byte B of the warp's interleaved spill frame.
+bool Interp::retireIfComplete(Warp &W, unsigned Id) {
+  if (Bars[Id].Count)
+    return false;                      // a count: exits never complete it
+  // Live lanes are what the barrier waits for. A lane blocked at THIS barrier
+  // is already accounted for; one that has exited never arrives. With every
+  // warp of the CTA running, that is every warp's live lanes: a warp whose
+  // lanes have all exited waits for nothing.
+  auto arrived = [&](const Warp &X) {
+    return (X.Bar[Id].Arrived & X.Active) == X.Active;
+  };
+  std::vector<Warp> *All = TestWarpBarrier ? nullptr : Cta;
+  if (All ? !std::all_of(All->begin(), All->end(), arrived) : !arrived(W))
+    return false;
+  // The arrivals retire together, in every warp, so the warps' epochs stay
+  // equal. Wake everything blocked. A woken lane re-executes its `bar.wait`,
+  // which either lets it through (its arrival has now retired) or blocks it
+  // again on a different barrier -- so this is correct without tracking which
+  // barrier each lane is parked on.
+  auto retire = [&](Warp &X) {
+    X.Bar[Id].Arrived = 0;
+    ++X.Bar[Id].Epoch;
+    X.Stalled = 0;
+  };
+  if (All)
+    std::for_each(All->begin(), All->end(), retire);
+  else
+    retire(W);
+  Bars[Id].Arrivals.clear();
+  return true;
+}
+
+void Interp::arrive(Warp &W, unsigned Id, uint32_t Mask) {
+  CtaBarrier &C = Bars[Id];
+  auto retire = [&] {                  // the count's phase completes
+    auto one = [&](Warp &X) {
+      X.Bar[Id].Arrived = 0;
+      ++X.Bar[Id].Epoch;
+      X.Stalled = 0;
+    };
+    if (Cta)
+      std::for_each(Cta->begin(), Cta->end(), one);
+    else
+      one(W);
+    C.Arrivals.clear();
+  };
+  for (unsigned L = 0; L != kLanes; ++L) {
+    if (!((Mask >> L) & 1))
+      continue;
+    auto &B = W.Bar[Id];
+    // Under the default rule a lane's second arrival in a phase changes
+    // nothing; under a count every arrival counts.
+    if (!C.Count && ((B.Arrived >> L) & 1))
+      continue;
+    B.ArrivalEpoch[L] = B.Epoch;
+    B.Arrived |= 1u << L;
+    C.Arrivals.push_back({&W, L});
+    if (C.Count && C.Arrivals.size() == C.Count)
+      retire();                        // later lanes are the next phase's
+  }
+  if (!C.Count)
+    retireIfComplete(W, Id);
+}
+
+void Interp::initBarrier(Warp &W, unsigned Id, unsigned N) {
+  CtaBarrier &C = Bars[Id];
+  C.Count = TestIgnoreCount ? 0 : N;
+  if (!C.Count) {
+    retireIfComplete(W, Id);
+    return;
+  }
+  // At once: the arrivals already made meet the new count, the first n
+  // complete the phase and the rest are the next phase's, as if each had
+  // arrived after it -- repeatedly, if they fill it too.
+  while (C.Arrivals.size() >= C.Count) {
+    std::vector<std::pair<Warp *, unsigned>> Carry(
+        C.Arrivals.begin() + C.Count, C.Arrivals.end());
+    auto one = [&](Warp &X) {
+      X.Bar[Id].Arrived = 0;
+      ++X.Bar[Id].Epoch;
+      X.Stalled = 0;
+    };
+    if (Cta)
+      std::for_each(Cta->begin(), Cta->end(), one);
+    else
+      one(W);
+    C.Arrivals.clear();
+    for (auto [X, L] : Carry) {
+      auto &B = X->Bar[Id];
+      B.ArrivalEpoch[L] = B.Epoch;
+      B.Arrived |= 1u << L;
+      C.Arrivals.push_back({X, L});
+    }
+  }
+}
+
+uint64_t Interp::localAddr(const Warp &W, uint64_t B, unsigned L) {
+  uint64_t LocalBase = Mem.peek32(kLaunchBase + 24);
+  return ((LocalBase + LaneContexts) << 16) + (uint64_t(W.WarpCtx) << 22) +
+         128 * (B / 4) + 4 * L + B % 4;
+}
 static constexpr unsigned kOffArgs    = 32;
 // Eight, matching the compiler: a slot names a window word and §5.2 puts those
 // 8 bytes apart (DA's response CP-4, 2026-10-08). If this disagrees with the
@@ -85,6 +190,23 @@ static uint32_t sextTo32(uint32_t V, uint8_t Code) {
 static uint32_t narrow(uint32_t V, uint8_t Code) {
   unsigned N = widthBits(Code);
   return N >= 32 ? V : (V & ((1u << N) - 1));
+}
+
+/// O-67, the mixed-width rule: a source read at its operation's operating
+/// width OpW (the destination's chwidth, or rs0's for a compare) is its raw
+/// element at its own width Src, zero-extended or truncated to OpW as a bit
+/// field. Never converted. A narrower source's missing bits are zero, not a
+/// neighbouring section's (OI-29).
+static uint32_t opnd(uint32_t V, uint8_t Src, uint8_t OpW) {
+  if (nfp::TestByValue)
+    return narrow(V, Src);
+  return narrow(V, std::max(Src, OpW));   // the larger code is the narrower
+}
+/// The same, then read as signed at the operating width.
+static uint32_t opndS(uint32_t V, uint8_t Src, uint8_t OpW) {
+  if (nfp::TestByValue)
+    return sextTo32(V, Src);
+  return sextTo32(opnd(V, Src, OpW), OpW);
 }
 
 /// Write an element without disturbing the bits above it.
@@ -149,6 +271,7 @@ static bool isWidthAware(unsigned Op) {
   case CCV::XORI: case CCV::ANDNI: case CCV::SHLI: case CCV::SHRI:
   case CCV::SRAI:
   case CCV::LD_GLOBAL: case CCV::ST_GLOBAL:
+  case CCV::LD_LOCAL: case CCV::ST_LOCAL:
   case CCV::C_LD_GLOBAL: case CCV::C_ST_GLOBAL:
   case CCV::LD_GLOBAL_IDX: case CCV::ST_GLOBAL_IDX:
   case CCV::LD_GLOBAL_SLOT: case CCV::ST_GLOBAL_SLOT:
@@ -158,6 +281,19 @@ static bool isWidthAware(unsigned Op) {
   case CCV::DP4_E4M3: case CCV::DP4_E5M2:
   case CCV::MOVI: case CCV::MOVI48:
   case CCV::C_MOV: case CCV::C_EXIT:
+  // Format K's destructive ALU, the points whose uncompressed forms are above:
+  // the compressor turns 16-bit `or` into C_OR once i16 code reaches it (the
+  // CoreMark-derived port), so these read and write at width the same way.
+  case CCV::C_ADD: case CCV::C_SUB: case CCV::C_MUL_LO: case CCV::C_AND:
+  case CCV::C_OR: case CCV::C_XOR: case CCV::C_MIN_S: case CCV::C_MIN_U:
+  case CCV::C_MAX_S: case CCV::C_MAX_U:
+  case CCV::C_ADDI: case CCV::C_SUBI: case CCV::C_ANDI: case CCV::C_ORI:
+  case CCV::C_XORI: case CCV::C_SHLI: case CCV::C_SHRI: case CCV::C_SRAI:
+  // Predicate logic reads and writes only predicates. Its operands are P
+  // numbers, which the guard below would read as GPR numbers, refusing a
+  // `pxor p0, ...` whenever r0 happened to be narrow.
+  case CCV::PAND: case CCV::POR: case CCV::PXOR: case CCV::PMOV:
+  case CCV::PMOV_IMM:
     return true;
   default:
     break;
@@ -173,6 +309,8 @@ static bool isWidthAware(unsigned Op) {
   case CCV::SETP_GT_U: case CCV::SETP_GE_U:
   case CCV::SETP_LT_F: case CCV::SETP_LE_F: case CCV::SETP_EQ_F:
   case CCV::SETP_NE_F: case CCV::SETP_GT_F: case CCV::SETP_GE_F:
+  case CCV::SETP_LT_F1: case CCV::SETP_LE_F1: case CCV::SETP_EQ_F1:
+  case CCV::SETP_NE_F1: case CCV::SETP_GT_F1: case CCV::SETP_GE_F1:
     return true;
   default:
     return false;
@@ -181,44 +319,266 @@ static bool isWidthAware(unsigned Op) {
 
 static float bitsToFloat(uint32_t B) { float F; std::memcpy(&F, &B, 4); return F; }
 static uint32_t floatToBits(float F) { uint32_t B; std::memcpy(&B, &F, 4); return B; }
-
-// O-44's FP packed dot products. The packed element types are decoded here
-// rather than by the C++ type system: BF16 is the top half of an FP32, FP16 and
-// the two FP8 formats need their fields laid out explicitly, and none of them
-// is a type this simulator otherwise carries.
-static float bf16ToFloat(uint16_t H) { return bitsToFloat(uint32_t(H) << 16); }
-
-static float f16ToFloat(uint16_t H) {
-  uint32_t S = uint32_t(H >> 15) << 31, E = (H >> 10) & 0x1f, M = H & 0x3ff;
-  if (E == 0)                             // zero or subnormal
-    return bitsToFloat(S) + (M ? std::ldexp(float(M), -24) *
-                                 (S ? -1.0f : 1.0f) : 0.0f);
-  if (E == 0x1f)                          // inf or NaN
-    return bitsToFloat(S | 0x7f800000u | (M << 13));
-  return bitsToFloat(S | ((E + 112) << 23) | (M << 13));
+static Interp::Result formatFault(uint32_t Mask) {
+  Interp::Result F{Interp::Result::Fault, 0};
+  F.Cause = "F-FORMAT";
+  F.TakenMask = Mask;
+  return F;
+}
+/// An FP32 arithmetic result's bits, a NaN made canonical (O-66): positive,
+/// every mantissa bit set, NVIDIA's value, whatever the host produced (x86's
+/// default NaN is 0xFFC00000) and whatever payload an operand carried. Moves,
+/// fneg, fabs and fmin/fmax's pass-through of a number keep their bits.
+static uint32_t fpBits(float F) {
+  return std::isnan(F) && !nfp::TestHostNaN ? 0x7fffffffu : floatToBits(F);
 }
 
-/// One FP8 value. `MantBits` is 3 for E4M3 and 2 for E5M2, which fixes the
-/// exponent width and bias with it. E4M3 has no infinity -- its all-ones
-/// exponent with a non-zero mantissa is NaN and with a zero mantissa is a
-/// finite value -- which is why the two formats cannot share one decoder
-/// parameterised only by field width.
-template <unsigned MantBits> static float fp8ToFloat(uint8_t B) {
-  constexpr unsigned ExpBits = 7 - MantBits;
-  constexpr int Bias = (1 << (ExpBits - 1)) - 1;
-  uint32_t S = uint32_t(B >> 7) << 31;
-  int E = (B >> MantBits) & ((1 << ExpBits) - 1);
-  uint32_t M = B & ((1u << MantBits) - 1);
-  if (E == 0)
-    return (S ? -1.0f : 1.0f) * std::ldexp(float(M), -Bias - int(MantBits) + 1);
-  if (MantBits == 2 && E == (1 << ExpBits) - 1)        // E5M2 has inf/NaN
-    return bitsToFloat(S | 0x7f800000u | (M << 21));
-  if (MantBits == 3 && E == (1 << ExpBits) - 1 && M == (1u << MantBits) - 1)
-    return bitsToFloat(S | 0x7fc00000u);               // E4M3: only S.1111.111 is NaN
-  return (S ? -1.0f : 1.0f) *
-         std::ldexp(1.0f + float(M) / float(1u << MantBits), E - Bias);
+// ---- CP-6: the FP block and the conversions at every width ---------------
+//
+// Where an FP instruction keeps its operands, and what it does, for the
+// generic path through NarrowFP.h. That path takes every execution that
+// touches a register below 32 bits, format code 1, or a conversion without a
+// host form below; an FP32-only execution keeps the host paths in the switch,
+// so every oracle written before narrow FP is unchanged.
+namespace {
+struct FpInfo {
+  enum Kind { None, Bin, Un, Fma, Cvt } K = None;
+  unsigned Base = 0;      // FADD, FSUB, FMUL, FMIN, FMAX, FNEG_F0, FABS_F0, FFMA_F0
+  unsigned Code = 0;      // the FP format code, for Bin, Un and Fma
+  unsigned Dst = 0, Src = 0, Rnd = 0;   // for Cvt: format codes and rounding
+  int D = 0, A = -1, B = -1, C = -1;    // operand indices; C is the addend
+  int Qual = -1;          // the predicate qualifier's operand, if predicated
+  bool HostForm = false;  // FP32-only executions keep a host path
+};
+
+struct CvtRow { unsigned Op, D, S, R; bool Pred; };
+const CvtRow CvtTable[] = {
+    {CCV::CVT_D0_S0_R0, 0, 0, 0, false}, {CCV::CVT_D0_S0_R0_P, 0, 0, 0, true},
+    {CCV::CVT_D0_S0_R1, 0, 0, 1, false}, {CCV::CVT_D0_S0_R1_P, 0, 0, 1, true},
+    {CCV::CVT_D0_S0_R2, 0, 0, 2, false}, {CCV::CVT_D0_S0_R2_P, 0, 0, 2, true},
+    {CCV::CVT_D0_S0_R3, 0, 0, 3, false}, {CCV::CVT_D0_S0_R3_P, 0, 0, 3, true},
+    {CCV::CVT_D0_S1_R0, 0, 1, 0, false}, {CCV::CVT_D0_S1_R0_P, 0, 1, 0, true},
+    {CCV::CVT_D0_S1_R1, 0, 1, 1, false}, {CCV::CVT_D0_S1_R1_P, 0, 1, 1, true},
+    {CCV::CVT_D0_S1_R2, 0, 1, 2, false}, {CCV::CVT_D0_S1_R2_P, 0, 1, 2, true},
+    {CCV::CVT_D0_S1_R3, 0, 1, 3, false}, {CCV::CVT_D0_S1_R3_P, 0, 1, 3, true},
+    {CCV::CVT_F32_S32, 0, 2, 0, false}, {CCV::CVT_F32_S32_P, 0, 2, 0, true},
+    {CCV::CVT_D0_S2_R1, 0, 2, 1, false}, {CCV::CVT_D0_S2_R1_P, 0, 2, 1, true},
+    {CCV::CVT_D0_S2_R2, 0, 2, 2, false}, {CCV::CVT_D0_S2_R2_P, 0, 2, 2, true},
+    {CCV::CVT_D0_S2_R3, 0, 2, 3, false}, {CCV::CVT_D0_S2_R3_P, 0, 2, 3, true},
+    {CCV::CVT_F32_U32, 0, 3, 0, false}, {CCV::CVT_F32_U32_P, 0, 3, 0, true},
+    {CCV::CVT_D0_S3_R1, 0, 3, 1, false}, {CCV::CVT_D0_S3_R1_P, 0, 3, 1, true},
+    {CCV::CVT_D0_S3_R2, 0, 3, 2, false}, {CCV::CVT_D0_S3_R2_P, 0, 3, 2, true},
+    {CCV::CVT_D0_S3_R3, 0, 3, 3, false}, {CCV::CVT_D0_S3_R3_P, 0, 3, 3, true},
+    {CCV::CVT_D1_S0_R0, 1, 0, 0, false}, {CCV::CVT_D1_S0_R0_P, 1, 0, 0, true},
+    {CCV::CVT_D1_S0_R1, 1, 0, 1, false}, {CCV::CVT_D1_S0_R1_P, 1, 0, 1, true},
+    {CCV::CVT_D1_S0_R2, 1, 0, 2, false}, {CCV::CVT_D1_S0_R2_P, 1, 0, 2, true},
+    {CCV::CVT_D1_S0_R3, 1, 0, 3, false}, {CCV::CVT_D1_S0_R3_P, 1, 0, 3, true},
+    {CCV::CVT_D1_S1_R0, 1, 1, 0, false}, {CCV::CVT_D1_S1_R0_P, 1, 1, 0, true},
+    {CCV::CVT_D1_S1_R1, 1, 1, 1, false}, {CCV::CVT_D1_S1_R1_P, 1, 1, 1, true},
+    {CCV::CVT_D1_S1_R2, 1, 1, 2, false}, {CCV::CVT_D1_S1_R2_P, 1, 1, 2, true},
+    {CCV::CVT_D1_S1_R3, 1, 1, 3, false}, {CCV::CVT_D1_S1_R3_P, 1, 1, 3, true},
+    {CCV::CVT_D1_S2_R0, 1, 2, 0, false}, {CCV::CVT_D1_S2_R0_P, 1, 2, 0, true},
+    {CCV::CVT_D1_S2_R1, 1, 2, 1, false}, {CCV::CVT_D1_S2_R1_P, 1, 2, 1, true},
+    {CCV::CVT_D1_S2_R2, 1, 2, 2, false}, {CCV::CVT_D1_S2_R2_P, 1, 2, 2, true},
+    {CCV::CVT_D1_S2_R3, 1, 2, 3, false}, {CCV::CVT_D1_S2_R3_P, 1, 2, 3, true},
+    {CCV::CVT_D1_S3_R0, 1, 3, 0, false}, {CCV::CVT_D1_S3_R0_P, 1, 3, 0, true},
+    {CCV::CVT_D1_S3_R1, 1, 3, 1, false}, {CCV::CVT_D1_S3_R1_P, 1, 3, 1, true},
+    {CCV::CVT_D1_S3_R2, 1, 3, 2, false}, {CCV::CVT_D1_S3_R2_P, 1, 3, 2, true},
+    {CCV::CVT_D1_S3_R3, 1, 3, 3, false}, {CCV::CVT_D1_S3_R3_P, 1, 3, 3, true},
+    {CCV::CVT_D2_S0_R0, 2, 0, 0, false}, {CCV::CVT_D2_S0_R0_P, 2, 0, 0, true},
+    {CCV::CVT_S32_F32, 2, 0, 1, false}, {CCV::CVT_S32_F32_P, 2, 0, 1, true},
+    {CCV::CVT_D2_S0_R2, 2, 0, 2, false}, {CCV::CVT_D2_S0_R2_P, 2, 0, 2, true},
+    {CCV::CVT_D2_S0_R3, 2, 0, 3, false}, {CCV::CVT_D2_S0_R3_P, 2, 0, 3, true},
+    {CCV::CVT_D2_S1_R0, 2, 1, 0, false}, {CCV::CVT_D2_S1_R0_P, 2, 1, 0, true},
+    {CCV::CVT_D2_S1_R1, 2, 1, 1, false}, {CCV::CVT_D2_S1_R1_P, 2, 1, 1, true},
+    {CCV::CVT_D2_S1_R2, 2, 1, 2, false}, {CCV::CVT_D2_S1_R2_P, 2, 1, 2, true},
+    {CCV::CVT_D2_S1_R3, 2, 1, 3, false}, {CCV::CVT_D2_S1_R3_P, 2, 1, 3, true},
+    {CCV::CVT_SEXT, 2, 2, 0, false},
+    {CCV::CVT_D2_S3_R0, 2, 3, 0, false}, {CCV::CVT_D2_S3_R0_P, 2, 3, 0, true},
+    {CCV::CVT_D3_S0_R0, 3, 0, 0, false}, {CCV::CVT_D3_S0_R0_P, 3, 0, 0, true},
+    {CCV::CVT_U32_F32, 3, 0, 1, false}, {CCV::CVT_U32_F32_P, 3, 0, 1, true},
+    {CCV::CVT_D3_S0_R2, 3, 0, 2, false}, {CCV::CVT_D3_S0_R2_P, 3, 0, 2, true},
+    {CCV::CVT_D3_S0_R3, 3, 0, 3, false}, {CCV::CVT_D3_S0_R3_P, 3, 0, 3, true},
+    {CCV::CVT_D3_S1_R0, 3, 1, 0, false}, {CCV::CVT_D3_S1_R0_P, 3, 1, 0, true},
+    {CCV::CVT_D3_S1_R1, 3, 1, 1, false}, {CCV::CVT_D3_S1_R1_P, 3, 1, 1, true},
+    {CCV::CVT_D3_S1_R2, 3, 1, 2, false}, {CCV::CVT_D3_S1_R2_P, 3, 1, 2, true},
+    {CCV::CVT_D3_S1_R3, 3, 1, 3, false}, {CCV::CVT_D3_S1_R3_P, 3, 1, 3, true},
+    {CCV::CVT_D3_S2_R0, 3, 2, 0, false}, {CCV::CVT_D3_S2_R0_P, 3, 2, 0, true},
+    {CCV::CVT_D3_S3_R0, 3, 3, 0, false}, {CCV::CVT_D3_S3_R0_P, 3, 3, 0, true},
+};
+} // namespace
+
+static FpInfo fpInfo(unsigned Op) {
+  FpInfo I;
+  auto bin = [&](unsigned Base, unsigned Code, bool Host) {
+    I.K = FpInfo::Bin; I.Base = Base; I.Code = Code; I.D = 0; I.A = 1; I.B = 2;
+    I.HostForm = Host;
+  };
+  switch (Op) {
+  case CCV::FADD: bin(CCV::FADD, 0, true); return I;
+  case CCV::FSUB: bin(CCV::FSUB, 0, true); return I;
+  case CCV::FMUL: bin(CCV::FMUL, 0, true); return I;
+  case CCV::FMIN: bin(CCV::FMIN, 0, true); return I;
+  case CCV::FMAX: bin(CCV::FMAX, 0, true); return I;
+  case CCV::FADD_F1: bin(CCV::FADD, 1, false); return I;
+  case CCV::FSUB_F1: bin(CCV::FSUB, 1, false); return I;
+  case CCV::FMUL_F1: bin(CCV::FMUL, 1, false); return I;
+  case CCV::FMIN_F1: bin(CCV::FMIN, 1, false); return I;
+  case CCV::FMAX_F1: bin(CCV::FMAX, 1, false); return I;
+  case CCV::FADD_P: case CCV::FSUB_P: case CCV::FMUL_P:
+    bin(Op == CCV::FADD_P ? CCV::FADD : Op == CCV::FSUB_P ? CCV::FSUB : CCV::FMUL,
+        0, true);
+    I.Qual = 1; I.A = 2; I.B = 3;
+    return I;
+  case CCV::C_FADD: case CCV::C_FMUL: case CCV::C_FMIN: case CCV::C_FMAX:
+    bin(Op == CCV::C_FADD ? CCV::FADD : Op == CCV::C_FMUL ? CCV::FMUL
+        : Op == CCV::C_FMIN ? CCV::FMIN : CCV::FMAX, 0, true);
+    I.A = 0; I.B = 2;                   // destructive: rd op rs
+    return I;
+  case CCV::FNEG_F0: case CCV::FABS_F0: case CCV::FNEG_F1: case CCV::FABS_F1:
+    I.K = FpInfo::Un;
+    I.Base = Op == CCV::FNEG_F0 || Op == CCV::FNEG_F1 ? CCV::FNEG_F0 : CCV::FABS_F0;
+    I.Code = Op == CCV::FNEG_F1 || Op == CCV::FABS_F1;
+    I.D = 0; I.A = 1; I.HostForm = !I.Code;
+    return I;
+  case CCV::FFMA_F0: case CCV::FFMA_F1:
+    I.K = FpInfo::Fma; I.Base = CCV::FFMA_F0; I.Code = Op == CCV::FFMA_F1;
+    I.D = 0; I.A = 1; I.B = 2; I.C = 3; I.HostForm = !I.Code;
+    return I;
+  case CCV::FFMA_ACC_F0: case CCV::FFMA_ACC_F1:
+    I.K = FpInfo::Fma; I.Base = CCV::FFMA_F0; I.Code = Op == CCV::FFMA_ACC_F1;
+    I.D = 0; I.A = 2; I.B = 3; I.C = 0; I.HostForm = !I.Code;
+    return I;
+  default:
+    break;
+  }
+  for (const CvtRow &R : CvtTable)
+    if (R.Op == Op) {
+      I.K = FpInfo::Cvt; I.Dst = R.D; I.Src = R.S; I.Rnd = R.R;
+      I.D = 0; I.A = R.Pred ? 2 : 1; I.Qual = R.Pred ? 1 : -1;
+      // The four conversions the division sequence uses have FP32 host forms,
+      // and sign extension its own case; every other point is generic only.
+      I.HostForm = (R.D == 0 && (R.S == 2 || R.S == 3) && R.R == 0) ||
+                   ((R.D == 2 || R.D == 3) && R.S == 0 && R.R == 1) ||
+                   Op == CCV::CVT_SEXT;
+      return I;
+    }
+  return I;
 }
 
+/// One lane of the generic path. X, Y, Z are the operands' elements.
+static uint32_t fpLane(const FpInfo &I, uint8_t WD, uint8_t WA, uint8_t WB,
+                       uint8_t WC, uint32_t X, uint32_t Y, uint32_t Z) {
+  using namespace nfp;
+  if (I.K == FpInfo::Cvt) {
+    Round R = Round(I.Rnd);
+    Value V = I.Src < 2 ? decode(*format(WA, I.Src), X)
+                        : fromInt(X, widthBits(WA), I.Src == 2);
+    return I.Dst < 2 ? encode(*format(WD, I.Dst), V, R)
+                     : toInt(V, widthBits(WD), I.Dst == 2, R);
+  }
+  // O-67: every source is its raw field at the destination's width, read in
+  // the destination's format. Nothing is converted.
+  const Format FD = *format(WD, I.Code);
+  X = opnd(X, WA, WD);
+  if (I.K == FpInfo::Un) {              // a sign-bit operation, NaN included
+    uint32_t S = 1u << (FD.Bits - 1);
+    return I.Base == CCV::FNEG_F0 ? (X ^ S) : (X & ~S);
+  }
+  Value A = decode(FD, X);
+  Value B = decode(FD, opnd(Y, WB, WD));
+  switch (I.K == FpInfo::Fma ? CCV::FFMA_F0 : I.Base) {
+  case CCV::FADD: return encode(FD, add(A, B, Round::RN), Round::RN);
+  case CCV::FSUB: return encode(FD, add(A, neg(B), Round::RN), Round::RN);
+  case CCV::FMUL: return encode(FD, mul(A, B), Round::RN);
+  case CCV::FMIN: case CCV::FMAX: {
+    // minNum and maxNum (O-56): a NaN operand gives the other operand.
+    if (A.K == Value::NaN && B.K == Value::NaN) return FD.NaN;
+    if (A.K == Value::NaN) return encode(FD, B, Round::RN);
+    if (B.K == Value::NaN) return encode(FD, A, Round::RN);
+    int C = compare(A, B);
+    bool TakeA = I.Base == CCV::FMIN ? C <= 0 : C >= 0;
+    return encode(FD, TakeA ? A : B, Round::RN);
+  }
+  default: {                            // ffma: one rounding of a*b + c
+    Value C = decode(FD, opnd(Z, WC, WD));
+    return encode(FD, add(mul(A, B), C, Round::RN), Round::RN);
+  }
+  }
+}
+
+/// §12.3's F-FORMAT: a format code reserved at the width of a register the
+/// instruction reads or writes as FP. Integer codes are valid at every width.
+static bool formatReserved(const FpInfo &I, const uint8_t *Widths) {
+  auto Bad = [](uint8_t W, unsigned Code) {
+    return Code < 2 && !nfp::format(W, Code);
+  };
+  if (I.K == FpInfo::Cvt)
+    return Bad(Widths[0], I.Dst) || Bad(Widths[1], I.Src);
+  for (int K = 0; K != 4; ++K)
+    if (Widths[K] != 0xff && Bad(Widths[K], I.Code))
+      return true;
+  return false;
+}
+
+/// O-44's FP dot products: rs2 (FP32) plus the products of rs0's and rs1's
+/// elements, summed exactly and rounded once into FP32 -- normative, since an
+/// FP reduction's order is observable. Exact through NarrowFP.h: every product
+/// of two 16- or 8-bit elements is exact in 128 bits, and so is their sum.
+static uint32_t dpLane(unsigned Op, uint32_t X, uint32_t Y, uint32_t Acc) {
+  using namespace nfp;
+  unsigned W, Code, N;
+  switch (Op) {
+  case CCV::DP2_BF16: W = 1, Code = 1, N = 2; break;
+  case CCV::DP2_F16:  W = 1, Code = 0, N = 2; break;
+  case CCV::DP4_E4M3: W = 2, Code = 0, N = 4; break;
+  default:            W = 2, Code = 1, N = 4; break;   // DP4_E5M2
+  }
+  const Format F = *format(W, Code), F32 = *format(0, 0);
+  unsigned Bits = 32 / N;
+  Value S = mul(decode(F, X & ((1u << Bits) - 1)), decode(F, Y & ((1u << Bits) - 1)));
+  for (unsigned K = 1; K != N; ++K)
+    S = add(S, mul(decode(F, (X >> (Bits * K)) & ((1u << Bits) - 1)),
+                   decode(F, (Y >> (Bits * K)) & ((1u << Bits) - 1))),
+            Round::RN);
+  return encode(F32, add(S, decode(F32, Acc), Round::RN), Round::RN);
+}
+
+static unsigned fpRelation(unsigned Op, unsigned &Code);
+static bool fpCompareElem(unsigned Rel, unsigned Code, uint8_t WA, uint32_t X,
+                          uint32_t Y);
+
+bool Interp::evalFp(unsigned Op, const uint8_t Widths[4], uint32_t X,
+                    uint32_t Y, uint32_t Z, uint32_t &Out) {
+  // An FP compare (O-65): Widths[1] and [2] are rs0's and rs1's, Out is 0 or 1.
+  unsigned FCode;
+  if (unsigned Rel = fpRelation(Op, FCode)) {
+    if (!nfp::format(Widths[1], FCode) || !nfp::format(Widths[2], FCode))
+      return false;
+    Out = fpCompareElem(Rel, FCode, Widths[1], narrow(X, Widths[1]),
+                        opnd(Y, Widths[2], Widths[1]));
+    return true;
+  }
+  // A dot product (O-44): X, Y the packed words, Z the FP32 accumulator.
+  if (Op == CCV::DP2_BF16 || Op == CCV::DP2_F16 || Op == CCV::DP4_E4M3 ||
+      Op == CCV::DP4_E5M2) {
+    Out = dpLane(Op, X, Y, Z);
+    return true;
+  }
+  FpInfo I = fpInfo(Op);
+  if (I.K == FpInfo::None)
+    return false;
+  uint8_t W[4];
+  int Ops[4] = {I.D, I.A, I.B, I.C};
+  for (int K = 0; K != 4; ++K)
+    W[K] = Ops[K] >= 0 ? Widths[K] : 0xff;
+  if (formatReserved(I, W))
+    return false;
+  auto Elem = [](uint32_t V, uint8_t C) { return C == 0xff ? 0 : narrow(V, C); };
+  Out = fpLane(I, W[0], W[1], I.B >= 0 ? W[2] : 0, I.C >= 0 ? W[3] : 0,
+               Elem(X, W[1]), Elem(Y, W[2]), Elem(Z, W[3]));
+  return true;
+}
 
 /// One lane of a conversion or SFU operation. Lifted out of the dispatch so the
 /// Format A′ twins O-34 made possible share the semantics rather than copying
@@ -240,10 +600,11 @@ static uint32_t cvtSfuLane(unsigned Op, uint32_t X) {
     return F >= 4294967295.0f ? UINT32_MAX
            : (F <= 0.0f || std::isnan(F)) ? 0u
                                           : uint32_t(F);
-  // The SFU is specified as correctly-rounded here. Real units are approximate,
-  // and the division sequence is written not to depend on more than ~1 ulp --
-  // but simulating an approximation would make results unreproducible without
-  // pinning a specific hardware's error, which does not exist yet. See O-31.
+  // The FP SFU is approximate, within O-70's bounds. By default the simulator
+  // returns the correctly rounded value, from integer arithmetic alone, so an
+  // oracle pins no hardware's error and no host's libm (SfuMath.cpp);
+  // -sfu-error-ulps returns values at the bound, which is how the IEEE
+  // sequences are checked not to depend on it.
   // O-35. The simulator returns the WORST value the contract permits, not the
   // exact one.
   //
@@ -259,13 +620,13 @@ static uint32_t cvtSfuLane(unsigned Op, uint32_t X) {
     uint64_t Exact = std::min<uint64_t>((1ull << 32) / X, 0xFFFFFFFFull);
     return uint32_t((Exact * ((1u << 16) - 1)) >> 16);   // exact*(1 - 2^-16)
   }
-  case CCV::RCP_F32:   return floatToBits(1.0f / F);
-  case CCV::RSQRT_F32: return floatToBits(1.0f / std::sqrt(F));
-  case CCV::SQRT_F32:  return floatToBits(std::sqrt(F));
-  case CCV::EX2_F32:   return floatToBits(std::exp2f(F));
-  case CCV::LG2_F32:   return floatToBits(std::log2f(F));
-  case CCV::SIN_F32:   return floatToBits(std::sin(F));
-  default:             return floatToBits(std::cos(F));
+  case CCV::RCP_F32:   return sfu::evalWithin(sfu::Rcp, X, nfp::SfuErrorUlps);
+  case CCV::RSQRT_F32: return sfu::evalWithin(sfu::Rsqrt, X, nfp::SfuErrorUlps);
+  case CCV::SQRT_F32:  return sfu::evalWithin(sfu::Sqrt, X, nfp::SfuErrorUlps);
+  case CCV::EX2_F32:   return sfu::evalWithin(sfu::Ex2, X, nfp::SfuErrorUlps);
+  case CCV::LG2_F32:   return sfu::evalWithin(sfu::Lg2, X, nfp::SfuErrorUlps);
+  case CCV::SIN_F32:   return sfu::evalWithin(sfu::Sin, X, nfp::SfuErrorUlps);
+  default:             return sfu::evalWithin(sfu::Cos, X, nfp::SfuErrorUlps);
   }
 }
 
@@ -313,11 +674,11 @@ static uint32_t aluR(unsigned Op, uint32_t X) {
 static uint32_t fpRR(unsigned Op, uint32_t XB, uint32_t YB) {
   float X = bitsToFloat(XB), Y = bitsToFloat(YB);
   switch (Op) {
-  case CCV::FADD: case CCV::C_FADD: return floatToBits(X + Y);
-  case CCV::FSUB:                   return floatToBits(X - Y);
-  case CCV::FMUL: case CCV::C_FMUL: return floatToBits(X * Y);
-  case CCV::FMIN: case CCV::C_FMIN: return floatToBits(std::fmin(X, Y));
-  case CCV::FMAX: case CCV::C_FMAX: return floatToBits(std::fmax(X, Y));
+  case CCV::FADD: case CCV::C_FADD: return fpBits(X + Y);
+  case CCV::FSUB:                   return fpBits(X - Y);
+  case CCV::FMUL: case CCV::C_FMUL: return fpBits(X * Y);
+  case CCV::FMIN: case CCV::C_FMIN: return fpBits(std::fmin(X, Y));
+  case CCV::FMAX: case CCV::C_FMAX: return fpBits(std::fmax(X, Y));
   }
   llvm_unreachable("not a floating-point ALU opcode");
 }
@@ -337,6 +698,10 @@ static unsigned baseCompare(unsigned Op) {
   NP(SETP_LT_F) NP(SETP_LE_F) NP(SETP_EQ_F) NP(SETP_NE_F)
   NP(SETP_GT_F) NP(SETP_GE_F)
 #undef NP
+#define NP1(x) case CCV::x##_NP: return CCV::x;
+  NP1(SETP_LT_F1) NP1(SETP_LE_F1) NP1(SETP_EQ_F1) NP1(SETP_NE_F1)
+  NP1(SETP_GT_F1) NP1(SETP_GE_F1)
+#undef NP1
   default: return Op;
   }
 }
@@ -349,22 +714,55 @@ bool Interp::isCompare(unsigned Op) {
   REL(SETP_LT_F) REL(SETP_LE_F) REL(SETP_EQ_F) REL(SETP_NE_F)
   REL(SETP_GT_F) REL(SETP_GE_F)
 #undef REL
+#define REL1(x) case CCV::x: case CCV::x##_NP:
+  REL1(SETP_LT_F1) REL1(SETP_LE_F1) REL1(SETP_EQ_F1) REL1(SETP_NE_F1)
+  REL1(SETP_GT_F1) REL1(SETP_GE_F1)
+#undef REL1
     return true;
   default:
     return false;
   }
 }
 
-/// Is this compare a floating-point one? FP has no narrow form in §4 -- the
-/// element-width model is integer-only for now -- so a narrow FP compare is a
-/// selection bug and must stop rather than silently compare 16 bits as a float.
-static bool isFloatCompare(unsigned Op) {
+/// An FP compare's relation, as the format-00 register opcode (SETP_LT_F and
+/// so on), and its format code: bit [23] of the register forms (O-65), 0 for
+/// the immediate forms. 0 for an integer compare.
+static unsigned fpRelation(unsigned Op, unsigned &Code) {
+  Code = 0;
   switch (baseCompare(Op)) {
-  case CCV::SETP_LT_F: case CCV::SETP_LE_F: case CCV::SETP_EQ_F:
-  case CCV::SETP_NE_F: case CCV::SETP_GT_F: case CCV::SETP_GE_F:
-    return true;
-  default:
-    return false;
+#define R0(x) case CCV::x: case CCV::x##_I: return CCV::x;
+  R0(SETP_LT_F) R0(SETP_LE_F) R0(SETP_EQ_F) R0(SETP_NE_F) R0(SETP_GT_F) R0(SETP_GE_F)
+#undef R0
+#define R1(x) case CCV::x##1: Code = 1; return CCV::x;
+  R1(SETP_LT_F) R1(SETP_LE_F) R1(SETP_EQ_F) R1(SETP_NE_F) R1(SETP_GT_F) R1(SETP_GE_F)
+#undef R1
+  default: return 0;
+  }
+}
+
+static bool isFloatCompare(unsigned Op) {
+  unsigned Code;
+  return fpRelation(Op, Code) != 0;
+}
+
+/// One lane of an FP compare at any width, through NarrowFP.h: both operands
+/// decoded at rs0's width WA in format Code (O-65, O-67). Ordered relations are false
+/// on a NaN and ne.f is true, as at 32 bits; -0 equals +0.
+static bool fpCompareElem(unsigned Rel, unsigned Code, uint8_t WA, uint32_t X,
+                          uint32_t Y) {
+  using namespace nfp;
+  const Format F = *format(WA, Code);
+  Value A = decode(F, X), B = decode(F, Y);
+  if (A.K == Value::NaN || B.K == Value::NaN)
+    return Rel == CCV::SETP_NE_F;
+  int C = A.isZero() && B.isZero() ? 0 : compare(A, B);
+  switch (Rel) {
+  case CCV::SETP_LT_F: return C < 0;
+  case CCV::SETP_LE_F: return C <= 0;
+  case CCV::SETP_GT_F: return C > 0;
+  case CCV::SETP_GE_F: return C >= 0;
+  case CCV::SETP_EQ_F: return C == 0;
+  default:             return C != 0;   // ne.f
   }
 }
 
@@ -421,11 +819,83 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   Result R{Result::Advance, 0};
   const unsigned Op = MI.getOpcode();
 
+  // CurLane lets the memories attribute an F-ALIGN to its lane.
+  Mem.AlignLanes = Shared.AlignLanes = 0;
+  Mem.RoLanes = Mem.AddrLanes = 0;
   auto forEachLane = [&](auto &&Fn) {
     for (unsigned L = 0; L != kLanes; ++L)
-      if (Mask & (1u << L))
+      if (Mask & (1u << L)) {
+        Mem.CurLane = Shared.CurLane = L;
         Fn(L);
+      }
   };
+
+  // ---- F-BARRIER (ISA v1.9 O-59): dispatch stage, whole instruction ------
+  // A CTA has at most 16 barriers; an ID at or above its allocated count names
+  // nothing. The ID is an immediate, so the check is exact at dispatch and
+  // independent of the predicate.
+  {
+    int IdOp = -1;
+    switch (Op) {
+    case CCV::BAR_INIT: case CCV::C_BAR_ARRIVE: case CCV::C_BAR_WAIT: IdOp = 0; break;
+    case CCV::BAR_WAIT_PHASE: IdOp = 1; break;
+    default: break;
+    }
+    if (IdOp >= 0 &&
+        (unsigned(MI.getOperand(IdOp).getImm()) & 0x3f) >= BarrierCount) {
+      Result F{Result::Fault, 0};
+      F.Cause = "F-BARRIER";
+      F.TakenMask = Mask;
+      return F;
+    }
+  }
+
+  // ---- F-WIDTH (ISA v1.9 §12.3): dispatch stage, whole instruction --------
+  // A memory access whose rdata is at chwidth = 4 names no transfer. Checked
+  // from committed width state before anything executes, and independent of
+  // the predicate (§12.2), so the lanes reported are the issue mask.
+  switch (Op) {
+  case CCV::LD_GLOBAL: case CCV::ST_GLOBAL: case CCV::C_LD_GLOBAL:
+  case CCV::C_ST_GLOBAL: case CCV::LD_GLOBAL_IDX: case CCV::ST_GLOBAL_IDX:
+  case CCV::LD_GLOBAL_SLOT: case CCV::ST_GLOBAL_SLOT: case CCV::LD_SHARED:
+  case CCV::ST_SHARED: case CCV::LD_SHARED_IDX: case CCV::ST_SHARED_IDX:
+  case CCV::LD_GLOBAL_P: case CCV::LD_LOCAL: case CCV::ST_LOCAL:
+    if (MI.getOperand(0).isReg()) {
+      unsigned D = regOf(MI, 0);
+      if (D < kGPRs && W.ChWidth[D] == 3) {
+        Result F{Result::Fault, 0};
+        F.Cause = "F-WIDTH";
+        F.TakenMask = Mask;
+        return F;
+      }
+    }
+    break;
+  default:
+    break;
+  }
+
+  // ---- CP-6: the FP block and the conversions at every width -------------
+  // F-FORMAT is dispatch-stage and whole-instruction, like F-WIDTH: a format
+  // code reserved at the width of a register read or written as FP.
+  const FpInfo Fp = fpInfo(Op);
+  bool GenericFp = false;
+  uint8_t FpW[4] = {0xff, 0xff, 0xff, 0xff};   // D, A, B, C widths
+  if (Fp.K != FpInfo::None) {
+    int Ops[4] = {Fp.D, Fp.A, Fp.B, Fp.C};
+    bool Narrow = false;
+    for (int K = 0; K != 4; ++K)
+      if (Ops[K] >= 0) {
+        FpW[K] = W.ChWidth[regOf(MI, unsigned(Ops[K]))];
+        Narrow |= FpW[K] != 0;
+      }
+    if (formatReserved(Fp, FpW)) {
+      Result F{Result::Fault, 0};
+      F.Cause = "F-FORMAT";
+      F.TakenMask = Mask;
+      return F;
+    }
+    GenericFp = Narrow || !Fp.HostForm;
+  }
 
   // ---- Width-awareness guard (F-3) --------------------------------------
   //
@@ -439,7 +909,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   // when any GPR it touches is narrow. "Unimplemented" is a stop that names
   // itself; a silent wrong answer is what this project has been bitten by
   // repeatedly, and narrow-width arithmetic is exactly where it would not show.
-  if (!isWidthAware(Op))
+  if (!isWidthAware(Op) && !GenericFp)
     for (unsigned I = 0, N = MI.getNumOperands(); I != N; ++I)
       if (MI.getOperand(I).isReg()) {
         unsigned R = regOf(MI, I);
@@ -478,6 +948,31 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     }
   }
 
+  if (GenericFp) {
+    // Each operand read at its own register's width, the result written at
+    // the destination's (§4, invariant 1); a predicated form writes only the
+    // lanes its qualifier selects (invariant 10).
+    unsigned D = regOf(MI, unsigned(Fp.D));
+    unsigned A = Fp.A >= 0 ? regOf(MI, unsigned(Fp.A)) : 0;
+    unsigned B = Fp.B >= 0 ? regOf(MI, unsigned(Fp.B)) : 0;
+    unsigned C = Fp.C >= 0 ? regOf(MI, unsigned(Fp.C)) : 0;
+    uint32_t G = Mask;
+    if (Fp.Qual >= 0) {
+      G = guardMask(W, uint32_t(MI.getOperand(unsigned(Fp.Qual)).getImm())) & Mask;
+      R.Active = G; R.ActiveSet = true;
+    }
+    Warp In = W;                        // sources as they were, rd may alias
+    forEachLane([&](unsigned L) {
+      if (!((G >> L) & 1))
+        return;
+      uint32_t X = narrow(In.GPR[A][L], FpW[1]);
+      uint32_t Y = Fp.B >= 0 ? narrow(In.GPR[B][L], FpW[2]) : 0;
+      uint32_t Z = Fp.C >= 0 ? narrow(In.GPR[C][L], FpW[3]) : 0;
+      uint32_t V = fpLane(Fp, FpW[0], FpW[1], Fp.B >= 0 ? FpW[2] : 0,
+                          Fp.C >= 0 ? FpW[3] : 0, X, Y, Z);
+      W.GPR[D][L] = writeElem(W.GPR[D][L], V, FpW[0]);
+    });
+  } else
   switch (Op) {
   // ---- Format F: wide immediate, warp-uniform broadcast (§3) -------------
   case CCV::MOVI:
@@ -502,8 +997,16 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       forEachLane([&](unsigned L) { W.GPR[D][L] = W.CtaTid[L]; });
     else if (Sel == 1)   // %ctaid: broadcast
       forEachLane([&](unsigned L) { W.GPR[D][L] = W.CtaId; });
-    else
-      return {Result::Unimplemented, 0};
+    else if (Sel == 2)   // %lanectx: (hardware warp context << 5) | lane (O-64)
+      forEachLane([&](unsigned L) { W.GPR[D][L] = (W.WarpCtx << 5) | L; });
+    else {
+      // Selectors 3-15 are reserved values in a defined field: F-ILLEGAL at
+      // decode, whole instruction (ISA v1.9 §12.3).
+      Result F{Result::Fault, 0};
+      F.Cause = "F-ILLEGAL";
+      F.TakenMask = Mask;
+      return F;
+    }
     break;
   }
 
@@ -527,8 +1030,8 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     bool Signed = Op == CCV::MIN_S || Op == CCV::MAX_S || Op == CCV::SRA ||
                   Op == CCV::MUL_HI_S;
     forEachLane([&](unsigned L) {
-      uint32_t X = Signed ? sextTo32(W.GPR[A][L], WA) : narrow(W.GPR[A][L], WA);
-      uint32_t Y = Signed ? sextTo32(W.GPR[B][L], WB) : narrow(W.GPR[B][L], WB);
+      uint32_t X = Signed ? opndS(W.GPR[A][L], WA, WD) : opnd(W.GPR[A][L], WA, WD);
+      uint32_t Y = Signed ? opndS(W.GPR[B][L], WB, WD) : opnd(W.GPR[B][L], WB, WD);
       W.GPR[D][L] = writeElem(W.GPR[D][L], aluRR(Op, X, Y), WD);
     });
     break;
@@ -641,31 +1144,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     unsigned D = regOf(MI, 0), A = regOf(MI, 1), B = regOf(MI, 2),
              C = regOf(MI, 3);
     forEachLane([&](unsigned L) {
-      uint32_t X = W.GPR[A][L], Y = W.GPR[B][L];
-      long double Sum = (long double)bitsToFloat(W.GPR[C][L]);
-      switch (Op) {
-      case CCV::DP2_BF16:
-        for (unsigned K = 0; K != 2; ++K)
-          Sum += (long double)bf16ToFloat(uint16_t(X >> (16 * K))) *
-                 (long double)bf16ToFloat(uint16_t(Y >> (16 * K)));
-        break;
-      case CCV::DP2_F16:
-        for (unsigned K = 0; K != 2; ++K)
-          Sum += (long double)f16ToFloat(uint16_t(X >> (16 * K))) *
-                 (long double)f16ToFloat(uint16_t(Y >> (16 * K)));
-        break;
-      case CCV::DP4_E4M3:
-        for (unsigned K = 0; K != 4; ++K)
-          Sum += (long double)fp8ToFloat<3>(uint8_t(X >> (8 * K))) *
-                 (long double)fp8ToFloat<3>(uint8_t(Y >> (8 * K)));
-        break;
-      default:
-        for (unsigned K = 0; K != 4; ++K)
-          Sum += (long double)fp8ToFloat<2>(uint8_t(X >> (8 * K))) *
-                 (long double)fp8ToFloat<2>(uint8_t(Y >> (8 * K)));
-        break;
-      }
-      W.GPR[D][L] = floatToBits((float)Sum);   // the one rounding
+      W.GPR[D][L] = dpLane(Op, W.GPR[A][L], W.GPR[B][L], W.GPR[C][L]);
     });
     break;
   }
@@ -698,7 +1177,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       // fp32 divide -- whose correct rounding rests entirely on the residual
       // `fma(-b, q, a)` being exact. 164 of 2048 divisions came out 1 ulp
       // wrong against a model that was right. See F-63.
-      W.GPR[D][L] = floatToBits(std::fmaf(bitsToFloat(W.GPR[A][L]),
+      W.GPR[D][L] = fpBits(std::fmaf(bitsToFloat(W.GPR[A][L]),
                                           bitsToFloat(W.GPR[B][L]),
                                           bitsToFloat(W.GPR[C][L])));
     });
@@ -733,7 +1212,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     uint8_t WA = W.ChWidth[A], WD = W.ChWidth[D];
     const bool Signed = B == CCV::SRA;
     forEachLane([&](unsigned L) {
-      uint32_t X = Signed ? sextTo32(W.GPR[A][L], WA) : narrow(W.GPR[A][L], WA);
+      uint32_t X = Signed ? opndS(W.GPR[A][L], WA, WD) : opnd(W.GPR[A][L], WA, WD);
       W.GPR[D][L] = writeElem(W.GPR[D][L], aluRR(B, X, Imm), WD);
     });
     break;
@@ -767,7 +1246,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       // Invariant 10: the lanes the guard excludes keep what they held.
       if (!((G >> L) & 1))
         return;
-      uint32_t X = Signed ? sextTo32(W.GPR[A][L], WA) : narrow(W.GPR[A][L], WA);
+      uint32_t X = Signed ? opndS(W.GPR[A][L], WA, WD) : opnd(W.GPR[A][L], WA, WD);
       W.GPR[D][L] = writeElem(W.GPR[D][L], aluRR(B, X, Imm), WD);
     });
     break;
@@ -780,7 +1259,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     uint8_t WA = W.ChWidth[A], WD = W.ChWidth[D];
     forEachLane([&](unsigned L) {
       W.GPR[D][L] = writeElem(W.GPR[D][L],
-                              narrow(W.GPR[A][L], WA) + uint32_t(Imm), WD);
+                              opnd(W.GPR[A][L], WA, WD) + uint32_t(Imm), WD);
     });
     break;
   }
@@ -799,7 +1278,9 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::SETP_LT_U_I: case CCV::SETP_LE_U_I: case CCV::SETP_GT_U_I:
   case CCV::SETP_GE_U_I: case CCV::SETP_LT_F_I: case CCV::SETP_LE_F_I:
   case CCV::SETP_EQ_F_I: case CCV::SETP_NE_F_I: case CCV::SETP_GT_F_I:
-  case CCV::SETP_GE_F_I: {
+  case CCV::SETP_GE_F_I:
+  case CCV::SETP_LT_F1: case CCV::SETP_LE_F1: case CCV::SETP_EQ_F1:
+  case CCV::SETP_NE_F1: case CCV::SETP_GT_F1: case CCV::SETP_GE_F1: {
     unsigned P = regOf(MI, 0), A = regOf(MI, 3);
     bool Imm = MI.getOperand(4).isImm() && !MI.getOperand(4).isReg();
     unsigned B = Imm ? 0 : regOf(MI, 4);
@@ -807,12 +1288,28 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     uint32_t G = guardMask(W, uint32_t(MI.getOperand(2).getImm())) & Mask;
     const bool Sgn = isSignedCompare(Op);
     const uint8_t WA = W.ChWidth[A], WB = Imm ? 0 : W.ChWidth[B];
-    if (isFloatCompare(Op) && (WA || WB))
-      return {Result::Unimplemented, 0};   // narrow FP: not built yet (CP-6)
+    unsigned FCode, Rel = fpRelation(Op, FCode);
+    if (Rel && (WA || WB || FCode)) {
+      // A narrow or format-01 FP compare (O-65). An immediate is read at
+      // rs0's width and format.
+      const uint8_t WY = Imm ? WA : WB;
+      if (!nfp::format(WA, FCode) || !nfp::format(WY, FCode))
+        return formatFault(Mask);
+      // O-67: rs1's raw field at rs0's width, compared in rs0's format.
+      forEachLane([&](unsigned L) {
+        if (!((G >> L) & 1)) return;
+        uint32_t X = narrow(W.GPR[A][L], WA);
+        uint32_t Y = Imm ? narrow(uint32_t(IV), WA) : opnd(W.GPR[B][L], WB, WA);
+        bool T = fpCompareElem(Rel, FCode, WA, X, Y);
+        W.Pred[P] = (W.Pred[P] & ~(1u << L)) | (uint32_t(T) << L);
+      });
+      break;
+    }
     forEachLane([&](unsigned L) {
       if (!((G >> L) & 1)) return;   // invariant 10: excluded lanes preserved
       uint32_t X = cmpOperand(W.GPR[A][L], WA, Sgn);
-      uint32_t Y = Imm ? uint32_t(IV) : cmpOperand(W.GPR[B][L], WB, Sgn);
+      uint32_t Y = Imm ? uint32_t(IV)
+                       : Sgn ? opndS(W.GPR[B][L], WB, WA) : opnd(W.GPR[B][L], WB, WA);
       bool T = compare(Op, X, Y);
       W.Pred[P] = (W.Pred[P] & ~(1u << L)) | (uint32_t(T) << L);
     });
@@ -830,7 +1327,9 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::SETP_LT_U_NPI: case CCV::SETP_LE_U_NPI: case CCV::SETP_GT_U_NPI:
   case CCV::SETP_GE_U_NPI: case CCV::SETP_LT_F_NPI: case CCV::SETP_LE_F_NPI:
   case CCV::SETP_EQ_F_NPI: case CCV::SETP_NE_F_NPI: case CCV::SETP_GT_F_NPI:
-  case CCV::SETP_GE_F_NPI: {
+  case CCV::SETP_GE_F_NPI:
+  case CCV::SETP_LT_F1_NP: case CCV::SETP_LE_F1_NP: case CCV::SETP_EQ_F1_NP:
+  case CCV::SETP_NE_F1_NP: case CCV::SETP_GT_F1_NP: case CCV::SETP_GE_F1_NP: {
     // Format C" (O-32): no qualifier, so every lane in the issue mask is
     // written. Lanes OUTSIDE the mask are still preserved -- they are at a
     // different PC and may hold a live predicate (invariant 10 applies to the
@@ -848,11 +1347,24 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     // restoring a register no one reads (F-87).
     const bool Sgn = isSignedCompare(Op);
     const uint8_t WA = W.ChWidth[A], WB = Imm ? 0 : W.ChWidth[B];
-    if (isFloatCompare(Op) && (WA || WB))
-      return {Result::Unimplemented, 0};   // narrow FP: not built yet (CP-6)
+    unsigned FCode, Rel = fpRelation(Op, FCode);
+    if (Rel && (WA || WB || FCode)) {
+      const uint8_t WY = Imm ? WA : WB;   // as Format C's, above (O-65)
+      if (!nfp::format(WA, FCode) || !nfp::format(WY, FCode))
+        return formatFault(Mask);
+      // O-67: rs1's raw field at rs0's width, compared in rs0's format.
+      forEachLane([&](unsigned L) {
+        uint32_t X = narrow(W.GPR[A][L], WA);
+        uint32_t Y = Imm ? narrow(uint32_t(IV), WA) : opnd(W.GPR[B][L], WB, WA);
+        bool T = fpCompareElem(Rel, FCode, WA, X, Y);
+        W.Pred[P] = (W.Pred[P] & ~(1u << L)) | (uint32_t(T) << L);
+      });
+      break;
+    }
     forEachLane([&](unsigned L) {
       uint32_t X = cmpOperand(W.GPR[A][L], WA, Sgn);
-      uint32_t Y = Imm ? uint32_t(IV) : cmpOperand(W.GPR[B][L], WB, Sgn);
+      uint32_t Y = Imm ? uint32_t(IV)
+                       : Sgn ? opndS(W.GPR[B][L], WB, WA) : opnd(W.GPR[B][L], WB, WA);
       bool T = compare(Base, X, Y);
       W.Pred[P] = (W.Pred[P] & ~(1u << L)) | (uint32_t(T) << L);
     });
@@ -896,12 +1408,84 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     unsigned Base = regOf(MI, 1);
     uint64_t A = (uint64_t(W.GPR[Base][0]) << kBaseShift) +
                  MI.getOperand(2).getImm();
+    Mem.CurLane = 0;
     for (unsigned P = 0; P != kPreds; ++P) {
       if (!(PMask & (1u << P)))
         continue;
-      if (Op == CCV::LD_PRED_G) W.Pred[P] = Mem.read32(A + 4 * P);
-      else                      Mem.write32(A + 4 * P, W.Pred[P]);
+      // Checked, so a refused word is logged for the fault record (TI-28).
+      // Mem.CurLane is lane 0, whose rbase forms the address.
+      if (Op == CCV::LD_PRED_G) {
+        // O-62: only the issuing group's lanes take the loaded bits; a lane
+        // outside the issue mask is another thread, and keeps its own.
+        uint32_t V = Mem.readN(A + 4 * P, 4);
+        if (Mem.AlignLanes || Mem.AddrLanes)
+          break;
+        W.Pred[P] = (W.Pred[P] & ~Mask) | (V & Mask);
+        continue;
+      }
+      // O-63: only the issuing group's bits, merged into memory's word, so
+      // a slot shared by diverged groups is per-lane storage. The read is the
+      // merge's, not a load: it is not logged.
+      uint32_t Old = Mem.peek32(A + 4 * P);
+      Mem.writeN(A + 4 * P, (Old & ~Mask) | (W.Pred[P] & Mask), 4);
+      if (Mem.AlignLanes || Mem.AddrLanes || Mem.RoLanes)
+        break;
     }
+    // A fault is the whole group's, at the access's address (§3, §12.6):
+    // lane 0 forms the address, and the issue mask raises it.
+    if (Mem.AlignLanes) Mem.AlignLanes = Mask;
+    if (Mem.AddrLanes)  Mem.AddrLanes = Mask;
+    if (Mem.RoLanes)    Mem.RoLanes = Mask;
+    break;
+  }
+  // ---- O-69: the interleaved spill space -----------------------------------
+  // No base register: lane l's byte b of the warp's spill frame is at
+  //   ((local_base + CCV_LANE_CONTEXTS) << 16) + (ctx << 22)
+  //     + 128 * (b / 4) + 4l + b % 4,
+  // local_base being launch-block word 24 and ctx the warp's hardware context
+  // (%lanectx >> 5). Word w of every lane's frame is one 128-byte line.
+  // Transfer size and alignment are any Format D access's.
+  case CCV::LD_LOCAL:
+  case CCV::ST_LOCAL: {
+    bool IsLoad = Op == CCV::LD_LOCAL;
+    unsigned Data = regOf(MI, 0);
+    uint64_t B = uint64_t(MI.getOperand(1).getImm());   // operand 0 is rdata
+    unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
+    forEachLane([&](unsigned L) {
+      uint64_t A = localAddr(W, B, L);
+      if (IsLoad) W.GPR[Data][L] =
+              writeElem(W.GPR[Data][L], Mem.readN(A, Bytes), W.ChWidth[Data]);
+      else        Mem.writeN(A, narrow(W.GPR[Data][L], W.ChWidth[Data]), Bytes);
+    });
+    break;
+  }
+  // ld.pred / st.pred in the spill space: warp-scoped, so the lane term is
+  // 0, and word i of the 16-byte predicate frame at b is byte b + 4i's word.
+  // Merged under divergence exactly as ld.pred / st.pred are (O-62, O-63).
+  case CCV::LD_PRED_LOCAL:
+  case CCV::ST_PRED_LOCAL: {
+    unsigned PMask = unsigned(MI.getOperand(0).getImm()) & 0xf;
+    uint64_t B = uint64_t(MI.getOperand(1).getImm());
+    Mem.CurLane = 0;
+    for (unsigned P = 0; P != kPreds; ++P) {
+      if (!(PMask & (1u << P)))
+        continue;
+      uint64_t A = localAddr(W, B + 4 * P, 0);
+      if (Op == CCV::LD_PRED_LOCAL) {
+        uint32_t V = Mem.readN(A, 4);
+        if (Mem.AlignLanes || Mem.AddrLanes)
+          break;
+        W.Pred[P] = (W.Pred[P] & ~Mask) | (V & Mask);
+        continue;
+      }
+      uint32_t Old = Mem.peek32(A);
+      Mem.writeN(A, (Old & ~Mask) | (W.Pred[P] & Mask), 4);
+      if (Mem.AlignLanes || Mem.AddrLanes || Mem.RoLanes)
+        break;
+    }
+    if (Mem.AlignLanes) Mem.AlignLanes = Mask;
+    if (Mem.AddrLanes)  Mem.AddrLanes = Mask;
+    if (Mem.RoLanes)    Mem.RoLanes = Mask;
     break;
   }
   case CCV::LD_GLOBAL_IDX:
@@ -951,7 +1535,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     unsigned Slot = unsigned(MI.getOperand(1).getImm());
     unsigned ScaleEn = unsigned(MI.getOperand(3).getImm());
     int64_t Disp = MI.getOperand(4).getImm();
-    uint32_t Window = Mem.read32(kLaunchBase + kOffArgs + kSlotStride * Slot);
+    uint32_t Window = Mem.peek32(kLaunchBase + kOffArgs + kSlotStride * Slot);
     unsigned Sh = ScaleEn ? (2 - W.ChWidth[Data]) : 0;
     unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
     forEachLane([&](unsigned L) {
@@ -966,9 +1550,101 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     break;
   }
 
+  // ---- Format M: atomics (O-72) --------------------------------------------
+  // Each executing lane's read-modify-write is atomic and full-width, and
+  // returns the old word; lanes apply in ascending order, one of the orders
+  // §3 permits for these order-independent operations. The address is Format
+  // D's base + index (O-72), scale 2 when enabled: one word, aligned (F-ALIGN).
+  // The write is made whatever the operation computes, so a store into
+  // read-only memory is F-RO even when nothing would change (O-51).
+  case CCV::ATOM_ADD_G:   case CCV::ATOM_ADD_S:
+  case CCV::ATOM_MIN_S_G: case CCV::ATOM_MIN_S_S:
+  case CCV::ATOM_MIN_U_G: case CCV::ATOM_MIN_U_S:
+  case CCV::ATOM_MAX_S_G: case CCV::ATOM_MAX_S_S:
+  case CCV::ATOM_MAX_U_G: case CCV::ATOM_MAX_U_S:
+  case CCV::ATOM_AND_G:   case CCV::ATOM_AND_S:
+  case CCV::ATOM_OR_G:    case CCV::ATOM_OR_S:
+  case CCV::ATOM_XOR_G:   case CCV::ATOM_XOR_S:
+  case CCV::ATOM_EXCH_G:  case CCV::ATOM_EXCH_S:
+  case CCV::ATOM_ADD_F_G: case CCV::ATOM_ADD_F_S:
+  case CCV::CAS_G:        case CCV::CAS_S: {
+    const bool Cas = Op == CCV::CAS_G || Op == CCV::CAS_S;
+    const bool Sh = Op == CCV::CAS_S || Op == CCV::ATOM_ADD_S ||
+                    Op == CCV::ATOM_MIN_S_S || Op == CCV::ATOM_MIN_U_S ||
+                    Op == CCV::ATOM_MAX_S_S || Op == CCV::ATOM_MAX_U_S ||
+                    Op == CCV::ATOM_AND_S || Op == CCV::ATOM_OR_S ||
+                    Op == CCV::ATOM_XOR_S || Op == CCV::ATOM_EXCH_S ||
+                    Op == CCV::ATOM_ADD_F_S;
+    // RMW: rd, rbase, rindex, scale, disp, rs. CAS: rd, pd, pq, rbase,
+    // rindex, scale, disp, rs_cmp, rs_swap.
+    const unsigned A0 = Cas ? 3 : 1;
+    const unsigned D = regOf(MI, 0), Base = regOf(MI, A0),
+                   Idx = regOf(MI, A0 + 1);
+    const unsigned Scale = MI.getOperand(A0 + 2).getImm() ? 2 : 0;
+    const int64_t Disp = MI.getOperand(A0 + 3).getImm();
+    const unsigned S1 = regOf(MI, A0 + 4), S2 = Cas ? regOf(MI, A0 + 5) : 0;
+    const unsigned PD = Cas ? regOf(MI, 1) : 0;
+    const uint32_t G =
+        Cas ? guardMask(W, uint32_t(MI.getOperand(2).getImm())) & Mask : Mask;
+    if (Cas) {
+      R.Active = G;
+      R.ActiveSet = true;
+    }
+    Memory &M = Sh ? Shared : Mem;
+    uint32_t Succ = 0;
+    // O-76: add.f32's same-address lanes apply in ascending lane order, and
+    // that order is the result's, since each add rounds; for the integer
+    // operations it is one of the orders §3 permits.
+    const bool Desc = nfp::TestFAddDescending &&
+                      (Op == CCV::ATOM_ADD_F_G || Op == CCV::ATOM_ADD_F_S);
+    for (unsigned K = 0; K != kLanes; ++K) {
+      const unsigned L = Desc ? kLanes - 1 - K : K;
+      if (!(G & (1u << L)))
+        continue;
+      Mem.CurLane = Shared.CurLane = L;
+      uint64_t A =
+          (nfp::TestAtomNoIndex ? 0 : uint64_t(W.GPR[Idx][L]) << Scale) + Disp;
+      A += Sh ? uint64_t(W.GPR[Base][L]) : uint64_t(W.GPR[Base][L]) << kBaseShift;
+      if (Sh)
+        A &= 0xFFFFFFFFu;                // .shared is 32 bits (§5.1)
+      const uint32_t Old = M.readN(A, 4), X = W.GPR[S1][L];
+      uint32_t New = Old;
+      switch (Op) {
+      case CCV::ATOM_ADD_G:   case CCV::ATOM_ADD_S:   New = Old + X; break;
+      case CCV::ATOM_MIN_S_G: case CCV::ATOM_MIN_S_S:
+        New = uint32_t(std::min(int32_t(Old), int32_t(X))); break;
+      case CCV::ATOM_MIN_U_G: case CCV::ATOM_MIN_U_S: New = std::min(Old, X); break;
+      case CCV::ATOM_MAX_S_G: case CCV::ATOM_MAX_S_S:
+        New = uint32_t(std::max(int32_t(Old), int32_t(X))); break;
+      case CCV::ATOM_MAX_U_G: case CCV::ATOM_MAX_U_S: New = std::max(Old, X); break;
+      case CCV::ATOM_AND_G:   case CCV::ATOM_AND_S:   New = Old & X; break;
+      case CCV::ATOM_OR_G:    case CCV::ATOM_OR_S:    New = Old | X; break;
+      case CCV::ATOM_XOR_G:   case CCV::ATOM_XOR_S:   New = Old ^ X; break;
+      case CCV::ATOM_EXCH_G:  case CCV::ATOM_EXCH_S:  New = X; break;
+      // O-76: rounded exactly as a 32-bit fadd, with its NaN rule (O-66).
+      case CCV::ATOM_ADD_F_G: case CCV::ATOM_ADD_F_S:
+        New = fpRR(CCV::FADD, Old, X); break;
+      default:                                        // CAS
+        if (Old == X) {
+          New = W.GPR[S2][L];
+          Succ |= 1u << L;
+        }
+        break;
+      }
+      M.writeN(A, New, 4);
+      W.GPR[D][L] = Old;
+    }
+    if (Cas)
+      W.Pred[PD] = (W.Pred[PD] & ~G) | Succ;
+    break;
+  }
+
   // ---- Format D: shared memory -------------------------------------------
   // §5.1: `.shared` does not shift. The AGU computes rbase + (rindex << scale)
-  // + disp -- a plain three-input add against a separate flat 32-bit space.
+  // + disp -- a plain three-input add against a separate flat 32-bit space,
+  // so the sum is taken modulo 2^32, as a 32-bit adder does. LLVM's .shared
+  // pointers are 32 bits and rely on it: `buf[t - 64]` becomes the base
+  // buf - 256 plus t * 4, which only reaches buf through the wrap.
   case CCV::LD_SHARED:
   case CCV::ST_SHARED: {
     bool IsLoad = Op == CCV::LD_SHARED;
@@ -980,7 +1656,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     // nothing checked the claim. Same defect as F-67, one address space over.
     unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
     forEachLane([&](unsigned L) {
-      uint64_t A = uint64_t(W.GPR[Base][L]) + Off;   // O-39: base at 32 bits
+      uint64_t A = (uint64_t(W.GPR[Base][L]) + Off) & 0xFFFFFFFFu;  // O-39
       if (IsLoad)
         W.GPR[Data][L] =
             writeElem(W.GPR[Data][L], Shared.readN(A, Bytes), W.ChWidth[Data]);
@@ -1000,9 +1676,12 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     // unaligned .global (O-23).
     unsigned Sh = ScaleEn ? (2 - W.ChWidth[Data]) : 0;
     forEachLane([&](unsigned L) {
-      uint64_t A = uint64_t(W.GPR[Base][L]) + (uint64_t(W.GPR[Idx][L]) << Sh) + Disp;
-      if (IsLoad) W.GPR[Data][L] = Shared.read32(A);
-      else        Shared.write32(A, W.GPR[Data][L]);
+      uint64_t A = (uint64_t(W.GPR[Base][L]) + (uint64_t(W.GPR[Idx][L]) << Sh) +
+                    Disp) & 0xFFFFFFFFu;
+      // 32-bit only (narrow is refused by the width guard), and through the
+      // checked path so a misaligned lane raises F-ALIGN (O-58).
+      if (IsLoad) W.GPR[Data][L] = Shared.readN(A, 4);
+      else        Shared.writeN(A, W.GPR[Data][L], 4);
     });
     break;
   }
@@ -1012,9 +1691,14 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::C_OR:    case CCV::C_XOR:   case CCV::C_ANDN:   case CCV::C_SHL:
   case CCV::C_SHR:   case CCV::C_SRA:   case CCV::C_MIN_S:  case CCV::C_MIN_U:
   case CCV::C_MAX_S: case CCV::C_MAX_U: {
+    // At each register's width, as Format A (rd is source and destination).
     unsigned D = regOf(MI, 0), Sx = regOf(MI, 2);
+    uint8_t WD = W.ChWidth[D], WS = W.ChWidth[Sx];
+    bool Signed = Op == CCV::C_MIN_S || Op == CCV::C_MAX_S || Op == CCV::C_SRA;
     forEachLane([&](unsigned L) {
-      W.GPR[D][L] = aluRR(Op, W.GPR[D][L], W.GPR[Sx][L]);
+      uint32_t X = Signed ? sextTo32(W.GPR[D][L], WD) : narrow(W.GPR[D][L], WD);
+      uint32_t Y = Signed ? opndS(W.GPR[Sx][L], WS, WD) : opnd(W.GPR[Sx][L], WS, WD);
+      W.GPR[D][L] = writeElem(W.GPR[D][L], aluRR(Op, X, Y), WD);
     });
     break;
   }
@@ -1038,7 +1722,12 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     for (auto [I, O] : Map) if (I == Op) RR = O;
     unsigned D = regOf(MI, 0);
     uint32_t Imm = uint32_t(MI.getOperand(2).getImm());
-    forEachLane([&](unsigned L) { W.GPR[D][L] = aluRR(RR, W.GPR[D][L], Imm); });
+    uint8_t WD = W.ChWidth[D];
+    forEachLane([&](unsigned L) {
+      uint32_t X = RR == CCV::C_SRA ? sextTo32(W.GPR[D][L], WD)
+                                    : narrow(W.GPR[D][L], WD);
+      W.GPR[D][L] = writeElem(W.GPR[D][L], aluRR(RR, X, Imm), WD);
+    });
     break;
   }
   case CCV::C_NEG: case CCV::C_NOT: case CCV::C_ABS: {
@@ -1056,7 +1745,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::FFMA_ACC_F0: {
     unsigned D = regOf(MI, 0), A = regOf(MI, 2), B = regOf(MI, 3);
     forEachLane([&](unsigned L) {
-      W.GPR[D][L] = floatToBits(std::fmaf(bitsToFloat(W.GPR[A][L]),
+      W.GPR[D][L] = fpBits(std::fmaf(bitsToFloat(W.GPR[A][L]),
                                           bitsToFloat(W.GPR[B][L]),
                                           bitsToFloat(W.GPR[D][L])));   // fused, F-63
     });
@@ -1117,7 +1806,9 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     forEachLane([&](unsigned L) {
       if (!((G >> L) & 1))
         return;                  // invariant 10: excluded lanes preserved
-      W.GPR[Data][L] = Mem.read32((uint64_t(W.GPR[Base][L]) << kBaseShift) + Off);
+      // Through the checked path: a misaligned predicated-on lane raises
+      // F-ALIGN, a predicated-off one never reaches here (O-58, §12.2).
+      W.GPR[Data][L] = Mem.readN((uint64_t(W.GPR[Base][L]) << kBaseShift) + Off, 4);
     });
     break;
   }
@@ -1246,15 +1937,15 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     R.Kind = Result::Branch;
     R.Target = PC + Size + 2 * MI.getOperand(0).getImm();
     break;
-  // call writes the image offset of the instruction after it -- a code
+  // call writes the low 32 bits of the next instruction's address -- a code
   // address, not a data address, so invariant 11 is untouched -- into its
-  // link register, and branches like `bra`. ret jumps each lane to its own
+  // link register (§3 Format E, v1.8, 3013036), and branches like `bra`. ret jumps each lane to its own
   // lane of rs: PCs are per thread (§1), so after an indirect call lanes can
   // return to different sites, and that is just a divergent branch (F-21;
   // proposals/calling-convention.md §4).
   case CCV::CALL: {
     unsigned D = regOf(MI, 0);
-    uint32_t Link = uint32_t(PC + Size - CodeBase);
+    uint32_t Link = uint32_t(PC + Size);
     forEachLane([&](unsigned L) { W.GPR[D][L] = Link; });
     R.Kind = Result::Branch;
     R.Target = PC + Size + 2 * MI.getOperand(1).getImm();
@@ -1285,28 +1976,15 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   // and the ones that arrive early have to block. That is why this needs a
   // stall rather than being a no-op on a single-warp simulator.
   case CCV::BAR_INIT:
-    // The expected arrival count is configuration for the table entry. Here
-    // every active lane is expected, so there is nothing to record.
+    // O-74: the count applies at once; 0 is the default rule. A guarded or
+    // diverged bar.init still sets one count for the CTA's barrier.
+    initBarrier(W, unsigned(MI.getOperand(0).getImm()) & 0x3f,
+                unsigned(MI.getOperand(1).getImm()) & 0x3ff);
     break;
 
-  case CCV::C_BAR_ARRIVE: {
-    unsigned Id = unsigned(MI.getOperand(0).getImm()) & 0x3f;
-    auto &B = W.Bar[Id];
-    forEachLane([&](unsigned L) { B.ArrivalEpoch[L] = B.Epoch; });
-    B.Arrived |= Mask;
-    // Runnable lanes are what the barrier waits for. A lane blocked at THIS
-    // barrier is already accounted for; one that has exited never arrives.
-    if ((B.Arrived & W.Active) == W.Active) {
-      B.Arrived = 0;
-      ++B.Epoch;                       // the arrivals retire together
-      // Wake everything blocked. A woken lane re-executes its `bar.wait`,
-      // which either lets it through (its arrival has now retired) or blocks
-      // it again on a different barrier -- so this is correct without
-      // tracking which barrier each lane is parked on.
-      W.Stalled = 0;
-    }
+  case CCV::C_BAR_ARRIVE:
+    arrive(W, unsigned(MI.getOperand(0).getImm()) & 0x3f, Mask);
     break;
-  }
 
   case CCV::C_BAR_WAIT: {
     // O-27: the epoch is tracked in hardware, so the wait carries no phase and
@@ -1361,6 +2039,33 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
 
   default:
     return {Result::Unimplemented, 0};
+  }
+
+  // ---- F-ALIGN (O-58): execute stage, per lane ----------------------------
+  // The memories refused each misaligned lane's access and recorded it. Lanes
+  // outside issue mask and predicate never got that far (§12.2).
+  if (uint32_t L = Mem.AlignLanes | Shared.AlignLanes) {
+    Result F{Result::Fault, 0};
+    F.Cause = "F-ALIGN";
+    F.TakenMask = L;
+    F.FaultAddr = Mem.AlignLanes ? Mem.AlignAddr : Shared.AlignAddr;
+    return F;
+  }
+  // ---- F-ADDR (O-75): execute stage, per lane, after F-ALIGN --------------
+  if (Mem.AddrLanes) {
+    Result F{Result::Fault, 0};
+    F.Cause = "F-ADDR";
+    F.TakenMask = Mem.AddrLanes;
+    F.FaultAddr = Mem.AddrAddr;
+    return F;
+  }
+  // ---- F-RO (O-51, O-61): execute stage, per lane, after F-ADDR ----------
+  if (Mem.RoLanes) {
+    Result F{Result::Fault, 0};
+    F.Cause = "F-RO";
+    F.TakenMask = Mem.RoLanes;
+    F.FaultAddr = Mem.RoAddr;
+    return F;
   }
   R.WidthCode = WCode;
   return R;

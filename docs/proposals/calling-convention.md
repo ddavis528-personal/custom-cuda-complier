@@ -76,7 +76,8 @@ module pass rewrites each pointer parameter of an internal function into the pai
 
 `roffset` is the unnormalized in-window offset, so the pair inherits F-23's
 one-allocation precondition. A pointer read from **memory** is CP-3's representation
-(flat 64-bit, split into a pair on load), and it becomes this pair once in registers. This
+(flat 64-bit, split into a pair on load), and it becomes this pair once in registers; built
+in the same pass (2026-10-22), `check-ptrmem.sh`. This
 is built in `CCVPointerPairs`, which runs before `CCVCheckIR`. A pointer it cannot split is
 still diagnosed, as is a call to a function the module only declares (`ptr-in-call.ll`).
 
@@ -93,17 +94,17 @@ still diagnosed, as is a call to a function the module only declares (`ptr-in-ca
   callee-saved registers just before the return, so a link value left in one of them would
   be overwritten by the caller's value first. A leaf pays nothing for this; a function that
   calls pays at most one `mov`. R14 is otherwise an ordinary caller-saved register.
-- **What `call` writes, and what `ret` reads.** §3 says `call` writes a link register, but
-  not what value it holds, and nothing in the ISA defines a code address at all. CP builds
-  it as **the byte offset of the instruction after the `call` from the start of the kernel
-  image, as a 32-bit value**, and `ret rs` sets the lane's PC to the image base plus
-  `rs`. An image offset, rather than an absolute PC, makes code position-independent:
-  a function pointer is a constant of the image, needing no load-time relocation, and
-  the hardware already knows each warp's image base, since it started there. Code
-  addresses are not data addresses, so invariant 11 is untouched. *The ISA text should
-  say this; it is IS's to word.*
-- **Indirect calls need no new instruction.** A function pointer is an image offset, a
-  `movi` of a constant the assembler knows. An indirect call is a `call R14, stub` to a one-instruction
+- **What `call` writes, and what `ret` reads: ruled in ISA v1.8 §3 Format E (3013036).**
+  `call` writes **the low 32 bits of the next instruction's address**, and `ret rs` sets
+  each lane's PC to `{PC[47:32] of the ret, rs}`, a concatenation under the ret's own
+  aligned 4 GiB code window, which holds a kernel's image and everything it calls. No
+  image base reaches RCU or OOE and no adder is needed (AR-22), and a function pointer
+  is its low 32 bits, fixed at link time. Code addresses are not data addresses, so
+  invariant 11, now scoped to data addresses, is untouched. The row history: CP first
+  built an image offset, IS first wrote a zero-extended absolute address, and AR's
+  concatenation is the form under which both coincide.
+- **Indirect calls need no new instruction.** A function pointer is a code address, a
+  `movi` of a relocated constant. An indirect call is a `call R14, stub` to a one-instruction
   local stub `ret rF`, where rF holds the target: `call` sets the link register and `ret`
   jumps to the target. The cost is one extra redirect per indirect call. AR-20 already
   expects that, and flags the missing return-address predictor as the likely perf
@@ -114,10 +115,11 @@ still diagnosed, as is a call to a function the module only declares (`ptr-in-ca
 
 ## 5. ccv-sim
 
-**Built** (`test/call.s`, `run-tests.sh`). `call` writes `PC + Size − base` to `rd` in
-every active lane and branches; `ret rs` sets each active lane's PC to `base + rs`, its
-own lane's. ccv-as gained `@label`, a label's image offset, so the test can hand-write an
-indirect call. What remains of this section is for when the backend emits calls: The executed checks run a value-returning call, a
+**Built** (`test/call.s`, `run-tests.sh`). `call` writes the low 32 bits of `PC + Size`
+to `rd` in every active lane and branches; `ret rs` sets each active lane's PC to
+`{PC[47:32], rs}`, its own lane's. ccv-as
+gained `@label`, a label's code address at the image's load address (0x1000, ccv-sim's
+default), so the test can hand-write an indirect call. What remains of this section is for when the backend emits calls: The executed checks run a value-returning call, a
 two-deep chain, an indirect call, a pointer argument and a callee-saved value across a
 call against references. Each check is proved by mutation, per the gate's practice:
 a wrong link value, a clobbered callee-saved register, or crossed pointer halves must
@@ -169,12 +171,30 @@ names its entry point, and `ccv-sim -entry` takes it.
 2. `LowerCall`, the value-returning `RET`, R14 as a live-in, IPRA on, and `CSR_CCV` = B.
    **Done**, with the static frame layout and the recursion diagnostic from step 3.
    `tools/check-calls.sh` executes it.
-3. Outgoing stack arguments (more than six).
+3. Outgoing stack arguments (more than six). **Done** (2026-10-22). Argument k past the
+   sixth sits at `-(base(callee) + 4k + 4)` below R15, the top of the callee's frame: the
+   callee declares it as a fixed frame object, so its locals are laid out beneath, and the
+   caller, which is compiled after the callee and so knows its base, stores to `[R15 + d]`
+   directly. `check-calls.sh` executes nine arguments with a short among them, a function
+   that passes stack arguments on while its own are live, and a pointer pair split across R6
+   and the stack, with a control that writes them ignoring the callee's base.
 4. F-22: pointer parameters as pairs. **Done** (`CCVPointerPairs`), returns included:
    pointers are read through, forwarded with an offset, and returned in `check-calls.sh`,
    with a control that drops the offset. `ptr-in-call.ll` stays a reject, because its
    callee is only declared, and a pointer the pass cannot split is still diagnosed.
-5. Indirect calls via the `ret` stub.
+5. Indirect calls via the `ret` stub. **Done** (2026-10-22). `CCVCodePointers` traces code
+   pointers from each function used as a value and each indirect callee, through direct-call
+   parameters, selects and phis, and makes them i32: a function's address is
+   `movi rd, (f - .Lccv_text) + 0x1000`, its offset in the image plus the load address,
+   which the assembler resolves with no relocation (`-ccv-code-base`). An indirect call puts
+   the target in R7 and calls a per-function stub, `ret r7`. Each indirect caller records
+   the address-taken functions of its call's type; those are placed first in the module, so
+   codegen lays their frames out first, and the caller's base clears them all. Their data
+   pointers cross as pairs like any other call's. `check-calls.sh` executes a function
+   pointer passed down a level and one chosen per lane, under all three callee-saved sets,
+   with controls for the frame layout and the load address. Not built: a function pointer
+   in memory, returned, or compared, and more than six arguments to an indirect call, whose
+   targets' frames differ.
 6. The CoreMark port (AR-20), then the CSR sweep, which settles §6.
 
 Steps 1–4 unblock the direct-call CoreMark kernels. Step 5 unblocks `core_list_mergesort`'s

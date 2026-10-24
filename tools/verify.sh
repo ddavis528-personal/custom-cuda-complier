@@ -124,6 +124,109 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-calls.sh || fail=1
 fi
 
+# CP-3 (ISA v1.9 §5.7, O-54): pointers in memory are the host's flat 64-bit
+# address, split on load and joined with a carry on store, executed across
+# 4 GiB with two controls.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  pointers in memory (CP-3)"
+  ./tools/check-ptrmem.sh || fail=1
+fi
+
+# O-72: CUDA atomics on computed addresses, .global and .shared, integer and
+# float (a CAS loop), executed against Python, with two controls.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  atomics (O-72)"
+  ./tools/check-atomics.sh || fail=1
+fi
+
+# TI-29: every warp of a CTA in one ccv-sim run (-cta), sharing .shared and
+# the barriers: a tree sum across four warps, with a control.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  a CTA's warps (TI-29)"
+  ./tools/check-cta.sh || fail=1
+fi
+
+# O-74: named barriers with a thread count, a warp-specialised producer/
+# consumer kernel on five warps, with a control.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  counted barriers (O-74)"
+  ./tools/check-barcount.sh || fail=1
+fi
+
+# IS-13 (2): 64-bit integers through 32-bit pairs, every operation executed
+# against C's semantics, with a control; and the add.cc/addc measurement.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  64-bit integers (IS-13)"
+  ./tools/check-int64.sh || fail=1
+fi
+
+# F-22: pointers as values -- phis, selects, compares, NULL, a frame object's
+# address -- executed across a window boundary, with two controls.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  pointers as values (F-22)"
+  ./tools/check-ptrlist.sh || fail=1
+fi
+
+# O-61 (CP-10): a module's globals as one data image, relocated at load and
+# reached through launch-block word 28, with two controls.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  a module's data image (O-61)"
+  ./tools/check-globals.sh || fail=1
+fi
+
+# F-161: byte memory access at chwidth 8, and F-164's narrow store after a
+# widening use, executed, with two controls.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  byte memory access (F-161, F-164)"
+  ./tools/check-bytes.sh || fail=1
+fi
+
+# TI-30: kernels exported for the core's skeleton, as ccv-as source with
+# their launches, each launch checked against a reference.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  exported kernels (TI-30)"
+  EXP=$(mktemp -d)
+  python3 tools/export-kernels.py "$EXP" || fail=1
+  rm -rf "$EXP"
+fi
+
+# CP-6: narrow FP in ccv-sim against an independent reference on exact
+# rationals, bit for bit; --quick samples one 8-bit pair in seven (the full
+# run, every pair, is `tools/check-narrow-fp.py`, about five minutes).
+if [ -x build/ccv-sim ]; then
+  echo "  narrow FP (CP-6)"
+  python3 tools/check-narrow-fp.py --quick || fail=1
+fi
+
+# CP-6, stage 2: cuda_fp8.h's conversions, which arrive as inline PTX, made
+# native and executed against the same reference, with two controls.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  FP8 conversions from cuda_fp8.h (CP-6)"
+  ./tools/check-fp8.sh || fail=1
+fi
+
+# CP-6 stage 2b: FP4 both ways and __NV_NOSAT FP8, from NVIDIA's headers'
+# software path, against NVIDIA's code compiled for the host, with a control.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  FP4 and __NV_NOSAT conversions (CP-6 stage 2b)"
+  ./tools/check-fp4.sh || fail=1
+fi
+
+# AR-20: CoreMark's list, matrix and state, unmodified, on 32 lanes; each lane's
+# CRCs against CoreMark's published values and the host's, with two controls.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  CoreMark-derived workload (AR-20)"
+  ./tools/check-coremark-derived.sh || fail=1
+fi
+
+# O-60: forward progress between diverged lanes. A spin-wait on a lane at a
+# higher PC must hang under strict min-PC (the control) and finish under the
+# oracle's fairness rule.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  forward progress between diverged lanes (O-60)"
+  ./tools/check-spinwait.sh || fail=1
+fi
+
 # F-143's fused-kernel corpus executes. F-134's lesson applies with full force
 # here: a corpus assembled to settle an architectural question has to be one
 # whose kernels are known to work, or the question is being settled from the

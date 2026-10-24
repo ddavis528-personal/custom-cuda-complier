@@ -86,6 +86,32 @@ bool CCVExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
         break;
       }
 
+      case CCV::PSEUDO_CAS_G:
+      case CCV::PSEUDO_CAS_S:
+        // rd, pd, guard, rbase, rindex, scale, disp, cmp, swap
+        BuildMI(MBB, MI, DL,
+                TII->get(MI.getOpcode() == CCV::PSEUDO_CAS_G ? CCV::CAS_G
+                                                             : CCV::CAS_S))
+            .add(MI.getOperand(0))
+            .add(MI.getOperand(1))
+            .addImm(qualFor(MI.getOperand(2).getReg(), /*Negate=*/false))
+            .add(MI.getOperand(3))
+            .add(MI.getOperand(4))
+            .add(MI.getOperand(5))
+            .add(MI.getOperand(6))
+            .add(MI.getOperand(7))
+            .add(MI.getOperand(8))
+            .setMemRefs(MI.memoperands());
+        break;
+
+      case CCV::PSEUDO_PADDI:
+        // operands: rd(tied), false, cond, imm  ->  @cond add rd, rd, imm
+        BuildMI(MBB, MI, DL, TII->get(CCV::ADDI_P), MI.getOperand(0).getReg())
+            .addImm(qualFor(MI.getOperand(2).getReg(), /*Negate=*/false))
+            .add(MI.getOperand(1))
+            .add(MI.getOperand(3));
+        break;
+
       case CCV::PSEUDO_CALL:
         // F-21: the conventional link register. A call.short form of this is
         // the compressor's to pick once it can see the distance.
@@ -99,6 +125,23 @@ bool CCVExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
             .addImm(MF.getSubtarget().getRegisterInfo()->getEncodingValue(
                         MI.getOperand(0).getReg()) << 4);
         break;
+
+      case CCV::PSEUDO_ST_PRED:
+      case CCV::PSEUDO_LD_PRED: {
+        // One bit of the mask: the allocator moves one predicate at a time.
+        // The frame is positional (§3): the instruction addresses word i of a
+        // 16-byte frame for Pi, so the displacement is pulled back by 4i to
+        // land Pi's word on its own slot. With a displacement of 0, P1-P3
+        // wrote 4-12 bytes past their slot into a neighbour's (IS-15).
+        const unsigned P = MI.getOperand(0).getReg() - CCV::P0;
+        BuildMI(MBB, MI, DL,
+                TII->get(MI.getOpcode() == CCV::PSEUDO_ST_PRED ? CCV::ST_PRED_G
+                                                               : CCV::LD_PRED_G))
+            .addImm(1u << P)
+            .add(MI.getOperand(1))
+            .addImm(MI.getOperand(2).getImm() - 4 * int64_t(P));
+        break;
+      }
 
       case CCV::PSEUDO_BRA_PRED: {
         Register Guard = MI.getOperand(0).getReg();

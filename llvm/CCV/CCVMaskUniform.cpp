@@ -38,6 +38,7 @@
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -185,6 +186,11 @@ bool isDivergentSource(const MachineInstr &MI) {
   if (MI.getOpcode() == CCV::SRD && MI.getOperand(1).isImm() &&
       MI.getOperand(1).getImm() == 0)
     return true;
+  // An atomic (O-72) returns the word each lane saw, which differs between
+  // lanes even when every lane names one address with one operand: lane l of
+  // an add sees l increments before its own.
+  if (MI.mayLoad() && MI.mayStore())
+    return true;
   // A value taken from a physical register is a call's result (F-21): a kernel
   // has no register arguments, so nothing else arrives that way. The callee
   // computed it per lane, so it is divergent until shown otherwise.
@@ -298,9 +304,18 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
     CoIn[&MBB] = true;
     CoOut[&MBB] = true;
   }
-  auto isBarrier = [](const MachineInstr &MI) {
+  // O-74: a barrier with a count releases its waiters when n lanes have
+  // arrived, which need not be all of a warp's, so only an ID that is never
+  // given a count is a point every lane leaves together. bar.wait.phase
+  // never was one: it holds only its guarded lanes, and nothing emits it yet.
+  SmallSet<int64_t, 4> Counted;
+  for (MachineBasicBlock &MBB : MF)
+    for (MachineInstr &MI : MBB)
+      if (MI.getOpcode() == CCV::BAR_INIT && MI.getOperand(1).getImm())
+        Counted.insert(MI.getOperand(0).getImm());
+  auto isBarrier = [&](const MachineInstr &MI) {
     unsigned Op = MI.getOpcode();
-    return Op == CCV::C_BAR_WAIT || Op == CCV::BAR_WAIT_PHASE;
+    return Op == CCV::C_BAR_WAIT && !Counted.count(MI.getOperand(0).getImm());
   };
   auto endsDivergent = [&](MachineBasicBlock &MBB) {
     if (MBB.succ_size() < 2)
@@ -483,6 +498,13 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
 
   DenseSet<MachineInstr *> WantsBroadcast(NeedsBroadcast.begin(),
                                           NeedsBroadcast.end());
+  // Registers real only in lane 0 once the region is rewritten: a masked value
+  // that is not broadcast, and (added below) a composed select that is not.
+  // Taken before the rewrite, which replaces the instructions.
+  DenseSet<Register> LaneZero;
+  for (MachineInstr *MI : Maskable)
+    if (!WantsBroadcast.count(MI))
+      LaneZero.insert(MI->getOperand(0).getReg());
   unsigned Masked = 0, Broadcasts = 0;
 
   for (MachineInstr *MI : Maskable) {
@@ -531,9 +553,27 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
     // half the time. Composing every candidate made `transpose` WORSE, 76
     // instructions to 81 and 1587 lane-activations to 1685. Only the
     // non-crossing ones pay.
-    if (WantsBroadcast.count(MI))
+    //
+    // But skipping is correct only when the select's VALUE inputs are real in
+    // every lane. Left unmasked, it runs in all 32 lanes; if its false or true
+    // arm was itself masked, lanes 1-31 select from garbage, and nothing
+    // broadcasts the result, because the arm's own broadcast was decided
+    // against this select as an in-region use. The IEEE divide (F-178) is the
+    // first code with a select chain over masked values: `1.0f / n` with n
+    // uniform gave n back in lanes 1-31 (F-180). So a crossing select with a
+    // masked arm is composed and broadcast like any other crossing value.
+    // An arm is real in lanes 1-31 when it was computed outside the region, or
+    // broadcast, or is a select skipped here with real arms of its own. Only an
+    // arm left in lane 0 alone forces the compose.
+    auto laneZeroOnly = [&](const MachineOperand &MO) {
+      return MO.isReg() && LaneZero.count(MO.getReg());
+    };
+    const bool Crossing = WantsBroadcast.count(MI);
+    if (Crossing && !laneZeroOnly(MI->getOperand(1)) &&
+        !laneZeroOnly(MI->getOperand(3)))
       continue;
-    const bool Crossing = false;
+    if (!Crossing)
+      LaneZero.insert(Def);       // composed and not broadcast
 
     Register Both = MRI.createVirtualRegister(&CCV::PRRegClass);
     BuildMI(*MI->getParent(), *MI, MI->getDebugLoc(),
@@ -547,7 +587,7 @@ bool CCVMaskUniform::runOnMachineFunction(MachineFunction &MF) {
     // or the excluded lanes would preserve the wrong register.
     BuildMI(*MI->getParent(), *MI, MI->getDebugLoc(),
             TII->get(CCV::PSEUDO_PMOV), Dst)
-        .addReg(Crossing ? Def : MI->getOperand(1).getReg())
+        .addReg(MI->getOperand(1).getReg())
         .addReg(Both)
         .add(MI->getOperand(3));
 

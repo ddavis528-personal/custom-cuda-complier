@@ -18,6 +18,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CCVCheckIR.h"
+#include "CCVFrameLowering.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
@@ -94,6 +95,10 @@ int baseAddends(const Value *V) {
       X = Se->getOperand(0);
     return X->getType()->isIntegerTy(32);
   };
+  // A window plus a constant: the displacement, no register (a global in
+  // the module's data image, O-61).
+  if ((isWindow(A) && isa<ConstantInt>(B)) || (isWindow(B) && isa<ConstantInt>(A)))
+    return 0;
   if (isWindow(A) && isIndex(B))
     return 1;
   if (isWindow(B) && isIndex(A))
@@ -106,6 +111,66 @@ int baseAddends(const Value *V) {
 bool llvm::checkCCVModule(Module &M, raw_ostream &Err) {
   SmallVector<std::string, 8> Problems;
 
+  // --- FP64 is out of scope for V1 (DA's response IS-13; ISA v1.8 §10) ----
+  // There is no FP64 instruction, width code or register, and `double` in
+  // device code is an error rather than silent emulation, so nothing that
+  // should not pass does. Before this rule a double multiply reached the type
+  // legalizer and aborted there with no diagnostic. Reported once per
+  // function, at the first value of FP64 type.
+  auto isFP64 = [](Type *T) { return T->getScalarType()->isDoubleTy(); };
+  for (Function &F : M) {
+    if (F.isDeclaration())
+      continue;
+    bool Sig = isFP64(F.getReturnType());
+    for (Argument &A : F.args())
+      Sig |= isFP64(A.getType());
+    const Instruction *First = nullptr;
+    for (BasicBlock &BB : F) {
+      for (Instruction &I : BB) {
+        bool Uses = isFP64(I.getType());
+        for (const Value *Op : I.operands())
+          Uses |= isFP64(Op->getType());
+        if (Uses) { First = &I; break; }
+      }
+      if (First) break;
+    }
+    if (First)
+      report(*First, "double-precision (FP64) arithmetic",
+             "FP64 is out of scope for V1 (ISA v1.8 §10, DA's response IS-13): "
+             "there is no FP64 instruction; use float",
+             Problems);
+    else if (Sig)
+      report(*F.getEntryBlock().getFirstNonPHIOrDbg(),
+             "a double-precision (FP64) argument or return",
+             "FP64 is out of scope for V1 (ISA v1.8 §10, DA's response IS-13)",
+             Problems);
+  }
+
+  // --- a kernel's pointer argument -------------------------------------------
+  // A kernel's arguments arrive in the launch block (§5.2), and
+  // ccv-lower-kernel-args rewrites every use into a load from it; a pointer
+  // argument that is still used means that step was skipped -- hand-written IR,
+  // say. Left alone, the 64-bit argument reached LLVM's store expansion and
+  // crashed it (F-186).
+  for (Function &F : M) {
+    if (F.isDeclaration() || !ccvIsKernel(F))
+      continue;
+    for (Argument &A : F.args())
+      // A .shared pointer, address space 3, is 32 bits and an ordinary
+      // register (§5.1), as is 5's; the module's own data layout cannot say
+      // so, since hand-written IR often has none.
+      if (A.getType()->isPointerTy() && !A.use_empty() &&
+          A.getType()->getPointerAddressSpace() != 3 &&
+          A.getType()->getPointerAddressSpace() != 5) {
+        report(*cast<Instruction>(*A.user_begin()), "a kernel's pointer argument",
+               "kernel arguments arrive in the launch block (§5.2); run "
+               "ccv-lower-kernel-args first (opt -passes=ccv-lower-kernel-args "
+               "with build/CCVLowerKernelArgs.so)",
+               Problems);
+        break;
+      }
+  }
+
   for (Function &F : M) {
     for (BasicBlock &BB : F) {
       for (Instruction &I : BB) {
@@ -117,6 +182,23 @@ bool llvm::checkCCVModule(Module &M, raw_ostream &Err) {
                    "for the kernel's lifetime -- the launch block lives there",
                    Problems);
 
+        // --- an atomic wider than a word (O-72) ---------------------------
+        // Format M's RMW and CAS are one word; a sub-word or float atomic is a
+        // CAS loop on its word (AtomicExpand). A 64-bit one has no CAS to
+        // loop on: there is no 64-bit compare-and-swap, nor a library.
+        {
+          Type *AT = nullptr;
+          if (auto *RMW = dyn_cast<AtomicRMWInst>(&I))
+            AT = RMW->getType();
+          else if (auto *CX = dyn_cast<AtomicCmpXchgInst>(&I))
+            AT = CX->getNewValOperand()->getType();
+          if (AT && AT->getPrimitiveSizeInBits() > 32)
+            report(I, "64-bit atomic",
+                   "Format M's atomics are one word (O-72), and there is no "
+                   "64-bit compare-and-swap to build one from",
+                   Problems);
+        }
+
         // --- a pointer that escapes an addressing mode --------------------
         // Invariant 11: there is no register to materialise one into, and the
         // ISA has no 64-bit instruction to operate on a pair (span is deferred,
@@ -124,28 +206,62 @@ bool llvm::checkCCVModule(Module &M, raw_ostream &Err) {
         if (auto *SI = dyn_cast<StoreInst>(&I))
           if (SI->getValueOperand()->getType()->isPointerTy())
             report(I, "pointer stored to memory",
-                   "invariant 11: no register holds an address, so a pointer "
-                   "cannot be materialised as a value. Needs an (rbase, "
-                   "roffset) pair convention -- see F-22",
+                   "memory holds a pointer as a flat 64-bit address (ISA "
+                   "v1.9 §5.7), built from the (rbase, roffset) pair the "
+                   "pointer came from; this one has no such pair -- from a "
+                   "phi or a select, into .shared or a frame, or stored "
+                   "atomically -- see F-22",
                    Problems);
 
         if (auto *CI = dyn_cast<ICmpInst>(&I))
           if (CI->getOperand(0)->getType()->isPointerTy())
             report(I, "pointer comparison",
-                   "invariant 11: comparison would need both halves "
-                   "materialised and lowered to two compares -- see F-22",
+                   "CCVPointerPairs compares two pointers by their flat "
+                   "addresses (ISA v1.9 §5.7); this one is signed, or one side "
+                   "has no (rbase, roffset) pair to build the address from -- "
+                   "see F-22",
                    Problems);
 
         if (auto *PN = dyn_cast<PHINode>(&I))
           if (PN->getType()->isPointerTy())
             report(I, "pointer phi",
-                   "invariant 11: a pointer cannot live in a register across a "
-                   "control-flow merge -- see F-22",
+                   "CCVPointerPairs makes a pointer phi two i32 phis; this one "
+                   "has an incoming pointer with no (rbase, roffset) pair -- "
+                   "see F-22",
                    Problems);
 
+        // --- a named barrier the ISA cannot name (O-74) -------------------
+        // bar.init's ID and count are immediates, the ID below 16 (O-59), and
+        // PTX's thread count is a multiple of 32 up to 1024.
+        if (auto *II = dyn_cast<IntrinsicInst>(&I)) {
+          Intrinsic::ID IID = II->getIntrinsicID();
+          if (IID == Intrinsic::nvvm_bar_sync || IID == Intrinsic::nvvm_barrier_sync ||
+              IID == Intrinsic::nvvm_barrier_n || IID == Intrinsic::nvvm_barrier_sync_cnt ||
+              IID == Intrinsic::nvvm_barrier) {
+            auto *Id = dyn_cast<ConstantInt>(II->getArgOperand(0));
+            auto *Cnt = II->arg_size() > 1
+                            ? dyn_cast<ConstantInt>(II->getArgOperand(1))
+                            : nullptr;
+            bool Ok = Id && Id->getZExtValue() < 16 &&
+                      (II->arg_size() == 1 ||
+                       (Cnt && Cnt->getZExtValue() <= 1024 &&
+                        Cnt->getZExtValue() % 32 == 0));
+            if (!Ok)
+              report(I, "named barrier with a variable or out-of-range operand",
+                     "bar.init's barrier ID and thread count are immediates "
+                     "(O-74): the ID a constant below 16 (O-59), the count a "
+                     "constant multiple of 32 up to 1024",
+                     Problems);
+          }
+        }
+
         if (auto *CB = dyn_cast<CallBase>(&I)) {
+          // __ccv_frame_offset is CCVPointerPairs' own: it names a frame
+          // object to the backend and passes nothing at run time.
+          const Function *Callee = CB->getCalledFunction();
           if (CB->getIntrinsicID() == Intrinsic::not_intrinsic &&
-              !CB->isInlineAsm())
+              !CB->isInlineAsm() &&
+              !(Callee && Callee->getName() == "__ccv_frame_offset"))
             for (const Use &A : CB->args())
               if (A->getType()->isPointerTy()) {
                 report(I, "pointer passed across a call",
@@ -158,28 +274,19 @@ bool llvm::checkCCVModule(Module &M, raw_ostream &Err) {
 
         // --- a pointer READ out of memory ---------------------------------
         //
-        // The invariant-11 group above covers a pointer compared, a pointer
-        // phi, a pointer passed across a call and a pointer STORED. Reading one
-        // back was the one direction nobody wrote a rule for, and it is the
-        // direction that occurs: `multi_tensor_apply` passes an array of tensor
-        // pointers in a by-value metadata struct and indexes it at runtime, so
-        // it never stores a pointer and loads one on every access. It reached
-        // the type legalizer as a 64-bit value with no expansion and aborted
-        // with "Do not know how to expand this operator's operand", which names
-        // nothing a reader could act on. F-147.
-        //
-        // The diagnosis is the whole fix available here. §5.1 addresses memory
-        // as a window index plus an in-window offset and invariant 11 keeps the
-        // pair out of the register file; nothing says what that pair looks like
-        // as a value IN memory, and settling it is an ISA question, not a
-        // compiler one -- proposals/pointer-representation.md.
+        // CCVPointerPairs splits a pointer load into two 32-bit loads and
+        // §5.7's window/offset split (CP-3, O-54), which is how
+        // `multi_tensor_apply`'s table of tensor pointers is read (F-147).
+        // What is left here is what that cannot do: an atomic load, which two
+        // loads would not keep single-copy atomic, or a pointer into .shared
+        // or a frame, which is not a windowed address.
         if (auto *LI = dyn_cast<LoadInst>(&I))
           if (LI->getType()->isPointerTy())
             report(I, "pointer loaded from memory",
-                   "invariant 11: §5.1 gives an address a window and an offset "
-                   "and keeps the pair out of a register; nothing defines what "
-                   "it looks like stored in memory -- see "
-                   "proposals/pointer-representation.md and F-147",
+                   "memory holds a pointer as a flat 64-bit address (ISA v1.9 "
+                   "§5.7), read as two 32-bit loads; this load is atomic, or "
+                   "of a .shared or frame pointer, and cannot be split -- see "
+                   "F-147",
                    Problems);
 
         // --- an address the DAGCombine whitelist will not consume ---------

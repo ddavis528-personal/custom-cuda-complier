@@ -147,26 +147,39 @@ UNREACHABLE = {
                       "§4 point 19 is never selected; F-58"),
 
     # -- todo: no lowering in the backend yet -------------------------------
-    # The intrinsic surface: atomics, the warp vote/ballot group, the barrier
+    # The intrinsic surface: the warp vote/ballot group, the barrier
     # phase operations, and predicate spill to shared. Each needs a PTX
     # intrinsic mapped in CCVISelLowering, not an encoding. F-118.
     **{n: ("todo", "no PTX intrinsic lowering yet; F-118")
-       for n in """ATOM_ADD_G CAS_G BALLOT UNBALLOT VOTE_ANY
-                   BAR_INIT BAR_WAIT_PHASE PMOV LD_PRED_S ST_PRED_S""".split()},
+       for n in """BALLOT UNBALLOT VOTE_ANY
+                   BAR_WAIT_PHASE PMOV LD_PRED_S ST_PRED_S""".split()},
     # Format J's second FP format code is BF16/E5M2, and the backend has no
     # bfloat type, so nothing can produce a contract-flagged bf16 multiply-add
     # for CCVCompress to fold. F-121.
     "FFMA_ACC_F1": ("todo", "no bf16 type in the backend, so there is no "
                             "format-1 multiply-add to compress; F-121"),
 
-    # O-44's FP packed dot products. Adopted encodings the compiler cannot yet
-    # reach: forming one needs a bfloat, half or FP8 value in the IR, and this
-    # backend has none of those types. The simulator implements them and
-    # tools/check-dp-fp.sh executes them, so the SEMANTICS are pinned even
-    # though selection is not. F-137.
-    **{n: ("todo", "no bf16/half/FP8 type in the backend, so nothing forms the "
-                   "packed operand; semantics pinned by check-dp-fp.sh; F-137")
-       for n in "DP2_BF16 DP2_F16 DP4_E4M3 DP4_E5M2".split()},
+    # O-44's 16-bit FP packed dot products. Adopted encodings the compiler
+    # cannot yet reach: forming one needs a bfloat or half value in the IR,
+    # and this backend has neither type. The simulator implements them and
+    # tools/check-narrow-fp.py checks them exactly, so the SEMANTICS are pinned
+    # even though selection is not. F-137. (The FP8 pair is formed by
+    # CCVFormFP8Dot, CP-6 stage 3.)
+    **{n: ("todo", "no bf16/half type in the backend, so nothing forms the "
+                   "packed operand; semantics pinned by check-narrow-fp.py; F-137")
+       for n in "DP2_BF16 DP2_F16".split()},
+    # CP-6, stage 1: the rest of the FP block and of the conversion product,
+    # defined so the simulator and the assembler reach the whole of §4. The
+    # compiler forms none of them until CP-6's conversions and contraction.
+    **{n: ("todo", "defined for ccv-sim and ccv-as; lowering is CP-6's next "
+                   "stage (conversions, dp4 from the x4 types, contraction)")
+       for n in ("FADD_F1 FSUB_F1 FMUL_F1 FMIN_F1 FMAX_F1 FFMA_F1 FNEG_F1 "
+                 "FABS_F1").split() + [
+           f"SETP_{r}_F1{p}" for r in "LT LE EQ NE GT GE".split() for p in ("", "_NP")] + [
+           f"CVT_D{d}_S{s}_R{r}{p}" for d in range(4) for s in range(4)
+           for r in range(4) for p in ("", "_P")
+           if not ((d, s, r) in {(0, 2, 0), (0, 3, 0), (2, 0, 1), (3, 0, 1), (2, 2, 0)}
+                   or (d >= 2 and s >= 2 and r != 0))]},
     # Sub-word pack/unpack. These address MEMORY packing -- a lane still holds
     # one element at every width (O-13, F-79) -- and nothing in the backend
     # forms a packed load. F-122.
@@ -181,8 +194,6 @@ UNREACHABLE = {
        for n in "ADD_PP ADDI_PP".split()},
     "C_RECONV": ("todo", "reconvergence is opportunistic and the compiler emits "
                          "no hint; F-124"),
-    "C_FENCE": ("todo", "no fence lowering -- the barrier path covers what the "
-                        "kernels need; F-124"),
 }
 
 
@@ -211,6 +222,7 @@ EMIT_SHAPES = [
     r"\?\s*CCV::%s\b",                       # cond ? CCV::X
     r"(?<!:):\s*CCV::%s\b",                  # ... : CCV::X   (ternary else)
     r"setOpcode\(\s*CCV::%s\b",              # MC-layer relaxation
+    r"atWidth\(\s*CCV::%s\b",                # ISel: an access at its width
 ]
 
 

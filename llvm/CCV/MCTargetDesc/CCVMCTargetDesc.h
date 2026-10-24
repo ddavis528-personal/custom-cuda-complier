@@ -31,6 +31,15 @@ enum OperandType : unsigned {
   OPERAND_PMASK4,                             // bit k selects P<k>
 };
 } // namespace CCVOp
+
+namespace CCVII {
+/// Target flags on a machine operand.
+enum TargetFlags : unsigned {
+  /// A function's code address as a value (F-21 step 5): the low 32 bits of
+  /// its PC at the image's load address, a link-time constant.
+  MO_CODEADDR = 1,
+};
+} // namespace CCVII
 } // namespace llvm
 
 // Generated declarations.

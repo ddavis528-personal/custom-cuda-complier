@@ -16,6 +16,10 @@ FunctionPass *createCCVExpandPseudos();
 FunctionPass *createCCVWindowRemat();
 FunctionPass *createCCVCompress();
 FunctionPass *createCCVSpillStats();
+FunctionPass *createCCVNarrowUses();
+FunctionPass *createCCVExpandPTXAsm();
+FunctionPass *createCCVBarrierInit();
+FunctionPass *createCCVFormFP8();
 FunctionPass *createCCVMaskUniform();
 FunctionPass *createCCVFuseRcpSeed();
 FunctionPass *createCCVInsertChwidth();
@@ -59,16 +63,28 @@ public:
   }
   bool addInstSelector() override {
     addPass(createCCVISelDag(getCCVTargetMachine(), getOptLevel()));
+    // CUDA's inline PTX conversions, while the machine code is still SSA and
+    // before CSE and dead-code elimination see it (CP-6).
+    addPass(createCCVExpandPTXAsm());
+    // O-74: every barrier was given its own bar.init; one per kernel, or
+    // none, where one count serves.
+    addPass(createCCVBarrierInit());
     return false;
   }
   /// §5.1 makes `.shared` flat 32-bit, so a shared object's address is a
   /// compile-time constant and the layout is the whole of its lowering.
   void addIRPasses() override {
+    // O-72: an atomic Format M has no point for (a float add, a sub-word
+    // width) becomes a CAS loop, and fences go around anything stronger than
+    // relaxed. First, so everything after sees the expanded form.
+    addPass(createAtomicExpandPass());
     // Before anything relies on a device function's linkage (F-21).
     addPass(createCCVInternalize());
     addPass(createCCVLowerShared());
     // Before anything can ask for a division libcall that does not exist.
     addPass(createCCVExpandDivision());
+    // An FP8 dot product written in FP32 is one dp4 (CP-6, stage 3).
+    addPass(createCCVFormFP8());
     // Reporting only, behind -ccv-uniformity-stats; changes nothing.
     addPass(createCCVUniformity());
     TargetPassConfig::addIRPasses();
@@ -102,6 +118,12 @@ public:
   /// -- once PEI resolves those to `r15 + offset` the slot identity is gone
   /// and only a total is left, which is the measurement F-113 exists to
   /// replace.
+  /// F-169: a narrow use of a value also read wider gets its own copy, which
+  /// allocation then pays for, spilling if it has to.
+  void addPreRegAlloc() override {
+    addPass(createCCVNarrowUses());
+  }
+
   void addPostRegAlloc() override {
     addPass(createCCVSpillStats());
   }

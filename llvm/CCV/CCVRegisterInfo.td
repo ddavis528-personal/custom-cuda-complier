@@ -80,5 +80,33 @@ def GPR16 : RegisterClass<"CCV", [i16], 32,
     (add R14, R13, R12, R11, R10, R9, R8, R7, R6, R5, R4, R3, R2, R1, R0,
          R15)>;
 
+// 8-bit elements (F-161). i8 is not a legal type: a byte value lives in a
+// 32-bit register as i32, and the type legalizer promotes byte arithmetic as
+// any target's would. What needs the width is the MEMORY access, since §3
+// takes a transfer's size from `rdata`'s chwidth. So this class differs from
+// GPR only in its ID, which CCVInsertChwidth reads off a W8 instruction's data
+// operand as width code 2. Widening it back for a 32-bit use clears bits
+// [31:8] (O-38), which makes a byte load's zero extension free.
+def GPR8 : RegisterClass<"CCV", [i32], 32,
+    (add R14, R13, R12, R11, R10, R9, R8, R7, R6, R5, R4, R3, R2, R1, R0,
+         R15)>;
+
+// 4-bit elements: E2M1, CUDA's FP4 (CP-6). Only a conversion's result is ever
+// at this width, since a memory access at chwidth 4 names no transfer
+// (F-WIDTH): it is widened, which clears bits [31:4] (O-38), before anything
+// stores it. Like GPR8, it differs from GPR only in its ID, width code 3.
+def GPR4 : RegisterClass<"CCV", [i32], 32,
+    (add R14, R13, R12, R11, R10, R9, R8, R7, R6, R5, R4, R3, R2, R1, R0,
+         R15)>;
+
 // One bit per lane in hardware; i1 per thread in the type system.
+//
+// Size is the SPILL size, and it is a word: `st.pred` moves a predicate's 32
+// lane bits as one word (O-19). Left to TableGen it is i1's one bit, which is
+// zero bytes, so every predicate spill slot had size 0 and all of them sat at
+// one offset. A value spilled while another predicate was live in memory was
+// overwritten by the next spill, and the reload brought back the wrong lanes.
+// Nothing had more than one predicate in memory at once until the IEEE divide
+// (F-179).
+let Size = 32 in
 def PR : RegisterClass<"CCV", [i1], 32, (sequence "P%u", 0, 3)>;

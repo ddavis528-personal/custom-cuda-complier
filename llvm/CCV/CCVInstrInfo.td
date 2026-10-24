@@ -21,7 +21,9 @@ def simm13  : SImm<13>;
 def simm10  : SImm<10>;
 def simm8   : SImm<8>;
 def simm9   : SImm<9>;
-def simm16  : SImm<16>;   // cas's offset: §3 says signed (F-155)
+def simm16  : SImm<16>;
+def simm4   : SImm<4>;    // Format M's displacement (O-72)
+def simm11  : SImm<11>;   // CAS's displacement (O-72); signed, as F-155 found
 def simm21  : SImm<21>;
 def simm17  : SImm<17>;
 def simm18  : SImm<18>;
@@ -209,6 +211,44 @@ def FNEG_F0 : FormatA<FpOpc<fpOp.FNEG, 0>.V, (outs GPR:$rd),
                       (ins GPR:$rs0, GPR:$rs1, GPR:$rs2), "fneg.f0 $rd, $rs0">;
 def FABS_F0 : FormatA<FpOpc<fpOp.FABS, 0>.V, (outs GPR:$rd),
                       (ins GPR:$rs0, GPR:$rs1, GPR:$rs2), "fabs.f0 $rd, $rs0">;
+// Format code 01's block, points 40-47: BF16 at 16 bits, E5M2 at 8, reserved
+// at 32 and 4 (F-FORMAT). Defined for the simulator and the assembler; nothing
+// selects them yet (CP-6).
+multiclass FpRR1<int op, string mnem> {
+  def NAME : FormatA<FpOpc<op, 1>.V, (outs GPR:$rd),
+                     (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                     mnem#".f1 $rd, $rs0, $rs1">;
+}
+defm FADD_F1 : FpRR1<fpOp.FADD, "fadd">;
+defm FSUB_F1 : FpRR1<fpOp.FSUB, "fsub">;
+defm FMUL_F1 : FpRR1<fpOp.FMUL, "fmul">;
+defm FMIN_F1 : FpRR1<fpOp.FMIN, "fmin">;
+defm FMAX_F1 : FpRR1<fpOp.FMAX, "fmax">;
+def FFMA_F1 : FormatA<FpOpc<fpOp.FFMA, 1>.V, (outs GPR:$rd),
+                      (ins GPR:$rs0, GPR:$rs1, GPR:$rs2),
+                      "ffma.f1 $rd, $rs0, $rs1, $rs2">;
+// The same at chwidth 8, for CCVFormFP8's `float(a) op float(b)` converted
+// back (CP-6, stage 4): E4M3 in format code 0, E5M2 in 1. Codegen-only width
+// variants, as ADD_W16 is: the encoding is their namesake's, and the GPR8
+// operands carry the width to CCVInsertChwidth.
+multiclass FpRRW8<int op, int fmt, string mnem> {
+  def NAME : FormatA<FpOpc<op, fmt>.V, (outs GPR8:$rd),
+                     (ins GPR8:$rs0, GPR8:$rs1, GPR8:$rs2),
+                     mnem#".f"#fmt#" $rd, $rs0, $rs1">;
+}
+let isCodeGenOnly = 1, hasSideEffects = 0 in {
+  defm FADD_W8    : FpRRW8<fpOp.FADD, 0, "fadd">;
+  defm FSUB_W8    : FpRRW8<fpOp.FSUB, 0, "fsub">;
+  defm FMUL_W8    : FpRRW8<fpOp.FMUL, 0, "fmul">;
+  defm FADD_F1_W8 : FpRRW8<fpOp.FADD, 1, "fadd">;
+  defm FSUB_F1_W8 : FpRRW8<fpOp.FSUB, 1, "fsub">;
+  defm FMUL_F1_W8 : FpRRW8<fpOp.FMUL, 1, "fmul">;
+}
+def FNEG_F1 : FormatA<FpOpc<fpOp.FNEG, 1>.V, (outs GPR:$rd),
+                      (ins GPR:$rs0, GPR:$rs1, GPR:$rs2), "fneg.f1 $rd, $rs0">;
+def FABS_F1 : FormatA<FpOpc<fpOp.FABS, 1>.V, (outs GPR:$rd),
+                      (ins GPR:$rs0, GPR:$rs1, GPR:$rs2), "fabs.f1 $rd, $rs0">;
+
 // §4 reserves 128-255 for conversions and 256+ for SFU. Both were empty, which
 // is why integer division fell back to a 32-iteration shift-subtract loop: the
 // float-reciprocal algorithm every GPU uses needs exactly these two things.
@@ -249,6 +289,55 @@ defm CVT_F32_S32 : Cvt<CvtOpc<fmtCode.FP0,  fmtCode.SINT, round.RN>.V, "cvt.f32.
 defm CVT_F32_U32 : Cvt<CvtOpc<fmtCode.FP0,  fmtCode.UINT, round.RN>.V, "cvt.f32.u32">;
 defm CVT_S32_F32 : Cvt<CvtOpc<fmtCode.SINT, fmtCode.FP0,  round.RZ>.V, "cvt.s32.f32">;
 defm CVT_U32_F32 : Cvt<CvtOpc<fmtCode.UINT, fmtCode.FP0,  round.RZ>.V, "cvt.u32.f32">;
+
+// Every other point of the product, so the simulator and the assembler reach the
+// whole block (CP-6). An integer-to-integer point is defined at `rn` only; the
+// other three round nothing and are reserved (F-ILLEGAL). The five above, and
+// CVT_SEXT below, keep their names. Mnemonics give the format codes, since the
+// widths come from the registers: fp0, fp1, s, u.
+foreach d = [0, 1, 2, 3] in
+  foreach s = [0, 1, 2, 3] in
+    foreach r = [0, 1, 2, 3] in {
+      defvar Named = !or(!and(!eq(d, 0), !eq(s, 2), !eq(r, 0)),
+                         !and(!eq(d, 0), !eq(s, 3), !eq(r, 0)),
+                         !and(!eq(d, 2), !eq(s, 0), !eq(r, 1)),
+                         !and(!eq(d, 3), !eq(s, 0), !eq(r, 1)),
+                         !and(!eq(d, 2), !eq(s, 2), !eq(r, 0)));
+      defvar IntInt = !and(!ge(d, 2), !ge(s, 2));
+      defvar Code = ["fp0", "fp1", "s", "u"];
+      defvar Rnd = ["rn", "rz", "rm", "rp"];
+      if !not(!or(Named, !and(IntInt, !ne(r, 0)))) then
+        defm CVT_D#d#_S#s#_R#r
+            : Cvt<CvtOpc<d, s, r>.V,
+                  "cvt."#!if(IntInt, "", Rnd[r]#".")#Code[d]#"."#Code[s]>;
+    }
+
+// The conversions CUDA's FP8 and FP16 types reach (CP-6, stage 2), at the
+// widths their operands live at, named <namesake>_W<dest bits>_<source bits>:
+// CVT_D0_S0_R0_W8_32 is FP32 to E4M3. Each encodes exactly as its namesake;
+// what differs is the operand classes, which CCVInsertChwidth reads as widths,
+// as it does ADD_W16's, and ccv-roundtrip accepts the decode as the namesake. CCVExpandPTXAsm builds them from the inline
+// PTX in cuda_fp8.hpp and cuda_fp16.hpp, and the W4 pair from the
+// `ccv.cvt` templates CCVFoldFP4 writes for cuda_fp4.hpp. `rd` is earlyclobber for CVT_SEXT's
+// reason: it is at a different width from the sources.
+multiclass CvtW<int d, int s, RegisterClass RD, RegisterClass RS, string mnem> {
+  def NAME : FormatA<CvtOpc<d, s, round.RN>.V, (outs RD:$rd),
+                     (ins RS:$rs0, RS:$rs1, RS:$rs2), mnem#" $rd, $rs0">;
+}
+// hasSideEffects = 0: they have no pattern, and TableGen assumes a patternless
+// instruction has unmodeled side effects (F-158), which keeps a dead one.
+let isCodeGenOnly = 1, hasSideEffects = 0, Constraints = "@earlyclobber $rd" in {
+  defm CVT_D0_S0_R0_W8_32  : CvtW<0, 0, GPR8,  GPR,   "cvt.rn.fp0.fp0">;
+  defm CVT_D1_S0_R0_W8_32  : CvtW<1, 0, GPR8,  GPR,   "cvt.rn.fp1.fp0">;
+  defm CVT_D0_S0_R0_W4_32  : CvtW<0, 0, GPR4,  GPR,   "cvt.rn.fp0.fp0">;
+  defm CVT_D0_S0_R0_W16_8  : CvtW<0, 0, GPR16, GPR8,  "cvt.rn.fp0.fp0">;
+  defm CVT_D0_S1_R0_W16_8  : CvtW<0, 1, GPR16, GPR8,  "cvt.rn.fp0.fp1">;
+  defm CVT_D0_S0_R0_W32_16 : CvtW<0, 0, GPR,   GPR16, "cvt.rn.fp0.fp0">;
+  defm CVT_D0_S0_R0_W16_32 : CvtW<0, 0, GPR16, GPR,   "cvt.rn.fp0.fp0">;
+  defm CVT_D0_S0_R0_W32_8  : CvtW<0, 0, GPR,   GPR8,  "cvt.rn.fp0.fp0">;
+  defm CVT_D0_S0_R0_W32_4  : CvtW<0, 0, GPR,   GPR4,  "cvt.rn.fp0.fp0">;
+  defm CVT_D0_S1_R0_W32_8  : CvtW<0, 1, GPR,   GPR8,  "cvt.rn.fp0.fp1">;
+}
 
 // Sign-extension, and O-34 already specified it without meaning to.
 //
@@ -542,6 +631,26 @@ defm SETP_EQ_F : Setp<setpOpc.EQ_F, "eq.f">;
 defm SETP_NE_F : Setp<setpOpc.NE_F, "ne.f">;
 defm SETP_GT_F : Setp<setpOpc.GT_F, "gt.f">;
 defm SETP_GE_F : Setp<setpOpc.GE_F, "ge.f">;
+// Format code 01 (BF16 at 16 bits, E5M2 at 8): bit [23] of the register forms,
+// C and C" (O-65). The immediate forms have no free bit and keep code 00, so a
+// format-1 compare against a constant takes the register form. Defined for
+// the simulator and the assembler; nothing selects them yet (CP-6).
+multiclass SetpF1<int opc, string suffix> {
+  let fmt = 1 in {
+  def NAME    : FormatC<opc, (outs PR:$pd, GPR:$rd),
+                        (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
+                        "@$pq setp."#suffix#"1 $pd, $rs0, $rs1">;
+  def NAME#_NP : FormatCu<opc, 0, (outs PR:$pd, GPR:$rd),
+                         (ins GPR:$rs0, GPR:$rs1),
+                         "setp."#suffix#"1 $pd, $rs0, $rs1">;
+  }
+}
+defm SETP_LT_F1 : SetpF1<setpOpc.LT_F, "lt.f">;
+defm SETP_LE_F1 : SetpF1<setpOpc.LE_F, "le.f">;
+defm SETP_EQ_F1 : SetpF1<setpOpc.EQ_F, "eq.f">;
+defm SETP_NE_F1 : SetpF1<setpOpc.NE_F, "ne.f">;
+defm SETP_GT_F1 : SetpF1<setpOpc.GT_F, "gt.f">;
+defm SETP_GE_F1 : SetpF1<setpOpc.GE_F, "ge.f">;
 
 // ---------------------------------------------------------------------------
 // Format D -- load / store. §3 opcode map.
@@ -600,6 +709,38 @@ let isCodeGenOnly = 1 in {
                              "st.global $rdata, [$rbase + $off]">;
 }
 
+// The 8-bit twins (F-161): a byte load or store, the transfer size taken from
+// rdata's chwidth = 8. Same encodings as the 32-bit forms, isCodeGenOnly for
+// the reason the 16-bit twins are.
+let isCodeGenOnly = 1 in {
+  let mayLoad = 1 in
+  def LD_SHARED_W8 : FormatD<0b00010, (outs GPR8:$rdata),
+                             (ins GPR:$rbase, simm13:$off),
+                             "ld.shared $rdata, [$rbase + $off]">;
+  let mayStore = 1 in
+  def ST_SHARED_W8 : FormatD<0b00011, (outs),
+                             (ins GPR8:$rdata, GPR:$rbase, simm13:$off),
+                             "st.shared $rdata, [$rbase + $off]">;
+  let mayLoad = 1 in
+  def LD_GLOBAL_IDX_W8 : FormatDidx<0b00100, (outs GPR8:$rdata),
+                             (ins GPR:$rbase, GPR:$rindex, uimm2:$scale,
+                              simm8:$disp),
+                             "ld.global $rdata, [$rbase, $rindex, $scale, $disp]">;
+  let mayStore = 1 in
+  def ST_GLOBAL_IDX_W8 : FormatDidx<0b00101, (outs),
+                             (ins GPR8:$rdata, GPR:$rbase, GPR:$rindex,
+                              uimm2:$scale, simm8:$disp),
+                             "st.global $rdata, [$rbase, $rindex, $scale, $disp]">;
+  let mayLoad = 1 in
+  def LD_GLOBAL_W8 : FormatD<0b00000, (outs GPR8:$rdata),
+                             (ins GPR:$rbase, simm13:$off),
+                             "ld.global $rdata, [$rbase + $off]">;
+  let mayStore = 1 in
+  def ST_GLOBAL_W8 : FormatD<0b00001, (outs),
+                             (ins GPR8:$rdata, GPR:$rbase, simm13:$off),
+                             "st.global $rdata, [$rbase + $off]">;
+}
+
 // O-45: the window base comes from a launch-block slot, so it never occupies a
 // GPR. Two points, not four: `.shared` is flat 32-bit and has no window (§5.1),
 // and `.const` is where the launch block itself lives.
@@ -634,6 +775,16 @@ let isCodeGenOnly = 1 in {
   let mayStore = 1 in
   def ST_GLOBAL_SLOT_W16 : FormatDslot<0b01101, (outs),
                            (ins GPR16:$rdata, uimm4:$slot, GPR:$rindex,
+                            uimm2:$scale, simm8:$disp),
+                           "st.global $rdata, [#$slot, $rindex, $scale, $disp]">;
+  let mayLoad = 1 in
+  def LD_GLOBAL_SLOT_W8 : FormatDslot<0b01100, (outs GPR8:$rdata),
+                           (ins uimm4:$slot, GPR:$rindex, uimm2:$scale,
+                            simm8:$disp),
+                           "ld.global $rdata, [#$slot, $rindex, $scale, $disp]">;
+  let mayStore = 1 in
+  def ST_GLOBAL_SLOT_W8 : FormatDslot<0b01101, (outs),
+                           (ins GPR8:$rdata, uimm4:$slot, GPR:$rindex,
                             uimm2:$scale, simm8:$disp),
                            "st.global $rdata, [#$slot, $rindex, $scale, $disp]">;
 }
@@ -689,6 +840,24 @@ let mayStore = 1 in
 def ST_PRED_S : FormatD<0b01011, (outs), (ins pmask4:$rdata, GPR:$rbase, simm13:$off),
                         "st.pred.shared $rdata, [$rbase + $off]">;
 
+// The interleaved spill space (O-69): a warp's spill frame, lanes four bytes
+// apart, addressed by an unsigned 17-bit byte offset and no base register.
+// The .pred forms are ld.pred/st.pred in this space: warp-scoped, word i of
+// the 16-byte predicate frame at offset + 4i. 32 bits only (no D′, no 48-bit
+// sibling).
+let mayLoad = 1 in
+def LD_LOCAL : FormatDlocal<0b10000, (outs GPR:$rdata), (ins uimm17:$off),
+                            "ld.local $rdata, [$off]">;
+let mayStore = 1 in
+def ST_LOCAL : FormatDlocal<0b10001, (outs), (ins GPR:$rdata, uimm17:$off),
+                            "st.local $rdata, [$off]">;
+let mayLoad = 1 in
+def LD_PRED_LOCAL : FormatDlocal<0b10010, (outs), (ins pmask4:$rdata, uimm17:$off),
+                                 "ld.pred.local $rdata, [$off]">;
+let mayStore = 1 in
+def ST_PRED_LOCAL : FormatDlocal<0b10011, (outs), (ins pmask4:$rdata, uimm17:$off),
+                                 "st.pred.local $rdata, [$off]">;
+
 let mayLoad = 1 in
 def LD_GLOBAL_P : FormatDp<0b00000, (outs GPR:$rdata),
                            (ins pqual:$pq, GPR:$rbase, simm10:$off),
@@ -697,12 +866,36 @@ def LD_GLOBAL_P : FormatDp<0b00000, (outs GPR:$rdata),
 // ---------------------------------------------------------------------------
 // Format M / M' -- atomics.
 // ---------------------------------------------------------------------------
-let mayLoad = 1, mayStore = 1 in {
-def ATOM_ADD_G : FormatM<0, (outs GPR:$rd), (ins GPR:$rbase, GPR:$rs1, simm9:$off),
-                         "atom.add.global $rd, [$rbase + $off], $rs1">;
+// O-72: the base + index address of Format D, so an atomic reaches a computed
+// element. O-73's numbers: the nine operations in §3's order at 0-8 for
+// .global and 16-24 for .shared, and CAS, in the 48-bit space, at 16 and 17.
+// O-76 adds add.f32 at 9 and 25: same-address lanes in ascending lane order,
+// each rounded as fadd rounds.
+class AtomOp<string n, string m, int o> {
+  string Name = n; string Mnem = m; int Opc = o;
+}
+class AtomSpace<string n, string m, int o> {
+  string Name = n; string Mnem = m; int Base = o;
+}
+let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in {
+foreach a = [AtomOp<"ADD", "add", 0>, AtomOp<"MIN_S", "min.s", 1>,
+             AtomOp<"MIN_U", "min.u", 2>, AtomOp<"MAX_S", "max.s", 3>,
+             AtomOp<"MAX_U", "max.u", 4>, AtomOp<"AND", "and", 5>,
+             AtomOp<"OR", "or", 6>, AtomOp<"XOR", "xor", 7>,
+             AtomOp<"EXCH", "exch", 8>, AtomOp<"ADD_F", "add.f32", 9>] in
+  foreach sp = [AtomSpace<"G", "global", 0>, AtomSpace<"S", "shared", 16>] in
+    def ATOM_#a.Name#_#sp.Name
+        : FormatM<!add(a.Opc, sp.Base), (outs GPR:$rd),
+                  (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm4:$disp, GPR:$rs1),
+                  "atom."#a.Mnem#"."#sp.Mnem#" $rd, [$rbase, $rindex, $scale, $disp], $rs1">;
 def CAS_G : FormatMp<16, (outs GPR:$rd, PR:$pd),
-                     (ins pqual:$pq, GPR:$rbase, GPR:$rs1, GPR:$rs2, simm16:$off),
-                     "@$pq cas.global $rd, [$rbase + $off], $rs1, $rs2, $pd">;
+                     (ins pqual:$pq, GPR:$rbase, GPR:$rindex, uimm2:$scale,
+                      simm11:$disp, GPR:$rs1, GPR:$rs2),
+                     "@$pq cas.global $rd, [$rbase, $rindex, $scale, $disp], $rs1, $rs2, $pd">;
+def CAS_S : FormatMp<17, (outs GPR:$rd, PR:$pd),
+                     (ins pqual:$pq, GPR:$rbase, GPR:$rindex, uimm2:$scale,
+                      simm11:$disp, GPR:$rs1, GPR:$rs2),
+                     "@$pq cas.shared $rd, [$rbase, $rindex, $scale, $disp], $rs1, $rs2, $pd">;
 }
 
 // ---------------------------------------------------------------------------
@@ -873,6 +1066,9 @@ def C_RET     : FormatKraw<53, (outs), (ins uimm8:$payload), "ret $payload">;
 let isTerminator = 1, isBarrier = 1 in
 def C_EXIT    : FormatKraw<54, (outs), (ins uimm8:$payload), "exit">;
 def C_RECONV  : FormatKraw<55, (outs), (ins uimm8:$payload), "reconv.hint $payload">;
+// A fence orders memory and has no other effect, which is exactly what must
+// not let it be deleted as dead.
+let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
 def C_FENCE   : FormatKraw<56, (outs), (ins uimm8:$payload), "fence $payload">;
 
 // Predicate logic (v1.3, O-20). Points 60-63. Three points reach every
@@ -907,6 +1103,13 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
 
   // $neg is the qualifier's negate bit (§1). Carrying it lets the generic
   // branch folder invert a condition rather than adding an instruction.
+  // A narrow use's own copy of a value also read wider (F-169), made before
+  // allocation by CCVNarrowUses. Not a COPY, so nothing folds it back into its
+  // source; CCVInsertChwidth makes it a move, or nothing when both landed in
+  // one register.
+  def PSEUDO_NARROW : CCVInst<0, (outs GPR:$rd), (ins GPR:$rs),
+                              "# narrow $rd, $rs">;
+
   // O-33's broadcast. Tied because the shuffle is in-place: lanes 1-31 read
   // lane 0's copy of the SAME register, and lane 0 keeps its own value because
   // the qualifier excludes it (invariant 10). That is what makes one
@@ -940,6 +1143,25 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
                             (ins GPR:$false, PR:$cond, GPR:$a),
                             "# @$cond mov $rd, $a">;
 
+  // `rd = cond ? x + imm : x`, two-address like PSEUDO_PMOV: x plus or minus a
+  // predicate (`add x, zext c`) is one predicated add, not a 0/1 materialized
+  // and added. It is the carry of a 64-bit add and the borrow of a subtract
+  // (IS-13 (2)), and §5.7's pointer-store carry.
+  // O-72's CAS, guarded by a predicate REGISTER the allocator can see, as
+  // PSEUDO_PMOV's condition is; §3 encodes the guard as a qualifier.
+  let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in
+  foreach sp = ["G", "S"] in
+    def PSEUDO_CAS_#sp : CCVInst<0, (outs GPR:$rd, PR:$pd),
+                                 (ins PR:$guard, GPR:$rbase, GPR:$rindex,
+                                  uimm2:$scale, simm11:$disp, GPR:$cmp,
+                                  GPR:$swap),
+                                 "# @$guard cas $rd, $pd">;
+
+  let Constraints = "$rd = $false" in
+  def PSEUDO_PADDI : CCVInst<0, (outs GPR:$rd),
+                             (ins GPR:$false, PR:$cond, simm10:$imm),
+                             "# @$cond add $rd, $rd, $imm">;
+
   // The calling sequence (F-21; proposals/calling-convention.md). The call
   // frame is static (§2 of the proposal), so the call-sequence markers adjust
   // nothing and are erased; they exist because the DAG brackets every call.
@@ -959,6 +1181,21 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
   let isReturn = 1, isTerminator = 1, isBarrier = 1 in
   def PSEUDO_RET : CCVInst<0, (outs), (ins GPR:$link, variable_ops),
                            "# ret $link">;
+
+  // A predicate spill and reload. §3's ld.pred/st.pred name the predicate as a
+  // MASK immediate, so the instruction has no register operand: a reload built
+  // from it during allocation, when the predicate is still virtual, defined
+  // nothing, and every predicate spill failed with "ran out of registers"
+  // (the CoreMark-derived port: four predicates live across one branch, with
+  // P3 reserved). The register is an operand here and becomes the mask after
+  // allocation, like a qualifier. The frame index is operand 1 in both, the
+  // displacement straight after it.
+  let mayStore = 1 in
+  def PSEUDO_ST_PRED : CCVInst<0, (outs), (ins PR:$p, GPR:$rbase, simm13:$off),
+                               "# st.pred $p, [$rbase + $off]">;
+  let mayLoad = 1 in
+  def PSEUDO_LD_PRED : CCVInst<0, (outs PR:$p), (ins GPR:$rbase, simm13:$off),
+                               "# ld.pred $p, [$rbase + $off]">;
 
   let isBranch = 1, isTerminator = 1 in
   def PSEUDO_BRA_PRED : CCVInst<0, (outs),

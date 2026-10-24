@@ -4,10 +4,14 @@
 #include "CCVFrameLowering.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/CodeGen/CallingConvLower.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAG.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 
 using namespace llvm;
@@ -18,6 +22,13 @@ static constexpr unsigned AS_SHARED = 3;
 static constexpr unsigned AS_CONST  = 4;
 
 #include "CCVGenCallingConv.inc"
+
+// Mutation control for tools/check-int64.sh: sign-extend every load widened
+// to 64 bits, whatever its extension.
+static cl::opt<bool> TestWideLoadSext(
+    "ccv-test-wide-load-sext", cl::init(false), cl::Hidden,
+    cl::desc("sign-extend every load widened to 64 bits, to test that it is "
+             "caught"));
 
 CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
                                      const CCVSubtarget &STI)
@@ -46,9 +57,26 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   //
   // So the address is consumed BEFORE type legalization ever sees it, in a
   // DAGCombine at BeforeLegalizeTypes. See PerformDAGCombine and F-20.
-  setTargetDAGCombine({ISD::LOAD, ISD::STORE, ISD::ADD,
+  setTargetDAGCombine({ISD::INLINEASM, ISD::LOAD, ISD::STORE, ISD::ADD, ISD::TRUNCATE,
                        ISD::LIFETIME_START, ISD::LIFETIME_END});
   setOperationAction(ISD::GlobalAddress, MVT::i64, Custom);
+
+  // O-72 atomics: a word at most, so a sub-word atomic is a CAS loop on its
+  // word (AtomicExpand), as is any operation Format M has no point for. Their
+  // 64-bit addresses are consumed before type legalization, as a load's are.
+  setMaxAtomicSizeInBitsSupported(32);
+  setMinCmpXchgSizeInBits(32);
+  setTargetDAGCombine({ISD::ATOMIC_LOAD_ADD, ISD::ATOMIC_LOAD_SUB,
+                       ISD::ATOMIC_LOAD_AND, ISD::ATOMIC_LOAD_OR,
+                       ISD::ATOMIC_LOAD_XOR, ISD::ATOMIC_LOAD_MIN,
+                       ISD::ATOMIC_LOAD_MAX, ISD::ATOMIC_LOAD_UMIN,
+                       ISD::ATOMIC_LOAD_UMAX, ISD::ATOMIC_SWAP,
+                       ISD::ATOMIC_LOAD_FADD,
+                       ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS, ISD::ATOMIC_LOAD,
+                       ISD::ATOMIC_STORE});
+  // A signed byte (F-161): a shift pair. combineDP4 has matched the byte
+  // extracts it wants by the time this applies, before legalization.
+  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i8, Expand);
 
   // No hardware divide (§4's integer map ends at prmt with no divide).
   for (MVT VT : {MVT::i32}) {
@@ -76,6 +104,52 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::BR_CC, MVT::f32, Expand);
   setOperationAction(ISD::SELECT_CC, MVT::f32, Expand);
   setOperationAction(ISD::SELECT, MVT::f32, Legal);
+  // A compare or select on 16-bit values is done at 32 bits. The compare's
+  // operand class is GPR, so CCVInsertChwidth would widen a GPR16 operand
+  // first, which zero-extends (O-38) and so gets a signed compare wrong;
+  // promotion extends each operand as the compare's signedness asks. Byte
+  // loads (F-161) were the first thing to reach one.
+  setOperationAction(ISD::BR_CC, MVT::i16, Expand);
+  setOperationAction(ISD::SELECT_CC, MVT::i16, Expand);
+  setOperationAction(ISD::SETCC, MVT::i16, Promote);
+  AddPromotedToType(ISD::SETCC, MVT::i16, MVT::i32);
+  setOperationAction(ISD::SELECT, MVT::i16, Promote);
+  AddPromotedToType(ISD::SELECT, MVT::i16, MVT::i32);
+  // 16-bit arithmetic with no 16-bit form (patterns exist for add, sub, the
+  // logic ops and signed min/max) is done at 32 bits. The middle end narrows
+  // byte arithmetic to i16 because i16 is legal, so `(unsigned char)(i * 7)`
+  // reached an i16 multiply nothing selects (F-161).
+  // Shifts are not here: LegalizeDAG does not promote them, so they have
+  // patterns that do the same through the 32-bit instructions.
+  for (unsigned Op : {ISD::MUL, ISD::MULHS, ISD::MULHU,
+                      ISD::SDIV, ISD::UDIV, ISD::SREM, ISD::UREM,
+                      ISD::UMIN, ISD::UMAX, ISD::ABS, ISD::CTPOP, ISD::CTLZ,
+                      ISD::CTTZ, ISD::BSWAP, ISD::ROTL, ISD::ROTR}) {
+    setOperationAction(Op, MVT::i16, Promote);
+    AddPromotedToType(Op, MVT::i16, MVT::i32);
+  }
+  // A 64-bit shift by a variable amount is split into 32-bit halves as
+  // *_PARTS, which has no instruction; expanded, it is two shifts, an or and a
+  // select on the amount. Switch lowering reaches one without any i64 in the
+  // source: a bit test is done at the pointer's width (the CoreMark-derived
+  // port's state machine).
+  // Without a library name the legalizer does it inline rather than calling
+  // __ashldi3, which nothing here defines.
+  for (unsigned Op : {ISD::SHL_PARTS, ISD::SRL_PARTS, ISD::SRA_PARTS})
+    setOperationAction(Op, MVT::i32, Expand);
+  for (RTLIB::Libcall LC : {RTLIB::SHL_I64, RTLIB::SRL_I64, RTLIB::SRA_I64})
+    setLibcallName(LC, nullptr);
+  // A 64-bit multiply (IS-13's 64-bit integers) is split into 32-bit halves
+  // as *MUL_LOHI, which has no instruction; expanded, it is mul.lo and
+  // mul.hi.u / mul.hi.s, both in §4.
+  for (unsigned Op : {ISD::UMUL_LOHI, ISD::SMUL_LOHI})
+    setOperationAction(Op, MVT::i32, Expand);
+  // A 64-bit compare is split into the halves' compares, joined by a
+  // select_cc on their i1 results, which has no instruction either.
+  setOperationAction(ISD::SELECT_CC, MVT::i1, Expand);
+  // ... and that select picks between the halves' predicates, i1: predicate
+  // logic, selected in CCVISelDAGToDAG.
+  setOperationAction(ISD::SELECT, MVT::i1, Legal);
   // brcond takes an i1; there is no BRCOND over a GPR bit pattern, because a
   // branch reads the predicate file directly (§3, Format E).
   setOperationAction(ISD::BRCOND, MVT::Other, Legal);
@@ -112,6 +186,10 @@ const char *CCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case CCVISD::ST_BASEIDX: return "CCVISD::ST_BASEIDX";
   case CCVISD::LD_BASEOFF: return "CCVISD::LD_BASEOFF";
   case CCVISD::ST_BASEOFF: return "CCVISD::ST_BASEOFF";
+  case CCVISD::CODEADDR: return "CCVISD::CODEADDR";
+  case CCVISD::FRAMEOFF: return "CCVISD::FRAMEOFF";
+  case CCVISD::ATOM: return "CCVISD::ATOM";
+  case CCVISD::CAS: return "CCVISD::CAS";
   default:          return nullptr;
   }
 }
@@ -124,6 +202,22 @@ static SDValue narrowTo32(SDValue V) {
          V.getOpcode() == ISD::ANY_EXTEND)
     V = V.getOperand(0);
   return V.getValueType() == MVT::i32 ? V : SDValue();
+}
+
+/// An index term scaled by a constant the AGU cannot apply -- an element
+/// larger than the access, like either word of an 8-byte pointer in a table
+/// (CP-3), or a struct field. `(ext i) << c` and `(ext i) * c` are rebuilt in
+/// 32 bits, which is sound for the reason narrowTo32 is: the index is a 32-bit
+/// value, and byte offsets are 32-bit by F-23.
+static SDValue narrowScaledIndex(SelectionDAG &DAG, const SDLoc &DL, SDValue V) {
+  if (V.getOpcode() != ISD::SHL && V.getOpcode() != ISD::MUL)
+    return SDValue();
+  auto *C = dyn_cast<ConstantSDNode>(V.getOperand(1));
+  SDValue X = narrowTo32(V.getOperand(0));
+  if (!C || !X)
+    return SDValue();
+  return DAG.getNode(V.getOpcode(), DL, MVT::i32, X,
+                     DAG.getConstant(C->getZExtValue(), DL, MVT::i32));
 }
 
 /// Is this (zext rbase) << 16 -- the window half of an address?
@@ -224,6 +318,33 @@ static std::optional<unsigned> matchLaunchSlot(SDValue Win) {
 static bool matchBaseIdx(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
                          EVT MemVT, SDValue &Base, SDValue &Idx,
                          bool &ScaleEnable, int64_t &Disp) {
+  // An address with its low bits masked off -- `ptrmask p, -4`, which is how
+  // AtomicExpand finds a sub-word atomic's word (O-72). The window term is a
+  // multiple of 2^16, so a mask of fewer than 16 low bits touches only the
+  // in-window part: ((rbase << 16) + off) & ~m == (rbase << 16) + (off & ~m).
+  if (Addr.getOpcode() == ISD::AND)
+    if (auto *M = dyn_cast<ConstantSDNode>(Addr.getOperand(1))) {
+      int64_t Mask = M->getSExtValue();
+      if (Mask < 0 && isPowerOf2_64(uint64_t(-Mask)) && -Mask <= (1 << 16)) {
+        if (!matchBaseIdx(DAG, DL, Addr.getOperand(0), MemVT, Base, Idx,
+                          ScaleEnable, Disp))
+          return false;
+        SDValue Bytes =
+            ScaleEnable
+                ? DAG.getNode(ISD::SHL, DL, MVT::i32, Idx,
+                              DAG.getConstant(Log2_32(MemVT.getStoreSize()),
+                                              DL, MVT::i32))
+                : Idx;
+        if (Disp)
+          Bytes = DAG.getNode(ISD::ADD, DL, MVT::i32, Bytes,
+                              DAG.getConstant(Disp, DL, MVT::i32));
+        Idx = DAG.getNode(ISD::AND, DL, MVT::i32, Bytes,
+                          DAG.getConstant(int32_t(Mask), DL, MVT::i32));
+        ScaleEnable = false;
+        Disp = 0;
+        return true;
+      }
+    }
   // Peel the constant addend first, so the shapes below see the two- and
   // three-addend forms they were written for. ADD canonicalises a constant to
   // the right, but the check is symmetric because nothing here guarantees the
@@ -240,6 +361,20 @@ static bool matchBaseIdx(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
   if (Addr.getOpcode() != ISD::ADD)
     return false;
   SDValue A = Addr.getOperand(0), B = Addr.getOperand(1);
+
+  // A constant inside the window term -- a global at a fixed offset in the
+  // module's data image, indexed (O-61): ((W << 16) + c) + idx. The constant
+  // is a displacement like any other.
+  for (SDValue *X : {&A, &B})
+    if ((X->getOpcode() == ISD::ADD || X->getOpcode() == ISD::OR) &&
+        matchWindow(X->getOperand(0)))
+      if (auto *K = dyn_cast<ConstantSDNode>(X->getOperand(1))) {
+        if (X->getOpcode() == ISD::OR && !isUInt<16>(K->getZExtValue()))
+          continue;
+        Disp += K->getSExtValue();
+        *X = X->getOperand(0);
+        break;
+      }
 
   SDValue Win, Other, ROff;
   if ((Win = matchWindow(A)))      Other = B;
@@ -271,6 +406,8 @@ static bool matchBaseIdx(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
         Scaled = true;
       }
   SDValue Index = narrowTo32(Other);
+  if (!Index)
+    Index = narrowScaledIndex(DAG, DL, Other);
   if (!Index)
     return false;
 
@@ -420,6 +557,26 @@ static bool matchFrame(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
 
 static bool matchBaseOff(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
                          SDValue &Base, SDValue &Off) {
+  // A window plus a constant, or a window alone: a global at a fixed offset
+  // in the module's data image (O-61), which is Format D base+offset with the
+  // window in a register.
+  SDValue W = Addr;
+  int64_t D = 0;
+  // The combiner writes the add as an `or` when the bits are disjoint, as
+  // they are below a window's 16.
+  if (Addr.getOpcode() == ISD::ADD || Addr.getOpcode() == ISD::OR)
+    if (auto *K = dyn_cast<ConstantSDNode>(Addr.getOperand(1))) {
+      W = Addr.getOperand(0);
+      D = K->getSExtValue();
+      if (Addr.getOpcode() == ISD::OR && !isUInt<16>(D))
+        W = Addr;
+    }
+  if (SDValue Win = matchWindow(W); Win && isInt<13>(D)) {
+    Base = Win;
+    Off = DAG.getTargetConstant(D, DL, MVT::i32);
+    return true;
+  }
+
   auto *C = dyn_cast<ConstantSDNode>(Addr);
   if (!C)
     return false;
@@ -589,6 +746,179 @@ static SDValue combineDP4(SDNode *N, SelectionDAG &DAG) {
   return DAG.getNode(CCVISD::DP4_SS, DL, MVT::i32, Hit->X, Hit->Y, Acc);
 }
 
+/// O-72: an atomic's address as Format M's base + index + displacement, the
+/// displacement in DispBits signed bits (4 for an RMW, 11 for CAS). `.global`
+/// is matched as a load's address is, and `.shared` is flat 32-bit.
+static bool matchAtomicAddr(SelectionDAG &DAG, const SDLoc &DL, SDValue Ptr,
+                            bool Shared, unsigned DispBits, SDValue &Base,
+                            SDValue &Idx, bool &Scale, int64_t &Disp) {
+  Scale = false;
+  Disp = 0;
+  if (Shared) {
+    Base = Ptr;
+    Idx = DAG.getConstant(0, DL, MVT::i32);
+    if (Ptr.getOpcode() == ISD::ADD) {
+      Base = Ptr.getOperand(0);
+      SDValue R = Ptr.getOperand(1);
+      auto *K = dyn_cast<ConstantSDNode>(R);
+      auto *Sh = R.getOpcode() == ISD::SHL
+                     ? dyn_cast<ConstantSDNode>(R.getOperand(1))
+                     : nullptr;
+      if (K && isIntN(DispBits, K->getSExtValue())) {
+        Disp = K->getSExtValue();
+      } else if (Sh && Sh->getZExtValue() == 2) {
+        Idx = R.getOperand(0);
+        Scale = true;
+      } else {
+        Idx = R;
+      }
+    }
+    return true;
+  }
+  if (matchBaseIdx(DAG, DL, Ptr, MVT::i32, Base, Idx, Scale, Disp)) {
+    // A displacement the field cannot hold goes into the index, in bytes.
+    if (!isIntN(DispBits, Disp)) {
+      SDValue Bytes =
+          Scale ? DAG.getNode(ISD::SHL, DL, MVT::i32, Idx,
+                              DAG.getConstant(2, DL, MVT::i32))
+                : Idx;
+      Idx = DAG.getNode(ISD::ADD, DL, MVT::i32, Bytes,
+                        DAG.getConstant(Disp, DL, MVT::i32));
+      Scale = false;
+      Disp = 0;
+    }
+    return true;
+  }
+  SDValue Off;
+  if (matchBaseOff(DAG, DL, Ptr, Base, Off)) {
+    Idx = DAG.getConstant(cast<ConstantSDNode>(Off)->getSExtValue(), DL,
+                          MVT::i32);
+    return true;
+  }
+  return false;
+}
+
+/// O-72: an atomic read-modify-write or compare-and-swap of a word, as one
+/// Format M instruction. A relaxed atomic load or store becomes the plain
+/// access (§3), which the load and store combines below then address.
+static SDValue combineAtomic(AtomicSDNode *AN, TargetLowering::DAGCombinerInfo &DCI) {
+  SelectionDAG &DAG = DCI.DAG;
+  SDLoc DL(AN);
+  const unsigned Opc = AN->getOpcode();
+  if (Opc == ISD::ATOMIC_LOAD) {
+    SDValue L = DAG.getLoad(AN->getValueType(0), DL, AN->getChain(),
+                            AN->getBasePtr(), AN->getMemOperand());
+    return DCI.CombineTo(AN, L, L.getValue(1));
+  }
+  if (Opc == ISD::ATOMIC_STORE)
+    return DCI.CombineTo(AN, DAG.getStore(AN->getChain(), DL, AN->getVal(),
+                                          AN->getBasePtr(),
+                                          AN->getMemOperand()));
+  // O-76: a float add is Format M's add.f32, on the word's bits.
+  const bool FAdd = Opc == ISD::ATOMIC_LOAD_FADD;
+  if (AN->getMemoryVT() != (FAdd ? MVT::f32 : MVT::i32))
+    return SDValue();       // AtomicExpand made it a word; nothing else is
+  const bool Shared = AN->getAddressSpace() == AS_SHARED;
+  const bool Cas = Opc == ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS;
+  SDValue Base, Idx;
+  bool Scale;
+  int64_t Disp;
+  if (!matchAtomicAddr(DAG, DL, AN->getBasePtr(), Shared, Cas ? 11 : 4, Base,
+                       Idx, Scale, Disp)) {
+    std::string Shape;
+    raw_string_ostream OS(Shape);
+    AN->getBasePtr()->printrFull(OS, &DAG);
+    report_fatal_error(Twine("CCV: this atomic's address has no Format M "
+                             "form -- it is neither a window plus an index "
+                             "nor .shared (O-72): ") + OS.str());
+  }
+  SDValue TC = DAG.getTargetConstant(Shared, DL, MVT::i32);
+  SDValue Sc = DAG.getTargetConstant(Scale, DL, MVT::i32);
+  SDValue Dp = DAG.getTargetConstant(Disp, DL, MVT::i32);
+  if (Cas) {
+    SDValue Ops[] = {AN->getChain(), Base, Idx, Sc, Dp, AN->getOperand(2),
+                     AN->getOperand(3), TC};
+    SDValue New = DAG.getMemIntrinsicNode(
+        CCVISD::CAS, DL, DAG.getVTList(MVT::i32, MVT::i1, MVT::Other), Ops,
+        AN->getMemoryVT(), AN->getMemOperand());
+    return DCI.CombineTo(AN, {New.getValue(0), New.getValue(1), New.getValue(2)});
+  }
+  // §3's order: add, min.s, min.u, max.s, max.u, and, or, xor, exch,
+  // add.f32. A subtract is an add of the negation.
+  unsigned Kind;
+  SDValue Val = AN->getVal();
+  switch (Opc) {
+  case ISD::ATOMIC_LOAD_FADD:
+    Val = DAG.getBitcast(MVT::i32, Val);
+    Kind = 9;
+    break;
+  case ISD::ATOMIC_LOAD_SUB:
+    Val = DAG.getNode(ISD::SUB, DL, MVT::i32, DAG.getConstant(0, DL, MVT::i32),
+                      Val);
+    [[fallthrough]];
+  case ISD::ATOMIC_LOAD_ADD:  Kind = 0; break;
+  case ISD::ATOMIC_LOAD_MIN:  Kind = 1; break;
+  case ISD::ATOMIC_LOAD_UMIN: Kind = 2; break;
+  case ISD::ATOMIC_LOAD_MAX:  Kind = 3; break;
+  case ISD::ATOMIC_LOAD_UMAX: Kind = 4; break;
+  case ISD::ATOMIC_LOAD_AND:  Kind = 5; break;
+  case ISD::ATOMIC_LOAD_OR:   Kind = 6; break;
+  case ISD::ATOMIC_LOAD_XOR:  Kind = 7; break;
+  case ISD::ATOMIC_SWAP:      Kind = 8; break;
+  default:
+    return SDValue();
+  }
+  SDValue Ops[] = {AN->getChain(), Base, Idx, Sc, Dp, Val,
+                   DAG.getTargetConstant(Kind, DL, MVT::i32), TC};
+  SDValue New = DAG.getMemIntrinsicNode(
+      CCVISD::ATOM, DL, DAG.getVTList(MVT::i32, MVT::Other), Ops,
+      FAdd ? MVT::i32 : AN->getMemoryVT(), AN->getMemOperand());
+  SDValue Old = FAdd ? DAG.getBitcast(MVT::f32, New) : New;
+  return DCI.CombineTo(AN, Old, New.getValue(1));
+}
+
+// Mutation control for tools/check-atomics.sh: every atomic a plain load,
+// operation and store, which lanes racing on one word expose.
+static cl::opt<bool> TestAtomicPlain(
+    "ccv-test-atomic-plain", cl::init(false), cl::Hidden,
+    cl::desc("make every atomic a plain read-modify-write, to test that it is "
+             "caught"));
+
+// For tools/check-atomics.sh's measurement: a float add as the CAS loop it
+// was before O-76, so the two can be compared on the same kernel.
+static cl::opt<bool> TestAtomicFAddCas(
+    "ccv-atomic-fadd-cas", cl::init(false), cl::Hidden,
+    cl::desc("expand a float atomic add into a CAS loop, as before O-76"));
+
+TargetLowering::AtomicExpansionKind
+CCVTargetLowering::shouldExpandAtomicCmpXchgInIR(AtomicCmpXchgInst *) const {
+  return TestAtomicPlain ? AtomicExpansionKind::NotAtomic
+                         : AtomicExpansionKind::None;
+}
+
+TargetLowering::AtomicExpansionKind
+CCVTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const {
+  if (TestAtomicPlain)
+    return AtomicExpansionKind::NotAtomic;
+  // Format M's ten operations at a word are native (sub as add, a float add
+  // as add.f32, O-76); anything else -- a float subtract, min or max, nand,
+  // the wrapping increments -- and anything narrower is a CAS loop.
+  if (RMW->getOperation() == AtomicRMWInst::FAdd && RMW->getType()->isFloatTy())
+    return TestAtomicFAddCas ? AtomicExpansionKind::CmpXChg
+                             : AtomicExpansionKind::None;
+  if (!RMW->getType()->isIntegerTy(32))
+    return AtomicExpansionKind::CmpXChg;
+  switch (RMW->getOperation()) {
+  case AtomicRMWInst::Add: case AtomicRMWInst::Sub: case AtomicRMWInst::And:
+  case AtomicRMWInst::Or:  case AtomicRMWInst::Xor: case AtomicRMWInst::Max:
+  case AtomicRMWInst::Min: case AtomicRMWInst::UMax: case AtomicRMWInst::UMin:
+  case AtomicRMWInst::Xchg:
+    return AtomicExpansionKind::None;
+  default:
+    return AtomicExpansionKind::CmpXChg;
+  }
+}
+
 SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
                                              DAGCombinerInfo &DCI) const {
   // A lifetime marker on a frame object is dropped, chain and all. It carries
@@ -601,6 +931,43 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
   if (N->getOpcode() == ISD::LIFETIME_START ||
       N->getOpcode() == ISD::LIFETIME_END)
     return N->getOperand(0);
+
+  // An inline asm's template is an operand of the program pointer type, i64
+  // under this data layout, and the type legalizer has no expansion for a
+  // TargetExternalSymbol. Nothing reads it as an address -- the emitter takes
+  // its name -- so it is re-typed i32 before legalization. CCVExpandPTXAsm
+  // then replaces the asm (CP-6).
+  if (N->getOpcode() == ISD::INLINEASM) {
+    auto *Sym = dyn_cast<ExternalSymbolSDNode>(N->getOperand(1));
+    if (!Sym || Sym->getValueType(0) == MVT::i32)
+      return SDValue();
+    assert(Sym->getTargetFlags() == 0 && "an asm string already re-typed");
+    SmallVector<SDValue, 8> Ops(N->op_begin(), N->op_end());
+    // Symbols are uniqued by name and flags, not type, so the i32 one carries
+    // a flag of its own; the inline-asm emitter copies only the name.
+    Ops[1] = DCI.DAG.getTargetExternalSymbol(Sym->getSymbol(), MVT::i32,
+                                             /*TargetFlags=*/1);
+    SDValue New = DCI.DAG.getNode(ISD::INLINEASM, SDLoc(N), N->getVTList(), Ops);
+    SmallVector<SDValue, 2> Res;
+    for (unsigned I = 0, E = N->getNumValues(); I != E; ++I)
+      Res.push_back(New.getValue(I));
+    return DCI.CombineTo(N, Res);
+  }
+
+  // A function's code address as a value (F-21 step 5): CCVCodePointers
+  // leaves `ptrtoint @f to i32`, which arrives as a truncate of the 64-bit
+  // GlobalAddress the legalizer has nowhere to put. The low 32 bits are the
+  // code address, a link-time constant `movi` materialises.
+  if (N->getOpcode() == ISD::TRUNCATE) {
+    auto *G = dyn_cast<GlobalAddressSDNode>(N->getOperand(0));
+    if (!G || !isa<Function>(G->getGlobal()) || N->getValueType(0) != MVT::i32)
+      return SDValue();
+    SDLoc DL(N);
+    return DCI.DAG.getNode(
+        CCVISD::CODEADDR, DL, MVT::i32,
+        DCI.DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i32, 0,
+                                       CCVII::MO_CODEADDR));
+  }
 
   // The dot product is formed before legalization too, and for a second
   // reason: the byte extracts it consumes are `sign_extend_inreg i8` shapes
@@ -629,11 +996,55 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
   // become an ld.global of the shared offset.
   auto IsWindowed = [](unsigned AS) { return AS != AS_SHARED; };
 
+  if (auto *AN = dyn_cast<AtomicSDNode>(N))
+    return combineAtomic(AN, DCI);
+
+  // Volatile accesses take the same addressing as any other: volatility is an
+  // ordering property, carried by the memory operand onto the target node,
+  // not a different address. Excluding them (isSimple) left a volatile load's
+  // 64-bit address to the type legalizer, which aborted -- found by the IS-17
+  // spin-wait kernel, whose flag is volatile. A relaxed atomic load or store
+  // is a plain access too (§3: a plain `ld` serves as the relaxed atomic
+  // load); AtomicExpand has put fences around anything stronger.
+  auto Stronger = [](const MemSDNode *M) {
+    return M->isAtomic() &&
+           M->getMergedOrdering() != AtomicOrdering::Monotonic &&
+           M->getMergedOrdering() != AtomicOrdering::Unordered;
+  };
   if (auto *LD = dyn_cast<LoadSDNode>(N)) {
-    if (LD->getExtensionType() != ISD::NON_EXTLOAD || !LD->isSimple() ||
-        !IsWindowed(LD->getAddressSpace()))
+    if (Stronger(LD) || !IsWindowed(LD->getAddressSpace()))
       return SDValue();
-    SDVTList VTs = DAG.getVTList(LD->getValueType(0), MVT::Other);
+    // A 16-bit load extended to 32 is a 16-bit load at width 16, then the
+    // extension: free for zero (O-38's widening clears the bits it exposes),
+    // `cvt.sext` for sign. Left alone, its 64-bit address reached the type
+    // legalizer unmatched and aborted (a `short` field; O-61's globals.cu).
+    //
+    // A byte load (F-161) is a W8 load into a 32-bit register: zero-extended
+    // by the widening chwidth, sign-extended by `sext_inreg`, truncated for an
+    // i8 or i16 user. i8 is not legal, so this has to happen here, before the
+    // type legalizer meets the 64-bit address.
+    //
+    // A load extended to 64 bits (IS-13's 64-bit integers) is the same load
+    // at 32 bits, then extended: the combiner folds `zext (load i32)` into
+    // one i64 extending load, whose address then reached the type legalizer
+    // unmatched and aborted -- every 64-bit kernel that read 32-bit data.
+    ISD::LoadExtType WideExt = LD->getExtensionType(), Ext = WideExt;
+    EVT MemVT = LD->getMemoryVT(), VT = LD->getValueType(0);
+    const bool Wide = VT == MVT::i64 && Ext != ISD::NON_EXTLOAD &&
+                      MemVT.getSizeInBits() <= 32;
+    if (Wide) {
+      VT = MVT::i32;
+      if (MemVT == MVT::i32)
+        Ext = ISD::NON_EXTLOAD;
+    }
+    const bool Byte = MemVT == MVT::i8;
+    if (Byte ? !(VT == MVT::i8 || VT == MVT::i16 || VT == MVT::i32)
+             : Ext != ISD::NON_EXTLOAD && (MemVT != MVT::i16 || VT != MVT::i32))
+      return SDValue();
+    SDVTList VTs = DAG.getVTList(Byte                      ? MVT::i32
+                                 : Ext == ISD::NON_EXTLOAD ? VT
+                                                           : MVT::i16,
+                                 MVT::Other);
     SDValue Base, Idx, New;
     bool Scale = false;
     int64_t IdxDisp = 0;
@@ -676,14 +1087,46 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     // A load has two results. Returning one SDValue would replace only the
     // value and leave the chain hanging off the dead original, which shows up
     // later as an unexpandable i64 rather than as anything recognisable.
-    DCI.CombineTo(N, New.getValue(0), New.getValue(1));
+    SDValue V = New.getValue(0);
+    if (Byte) {
+      if (Ext == ISD::SEXTLOAD)
+        V = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, MVT::i32, V,
+                        DAG.getValueType(MVT::i8));
+      if (VT != MVT::i32)
+        V = DAG.getNode(ISD::TRUNCATE, DL, VT, V);
+    } else if (Ext != ISD::NON_EXTLOAD) {
+      V = DAG.getNode(Ext == ISD::SEXTLOAD ? ISD::SIGN_EXTEND : ISD::ZERO_EXTEND,
+                      DL, MVT::i32, V);
+    }
+    if (Wide)
+      V = DAG.getNode(WideExt == ISD::SEXTLOAD || TestWideLoadSext
+                                                 ? ISD::SIGN_EXTEND
+                      : WideExt == ISD::ZEXTLOAD ? ISD::ZERO_EXTEND
+                                                 : ISD::ANY_EXTEND,
+                      DL, MVT::i64, V);
+    DCI.CombineTo(N, V, New.getValue(1));
     return SDValue(N, 0);
   }
 
   if (auto *ST = dyn_cast<StoreSDNode>(N)) {
-    if (ST->isTruncatingStore() || !ST->isSimple() ||
-        !IsWindowed(ST->getAddressSpace()))
+    if (Stronger(ST) || !IsWindowed(ST->getAddressSpace()))
       return SDValue();
+    // A 16-bit store of a 32-bit value is a store of its low half at width
+    // 16, as `trunc i32 -> i16` is free. Left alone, it reached the type
+    // legalizer with its 64-bit address unmatched, which crashed rather than
+    // diagnosing (C's `ee_s16` fields; AR-20).
+    // A byte store (F-161) stores a 32-bit register's low byte at width 8:
+    // its value is any-extended to i32 and the memory type stays i8, which
+    // selects the W8 form.
+    SDValue Val = ST->getValue();
+    if (ST->getMemoryVT() == MVT::i8) {
+      if (Val.getValueType() != MVT::i32)
+        Val = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i32, Val);
+    } else if (ST->isTruncatingStore()) {
+      if (ST->getMemoryVT() != MVT::i16 || Val.getValueType() != MVT::i32)
+        return SDValue();
+      Val = DAG.getNode(ISD::TRUNCATE, DL, MVT::i16, Val);
+    }
     SDVTList VTs = DAG.getVTList(MVT::Other);
     SDValue Base, Idx;
     bool Scale = false;
@@ -692,25 +1135,25 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
                      Scale, IdxDisp)) {
       SDValue D = DAG.getTargetConstant(IdxDisp, DL, MVT::i32);
       if (auto Slot = matchLaunchSlot(Base)) {        // O-45
-        SDValue Ops[] = {ST->getChain(), ST->getValue(),
+        SDValue Ops[] = {ST->getChain(), Val,
                          DAG.getTargetConstant(*Slot, DL, MVT::i32), Idx,
                          DAG.getTargetConstant(Scale, DL, MVT::i32), D};
         return DAG.getMemIntrinsicNode(CCVISD::ST_SLOTIDX, DL, VTs, Ops,
                                        ST->getMemoryVT(), ST->getMemOperand());
       }
-      SDValue Ops[] = {ST->getChain(), ST->getValue(), Base, Idx,
+      SDValue Ops[] = {ST->getChain(), Val, Base, Idx,
                        DAG.getTargetConstant(Scale, DL, MVT::i32), D};
       return DAG.getMemIntrinsicNode(CCVISD::ST_BASEIDX, DL, VTs, Ops,
                                      ST->getMemoryVT(), ST->getMemOperand());
     }
     if (matchBaseOff(DAG, DL, ST->getBasePtr(), Base, Idx)) {
-      SDValue Ops[] = {ST->getChain(), ST->getValue(), Base, Idx};
+      SDValue Ops[] = {ST->getChain(), Val, Base, Idx};
       return DAG.getMemIntrinsicNode(CCVISD::ST_BASEOFF, DL, VTs, Ops,
                                      ST->getMemoryVT(), ST->getMemOperand());
     }
     if (SDValue Disp; matchFrame(DAG, DL, ST->getBasePtr(), ST->getMemoryVT(),
                                  Base, Idx, Disp, Scale)) {
-      SDValue Ops[] = {ST->getChain(), ST->getValue(), Base, Idx,
+      SDValue Ops[] = {ST->getChain(), Val, Base, Idx,
                        DAG.getTargetConstant(Scale, DL, MVT::i32), Disp};
       return DAG.getMemIntrinsicNode(CCVISD::ST_FRAME, DL, VTs, Ops,
                                      ST->getMemoryVT(), ST->getMemOperand());
@@ -728,14 +1171,22 @@ std::pair<unsigned, const TargetRegisterClass *>
 CCVTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                                 StringRef Constraint,
                                                 MVT VT) const {
-  if (Constraint.size() == 1 && Constraint[0] == 'r')
+  // PTX's register constraints, as CUDA's headers write them (CP-6): `r` a
+  // 32-bit integer, `f` an FP32 value, `h` a 16-bit one. CCVExpandPTXAsm
+  // replaces the asm that uses them, so these only carry the operands there.
+  if (Constraint.size() == 1 && (Constraint[0] == 'r' || Constraint[0] == 'f'))
     return {0U, &CCV::GPRRegClass};
+  if (Constraint.size() == 1 && Constraint[0] == 'h')
+    return {0U, &CCV::GPR16RegClass};
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
 
-SDValue CCVTargetLowering::LowerOperation(SDValue Op, SelectionDAG &) const {
-  report_fatal_error("CCV: unhandled custom lowering for " +
-                     Twine(Op.getOpcode()));
+SDValue CCVTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
+  std::string Node;
+  raw_string_ostream OS(Node);
+  Op->print(OS, &DAG);
+  report_fatal_error("CCV: unhandled custom lowering in " +
+                     DAG.getMachineFunction().getName() + ": " + OS.str());
 }
 
 SDValue CCVTargetLowering::LowerFormalArguments(
@@ -751,8 +1202,20 @@ SDValue CCVTargetLowering::LowerFormalArguments(
   CCInfo.AnalyzeFormalArguments(Ins, CC_CCV);
 
   for (const CCValAssign &VA : ArgLocs) {
-    if (!VA.isRegLoc())
-      report_fatal_error("CCV: stack arguments are not implemented");
+    if (VA.isMemLoc()) {
+      // A stack argument (F-21, calling-convention.md §3): the caller wrote
+      // it at the top of this function's frame, where a fixed object with a
+      // negative offset puts it -- PEI lays the locals out below.
+      int FI = MF.getFrameInfo().CreateFixedObject(
+          4, -int64_t(VA.getLocMemOffset()) - 4, /*IsImmutable=*/true);
+      SDValue V = DAG.getLoad(VA.getLocVT(), DL, Chain,
+                              DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout())),
+                              MachinePointerInfo::getFixedStack(MF, FI));
+      if (VA.getValVT() != VA.getLocVT())
+        V = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), V);
+      InVals.push_back(V);
+      continue;
+    }
     Register VReg = MF.getRegInfo().createVirtualRegister(&CCV::GPRRegClass);
     MF.getRegInfo().addLiveIn(VA.getLocReg(), VReg);
     SDValue V = DAG.getCopyFromReg(Chain, DL, VReg, VA.getLocVT());
@@ -770,10 +1233,24 @@ SDValue CCVTargetLowering::LowerFormalArguments(
   return Chain;
 }
 
+// Mutation control for tools/check-ptrlist.sh: a frame pointer's window taken
+// as R15 itself rather than the window below it, so it names the next
+// thread's frame.
+static cl::opt<bool> TestFrameWindowR15(
+    "ccv-test-frame-window-r15", cl::init(false), cl::Hidden,
+    cl::desc("give frame pointers R15's window, to test that it is caught"));
+
+// Mutation control for tools/check-calls.sh: a caller writes stack arguments
+// as if its callee's frame were at base 0, so they miss the callee's slots.
+static cl::opt<bool> TestStackArgsAtZero(
+    "ccv-test-stack-args-at-zero", cl::init(false), cl::Hidden,
+    cl::desc("write stack arguments ignoring the callee's frame base, to test "
+             "that it is caught"));
+
 /// A direct call (F-21; proposals/calling-convention.md). Arguments go in
 /// R1-R6 per CC_CCV, the callee runs on the same R15 with its frame at a
-/// static place below its caller's, and returns in R1-R2. Stack arguments and
-/// indirect calls are the proposal's steps 3 and 5.
+/// static place below its caller's, and returns in R1-R2. Arguments past the
+/// sixth go on the callee's frame. Indirect calls are the proposal's step 5.
 SDValue CCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
                                      SmallVectorImpl<SDValue> &InVals) const {
   SelectionDAG &DAG = CLI.DAG;
@@ -785,15 +1262,51 @@ SDValue CCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
     report_fatal_error("CCV: variadic calls are not supported");
 
   const auto *G = dyn_cast<GlobalAddressSDNode>(CLI.Callee);
-  if (!G)
-    report_fatal_error(
-        isa<ExternalSymbolSDNode>(CLI.Callee)
-            ? Twine("CCV: a call to the library function ") +
-                  cast<ExternalSymbolSDNode>(CLI.Callee)->getSymbol() +
-                  ", which this module does not define (F-21)"
-            : Twine("CCV: indirect calls are not implemented yet "
-                    "(proposals/calling-convention.md §4, step 5)"));
-  if (G->getGlobal()->isDeclaration())
+  if (auto *E = dyn_cast<ExternalSymbolSDNode>(CLI.Callee))
+    report_fatal_error(Twine("CCV: a call to the library function ") +
+                       E->getSymbol() + ", which this module does not define (F-21)");
+  // An indirect call (§4): the target's code address, an i32 CCVCodePointers
+  // put under an inttoptr, goes in R7, and `call R14` goes to a one-instruction
+  // stub, `ret r7`, that the asm printer places after this function. `call`
+  // sets the link and `ret` jumps to the target.
+  SDValue Target;
+  if (!G) {
+    Target = narrowTo32(CLI.Callee);
+    if (!Target)
+      report_fatal_error("CCV: an indirect call in " + MF.getName() +
+                         " through a pointer that is not a code address "
+                         "(F-21 step 5)");
+  }
+  // A pointer into the frame as a pair (CCVPointerPairs): the window below
+  // R15's, and the object's offset in it, which eliminateFrameIndex fills in.
+  if (G && G->getGlobal()->getName() == "__ccv_frame_window") {
+    SDValue R15 = DAG.getCopyFromReg(Chain, DL, CCV::R15, MVT::i32);
+    InVals.push_back(TestFrameWindowR15
+                         ? R15
+                         : DAG.getNode(ISD::ADD, DL, MVT::i32, R15,
+                                       DAG.getConstant(-1, DL, MVT::i32)));
+    return R15.getValue(1);
+  }
+  if (G && G->getGlobal()->getName() == "__ccv_frame_offset") {
+    // The i64 pointer argument arrives split into i32 halves, as any i64
+    // argument does here; the frame index is under the low one.
+    SDValue A = CLI.OutVals[0];
+    if (A.getOpcode() == ISD::EXTRACT_ELEMENT)
+      A = A.getOperand(0);
+    auto *FIN = dyn_cast<FrameIndexSDNode>(A);
+    if (!FIN) {
+      std::string Node;
+      raw_string_ostream OS(Node);
+      CLI.OutVals[0]->print(OS, &DAG);
+      report_fatal_error(Twine("CCV: a frame pointer that is not a frame "
+                               "object: ") + OS.str());
+    }
+    InVals.push_back(DAG.getNode(
+        CCVISD::FRAMEOFF, DL, MVT::i32,
+        DAG.getTargetFrameIndex(FIN->getIndex(), MVT::i32)));
+    return Chain;
+  }
+  if (G && G->getGlobal()->isDeclaration())
     report_fatal_error("CCV: a call to " + G->getGlobal()->getName() +
                        ", which this module does not define: device code is "
                        "one closed module (F-21)");
@@ -803,16 +1316,63 @@ SDValue CCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
   CCInfo.AnalyzeCallOperands(CLI.Outs, CC_CCV);
 
   Chain = DAG.getCALLSEQ_START(Chain, 0, 0, DL);
+
+  // Stack arguments go where the callee reads them: the top of its frame,
+  // whose base is fixed module-wide and already known, since callees are laid
+  // out first. Every function runs on the same R15, so the address is a
+  // constant displacement, stored straight to [R15 + d] (§3).
+  const Function *Callee = G ? cast<Function>(G->getGlobal()) : nullptr;
+  SmallVector<SDValue, 4> Stores;
+  for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
+    const CCValAssign &VA = ArgLocs[I];
+    if (!VA.isMemLoc())
+      continue;
+    if (!Callee)
+      report_fatal_error("CCV: an indirect call in " + MF.getName() +
+                         " passes more than six arguments; its targets' frames "
+                         "differ, so there is no one place to write them");
+    if (!ccvFrameLaidOut(*Callee))
+      report_fatal_error(
+          "CCV: " + MF.getName() + " passes stack arguments to " +
+          Callee->getName() + " before that function's frame is laid out -- "
+          "a recursive call, which a static frame layout cannot place (F-21)");
+    int64_t Disp = -int64_t(TestStackArgsAtZero ? 0 : ccvFrameBase(*Callee)) -
+                   int64_t(VA.getLocMemOffset()) - 4;
+    if (!isInt<13>(Disp))
+      report_fatal_error("CCV: a stack argument to " + Callee->getName() +
+                         " lies past the 13-bit displacement of §3's Format D");
+    SDValue V = CLI.OutVals[I];
+    if (VA.getLocVT() != VA.getValVT())
+      V = DAG.getNode(ISD::ANY_EXTEND, DL, VA.getLocVT(), V);
+    MachineSDNode *St = DAG.getMachineNode(
+        CCV::ST_GLOBAL, DL, MVT::Other,
+        {V, DAG.getRegister(CCV::R15, MVT::i32),
+         DAG.getTargetConstant(Disp, DL, MVT::i32), Chain});
+    DAG.setNodeMemRefs(St, {MF.getMachineMemOperand(
+                               MachinePointerInfo(), MachineMemOperand::MOStore,
+                               4, Align(4))});
+    Stores.push_back(SDValue(St, 0));
+  }
+  if (!Stores.empty())
+    Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, Stores);
+
   SDValue Glue;
   SmallVector<SDValue, 8> Ops = {
       // i32, not the 64-bit pointer type: no register holds an address
-      // (invariant 11), and a code address is an image offset (F-21).
-      Chain, DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i32)};
+      // (invariant 11), and a code address is 32-bit (§3 Format E).
+      Chain, G ? DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i32)
+               : DAG.getMCSymbol(MF.getContext().getOrCreateSymbol(
+                                     ".Lccv_icall_" + MF.getName()),
+                                 MVT::i32)};
+  if (!G) {
+    Chain = DAG.getCopyToReg(Chain, DL, CCV::R7, Target, Glue);
+    Glue = Chain.getValue(1);
+    Ops.push_back(DAG.getRegister(CCV::R7, MVT::i32));
+  }
   for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
     const CCValAssign &VA = ArgLocs[I];
     if (!VA.isRegLoc())
-      report_fatal_error("CCV: more than six register arguments -- stack "
-                         "arguments are step 3 of the calling sequence");
+      continue;
     SDValue V = CLI.OutVals[I];
     if (VA.getLocVT() != VA.getValVT())
       V = DAG.getNode(ISD::ANY_EXTEND, DL, VA.getLocVT(), V);

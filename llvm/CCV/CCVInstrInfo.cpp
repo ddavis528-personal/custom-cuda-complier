@@ -27,20 +27,13 @@ void CCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                        Register) const {
   DebugLoc DL = MI != MBB.end() ? MI->getDebugLoc() : DebugLoc();
   if (RC->getID() == CCV::PRRegClassID) {
-    // §3: [14:11] is a 4-bit predicate MASK, not a register number, so one
-    // instruction can move any subset of the file. The allocator spills one at
-    // a time, so the mask has a single bit set.
-    //
-    // The frame is positional (§3): the instruction addresses word i of a
-    // 16-byte frame for Pi. Each predicate gets its own 4-byte slot, so the
-    // displacement is pulled back by 4i to land Pi's word on that slot. With
-    // a displacement of 0, P1-P3 wrote 4-12 bytes past their slot into a
-    // neighbour's -- latent until ccv-sim could execute st.pred (IS-15).
-    const unsigned P = SrcReg - CCV::P0;
-    BuildMI(MBB, MI, DL, get(CCV::ST_PRED_G))
-        .addImm(1u << P)
+    // §3: [14:11] is a 4-bit predicate MASK, not a register number, so the
+    // register is not known until allocation is done; CCVExpandPseudos makes
+    // the mask and the positional displacement from it.
+    BuildMI(MBB, MI, DL, get(CCV::PSEUDO_ST_PRED))
+        .addReg(SrcReg, getKillRegState(isKill))
         .addFrameIndex(FrameIndex)
-        .addImm(-4 * int64_t(P));
+        .addImm(0);
     return;
   }
   BuildMI(MBB, MI, DL, get(CCV::ST_GLOBAL))
@@ -57,11 +50,9 @@ void CCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                         Register) const {
   DebugLoc DL = MI != MBB.end() ? MI->getDebugLoc() : DebugLoc();
   if (RC->getID() == CCV::PRRegClassID) {
-    const unsigned P = DestReg - CCV::P0;   // positional, as above
-    BuildMI(MBB, MI, DL, get(CCV::LD_PRED_G))
-        .addImm(1u << P)
+    BuildMI(MBB, MI, DL, get(CCV::PSEUDO_LD_PRED), DestReg)
         .addFrameIndex(FrameIndex)
-        .addImm(-4 * int64_t(P));
+        .addImm(0);
     return;
   }
   BuildMI(MBB, MI, DL, get(CCV::LD_GLOBAL), DestReg)

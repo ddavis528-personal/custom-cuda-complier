@@ -166,6 +166,12 @@ Mask classifyIntrinsic(Intrinsic::ID ID) {
   case Intrinsic::smin: case Intrinsic::smax:
   case Intrinsic::umin: case Intrinsic::umax:
     return Mask::Yes;               // points 14-17, AluRRP covers all four
+  // The SFU seeds the IEEE divide, 1/x and sqrt are built over (IS-12):
+  // `rcp.f32` has O-37's 48-bit Format A′ sibling; rsqrt and sqrt do not.
+  case Intrinsic::nvvm_rcp_approx_ftz_f:
+    return Mask::Yes;
+  case Intrinsic::nvvm_rsqrt_approx_f:
+  case Intrinsic::nvvm_sqrt_approx_f:
   case Intrinsic::sqrt:
   case Intrinsic::exp2:
   case Intrinsic::log2:
@@ -232,9 +238,9 @@ Mask classify(const Instruction &I) {
   case Instruction::UIToFP: case Instruction::SIToFP:
   case Instruction::FPToUI: case Instruction::FPToSI:
     return Mask::Yes;
-  // O-37 gave `rcp.f32` a 48-bit Format A′ sibling, so `fdiv 1.0, x` -- the one
-  // fdiv that selects to a single instruction -- is maskable. A general fdiv is
-  // a ~30-instruction sequence (O-36) whose parts are classified individually.
+  // CCVExpandDivision runs first and leaves no fdiv: each is an IEEE sequence
+  // whose parts are classified individually, or under fast-math one
+  // `rcp.approx` (above). One that survived would select nothing.
   case Instruction::FDiv:
     return Mask::Yes;
   // A division that still exists at this point has a CONSTANT divisor:

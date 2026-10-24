@@ -8,6 +8,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "Interp.h"
+#include "NarrowFP.h"
+#include "SfuMath.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
@@ -20,6 +22,9 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Endian.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/bit.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
@@ -35,19 +40,118 @@ extern "C" void LLVMInitializeCCVDisassembler();
 
 static cl::opt<std::string> InputFile(cl::Positional, cl::Required,
                                       cl::desc("<kernel.bin>"));
+// CP-6: evaluate FP operations from a case file instead of running a kernel.
+// Each line is `OPCODE wd wa wb wc x y z` (width codes, then operand bits in
+// hex); each output line is the result in hex, or F-FORMAT.
+static cl::opt<std::string> FpCases("fp-cases", cl::Hidden,
+                                    cl::desc("evaluate FP cases from a file (CP-6)"));
+static cl::opt<bool> TestFpFtz("ccv-test-fp-ftz", cl::Hidden,
+    cl::desc("flush subnormal FP results to zero, to test that it is caught"));
+static cl::opt<bool> TestFpNoSat("ccv-test-fp-no-saturate", cl::Hidden,
+    cl::desc("narrow FP overflow gives NaN, to test that it is caught"));
+// TI-35: the hardware warp context srd #2 (%lanectx) reports (O-64). The core
+// gives each resident warp its own, so one run standing for one warp of a
+// multi-CTA launch takes the context that warp will have. The value is only a
+// name (§12.1's bounded nondeterminism). Default: the -warp index.
+static cl::opt<int> LaneContext("context", cl::init(-1),
+    cl::desc("hardware warp context for srd #2 (default: the -warp index)"));
+static cl::opt<bool> TestMixedByValue("ccv-test-mixed-by-value", cl::Hidden,
+    cl::desc("read integer sources at their own width, to test that it is caught"));
+static cl::opt<unsigned> SfuErrorUlps("sfu-error-ulps", cl::init(0),
+    cl::desc("return FP SFU values up to N units from the exact result, as an "
+             "approximate SFU may: an ulp, or O-70's absolute unit for lg2 near "
+             "1 and sin/cos on [-pi, pi]; N = 2 is O-70's bound (SfuMath.h)"));
+static cl::opt<unsigned> LaneContexts("lane-contexts", cl::init(4096),
+    cl::desc("CCV_LANE_CONTEXTS: where O-69's spill space starts (default the "
+             "core's params, the device's %lanectx range: 2^(CCV_P_W_DEV_CORE "
+             "+ CCV_W_WARP_ID + 5))"));
+static cl::opt<bool> TestFAddDescending("ccv-test-atomic-fadd-descending",
+    cl::Hidden, cl::desc("apply atom.add.f32's lanes in descending order, to "
+                         "test that the order is observed (O-76)"));
+static cl::opt<bool> TestAtomNoIndex("ccv-test-atomic-no-index", cl::Hidden,
+    cl::desc("address atomics without their index register, as before O-72, "
+             "to test that it is caught"));
+static cl::opt<bool> TestSfuTruncate("ccv-test-sfu-truncate", cl::Hidden,
+    cl::desc("truncate the FP SFU's values instead of rounding them, to test "
+             "that it is caught"));
+static cl::opt<bool> TestFpHostNaN("ccv-test-fp-host-nan", cl::Hidden,
+    cl::desc("FP32 NaN results keep the host's bits, to test that it is caught"));
 static cl::opt<unsigned> NumThreads("threads", cl::init(32),
                                     cl::desc("active threads in the CTA"));
 static cl::opt<unsigned> CtaId("ctaid", cl::init(0), cl::desc("CTA index"));
+// TI-29: one warp of a CTA of several. Lane L is thread 32w + L, so srd's
+// %ctatid gives it, and the warp's lanes are [0, min(32, T - 32w)). A CTA's
+// warps share .shared and barriers, which a run of one warp cannot model, so
+// this is for warps that do not communicate, and a barrier in a CTA of more
+// than 32 threads stops the run.
+static cl::opt<unsigned> WarpInCta("warp", cl::init(0),
+                                   cl::desc("which warp of the CTA to run (TI-29)"));
+// TI-29: or every warp of the CTA, sharing memory, .shared and the barriers,
+// for a kernel whose warps communicate. They issue in turn, one issue group
+// each, warp 0 first; a warp with nothing runnable is passed over. Warp w is
+// hardware context -context + w. A barrier completes once every live lane of
+// every warp has arrived. -oracle then writes one record file per warp
+// (CP-30).
+static cl::opt<bool> WholeCta(
+    "cta", cl::desc("run every warp of the CTA, with shared barriers (TI-29)"));
+static cl::opt<bool> TestWarpBarrier("ccv-test-cta-warp-barrier", cl::Hidden,
+    cl::desc("with -cta, a barrier waits for its own warp only, to test that "
+             "it is caught"));
+static cl::opt<bool> TestIgnoreCount("ccv-test-bar-ignore-count", cl::Hidden,
+    cl::desc("make bar.init a no-op, as before O-74, to test that it is "
+             "caught"));
 static cl::opt<uint64_t> CodeBase("code-base", cl::init(0x1000),
                                   cl::desc("load address for the kernel"));
 static cl::opt<uint64_t> Entry(
     "entry", cl::init(0),
     cl::desc("the kernel's offset in the image: device functions come before "
              "it once calls exist (F-21)"));
+static cl::opt<unsigned> Barriers(
+    "barriers", cl::init(16),
+    cl::desc("barriers the CTA has allocated, at most 16 (ISA v1.9 O-59)"));
+// O-60 (ISA v1.9 §1, IS-17): every diverged group of a live warp that is not
+// waiting at a barrier eventually issues. Strict lowest-PC-first does not
+// meet that -- a lane spinning at a low PC on a flag a higher-PC lane sets
+// starves the setter forever (test/cuda/spinwait.cu) -- so the oracle needs a
+// fairness rule. It is FET's (AR's IS-17 rows, revs 119 to 121; FET spec rev
+// 15), because a kernel whose lanes talk to each other has more than one
+// legal order and the oracle must be the one the hardware takes: min-PC,
+// except that once the group holding lane r has gone N picks without
+// issuing, the next pick is that group. r is a rotating pointer; whenever
+// its group issues, by either path, the count restarts and r moves to the
+// next live lane. Lanes waiting at a barrier are skipped. N is FET's
+// CCV_FAIR_N and must stay equal to it; N = 0 is strict min-PC, kept as the
+// spin-wait kernel's hanging control.
+static cl::opt<unsigned> Fairness(
+    "fairness", cl::init(48),
+    cl::desc("picks lane r's group may go without issuing before it is "
+             "issued (O-60, FET's CCV_FAIR_N); 0 = strict lowest-PC-first"));
 static cl::opt<bool> Trace("trace", cl::desc("print each issue group"));
 static cl::opt<bool> Stats("counters", cl::desc("print execution counters"));
 static cl::opt<unsigned> MaxSteps("max-steps", cl::init(100000),
                                   cl::desc("issue-group limit"));
+// O-61: a module's data image, loaded at -data-window << 16 with its data
+// pointers relocated, and the window written to launch-block word 28. It
+// becomes pokes ahead of -poke's, so the oracle's initial memory has it and a
+// -poke can still override any word.
+static cl::opt<std::string> DataImage(
+    "data", cl::desc("the module's data image (.ccv_data), O-61"),
+    cl::value_desc("file"));
+static cl::opt<std::string> DataReloc(
+    "data-reloc", cl::desc("its relocation list (.ccv_reloc): u32 image "
+                           "offsets of 8-byte data-pointer slots"),
+    cl::value_desc("file"));
+static cl::opt<unsigned> DataWindow("data-window", cl::init(0x200),
+                                    cl::desc("the window the image is loaded at"));
+static cl::opt<std::string> DataInfo(
+    "data-info", cl::desc("the image's .ccv_info: u32 size of its constant "
+                          "part, which becomes the .const range (O-61)"),
+    cl::value_desc("file"));
+// F-RO's .const range for a kernel not built with -data: [base, limit),
+// flat addresses. The launch window, 2, is always read-only.
+static cl::opt<std::string> ConstRange(
+    "const-range", cl::desc("the .const range, base:limit (F-RO, O-51)"),
+    cl::value_desc("base:limit"));
 static cl::list<std::string> Pokes("poke", cl::desc("addr=value, before run"),
                                    cl::value_desc("hex=hex"));
 static cl::list<std::string> Peeks("peek", cl::desc("addr, after run"),
@@ -104,6 +208,41 @@ int main(int argc, char **argv) {
   MCTargetOptions Opts;
   std::unique_ptr<const MCAsmInfo> MAI(T->createMCAsmInfo(*MRI, TT.str(), Opts));
   std::unique_ptr<const MCInstrInfo> MII(T->createMCInstrInfo());
+  nfp::TestFtz = TestFpFtz;
+  nfp::TestNoSaturate = TestFpNoSat;
+  nfp::TestHostNaN = TestFpHostNaN;
+  sfu::TestTruncate = TestSfuTruncate;
+  nfp::TestAtomNoIndex = TestAtomNoIndex;
+  nfp::TestFAddDescending = TestFAddDescending;
+  nfp::SfuErrorUlps = SfuErrorUlps;
+  nfp::TestByValue = TestMixedByValue;
+  if (!FpCases.empty()) {
+    StringMap<unsigned> ByName;
+    for (unsigned Op = 0, N = MII->getNumOpcodes(); Op != N; ++Op)
+      ByName[MII->getName(Op)] = Op;
+    auto Buf = MemoryBuffer::getFile(FpCases);
+    if (!Buf) { errs() << "error: cannot read " << FpCases << "\n"; return 1; }
+    SmallVector<StringRef, 0> Lines;
+    (*Buf)->getBuffer().split(Lines, '\n', -1, false);
+    for (StringRef Line : Lines) {
+      SmallVector<StringRef, 8> F;
+      Line.split(F, ' ', -1, false);
+      if (F.size() != 8 || !ByName.count(F[0])) {
+        errs() << "error: bad case: " << Line << "\n";
+        return 1;
+      }
+      uint8_t W[4];
+      uint32_t V[3];
+      for (int K = 0; K != 4; ++K) W[K] = uint8_t(std::stoul(F[1 + K].str()));
+      for (int K = 0; K != 3; ++K) V[K] = uint32_t(std::stoul(F[5 + K].str(), nullptr, 16));
+      uint32_t Out;
+      if (Interp::evalFp(ByName[F[0]], W, V[0], V[1], V[2], Out))
+        outs() << format("%x\n", Out);
+      else
+        outs() << "F-FORMAT\n";
+    }
+    return 0;
+  }
   std::unique_ptr<const MCSubtargetInfo> STI(
       T->createMCSubtargetInfo(TT.str(), "generic", ""));
   MCContext Ctx(TT, MAI.get(), MRI.get(), STI.get());
@@ -115,16 +254,87 @@ int main(int argc, char **argv) {
   StringRef Code = (*Buf)->getBuffer();
 
   Interp I;
-  I.CodeBase = CodeBase;
-  Warp W;
-  W.CtaId = CtaId;
-  for (unsigned L = 0; L != kLanes; ++L) {
-    W.PC[L] = CodeBase + Entry;
-    W.CtaTid[L] = L;                       // one warp, lane L is thread L
+  I.BarrierCount = std::min(unsigned(Barriers), 16u);
+  I.LaneContexts = LaneContexts;
+  I.Mem.AddrLimit = 1ull << 48;            // F-ADDR (O-75); .shared has none
+  if (WholeCta && WarpInCta) {
+    errs() << "error: -cta runs every warp; -warp names one\n";
+    return 1;
   }
-  W.Active = NumThreads >= kLanes ? ~0u : ((1u << NumThreads) - 1);
+  if (uint64_t(kLanes) * WarpInCta >= NumThreads) {
+    errs() << "error: -warp=" << WarpInCta << " has no threads in a CTA of "
+           << NumThreads << "\n";
+    return 1;
+  }
+  // The warps this run executes: all of the CTA's with -cta, else -warp's.
+  const unsigned NumWarps = WholeCta ? (NumThreads + kLanes - 1) / kLanes : 1;
+  std::vector<Warp> Warps(NumWarps);
+  for (unsigned K = 0; K != NumWarps; ++K) {
+    Warp &X = Warps[K];
+    const unsigned WI = WarpInCta + K;     // the warp's index in its CTA
+    X.CtaId = CtaId;
+    // -context names warp 0's (one warp's without -cta); else warp w's is w.
+    X.WarpCtx = LaneContext >= 0 ? unsigned(LaneContext) + K : WI;
+    if (X.WarpCtx >= (1u << 27)) {
+      errs() << "error: -context=" << X.WarpCtx << " does not fit srd #2's "
+             << "(context << 5) | lane\n";
+      return 1;
+    }
+    for (unsigned L = 0; L != kLanes; ++L) {
+      X.PC[L] = CodeBase + Entry;
+      X.CtaTid[L] = kLanes * WI + L;       // warp w, lane L is thread 32w + L
+    }
+    const unsigned WarpThreads = std::min(kLanes, NumThreads - kLanes * WI);
+    X.Active = WarpThreads >= kLanes ? ~0u : ((1u << WarpThreads) - 1);
+  }
+  if (WholeCta)
+    I.Cta = &Warps;
+  I.TestWarpBarrier = TestWarpBarrier;
+  I.TestIgnoreCount = TestIgnoreCount;
 
-  for (const auto &P : Pokes) {
+  std::vector<std::string> AllPokes;
+  if (!DataImage.empty()) {
+    auto Img = MemoryBuffer::getFile(DataImage);
+    if (!Img) { errs() << "error: cannot read " << DataImage << "\n"; return 1; }
+    std::vector<uint8_t> D((*Img)->getBufferStart(), (*Img)->getBufferEnd());
+    D.resize((D.size() + 3) & ~size_t(3), 0);
+    const uint64_t Base = uint64_t(DataWindow) << 16;
+    if (!DataReloc.empty()) {
+      auto R = MemoryBuffer::getFile(DataReloc);
+      if (!R) { errs() << "error: cannot read " << DataReloc << "\n"; return 1; }
+      StringRef RB = (*R)->getBuffer();
+      for (size_t I = 0; I + 4 <= RB.size(); I += 4) {
+        uint32_t Off = support::endian::read32le(RB.data() + I);
+        if (Off + 8 > D.size()) { errs() << "error: relocation past the image\n"; return 1; }
+        uint64_t V = support::endian::read64le(&D[Off]) + Base;
+        support::endian::write64le(&D[Off], V);
+      }
+    }
+    for (size_t I = 0; I != D.size(); I += 4)
+      AllPokes.push_back(utostr(Base + I) + "=" +
+                         utostr(support::endian::read32le(&D[I])));
+    AllPokes.push_back(utostr(launchBlockBase() + 28) + "=" + utostr(DataWindow));
+  }
+  AllPokes.insert(AllPokes.end(), Pokes.begin(), Pokes.end());
+
+  // F-RO's .const range: the image's constant part, or -const-range.
+  if (!DataInfo.empty()) {
+    auto Info = MemoryBuffer::getFile(DataInfo);
+    if (!Info || (*Info)->getBufferSize() < 4) {
+      errs() << "error: cannot read " << DataInfo << "\n"; return 1;
+    }
+    I.Mem.ConstBase = uint64_t(DataWindow) << 16;
+    I.Mem.ConstLimit =
+        I.Mem.ConstBase + support::endian::read32le((*Info)->getBufferStart());
+  }
+  if (!ConstRange.empty()) {
+    auto [B, L] = StringRef(ConstRange).split(':');
+    if (B.getAsInteger(0, I.Mem.ConstBase) || L.getAsInteger(0, I.Mem.ConstLimit)) {
+      errs() << "error: bad -const-range '" << ConstRange << "'\n"; return 1;
+    }
+  }
+
+  for (const auto &P : AllPokes) {
     auto [A, V] = StringRef(P).split('=');
     uint64_t Addr; uint32_t Val;
     if (A.getAsInteger(0, Addr) || V.getAsInteger(0, Val)) {
@@ -133,63 +343,176 @@ int main(int argc, char **argv) {
     I.Mem.write32(Addr, Val);
   }
 
-  std::FILE *OF = nullptr;
+  // One record file per warp (CP-30): -oracle's for warp 0, and with -cta
+  // oracle.<w>.jsonl beside it for warp w, as the skeleton's loader reads a
+  // CTA. Each is that warp's records alone, in its issue order; the files
+  // share the init, and the final memory, which is the CTA's.
+  std::vector<std::FILE *> OFs(NumWarps, nullptr);
+  std::FILE *OF = nullptr;                     // the issuing warp's
   std::vector<Memory::Access> MemLog, ShLog;
   std::vector<uint64_t> Touched;               // every address an access saw
-  if (!OracleFile.empty()) {
-    OF = std::fopen(OracleFile.c_str(), "w");
-    if (!OF) { errs() << "error: cannot write " << OracleFile << "\n"; return 1; }
+  if (!OracleFile.empty()) for (unsigned K = 0; K != NumWarps; ++K) {
+    std::string Path = OracleFile;
+    if (K) {
+      StringRef Stem(OracleFile);
+      Path = Stem.consume_back(".jsonl") ? (Stem + "." + Twine(K) + ".jsonl").str()
+                                          : OracleFile + "." + utostr(K);
+    }
+    OF = OFs[K] = std::fopen(Path.c_str(), "w");
+    if (!OF) { errs() << "error: cannot write " << Path << "\n"; return 1; }
+    const unsigned WI = WarpInCta + K;
     std::fprintf(OF, "{\"init\":{\"code_base\":%llu,\"threads\":%u,"
-                     "\"ctaid\":%u,\"code\":\"",
+                     "\"ctaid\":%u,",
                  (unsigned long long)CodeBase, unsigned(NumThreads),
                  unsigned(CtaId));
+    // The warp's index in its CTA, when it is not the first (TI-29). Absent,
+    // it is 0, so a one-warp record is exactly what it was.
+    if (WI)
+      std::fprintf(OF, "\"warp_in_cta\":%u,", WI);
+    // The warp's hardware context, when it is not its index (TI-35).
+    if (Warps[K].WarpCtx != WI)
+      std::fprintf(OF, "\"lane_context\":%u,", unsigned(Warps[K].WarpCtx));
+    // F-RO's .const range, when there is one, for MIU's const_base and
+    // const_limit (TI-26). Absent, the range is empty.
+    if (I.Mem.ConstLimit > I.Mem.ConstBase)
+      std::fprintf(OF, "\"const\":[%llu,%llu],",
+                   (unsigned long long)I.Mem.ConstBase,
+                   (unsigned long long)I.Mem.ConstLimit);
+    std::fprintf(OF, "\"code\":\"");
     for (unsigned char Ch : Code) std::fprintf(OF, "%02x", Ch);
     std::fprintf(OF, "\",\"mem\":[");
     bool First = true;
-    for (const auto &P : Pokes) {
+    for (const auto &P : AllPokes) {
       auto [A, V] = StringRef(P).split('=');
       uint64_t Addr; uint32_t Val;
       A.getAsInteger(0, Addr); V.getAsInteger(0, Val);
       std::fprintf(OF, First ? "[%llu,%u]" : ",[%llu,%u]",
                    (unsigned long long)Addr, Val);
       First = false;
-      Touched.push_back(Addr);
+      if (!K)
+        Touched.push_back(Addr);
     }
     std::fprintf(OF, "]}}\n");
     I.Mem.Log = &MemLog;
     I.Shared.Log = &ShLog;
   }
-  uint64_t Seq = 0;
+
+  std::vector<Memory::Undo> Journal, ShJournal;
+  I.Mem.Journal = &Journal;
+  I.Shared.Journal = &ShJournal;
+
+  // A V1 fault terminates the context (ISA v1.9 §12.6). The record carries
+  // the cause, the PC, the lane mask, and for an execute-stage memory fault
+  // the lowest faulting lane's address; it is printed, written to the oracle
+  // file, and the run exits with status 3 -- distinct from 1, a simulator
+  // error, so a check can tell a fault the ISA defines from a tool failure.
+  // Peeks still print: the state is the faulting instruction's predecessors',
+  // which is what precision (§12.4) promises.
+  unsigned Steps = 0, Issued = 0;
+  std::vector<unsigned> IssuedBy(NumWarps, 0);   // per warp, for its record
+
+  // Final architectural state: every GPR lane, every predicate, and every
+  // global word any access or poke touched -- what the skeleton's retired
+  // state is compared against. After a fault it is the state the rollback
+  // left, which is what precision (§12.4) promises (TI-28).
+  // Each warp's file gets its own registers and the CTA's memory.
+  auto emitFinal = [&](unsigned K) {
+    std::FILE *OF = OFs[K];
+    I.Mem.Log = nullptr;
+    I.Shared.Log = nullptr;
+    std::fprintf(OF, "{\"final\":{\"gpr\":[");
+    for (unsigned G = 0; G != kGPRs; ++G) {
+      if (G) std::fputc(',', OF);
+      jsonU32s(OF, Warps[K].GPR[G].data(), kLanes);
+    }
+    std::fprintf(OF, "],\"pred\":");
+    jsonU32s(OF, Warps[K].Pred.data(), kPreds);
+    std::sort(Touched.begin(), Touched.end());
+    std::fprintf(OF, ",\"mem\":[");
+    uint64_t LastWord = UINT64_MAX;
+    bool First = true;
+    for (uint64_t A : Touched) {
+      uint64_t Wd = A & ~uint64_t(3);
+      if (Wd == LastWord) continue;
+      LastWord = Wd;
+      uint32_t V = 0;
+      for (unsigned B = 0; B != 4; ++B)
+        V |= uint32_t(I.Mem.peekByte(Wd + B)) << (8 * B);
+      std::fprintf(OF, First ? "[%llu,%u]" : ",[%llu,%u]",
+                   (unsigned long long)Wd, V);
+      First = false;
+    }
+    std::fprintf(OF, "],\"issue_groups\":%u}}\n", IssuedBy[K]);
+  };
+  auto emitFinals = [&] {
+    for (unsigned K = 0; K != NumWarps; ++K) {
+      emitFinal(K);
+      std::fclose(OFs[K]);
+    }
+  };
+
+  // The warp issuing, an index into Warps: always 0 without -cta.
+  unsigned Cur = NumWarps - 1;
+  auto fault = [&](const char *Cause, uint64_t PC, uint32_t Lanes,
+                   uint64_t Addr) {
+    outs() << format("  FAULT %s  pc=%#llx  lanes=%08x  addr=%#llx  cta=%u warp=%u\n",
+                     Cause, (unsigned long long)PC, Lanes,
+                     (unsigned long long)Addr, unsigned(CtaId),
+                     unsigned(WholeCta ? Cur : 0));
+    if (OF) {
+      // In the faulting warp's file; a fault ends the run, so every file
+      // then gets its final state.
+      std::fprintf(OFs[Cur], "{\"fault\":{\"cause\":\"%s\",\"pc\":%llu,\"lanes\":%u,"
+                             "\"addr\":%llu,\"cta\":%u,\"warp\":0}}\n",
+                   Cause, (unsigned long long)PC, Lanes,
+                   (unsigned long long)Addr, unsigned(CtaId));
+      emitFinals();
+    }
+    I.Mem.Log = nullptr;
+    for (const auto &P : Peeks) {
+      uint64_t A;
+      if (!StringRef(P).getAsInteger(0, A))
+        outs() << format("  [%#llx] = %u\n", (unsigned long long)A, I.Mem.read32(A));
+    }
+    return 3;
+  };
+  std::vector<uint64_t> Seqs(NumWarps, 0);     // each file's own sequence
 
   Counters C;
-  // Distinct PCs among runnable lanes, to tell reconvergence from mere
-  // progress: §1 claims lanes regroup opportunistically when their PCs
-  // coincide, and that is only observable by watching the count fall.
-  auto distinctPCs = [&](uint32_t Run) {
-    unsigned N = 0;
-    uint64_t Seen[kLanes];
-    for (unsigned L = 0; L != kLanes; ++L) {
-      if (!((Run >> L) & 1)) continue;
-      bool New = true;
-      for (unsigned J = 0; J != N; ++J)
-        if (Seen[J] == W.PC[L]) { New = false; break; }
-      if (New) Seen[N++] = W.PC[L];
-    }
-    return N;
-  };
-  unsigned PrevGroups = 1;
 
-  unsigned Steps = 0, Issued = 0;
-  while (W.Active && Steps++ < MaxSteps) {
+  // O-60 fairness state, FET's, per warp: picks since lane r's group last
+  // issued, and the rotating lane pointer r.
+  std::vector<std::pair<unsigned, unsigned>> Fair(NumWarps);
+  auto live = [&] {
+    return std::any_of(Warps.begin(), Warps.end(),
+                       [](const Warp &X) { return X.Active != 0; });
+  };
+  while (live() && Steps++ < MaxSteps) {
+    // The next warp in turn with a runnable lane (TI-29). Without -cta there
+    // is one, and it is always the one.
+    for (unsigned K = 0; K != NumWarps; ++K) {
+      Cur = (Cur + 1) % NumWarps;
+      if (Warps[Cur].Active & ~Warps[Cur].Stalled)
+        break;
+    }
+    Warp &W = Warps[Cur];
+    if (OF)
+      OF = OFs[Cur];
+    auto &[Picks, FairLane] = Fair[Cur];
     // Group by PC: pick the lowest PC among active lanes and issue for every
-    // lane sitting there. Lowest-first is a scheduling policy, not semantics --
-    // any order gives the same results.
+    // lane sitting there. Lowest-first is a scheduling policy, not semantics:
+    // for code whose lanes do not communicate, any order gives the same
+    // results. A spin-wait or an intra-warp lock has several legal outcomes,
+    // in issue count at least, and this order is FET's.
     uint32_t Runnable = W.Active & ~W.Stalled;
     if (!Runnable) {
       // Every remaining lane is blocked at a barrier that no one can now
       // complete. Report it as what it is rather than running to the step
       // limit: a deadlocked kernel and a slow one look nothing alike.
-      errs() << "error: deadlock -- " << llvm::popcount(W.Active)
+      unsigned Blocked = 0;
+      for (const Warp &X : Warps)
+        Blocked += llvm::popcount(X.Active);
+      errs() << "error: deadlock -- " << Blocked
              << " lanes blocked at a barrier with no lane able to arrive\n";
       return 1;
     }
@@ -199,26 +522,46 @@ int main(int argc, char **argv) {
       if ((Runnable >> L) & 1)
         Target = std::min(Target, W.PC[L]);
 
+    // O-60's fairness: lane r is the first runnable lane at or after the
+    // pointer. Its group's issue restarts the count and moves the pointer on;
+    // at N picks without one, this pick is its group.
+    if (Fairness) {
+      unsigned R = FairLane;
+      while (!((Runnable >> R) & 1))
+        R = (R + 1) % kLanes;
+      bool Served = W.PC[R] == Target;
+      if (!Served && ++Picks == Fairness) {
+        ++C.FairPicks;
+        Target = W.PC[R];
+        Served = true;
+      }
+      if (Served) {
+        Picks = 0;
+        FairLane = (R + 1) % kLanes;
+        while (!((W.Active >> FairLane) & 1))
+          FairLane = (FairLane + 1) % kLanes;
+      }
+    }
+
     uint32_t Mask = 0;
     for (unsigned L = 0; L != kLanes; ++L)
       if (((Runnable >> L) & 1) && W.PC[L] == Target)
         Mask |= 1u << L;
 
+    // F-FETCH (ISA v1.9 §12.3): the selected PC outside the kernel's image,
+    // or not 16-bit aligned -- a ret to an odd offset among them.
     uint64_t Off = Target - CodeBase;
-    if (Off >= Code.size()) {
-      errs() << "error: PC " << format_hex(Target, 10) << " outside kernel\n";
-      return 1;
-    }
+    if (Target < CodeBase || Off >= Code.size() || (Target & 1))
+      return fault("F-FETCH", Target, Mask, 0);
     ArrayRef<uint8_t> Bytes(reinterpret_cast<const uint8_t *>(Code.data()) + Off,
                             Code.size() - Off);
 
     MCInst MI;
     uint64_t Size = 0;
+    // F-ILLEGAL: an encoding that names no operation (§12.3).
     if (DisAsm->getInstruction(MI, Size, Bytes, Target, nulls()) !=
-        MCDisassembler::Success) {
-      errs() << "error: cannot decode at " << format_hex(Target, 10) << "\n";
-      return 1;
-    }
+        MCDisassembler::Success)
+      return fault("F-ILLEGAL", Target, Mask, 0);
 
     if (Trace) {
       std::string S; raw_string_ostream OS(S);
@@ -226,22 +569,46 @@ int main(int argc, char **argv) {
       outs() << format("  %04x  mask=%08x  %s\n", unsigned(Off), Mask, OS.str().c_str());
     }
 
-    Warp Before;
-    if (OF) { Before = W; MemLog.clear(); ShLog.clear(); }
+    // A fault is precise (§12.4): the faulting instruction has no
+    // architectural effect. So every step can be undone -- registers from
+    // this copy, memory from the write journals.
+    if (!WholeCta && NumThreads > kLanes &&
+        (MI.getOpcode() == CCV::C_BAR_ARRIVE || MI.getOpcode() == CCV::C_BAR_WAIT ||
+         MI.getOpcode() == CCV::BAR_WAIT_PHASE)) {
+      errs() << "error: a barrier in a CTA of " << NumThreads << " threads, "
+             << "whose other warps this run does not model; -cta runs them "
+             << "(TI-29)\n";
+      return 1;
+    }
+    Warp Before = W;
+    if (OF) { MemLog.clear(); ShLog.clear(); }
+    Journal.clear(); ShJournal.clear();
 
     auto R = I.step(W, MI, Mask, Target, unsigned(Size));
     ++Issued;
+    ++IssuedBy[Cur];
+    // A fault: undo it first, then record the instruction as it was issued
+    // -- kind "fault", its uses, no defs, each executing lane's address and
+    // no written value -- so the skeleton fetches it and MIU sees it, then the
+    // fault, then the state the rollback left (TI-28).
+    const bool Faulted = R.Kind == Interp::Result::Fault;
+    if (Faulted) {
+      W = Before;
+      I.Mem.rollBack();
+      I.Shared.rollBack();
+    }
 
     if (OF) {
       const MCInstrDesc &D = MII->get(MI.getOpcode());
       std::fprintf(OF, "{\"seq\":%llu,\"pc\":%llu,\"size\":%u,\"bytes\":\"",
-                   (unsigned long long)Seq++, (unsigned long long)Target,
+                   (unsigned long long)Seqs[Cur]++, (unsigned long long)Target,
                    unsigned(Size));
       for (uint64_t K = 0; K != Size; ++K) std::fprintf(OF, "%02x", Bytes[K]);
       const char *Kind = R.Kind == Interp::Result::Advance ? "advance"
                          : R.Kind == Interp::Result::Branch ? "branch"
                          : R.Kind == Interp::Result::BranchPred ? "branchpred"
                          : R.Kind == Interp::Result::Return ? "return"
+                         : R.Kind == Interp::Result::Fault ? "fault"
                          : R.Kind == Interp::Result::Exit ? "exit" : "stall";
       std::fprintf(OF, "\",\"mask\":%u,\"op\":\"%s\",\"kind\":\"%s\","
                        "\"target\":%llu,\"taken\":%u,\"load\":%d,\"store\":%d",
@@ -250,7 +617,8 @@ int main(int argc, char **argv) {
                    // lowest issuing lane's, and the register it came from is
                    // in the instruction bytes.
                    (unsigned long long)(R.Kind == Interp::Result::Return
-                       ? CodeBase + W.GPR[R.Target][llvm::countr_zero(Mask)]
+                       ? ((Target & ~uint64_t(0xffffffff)) |
+                          W.GPR[R.Target][llvm::countr_zero(Mask)])
                        : R.Target),
                    R.TakenMask,
                    int(D.mayLoad()), int(D.mayStore()));
@@ -300,6 +668,8 @@ int main(int argc, char **argv) {
           for (unsigned B = 0; B != 4; ++B)
             if (Op.getImm() & (1 << B)) addTo(Uses, "P" + std::to_string(B));
       }
+      if (Faulted)
+        Defs.clear();
       for (unsigned G = 0; G != kGPRs; ++G)
         if (Before.GPR[G] != W.GPR[G]) {
           std::string N = "R" + std::to_string(G);
@@ -356,10 +726,39 @@ int main(int argc, char **argv) {
       std::fprintf(OF, ",\"mem\":[");
       const uint32_t Exec = R.ActiveSet ? R.Active : Mask;
       unsigned NLanes = llvm::popcount(Exec), Emitted = 0;
+      const unsigned Opc = MI.getOpcode();
+      const bool WarpScoped = Opc == CCV::LD_PRED_G || Opc == CCV::ST_PRED_G ||
+                              Opc == CCV::LD_PRED_S || Opc == CCV::ST_PRED_S ||
+                              Opc == CCV::LD_PRED_LOCAL ||
+                              Opc == CCV::ST_PRED_LOCAL;
       for (int SpaceIdx = 0; SpaceIdx != 2; ++SpaceIdx) {
         const auto &Log = SpaceIdx ? ShLog : MemLog;
         if (Log.empty()) continue;
-        if (Log.size() != NLanes) {
+        // A predicate transfer is warp-scoped: one word per predicate in the
+        // mask, at lane 0's address (§3, §12.8), not one access per lane. Its
+        // words are attributed to lane 0, the lane whose rbase forms them (in
+        // the .local forms, the lane term is 0; O-69), whether or not lane 0
+        // is executing (TI's rev 115).
+        if (WarpScoped) {
+          unsigned L = 0;
+          for (const auto &A : Log) {
+            std::fprintf(OF, "%s{\"lane\":%u,\"space\":\"%s\",\"w\":%d,"
+                             "\"addr\":%llu,\"bytes\":%u",
+                         Emitted ? "," : "", L, SpaceIdx ? "shared" : "global",
+                         int(A.Write), (unsigned long long)A.Addr, A.Bytes);
+            if (!Faulted)
+              std::fprintf(OF, ",\"val\":%u", A.Val);
+            std::fputc('}', OF);
+            ++Emitted;
+            if (!SpaceIdx) Touched.push_back(A.Addr);
+          }
+          continue;
+        }
+        // An atomic (Format M) reads and writes each lane's word: two
+        // accesses a lane, read first, both attributed to it.
+        const unsigned PerLane =
+            D.mayLoad() && D.mayStore() && Log.size() == 2 * NLanes ? 2 : 1;
+        if (Log.size() != PerLane * NLanes) {
           errs() << "error: -oracle: " << Log.size() << " memory accesses for "
                  << NLanes << " lanes at " << format_hex(Target, 10)
                  << " -- cannot attribute them to lanes\n";
@@ -368,19 +767,25 @@ int main(int argc, char **argv) {
         unsigned K = 0;
         for (unsigned L = 0; L != kLanes; ++L) {
           if (!(Exec & (1u << L))) continue;
-          const auto &A = Log[K++];
-          std::fprintf(OF, Emitted ? ",{\"lane\":%u,\"space\":\"%s\",\"w\":%d,"
-                                     "\"addr\":%llu,\"bytes\":%u,\"val\":%u}"
-                                   : "{\"lane\":%u,\"space\":\"%s\",\"w\":%d,"
-                                     "\"addr\":%llu,\"bytes\":%u,\"val\":%u}",
-                       L, SpaceIdx ? "shared" : "global", int(A.Write),
-                       (unsigned long long)A.Addr, A.Bytes, A.Val);
-          ++Emitted;
-          if (!SpaceIdx) Touched.push_back(A.Addr);
+          for (unsigned Rep = 0; Rep != PerLane; ++Rep) {
+            const auto &A = Log[K++];
+            std::fprintf(OF, "%s{\"lane\":%u,\"space\":\"%s\",\"w\":%d,"
+                             "\"addr\":%llu,\"bytes\":%u",
+                         Emitted ? "," : "", L, SpaceIdx ? "shared" : "global",
+                         int(A.Write), (unsigned long long)A.Addr, A.Bytes);
+            // A faulting instruction writes nothing, so it has no value.
+            if (!Faulted)
+              std::fprintf(OF, ",\"val\":%u", A.Val);
+            std::fputc('}', OF);
+            ++Emitted;
+            if (!SpaceIdx) Touched.push_back(A.Addr);
+          }
         }
       }
       std::fprintf(OF, "]}\n");
     }
+    if (Faulted)
+      return fault(R.Cause, Target, R.TakenMask, R.FaultAddr);
 
     // --- counters -------------------------------------------------------
     ++C.IssueGroups;
@@ -411,7 +816,10 @@ int main(int argc, char **argv) {
                     Op == CCV::PMOV_IMM;
       if (IsBar)               ++C.Barrier;
       else if (IsPred)         ++C.Pred;
-      else if (D.isBranch() || D.isReturn() || Op == CCV::C_EXIT) ++C.Ctrl;
+      else if (D.isBranch() || D.isReturn() || D.isCall() || Op == CCV::C_EXIT) {
+        ++C.Ctrl;
+        if (D.isCall()) ++C.Calls;
+      }
       else if (D.mayLoad() || D.mayStore()) {
         ++C.Mem;
         int Slot = Op == CCV::LD_GLOBAL || Op == CCV::LD_GLOBAL_IDX ? 0
@@ -461,7 +869,11 @@ int main(int argc, char **argv) {
       break;
     case Interp::Result::Return:
       for (unsigned L = 0; L != kLanes; ++L)
-        if (Mask & (1u << L)) W.PC[L] = CodeBase + W.GPR[R.Target][L];
+        // §3 Format E (v1.8, 3013036): the PC is {PC[47:32] of the ret,
+        // rs[31:0]} -- a concatenation under the ret's own 4 GiB code window,
+        // not an add, so no image base reaches the redirect.
+        if (Mask & (1u << L))
+          W.PC[L] = (Target & ~uint64_t(0xffffffff)) | W.GPR[R.Target][L];
       break;
     case Interp::Result::BranchPred:
       // Lanes split here. No bracket, no mask stack -- they simply hold
@@ -485,60 +897,24 @@ int main(int argc, char **argv) {
       // that has left never arrives. Re-check every barrier against the lanes
       // that remain.
       W.Stalled = 0;
-      for (auto &B : W.Bar)
-        if (B.Arrived && W.Active && (B.Arrived & W.Active) == W.Active) {
-          B.Arrived = 0;
-          ++B.Epoch;
-        }
+      if (live())
+        for (unsigned Id = 0; Id != kBarriers; ++Id)
+          if (std::any_of(Warps.begin(), Warps.end(),
+                          [&](const Warp &X) { return X.Bar[Id].Arrived; }))
+            I.retireIfComplete(W, Id);
       break;
     }
   }
 
-  if (W.Active) {
+  if (live()) {
     errs() << "error: step limit reached with lanes still active\n";
     return 1;
   }
 
   outs() << "  executed " << Issued << " issue groups\n";
 
-  // IS-1: a lane's effective address must be a multiple of its element size.
-  // Reported rather than faulted -- F-ALIGN does not exist until the fault
-  // model is adopted (IS-2) -- and reported UNCONDITIONALLY when non-zero,
-  // because a count that only appears under a flag is a count nobody sees.
-  if (I.Mem.Misaligned)
-    outs() << "  misaligned lane accesses " << I.Mem.Misaligned
-           << "   (IS-1: address not a multiple of its element size)\n";
-  if (OF) {
-    // Final architectural state: every GPR lane, every predicate, and every
-    // global word any access or poke touched -- what the skeleton's retired
-    // state is compared against.
-    I.Mem.Log = nullptr;
-    I.Shared.Log = nullptr;
-    std::fprintf(OF, "{\"final\":{\"gpr\":[");
-    for (unsigned G = 0; G != kGPRs; ++G) {
-      if (G) std::fputc(',', OF);
-      jsonU32s(OF, W.GPR[G].data(), kLanes);
-    }
-    std::fprintf(OF, "],\"pred\":");
-    jsonU32s(OF, W.Pred.data(), kPreds);
-    std::sort(Touched.begin(), Touched.end());
-    std::fprintf(OF, ",\"mem\":[");
-    uint64_t LastWord = UINT64_MAX;
-    bool First = true;
-    for (uint64_t A : Touched) {
-      uint64_t Wd = A & ~uint64_t(3);
-      if (Wd == LastWord) continue;
-      LastWord = Wd;
-      uint32_t V = 0;
-      for (unsigned B = 0; B != 4; ++B)
-        V |= uint32_t(I.Mem.peekByte(Wd + B)) << (8 * B);
-      std::fprintf(OF, First ? "[%llu,%u]" : ",[%llu,%u]",
-                   (unsigned long long)Wd, V);
-      First = false;
-    }
-    std::fprintf(OF, "],\"issue_groups\":%u}}\n", Issued);
-    std::fclose(OF);
-  }
+  if (OF)
+    emitFinals();
   if (Stats) {
     unsigned Threads = NumThreads >= kLanes ? kLanes : NumThreads;
     auto pct = [](uint64_t N, uint64_t D) {
@@ -552,9 +928,12 @@ int main(int argc, char **argv) {
                      (unsigned long long)C.ActiveLanes,
                      pct(C.ActiveLanes, C.LaneInstrs))
            << format("  per thread              %10.1f   (lane-instructions / %u threads)\n",
-                     double(C.LaneInstrs) / std::max(1u, Threads), Threads)
+                     double(C.LaneInstrs) / std::max(1u, unsigned(WholeCta ? NumThreads : Threads)),
+                     unsigned(WholeCta ? NumThreads : Threads))
            << format("  SIMT efficiency         %9.1f%%   (lanes active per issue, of %u)\n",
                      pct(C.LaneInstrs, C.IssueGroups * Threads), Threads)
+           << format("  fairness overrides      %10llu   (O-60 picks that left min-PC)\n",
+                     (unsigned long long)C.FairPicks)
            << format("  predicate-file ops      %10llu   (no GPR lane activates)\n",
                      (unsigned long long)C.PredOps)
            << format("  instruction bytes       %10llu\n", (unsigned long long)C.Bytes)
@@ -569,9 +948,9 @@ int main(int argc, char **argv) {
                      (unsigned long long)C.LdSt[0], (unsigned long long)C.LdSt[1],
                      (unsigned long long)C.LdSt[2], (unsigned long long)C.LdSt[3],
                      (unsigned long long)C.Spill)
-           << format("  control                 %10llu   %5.1f%%   (%llu divergent)\n",
+           << format("  control                 %10llu   %5.1f%%   (%llu divergent, %llu calls)\n",
                      (unsigned long long)C.Ctrl, pct(C.Ctrl, C.IssueGroups),
-                     (unsigned long long)C.Diverged)
+                     (unsigned long long)C.Diverged, (unsigned long long)C.Calls)
            << format("  predicate               %10llu   %5.1f%%\n",
                      (unsigned long long)C.Pred, pct(C.Pred, C.IssueGroups))
            << format("  barrier                 %10llu   %5.1f%%   (%llu lane-stalls)\n",

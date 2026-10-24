@@ -17,7 +17,7 @@ not make:
 
 Usage: llvm-tblgen ... --dump-json | check-encoding.py -
 """
-import json, sys
+import json, re, sys
 from collections import defaultdict
 
 # §2: length/class field [1:0] -> instruction size in bytes.
@@ -107,12 +107,17 @@ def check_fp_dp_collision(insts):
     these is a well-formed Format A that the decoder will happily accept.
     """
     out, seen = [], {}
-    strip_p = lambda n: n[:-2] if n.endswith("_P") else n
+    # A predicated twin shares its base's point by design (the tier rule), and
+    # so does a width variant, `<base>_W8` or a conversion's
+    # `<base>_W<dest>_<source>` (CP-6), which differs only in operand classes.
+    def strip_p(n):
+        n = re.sub(r"_W\d+_\d+$", "", n) if n.startswith("CVT_") else n
+        n = re.sub(r"_W(8|16)$", "", n)          # FADD_W8 is FADD at chwidth 8
+        return n[:-2] if n.endswith("_P") else n
     for name in sorted(insts):
         opc = format_a_opcode(insts[name]["Inst"])
         if opc is None or not (FP_RANGE[0] <= opc <= CVT_RANGE[1]):
             continue
-        # A predicated twin shares its base's point by design (the tier rule).
         if opc in seen and strip_p(seen[opc]) != strip_p(name):
             out.append(f"{name}: opcode {opc} is already {seen[opc]} -- "
                        f"O-34 packs 32-127 with no spare")

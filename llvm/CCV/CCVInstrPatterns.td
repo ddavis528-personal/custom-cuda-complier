@@ -270,6 +270,48 @@ foreach ty = [i32, f32] in {
   def : Pat<(st_shared ty:$v, GPR:$rbase), (ST_SHARED GPR:$v, GPR:$rbase, 0)>;
 }
 
+// Bytes in .shared (F-161). i8 is not legal, so a byte load arrives as an
+// extending load to i32 and a byte store as a truncating one. The W8 forms put
+// the data register at chwidth 8, and §3 takes the transfer size from that.
+// Zero extension is the widening chwidth's (O-38); sign extension is a shift
+// pair. A register index is added into the base first: .shared's index form
+// has no byte twin, and a byte array in .shared is rare enough not to want one.
+def ld_shared_u8 : SharedLoad<extloadi8>;
+def ld_shared_z8 : SharedLoad<zextloadi8>;
+def ld_shared_s8 : SharedLoad<sextloadi8>;
+def st_shared_8  : SharedStore<truncstorei8>;
+foreach ld = [ld_shared_u8, ld_shared_z8] in {
+  def : Pat<(i32 (ld GPR:$rbase)), (LD_SHARED_W8 GPR:$rbase, 0)>;
+  def : Pat<(i32 (ld (add GPR:$rbase, (i32 imm:$off)))),
+            (LD_SHARED_W8 GPR:$rbase, imm:$off)>;
+  def : Pat<(i32 (ld (add GPR:$rbase, GPR:$ri))),
+            (LD_SHARED_W8 (i32 (ADD GPR:$rbase, GPR:$ri, GPR:$rbase)), 0)>;
+}
+def : Pat<(i32 (ld_shared_s8 GPR:$rbase)),
+          (i32 (SRAI (i32 (SHLI (i32 (LD_SHARED_W8 GPR:$rbase, 0)), 24)), 24))>;
+def : Pat<(i32 (ld_shared_s8 (add GPR:$rbase, (i32 imm:$off)))),
+          (i32 (SRAI (i32 (SHLI (i32 (LD_SHARED_W8 GPR:$rbase, imm:$off)), 24)),
+                     24))>;
+def : Pat<(i32 (ld_shared_s8 (add GPR:$rbase, GPR:$ri))),
+          (i32 (SRAI (i32 (SHLI (i32 (LD_SHARED_W8
+                                         (i32 (ADD GPR:$rbase, GPR:$ri, GPR:$rbase)),
+                                         0)), 24)), 24))>;
+// A 16-bit value stored as a byte: the same register at width 8.
+def : Pat<(st_shared_8 GPR16:$v, GPR:$rbase),
+          (ST_SHARED_W8 (COPY_TO_REGCLASS GPR16:$v, GPR8), GPR:$rbase, 0)>;
+def : Pat<(st_shared_8 GPR16:$v, (add GPR:$rbase, (i32 imm:$off))),
+          (ST_SHARED_W8 (COPY_TO_REGCLASS GPR16:$v, GPR8), GPR:$rbase, imm:$off)>;
+def : Pat<(st_shared_8 GPR16:$v, (add GPR:$rbase, GPR:$ri)),
+          (ST_SHARED_W8 (COPY_TO_REGCLASS GPR16:$v, GPR8),
+                        (i32 (ADD GPR:$rbase, GPR:$ri, GPR:$rbase)), 0)>;
+def : Pat<(st_shared_8 (i32 GPR:$v), GPR:$rbase),
+          (ST_SHARED_W8 (COPY_TO_REGCLASS (i32 GPR:$v), GPR8), GPR:$rbase, 0)>;
+def : Pat<(st_shared_8 (i32 GPR:$v), (add GPR:$rbase, (i32 imm:$off))),
+          (ST_SHARED_W8 (COPY_TO_REGCLASS (i32 GPR:$v), GPR8), GPR:$rbase, imm:$off)>;
+def : Pat<(st_shared_8 (i32 GPR:$v), (add GPR:$rbase, GPR:$ri)),
+          (ST_SHARED_W8 (COPY_TO_REGCLASS (i32 GPR:$v), GPR8),
+                        (i32 (ADD GPR:$rbase, GPR:$ri, GPR:$rbase)), 0)>;
+
 // ---------------------------------------------------------------------------
 // Predicate logic (O-20). These are the i1 domain -- a predicate is 32 bits,
 // one per lane, and never narrows (invariant 5), so i1 operations are real
@@ -301,26 +343,16 @@ def : Pat<(f32 (uint_to_fp GPR:$a)), (CVT_F32_U32 GPR:$a, GPR:$a, GPR:$a)>;
 def : Pat<(i32 (fp_to_sint GPR:$a)), (CVT_S32_F32 GPR:$a, GPR:$a, GPR:$a)>;
 def : Pat<(i32 (fp_to_uint GPR:$a)), (CVT_U32_F32 GPR:$a, GPR:$a, GPR:$a)>;
 
-// 1.0f / x is the reciprocal instruction. This is the only fdiv this backend
-// selects: general float division needs a Newton sequence of its own and is
-// not implemented -- see F-49.
-def fpimm_one : PatLeaf<(fpimm), [{ return N->isExactlyValue(1.0); }]>;
-def : Pat<(fdiv fpimm_one, GPR:$a), (RCP_F32 GPR:$a, GPR:$a, GPR:$a)>;
+// The SFU's approximate reciprocal and square root (IS-12). No `fdiv` and no
+// `fsqrt` selects: CUDA's `/` and `sqrtf` are IEEE, and CCVExpandDivision
+// writes them as sequences over these seeds (and writes the seeds themselves
+// for fast-math). An fdiv or fsqrt that reaches selection is a gap, and
+// failing to select it is the right diagnosis. (The old `fdiv 1.0, x` and
+// `fdiv -1.0, x` patterns made 1.0f/x one rcp.f32, which is not IEEE once the
+// SFU is approximate; F-144's `-1.0` case came from that leftover fdiv.)
+def : Pat<(int_nvvm_rcp_approx_ftz_f GPR:$a), (RCP_F32 GPR:$a, GPR:$a, GPR:$a)>;
+def : Pat<(int_nvvm_sqrt_approx_f GPR:$a), (SQRT_F32 GPR:$a, GPR:$a, GPR:$a)>;
 
-// ...and its negation, which is not a second case anyone writes but is one the
-// generic combiner MANUFACTURES: `-(1.0f/x)` -- or, as it actually arises,
-// `a - b * (1.0f/x)` reassociated -- becomes `fdiv -1.0, x`. CCVExpandDivision
-// runs on IR and is long finished by then, so without this the node reaches
-// instruction selection with nothing to match and the compile fails outright.
-// Found by the AdamW step in the fused corpus, which is the first kernel here to
-// subtract a reciprocal-scaled term. F-144.
-def fpimm_minus_one : PatLeaf<(fpimm), [{ return N->isExactlyValue(-1.0); }]>;
-def : Pat<(fdiv fpimm_minus_one, GPR:$a),
-          (FNEG_F0 (RCP_F32 GPR:$a, GPR:$a, GPR:$a),
-                   (RCP_F32 GPR:$a, GPR:$a, GPR:$a),
-                   (RCP_F32 GPR:$a, GPR:$a, GPR:$a))>;
-
-def : Pat<(fsqrt GPR:$a), (SQRT_F32 GPR:$a, GPR:$a, GPR:$a)>;
 
 // The rest of the SFU group (F-141, closing half of F-120).
 //
@@ -357,12 +389,40 @@ def : Pat<(int_nvvm_cos_approx_f GPR:$a),   (COS_F32   GPR:$a, GPR:$a, GPR:$a)>;
 // pattern here -- widening a narrow register yields unspecified high bits
 // (F-65), so zext and sext need real instructions. Nothing emits them yet.
 def : Pat<(i16 (trunc GPR:$a)), (COPY GPR:$a)>;
+// An i16 constant is its 16-bit pattern materialised at 32 bits and read at
+// width 16, as a truncation is. Never selected until a C source's `ee_s16`
+// constants reached it (CoreMark, AR-20): CUDA's kernels widen first.
+def imm16_bits : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(N->getZExtValue() & 0xFFFF, SDLoc(N), MVT::i32);
+}]>;
+def : Pat<(i16 imm:$i), (COPY (MOVI (imm16_bits $i)))>;
 
 // And `zext i16 -> i32` is free in the other direction, because O-38 requires
 // a widening `chwidth` to clear the bits it exposes. The COPY is the width
 // change; CCVInsertChwidth places the instruction that performs it. `sext` is
 // NOT free -- zeros do not replicate a sign -- and still has no lowering (F-66).
 def : Pat<(i32 (zext GPR16:$a)), (COPY GPR16:$a)>;
+def : Pat<(i32 (anyext GPR16:$a)), (COPY GPR16:$a)>;
+
+// 16-bit shifts, through the 32-bit instructions (F-161): no 16-bit form, and
+// LegalizeDAG does not promote shifts. `shl` widens and reads the result back
+// at 16 bits; `srl` widens, which zero-extends (O-38), so zeros shift in; `sra`
+// sign-extends first with cvt.sext.
+def : Pat<(i16 (shl GPR16:$a, (i32 uimm5_imm:$i))),
+          (COPY_TO_REGCLASS (i32 (SHLI (i32 (COPY_TO_REGCLASS GPR16:$a, GPR)), imm:$i)), GPR16)>;
+def : Pat<(i16 (srl GPR16:$a, (i32 uimm5_imm:$i))),
+          (COPY_TO_REGCLASS (i32 (SHRI (i32 (COPY_TO_REGCLASS GPR16:$a, GPR)), imm:$i)), GPR16)>;
+def : Pat<(i16 (sra GPR16:$a, (i32 uimm5_imm:$i))),
+          (COPY_TO_REGCLASS (i32 (SRAI (i32 (CVT_SEXT GPR16:$a, GPR16:$a, GPR16:$a)), imm:$i)), GPR16)>;
+def : Pat<(i16 (shl GPR16:$a, (i32 GPR:$b))),
+          (COPY_TO_REGCLASS (i32 (SHL (i32 (COPY_TO_REGCLASS GPR16:$a, GPR)), GPR:$b,
+                                      (i32 (COPY_TO_REGCLASS GPR16:$a, GPR)))), GPR16)>;
+def : Pat<(i16 (srl GPR16:$a, (i32 GPR:$b))),
+          (COPY_TO_REGCLASS (i32 (SHR (i32 (COPY_TO_REGCLASS GPR16:$a, GPR)), GPR:$b,
+                                      (i32 (COPY_TO_REGCLASS GPR16:$a, GPR)))), GPR16)>;
+def : Pat<(i16 (sra GPR16:$a, (i32 GPR:$b))),
+          (COPY_TO_REGCLASS (i32 (SRA (i32 (CVT_SEXT GPR16:$a, GPR16:$a, GPR16:$a)), GPR:$b,
+                                      (i32 (CVT_SEXT GPR16:$a, GPR16:$a, GPR16:$a)))), GPR16)>;
 def : Pat<(i32 (sext GPR16:$a)), (CVT_SEXT GPR16:$a, GPR16:$a, GPR16:$a)>;
 
 // `sext i16 to i32` on a value that is already in a 32-bit register arrives as

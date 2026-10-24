@@ -172,11 +172,13 @@ class FormatB48<bits<5> opc, dag outs, dag ins, string asm>
 class FormatC<bits<5> opc, dag outs, dag ins, string asm>
     : CCVInst32<0b0110, outs, ins, asm> {
   bits<4> rd; bits<4> rs0; bits<4> rs1; bits<3> pq; bits<2> pd;
+  bit fmt = 0;                   // an FP compare's format code (O-65)
   let Inst{10-6}  = opc;
   let Inst{14-11} = rd;
   let Inst{18-15} = rs0;
   let Inst{22-19} = rs1;
-  let Inst{26-23} = 0;           // reserved
+  let Inst{23}    = fmt;
+  let Inst{26-24} = 0;           // reserved
   let Inst{29-27} = pq;
   let Inst{31-30} = pd;
 }
@@ -199,11 +201,13 @@ class FormatC<bits<5> opc, dag outs, dag ins, string asm>
 class FormatCu<bits<5> opc, bit isimm, dag outs, dag ins, string asm>
     : CCVInst32<0b1111, outs, ins, asm> {
   bits<4> rd; bits<4> rs0; bits<4> rs1; bits<8> imm; bits<2> pd;
+  bit fmt = 0;                   // register form: an FP compare's format (O-65)
   let Inst{10-6}  = opc;
   let Inst{14-11} = rd;
   let Inst{18-15} = rs0;
   let Inst{22-19} = !if(isimm, imm{3-0}, rs1);
-  let Inst{26-23} = !if(isimm, imm{7-4}, 0b0000);
+  let Inst{23}    = !if(isimm, imm{4}, fmt);
+  let Inst{26-24} = !if(isimm, imm{7-5}, 0b000);
   let Inst{27}    = isimm;
   let Inst{29-28} = 0;           // reserved
   let Inst{31-30} = pd;
@@ -232,6 +236,19 @@ class FormatD<bits<5> opc, dag outs, dag ins, string asm>
   let Inst{14-11} = rdata;
   let Inst{18-15} = rbase;
   let Inst{31-19} = off;
+}
+
+// Format D, interleaved local (O-69): the spill space, with no base register.
+// [18:15] joins the offset, which is unsigned, 17 bits: offset[3:0] in [18:15]
+// and offset[16:4] in [31:19]. Lane l's byte b is at
+// ((local_base + CCV_LANE_CONTEXTS) << 16) + (ctx << 22) + 128*(b/4) + 4l + b%4.
+class FormatDlocal<bits<5> opc, dag outs, dag ins, string asm>
+    : CCVInst32<0b1000, outs, ins, asm> {
+  bits<4> rdata; bits<17> off;
+  let Inst{10-6}  = opc;
+  let Inst{14-11} = rdata;
+  let Inst{18-15} = off{3-0};
+  let Inst{31-19} = off{16-4};
 }
 
 // Format D, base + index. Effective address for .global is
@@ -284,20 +301,28 @@ class FormatDp<bits<5> opc, dag outs, dag ins, string asm>
 // ---------------------------------------------------------------------------
 // Formats M / M' -- atomics. §3.
 // ---------------------------------------------------------------------------
+// Format M -- atomics. O-72: the address is Format D's base + index form,
+// (rbase << 16) + (rindex << scale) + disp for .global and rbase + ... for
+// .shared, with scale 2 when scale-enable is set (the access is one word).
 class FormatM<bits<5> opc, dag outs, dag ins, string asm>
     : CCVInst32<0b1001, outs, ins, asm> {
-  bits<4> rd; bits<4> rbase; bits<4> rs1; bits<9> off;
+  bits<4> rd; bits<4> rbase; bits<4> rs1; bits<4> rindex; bits<1> scale;
+  bits<4> disp;
   let Inst{10-6}  = opc;
   let Inst{14-11} = rd;
   let Inst{18-15} = rbase;
   let Inst{22-19} = rs1;
-  let Inst{31-23} = off;
+  let Inst{26-23} = rindex;
+  let Inst{27}    = scale;
+  let Inst{31-28} = disp;
 }
 
+// Format M' -- CAS, 48-bit: four GPR sources, the success predicate, and the
+// index and an 11-bit displacement in the extension (O-72).
 class FormatMp<bits<5> opc, dag outs, dag ins, string asm>
     : CCVInst48<0b1001, outs, ins, asm> {
   bits<4> rd; bits<4> rbase; bits<4> rs1; bits<4> rs2;
-  bits<3> pq; bits<2> pd; bits<16> off;
+  bits<3> pq; bits<2> pd; bits<4> rindex; bits<1> scale; bits<11> disp;
   let Inst{10-6}  = opc;
   let Inst{14-11} = rd;
   let Inst{18-15} = rbase;
@@ -305,7 +330,9 @@ class FormatMp<bits<5> opc, dag outs, dag ins, string asm>
   let Inst{26-23} = rs2;
   let Inst{29-27} = pq;
   let Inst{31-30} = pd;
-  let Inst{47-32} = off;
+  let Inst{35-32} = rindex;
+  let Inst{36}    = scale;
+  let Inst{47-37} = disp;
 }
 
 // ---------------------------------------------------------------------------

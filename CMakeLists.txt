@@ -77,13 +77,21 @@ add_library(CCVMC STATIC
   llvm/CCV/CCVISelDAGToDAG.cpp
   llvm/CCV/CCVAsmPrinter.cpp
   llvm/CCV/CCVCheckIR.cpp
+  llvm/CCV/CCVFP64Bits.cpp
+  llvm/CCV/CCVFoldFP4.cpp
   llvm/CCV/CCVInternalize.cpp
   llvm/CCV/CCVPointerPairs.cpp
+  llvm/CCV/CCVCodePointers.cpp
+  llvm/CCV/CCVModuleData.cpp
   llvm/CCV/CCVExpandPseudos.cpp
   llvm/CCV/CCVWindowRemat.cpp
   llvm/CCV/CCVLowerShared.cpp
   llvm/CCV/CCVCompress.cpp
   llvm/CCV/CCVSpillStats.cpp
+  llvm/CCV/CCVNarrowUses.cpp
+  llvm/CCV/CCVExpandPTXAsm.cpp
+  llvm/CCV/CCVBarrierInit.cpp
+  llvm/CCV/CCVFormFP8.cpp
   llvm/CCV/CCVExpandDivision.cpp
   llvm/CCV/CCVFrameLowering.cpp
   llvm/CCV/CCVTargetTransformInfo.cpp
@@ -99,7 +107,8 @@ target_compile_definitions(CCVMC PUBLIC ${LLVM_DEFINITIONS})
 
 llvm_map_components_to_libnames(LLVM_LIBS mc mcdisassembler support
                                 codegen selectiondag asmprinter target analysis
-                                irreader core bitreader mcparser)
+                                irreader core bitreader mcparser
+                                transformutils)
 target_link_libraries(CCVMC PUBLIC ${LLVM_LIBS})
 
 add_executable(ccv-roundtrip tools/ccv-roundtrip/main.cpp)
@@ -110,7 +119,17 @@ add_executable(ccv-llc tools/ccv-llc/main.cpp)
 add_dependencies(ccv-llc CCVTableGen)
 target_link_libraries(ccv-llc PRIVATE CCVMC)
 
-add_executable(ccv-sim tools/ccv-sim/main.cpp tools/ccv-sim/Interp.cpp)
+add_executable(ccv-sim tools/ccv-sim/main.cpp tools/ccv-sim/Interp.cpp
+               tools/ccv-sim/SfuMath.cpp)
+# IS-12's IEEE divide and sqrt over an approximate SFU, checked exhaustively on
+# the host against NarrowFP.h's exact rounding (no LLVM needed).
+add_executable(model-ieee-sfu tools/model-ieee-sfu/main.cpp)
+target_compile_options(model-ieee-sfu PRIVATE -O2 -ffp-contract=off)
+add_executable(check-sfu-math tools/check-sfu-math/main.cpp tools/ccv-sim/SfuMath.cpp)
+target_include_directories(check-sfu-math PRIVATE ${CMAKE_SOURCE_DIR}/tools/ccv-sim)
+target_compile_options(check-sfu-math PRIVATE -O2)
+find_package(Threads REQUIRED)
+target_link_libraries(check-sfu-math PRIVATE Threads::Threads)
 add_dependencies(ccv-sim CCVTableGen)
 target_include_directories(ccv-sim PRIVATE ${CMAKE_SOURCE_DIR}/tools/ccv-sim)
 target_link_libraries(ccv-sim PRIVATE CCVMC)

@@ -35,7 +35,7 @@ row() {                       # $1 = label, $2 = source, $3 = extra cflags
     return
   fi
   read -r n b <<<"$(python3 tools/count-code.py "$TMP/k.s")"
-  sp=$(grep -cE '^\s*(st|ld)\.(global|pred).*\[r15' "$TMP/k.s")
+  sp=$(grep -cE '^\s*(st|ld)\.(global|pred).*\[r15|^\s*(st|ld)(\.pred)?\.local ' "$TMP/k.s")
   uni=$(grep -cE '^\s*ld\.global r[0-9]+, \[r[0-9]+( \+ [0-9]+)?\]$' "$TMP/k.s")
   pk=$(build/ccv-llc "$TMP/k-lowered.ll" -o /dev/null -ccv-uniformity-stats 2>&1)
   u=$(echo "$pk" | grep -oP 'peak uniform live\s*:\s*\K\d+')

@@ -5,7 +5,13 @@
 // callee-saved convention's job -- and a local array in both a caller and its
 // callee, live at once, which only the static frame layout keeps apart.
 // Pointers cross calls too (F-22), as (rbase, roffset) pairs: read through,
-// forwarded a level further with an offset added, and returned.
+// forwarded a level further with an offset added, and returned. Arguments past
+// the sixth go on the callee's frame: a short among them, a function that
+// takes stack arguments and passes others on while its own are still live,
+// and a pointer whose pair straddles R6 and the first stack slot. Calls go
+// through function pointers too: one passed down a level and called there,
+// and one picked per lane and called by the kernel, so lanes reach different
+// functions through the same call and come back to one place.
 // Executed by tools/check-calls.sh.
 #include "portable.h"
 
@@ -45,6 +51,46 @@ __device__ __noinline__ int sum3(const int *p, int k) {
 __device__ __noinline__ int sum3_via(const int *p, int k) { return sum3(p + 1, k); }
 __device__ __noinline__ int *advance(int *p, int n) { return p + n; }
 
+__device__ __noinline__ int many(int a, int b, int c, int d, int e, int f,
+                                 int g, short h, int k) {
+  return a - b * 2 + c * 3 - d * 4 + e * 5 - f * 6 + g * 7 - h * 8 + k * 9;
+}
+// g and h arrive on its frame and are read again after it calls many, whose
+// own stack arguments are written below it.
+__device__ __noinline__ int many2(int a, int b, int c, int d, int e, int f,
+                                  int g, int h) {
+  int r = many(h, g, f, e, d, c, b, (short)a, g + h);
+  return r + g * h;
+}
+// p is the sixth parameter, so its rbase is in R6 and its roffset on the stack.
+__device__ __noinline__ int pick(int a, int b, int c, int d, int e,
+                                 const int *p) {
+  return p[a & 3] + b - c + d - e;
+}
+
+typedef int (*binop)(int, int, const int *);
+__device__ __noinline__ int add_at(int a, int b, const int *p) {
+  return a + b + p[0];
+}
+// A frame of its own, which every caller that may reach it must clear; and a
+// call with r live across it, so it saves a callee-saved register in its
+// spill cells, which must clear its callers' as well (O-69).
+__device__ __noinline__ int sub_frame(int a, int b, const int *p) {
+  int t[4];
+  for (int k = 0; k < 4; ++k)
+    t[k] = a * (k + 1) - b;
+  int r = t[b & 3] - p[1];
+  return add_at(r, b, p) ^ r;
+}
+// a and u[] are live across the indirect call: u[] in apply's frame, a in a
+// spill cell or a callee-saved register.
+__device__ __noinline__ int apply(binop f, int a, int b, const int *p) {
+  int u[4];
+  for (int k = 0; k < 4; ++k)
+    u[k] = a + k * b;
+  return f(a, b, p) * 2 + u[(a ^ b) & 3];
+}
+
 __global__ void calls(const int *in, int *out, int n) {
   int i = TID_X;
   if (i >= n) return;
@@ -63,5 +109,9 @@ __global__ void calls(const int *in, int *out, int n) {
   int q = p0 * p1 + p2 * p3 + p4 * w + (p0 ^ p3) + (p1 - p4);
   int s3 = sum3_via(in, i & 7);
   int *o = advance(out, i);          // == &out[i], through a returned pair
-  *o = acc + s * 3 + buf[(i + 1) & 3] + q + s3;
+  int m = many2(v, i, v ^ i, v + 1, i * 3, v - 7, i + 11, v >> 2);
+  int pk = pick(i, v, i * 5, 13, v >> 4, in + 2);
+  binop g = (i & 1) ? add_at : sub_frame;
+  int ic = apply(g, v, i, in + 4) + g(i, v & 15, in);
+  *o = acc + s * 3 + buf[(i + 1) & 3] + q + s3 + m + pk + ic;
 }
