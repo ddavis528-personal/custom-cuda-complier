@@ -1952,11 +1952,13 @@ The single-register `chwidth rd, width` is 8 bits of content and lives in Format
 Both forms execute only in a converged warp: an issue mask short of every live lane raises
 `F-WIDTH` (O-81).
 
-**Accepted** (O-6). `chwidth` requires draining in-flight dependents on the affected
-register, and a kernel entering a packed section typically reconfigures several at once.
-Setting them in one instruction collapses N drain events into one and saves N−1
-instructions of prologue. The drain scope becomes the union of the masked registers, which
-is still bounded and still scoped — no global pipeline drain.
+**Accepted** (O-6). A width change orders only against the masked registers' own dependents
+(invariant 2), and a kernel entering a packed section typically reconfigures several at once.
+Setting them in one instruction saves N−1 instructions of prologue. Where an implementation
+orders width changes by draining, it also collapses N drains into one, scoped to the union of
+the masked registers, never a global pipeline drain. *(1.9's first cut said `chwidth`
+"requires draining in-flight dependents". That described the first build, which DA replaced on
+2026-10-24 with a renamed width (OA-16); invariant 2 permits either, O-77.)*
 
 **Measured, and the qualifier matters more than the acceptance.** The compiler hoists each
 width change as early as it is legal — past any instruction that does not touch the register,
@@ -3855,7 +3857,9 @@ quietly breaking the alignment property established one revision earlier. Collap
 the encoding uniform across all three lengths.
 
 **O-6 — Multi-register `chwidth` — accepted.** Format I carries the 16-bit register mask
-form and nothing else. Compiler placement discipline covers the widened drain scope.
+form and nothing else. Compiler placement discipline covers the widened drain scope where width
+changes drain. Since OA-16 (DA, 2026-10-24) OOE renames the width instead, and the multi form's
+gain is instruction count.
 
 **O-7 — Scaled index addressing — resolved.** Base + (index << chwidth) + displacement, with
 a scale-enable bit. See Format D.
