@@ -174,23 +174,30 @@ def run(binpath, cta, L, oracle):
     return got, r.stdout
 
 
-def export_coremark(out, tmp):
+def export_coremark(out, tmp, per_lane=False):
     """The CoreMark-derived workload (AR-20): module data, calls, an entry past
     its device functions. Its pokes are the oracle init record's seeded memory
     from a run with the data image, so they are exactly what ccv-sim loads: the
     launch block, the relocated image and word 28. Checked by every lane's
-    CRCs against the host build; the control runs without the image."""
+    CRCs against the host build; the control runs without the image.
+
+    per_lane: coremark-derived-pl (AR-24's fourth shape), lane t seeded with t,
+    so the lanes take their own paths and the warp diverges; it is the core's
+    O-81 control kernel. Lane t's CRCs are the host's at seed t."""
     import importlib.util
     spec = importlib.util.spec_from_file_location(
         "sweep", os.path.join(ROOT, "tools/sweep-coremark.py"))
     sw = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(sw)
-    sw.build(tmp)
+    name, mod = ("coremark-derived-pl", "pl") if per_lane else ("coremark-derived", "cm")
+    sw.build(tmp, "-DCCV_SEED_PER_LANE" if per_lane else "", mod)
     it, threads, MEMW, OUTW = 1, 32, sw.MEM, sw.OUT
-    want = subprocess.run([f"{tmp}/host", str(it)], capture_output=True, text=True,
-                          check=True).stdout.strip()
-    o = f"{tmp}/cm.o"
-    subprocess.run([f"{ROOT}/build/ccv-llc", f"{tmp}/cm-lowered.ll", "-o", o, "-obj"],
+    wants = [subprocess.run([f"{tmp}/host", str(it)] + ([str(t)] if per_lane else []),
+                            capture_output=True, text=True, check=True).stdout.strip()
+             for t in range(128 if per_lane else 1)]    # AR-20's largest shape
+    want = wants[:threads] if per_lane else wants * threads
+    o = f"{tmp}/{mod}.o"
+    subprocess.run([f"{ROOT}/build/ccv-llc", f"{tmp}/{mod}-lowered.ll", "-o", o, "-obj"],
                    check=True, capture_output=True)
     for sec in ("text", "ccv_data", "ccv_reloc", "ccv_info"):
         subprocess.run(["llvm-objcopy", "-O", "binary", f"--only-section=.{sec}", o,
@@ -228,9 +235,9 @@ def export_coremark(out, tmp):
             return None
         got = {int(m[0], 16): int(m[1]) for m in
                re.findall(r"\[(0x[0-9a-f]+)\] = (\d+)", r.stdout)}
-        return {f"{got[(OUTW << 16) + 8 * t] & 0xffff:04x} {got[(OUTW << 16) + 8 * t] >> 16:04x} "
+        return [f"{got[(OUTW << 16) + 8 * t] & 0xffff:04x} {got[(OUTW << 16) + 8 * t] >> 16:04x} "
                 f"{got[(OUTW << 16) + 8 * t + 4] & 0xffff:04x} {got[(OUTW << 16) + 8 * t + 4] >> 16:04x}"
-                for t in range(threads)}
+                for t in range(threads)]
 
     crcs = go(True, f"{tmp}/cm.jsonl")
     init = json.loads(open(f"{tmp}/cm.jsonl").readline())["init"]
@@ -242,40 +249,47 @@ def export_coremark(out, tmp):
             issued += 1
     control = go(False, f"{tmp}/ctl.jsonl")
     replayed = go(False, f"{tmp}/rp.jsonl", (init["mem"], init.get("const")))
-    d = os.path.join(out, "coremark-derived")
+    d = os.path.join(out, name)
     os.makedirs(d, exist_ok=True)
     open(f"{d}/kernel.s", "w").write(
-        "# coremark-derived: test/coremark-derived, compiled; ccv-as source, reassembled\n"
+        f"# {name}: test/coremark-derived{' -DCCV_SEED_PER_LANE' if per_lane else ''}, compiled; ccv-as source, reassembled\n"
         f"# byte for byte by tools/ccv-dis.py --check. Load at ccv-sim's -code-base\n"
         f"# (0x1000: function pointers are absolute); the kernel's entry is {entry:#x}.\n" + src)
     open(f"{d}/kernel.bin", "wb").write(open(f"{tmp}/cm.text", "rb").read())
     with open(f"{d}/launch.txt", "w") as f:
-        f.write("# coremark-derived: ccv-sim kernel.bin -entry <entry> -threads <T> "
+        f.write(f"# {name}: ccv-sim kernel.bin -entry <entry> -threads <T> "
                 "[-warp <w>] -const-range <const>\n# followed by the pokes: the launch "
                 "block and the module's relocated data image, at its window (word 28).\n"
                 "# Word 0x20030 is the iteration count; word 0x20000, ntid, follows -threads.\n"
                 "# Every lane runs its own context, so AR-20's shapes are -threads 1, 32, and\n"
                 "# 128 with -warp 0-3; each thread's CRCs are written to window "
-                f"{OUTW:#x}, 8 bytes a thread,\n# and must be {want} ({it} iteration).\n")
+                f"{OUTW:#x}, 8 bytes a thread,\n" +
+                (f"# and thread t's must be the host's at seed t ({it} iteration), threads 0..127:\n"
+                 + "".join(f"#   {t:2} {w}\n" for t, w in enumerate(wants)) if per_lane else
+                 f"# and must be {wants[0]} ({it} iteration).\n"))
         f.write(f"threads {threads}\nctas 1\nentry {entry:#x}\n")
         if "const" in init:
             f.write(f"const {init['const'][0]:#x}:{init['const'][1]:#x}\n")
         f.write("cta 0\n")
         f.writelines(f"-poke {a:#x}={v}\n" for a, v in init["mem"])
     with open(f"{d}/ops.txt", "w") as f:
-        f.write(f"# coremark-derived: opcodes issued by one warp of {threads} lanes, "
+        f.write(f"# {name}: opcodes issued by one warp of {threads} lanes, "
                 f"by ccv-sim's names; {issued} issue groups\n")
         f.writelines(f"{n:<18} {c}\n" for n, c in sorted(ops.items()))
-    if crcs != {want}:
-        print(f"  FAIL  coremark-derived: CRCs {sorted(crcs or [])}, want {want}")
+    if crcs != want:
+        bad = next((t for t in range(threads) if not crcs or crcs[t] != want[t]), 0)
+        print(f"  FAIL  {name}: lane {bad}: {crcs[bad] if crcs else 'did not run'}, "
+              f"want {want[bad]}")
         return 1
-    if replayed != {want}:
-        print(f"  FAIL  coremark-derived: launch.txt alone gives {sorted(replayed or [])}")
+    if replayed != want:
+        print(f"  FAIL  {name}: launch.txt alone does not reproduce every lane's CRCs")
         return 1
-    if control == {want}:
-        print("  FAIL  coremark-derived: control: without the data image it still matched")
+    if control == want:
+        print(f"  FAIL  {name}: control: without the data image it still matched")
         return 1
-    print(f"  PASS  coremark-derived: {threads} lanes give {want}; {len(ops)} opcodes, "
+    what = ("each lane its own seed, diverging, gives the host's CRCs at that seed"
+            if per_lane else f"{threads} lanes give {wants[0]}")
+    print(f"  PASS  {name}: {what}; {len(ops)} opcodes, "
           f"{issued} issue groups; launch.txt alone reproduces it, data image included; "
           "without the image it fails")
     return 0
@@ -286,6 +300,7 @@ def main():
     bad = 0
     with tempfile.TemporaryDirectory() as tmp:
         bad |= export_coremark(out, tmp)
+        bad |= export_coremark(out, tmp, per_lane=True)
         for name, fn in KERNELS.items():
             src, image = build(name, tmp)
             threads, ctas = fn()

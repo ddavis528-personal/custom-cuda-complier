@@ -44,19 +44,22 @@ def sh(*cmd, **kw):
     return subprocess.run(cmd, cwd=ROOT, check=True, capture_output=True, text=True, **kw)
 
 
-def build(tmp):
+def build(tmp, extra="", name="cm"):
+    """The module, linked and lowered, as {tmp}/{name}-lowered.ll, and the host
+    reference as {tmp}/host. `extra` adds to the kernel's flags:
+    -DCCV_SEED_PER_LANE gives each lane its own seed (CP-43)."""
     for c in ("core_list_join", "core_matrix", "core_state", "core_util"):
         sh("clang", "-x", "c", "--target=nvptx64-nvidia-cuda", "-O2", "-fno-vectorize",
            "-fno-slp-vectorize", f"-I{D}", "-emit-llvm", "-S", f"{D}/upstream/{c}.c",
            "-o", f"{tmp}/{c}.ll")
     env = dict(os.environ, CCV_CFLAGS=f"-Itest/bench -I{D} -I{D}/upstream "
-               "-fno-vectorize -fno-slp-vectorize")
-    sh("./tools/cuda-to-ir.sh", f"{D}/kernel.cu", f"{tmp}/kernel.ll", env=env)
-    sh("llvm-link", "-S", f"{tmp}/kernel.ll", *[f"{tmp}/{c}.ll" for c in
-       ("core_list_join", "core_matrix", "core_state", "core_util")], "-o", f"{tmp}/cm.ll")
+               f"-fno-vectorize -fno-slp-vectorize {extra}")
+    sh("./tools/cuda-to-ir.sh", f"{D}/kernel.cu", f"{tmp}/kernel-{name}.ll", env=env)
+    sh("llvm-link", "-S", f"{tmp}/kernel-{name}.ll", *[f"{tmp}/{c}.ll" for c in
+       ("core_list_join", "core_matrix", "core_state", "core_util")], "-o", f"{tmp}/{name}.ll")
     sh("opt", "-load-pass-plugin=build/CCVLowerKernelArgs.so",
        "-passes=function(infer-address-spaces),ccv-lower-kernel-args,"
-       "function(instcombine,gvn,simplifycfg)", "-S", f"{tmp}/cm.ll", "-o", f"{tmp}/cm-lowered.ll")
+       "function(instcombine,gvn,simplifycfg)", "-S", f"{tmp}/{name}.ll", "-o", f"{tmp}/{name}-lowered.ll")
     sh("cc", "-O1", f"-I{D}", f"-I{D}/upstream", "-o", f"{tmp}/host", f"{D}/host.c",
        *[f"{D}/upstream/{c}.c" for c in ("core_list_join", "core_matrix", "core_state", "core_util")])
 
