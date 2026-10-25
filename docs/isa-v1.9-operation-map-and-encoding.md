@@ -3349,7 +3349,7 @@ path back to OOE. No encoding changes: the field stays 6 bits, its top values re
 
 ---
 
-**O-82 — `mov` across widths follows the mixed-width rule — decided in 1.9.** CP-51. F-200 keeps a
+**O-82 — `mov` across widths follows the mixed-width rule — decided in 1.9.** CP-51. CP's converged-narrowing pass keeps a
 call-free kernel's 16-bit integers in fixed narrow registers, so values cross between 16- and
 32-bit registers. CP asked what `mov` gives when `rd` and `rs` differ in width, since §3 called it
 "a rename-time no-op at execution" and ccv-sim copied all 32 raw bits. `mov` sits in the opcode
