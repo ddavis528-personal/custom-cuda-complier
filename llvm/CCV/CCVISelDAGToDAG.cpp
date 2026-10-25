@@ -272,9 +272,18 @@ void CCVDAGToDAGISel::Select(SDNode *N) {
       StOpc = CCV::ST_GLOBAL_IDX;
     } else if (Sized) {
       bool B = MemVT == MVT::i8, S = IsLoad && N->getConstantOperandVal(5);
-      LdOpc = B ? (S ? CCV::SZ_GLOBAL_LD_S8 : CCV::SZ_GLOBAL_LD_U8)
-                : (S ? CCV::SZ_GLOBAL_LD_S16 : CCV::SZ_GLOBAL_LD_U16);
-      StOpc = B ? CCV::SZ_GLOBAL_ST_8 : CCV::SZ_GLOBAL_ST_16;
+      // F-200: the 16-bit-rdata twins, for a narrow kernel's i16 values.
+      bool R16 = IsLoad ? N->getValueType(0) == MVT::i16
+                        : N->getOperand(1).getValueType() == MVT::i16;
+      if (R16) {
+        LdOpc = B ? (S ? CCV::SZ_GLOBAL_LD_S8_W16 : CCV::SZ_GLOBAL_LD_U8_W16)
+                  : (S ? CCV::SZ_GLOBAL_LD_S16_W16 : CCV::SZ_GLOBAL_LD_U16_W16);
+        StOpc = B ? CCV::SZ_GLOBAL_ST_8_W16 : CCV::SZ_GLOBAL_ST_16_W16;
+      } else {
+        LdOpc = B ? (S ? CCV::SZ_GLOBAL_LD_S8 : CCV::SZ_GLOBAL_LD_U8)
+                  : (S ? CCV::SZ_GLOBAL_LD_S16 : CCV::SZ_GLOBAL_LD_U16);
+        StOpc = B ? CCV::SZ_GLOBAL_ST_8 : CCV::SZ_GLOBAL_ST_16;
+      }
     }
     MachineSDNode *MN =
         IsLoad ? CurDAG->getMachineNode(LdOpc, DL, N->getValueType(0),

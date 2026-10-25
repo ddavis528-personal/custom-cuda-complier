@@ -62,15 +62,15 @@
   dot                      113       44       0          0       0     0.0%
   reduce                   111       43       0          0       0     0.0%
   transpose                 55        7       0          0       1    14.3%
-  vadd16                    16        8       0          0       0     0.0%
+  vadd16                    17        8       0          0       0     0.0%
   vadd_loop                 65       26       0          0       0     0.0%
-  vadd16_loop               68       29       0          0       0     0.0%
+  vadd16_loop               69       29       0          0       0     0.0%
   gemv                     192       75       1          1       0     0.0%
   sgemm                    514      251       0          2       0     0.0%
   rope                     177       53       5          2       0     0.0%
   layernorm                268       93       0          0       1     1.1%
   coremark-derived      661982   101985    6917       3619   15815    15.5%
-  total                 663588   102625    6923       3624   15817    15.4%
+  total                 663590   102625    6923       3624   15817    15.4%
 
   frame traffic by kind, issued (IS-19)
   kernel               spill   args  object  via ptr

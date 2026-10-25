@@ -174,6 +174,21 @@ unsigned gprIndex(Register R) {
   return ~0u;
 }
 
+/// F-200: a narrow kernel's 16-bit registers, at 16 bits throughout; none
+/// (NarrowLo above R13) in any other function.
+unsigned NarrowLo = CCV::R13 + 1;
+
+/// The width an operand needs. Its instruction's register class says, except
+/// in a narrow kernel, whose narrow registers hold its 16-bit integers for
+/// good. A move
+/// or a sized store reading one reads it at 16, which is what it holds (O-67).
+uint8_t widthAt(const MachineInstr &MI, unsigned O) {
+  const MachineOperand &MO = MI.getOperand(O);
+  if (MO.isReg() && MO.getReg() >= NarrowLo && MO.getReg() <= CCV::R13)
+    return 1;
+  return operandWidth(MI.getDesc(), O);
+}
+
 /// Is R's value read wider than Need after MI, before it dies? A narrowing
 /// `chwidth` keeps only the element, and widening again zero-extends (O-38),
 /// so narrowing in place is a truncation only when nothing reads the wide
@@ -198,7 +213,7 @@ bool wideReadLater(const MachineInstr &MI, Register R, uint8_t Need) {
         const MachineOperand &MO = It->getOperand(O);
         if (!MO.isReg() || MO.getReg() != R || MO.isDef() || MO.isUndef())
           continue;
-        if (operandWidth(It->getDesc(), O) < Need)
+        if (widthAt(*It, O) < Need)
           return true;
         Reads = true;
         Killed |= MO.isKill();
@@ -268,9 +283,21 @@ bool copiesForUse(const MachineInstr &MI, Register R, uint8_t Cur, uint8_t Need)
 
 } // namespace
 
+// For diagnosis: let a narrow kernel's leaked width changes through, so the
+// assembly shows where they are.
+static cl::opt<bool> NarrowKernelNoCheck(
+    "ccv-narrow-kernel-no-check", cl::init(false), cl::Hidden,
+    cl::desc("do not fail a narrow kernel that needed a width change past its "
+             "entry (F-200), for diagnosis"));
+
 bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
   const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
   const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
+  // F-200: a narrow kernel's 16-bit integers live in its narrow registers at
+  // width 16 from the entry to the end, and nothing else changes width.
+  const CCVSubtarget &STI = MF.getSubtarget<CCVSubtarget>();
+  const bool NarrowK = STI.narrowInt();
+  NarrowLo = CCV::R13 + 1 - STI.narrowRegs();
 
   // CCVNarrowUses' copies (F-169): a move, or nothing where the allocator put
   // both values in one register, then the narrowing itself (F-195). First, so
@@ -287,13 +314,52 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
       // The width to narrow to, or 0 where CCVNarrowUses found no 32-bit
       // read of the value and so no high bits to clear.
       int64_t W = MI.getOperand(2).getImm();
-      if (!TestNarrowNoWidth && W)
+      // In a narrow kernel the move is the narrowing when D is one of the
+      // 16-bit registers, since O-67 truncates the source into it. Where the
+      // allocator put D in a 32-bit register (a class inflated after
+      // selection), the high bits are cleared by the ALU instead, since no
+      // width may change past the entry.
+      const bool DNarrow = STI.isNarrowReg(D);
+      if (!TestNarrowNoWidth && W && NarrowK && !DNarrow) {
+        if ((Trunc ? 1 : W) == 2) {
+          BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(CCV::ANDI), D)
+              .addReg(D)
+              .addImm(255);
+        } else {
+          BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(CCV::SHLI), D)
+              .addReg(D)
+              .addImm(16);
+          BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(CCV::SHRI), D)
+              .addReg(D)
+              .addImm(16);
+        }
+      } else if (!TestNarrowNoWidth && W && !NarrowK)
         BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(CCV::C_CHWIDTH))
             .addReg(D)
             .addImm(Trunc ? 1 : W);
       MI.eraseFromParent();
     }
   bool Changed = false;
+
+  // F-200: the narrow registers' one width change, at the entry, where the
+  // warp is converged (O-81). The dataflow below reads these as it reads any
+  // chwidth already placed, so the kernel's 16-bit uses then need nothing.
+  if (NarrowK) {
+    MachineBasicBlock &Entry = MF.front();
+    for (unsigned R = NarrowLo; R <= CCV::R13; ++R) {
+      bool Used = false;
+      for (const MachineBasicBlock &MBB : MF)
+        for (const MachineInstr &MI : MBB)
+          for (const MachineOperand &MO : MI.operands())
+            Used |= MO.isReg() && MO.getReg() == R;
+      if (!Used)
+        continue;
+      BuildMI(Entry, Entry.begin(), DebugLoc(), TII->get(CCV::C_CHWIDTH))
+          .addReg(R)
+          .addImm(1);
+      Changed = true;
+    }
+  }
 
   // --- 1. Forward dataflow over the CFG ------------------------------------
   //
@@ -347,7 +413,7 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
           if (!MO.isReg() || MO.isDef() || MO.isUndef())
             continue;
           unsigned I = gprIndex(MO.getReg());
-          uint8_t W = operandWidth(MI.getDesc(), O);
+          uint8_t W = widthAt(MI, O);
           if (I != ~0u && !readsWideAsIs(MI, S[I], W) &&
               !copiesForUse(MI, MO.getReg(), S[I], W))
             S[I] = W;
@@ -363,7 +429,7 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
             continue;
           unsigned I = gprIndex(MO.getReg());
           if (I != ~0u)
-            S[I] = operandWidth(MI.getDesc(), O);
+            S[I] = widthAt(MI, O);
         }
       }
       auto It = Out.find(MBB);
@@ -488,7 +554,7 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
             continue;
           if (MO.isDef() && MO.isDead())
             continue;
-          return operandWidth(MI.getDesc(), O);
+          return widthAt(MI, O);
         }
       }
       return kUnknown;
@@ -610,7 +676,7 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
         if (!MO.isReg() || MO.isDef())
           continue;
         unsigned I = gprIndex(MO.getReg());
-        uint8_t Need = operandWidth(MI.getDesc(), O);
+        uint8_t Need = widthAt(MI, O);
         if (I == ~0u || MO.isUndef() || S[I] == Need ||
             readsWideAsIs(MI, S[I], Need))
           continue;
@@ -685,7 +751,7 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
         if (!MO.isReg() || !MO.isDef())
           continue;
         unsigned I = gprIndex(MO.getReg());
-        uint8_t Need = operandWidth(MI.getDesc(), O);
+        uint8_t Need = widthAt(MI, O);
         if (MI.getOpcode() == CCV::SRD && TestNarrowSrd)
           Need = 1;
 
@@ -863,6 +929,14 @@ bool CCVInsertChwidth::runOnMachineFunction(MachineFunction &MF) {
            << "   (O-6: N drain events become one)\n"
            << "    instructions emitted  : " << (Inserted - Multi + Runs)
            << "\n";
+  // F-200's promise: nothing past the entry changed width. A transition here
+  // means a 16-bit value reached a 32-bit register or the reverse, which the
+  // register partition and CCVRegisterInfo::shouldCoalesce exist to prevent,
+  // and in code that may be diverged it would fault (O-81).
+  if (NarrowK && Inserted && !NarrowKernelNoCheck)
+    report_fatal_error("CCV: the narrow kernel " + MF.getName() + " needed " +
+                       Twine(Inserted) + " width change(s) past its entry "
+                       "(F-200)");
   return Changed;
 }
 

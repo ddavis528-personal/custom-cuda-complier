@@ -590,7 +590,7 @@ run_call || fail=1
 # things that are easy to get wrong are both pinned here. Default code has no
 # 16-bit integer width to place (F-199: i16 runs at 32 bits, narrow accesses
 # are sized), so this runs the configuration that still has one.
-chw=$(build/ccv-llc test/accept/chwidth-i16.ll -o - -ccv-test-i16-legal -ccv-test-no-sized 2>/dev/null)
+chw=$(build/ccv-llc test/accept/chwidth-i16.ll -o - -ccv-test-i16-legal -ccv-test-no-sized -ccv-no-narrow-kernels 2>/dev/null)
 if ! grep -q "chwidth r" <<< "$chw"; then
   echo "  FAIL  no chwidth emitted for a 16-bit kernel"
   fail=1

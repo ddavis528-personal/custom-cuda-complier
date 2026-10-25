@@ -424,6 +424,58 @@ static const TargetRegisterClass *const GPR8Superclasses[] = {
 };
 
 
+static inline unsigned GPR16AltOrderSelect(const MachineFunction &MF) {
+    unsigned N = MF.getSubtarget<CCVSubtarget>().narrowRegs();
+    return N ? N - 1 : 0;
+  }
+
+static ArrayRef<MCPhysReg> GPR16GetRawAllocationOrder(const MachineFunction &MF) {
+  static const MCPhysReg AltOrder1[] = { CCV::R13, CCV::R12 };
+  static const MCPhysReg AltOrder2[] = { CCV::R13, CCV::R12, CCV::R11 };
+  static const MCPhysReg AltOrder3[] = { CCV::R13, CCV::R12, CCV::R11, CCV::R10 };
+  static const MCPhysReg AltOrder4[] = { CCV::R13, CCV::R12, CCV::R11, CCV::R10, CCV::R9 };
+  static const MCPhysReg AltOrder5[] = { CCV::R13, CCV::R12, CCV::R11, CCV::R10, CCV::R9, CCV::R8 };
+  const MCRegisterClass &MCR = CCVMCRegisterClasses[CCV::GPR16RegClassID];
+  const ArrayRef<MCPhysReg> Order[] = {
+    ArrayRef(MCR.begin(), MCR.getNumRegs()),
+    ArrayRef(AltOrder1),
+    ArrayRef(AltOrder2),
+    ArrayRef(AltOrder3),
+    ArrayRef(AltOrder4),
+    ArrayRef(AltOrder5)
+  };
+  const unsigned Select = GPR16AltOrderSelect(MF);
+  assert(Select < 6);
+  return Order[Select];
+}
+
+static inline unsigned GPRAltOrderSelect(const MachineFunction &MF) {
+    unsigned N = MF.getSubtarget<CCVSubtarget>().narrowRegs();
+    return N ? ccvNarrowGPROrder(N) : 0;
+  }
+
+static ArrayRef<MCPhysReg> GPRGetRawAllocationOrder(const MachineFunction &MF) {
+  static const MCPhysReg AltOrder1[] = { CCV::R0, CCV::R1, CCV::R2, CCV::R3, CCV::R4, CCV::R5, CCV::R6, CCV::R7, CCV::R8, CCV::R9, CCV::R10, CCV::R11, CCV::R14, CCV::R15 };
+  static const MCPhysReg AltOrder2[] = { CCV::R0, CCV::R1, CCV::R2, CCV::R3, CCV::R4, CCV::R5, CCV::R6, CCV::R7, CCV::R8, CCV::R9, CCV::R10, CCV::R14, CCV::R15 };
+  static const MCPhysReg AltOrder3[] = { CCV::R0, CCV::R1, CCV::R2, CCV::R3, CCV::R4, CCV::R5, CCV::R6, CCV::R7, CCV::R8, CCV::R9, CCV::R14, CCV::R15 };
+  static const MCPhysReg AltOrder4[] = { CCV::R0, CCV::R1, CCV::R2, CCV::R3, CCV::R4, CCV::R5, CCV::R6, CCV::R7, CCV::R8, CCV::R14, CCV::R15 };
+  static const MCPhysReg AltOrder5[] = { CCV::R0, CCV::R1, CCV::R2, CCV::R3, CCV::R4, CCV::R5, CCV::R6, CCV::R7, CCV::R14, CCV::R15 };
+  static const MCPhysReg AltOrder6[] = { CCV::R0, CCV::R1, CCV::R2, CCV::R3, CCV::R8, CCV::R9, CCV::R10, CCV::R11, CCV::R12, CCV::R13, CCV::R4, CCV::R5, CCV::R6, CCV::R7, CCV::R14, CCV::R15 };
+  const MCRegisterClass &MCR = CCVMCRegisterClasses[CCV::GPRRegClassID];
+  const ArrayRef<MCPhysReg> Order[] = {
+    ArrayRef(MCR.begin(), MCR.getNumRegs()),
+    ArrayRef(AltOrder1),
+    ArrayRef(AltOrder2),
+    ArrayRef(AltOrder3),
+    ArrayRef(AltOrder4),
+    ArrayRef(AltOrder5),
+    ArrayRef(AltOrder6)
+  };
+  const unsigned Select = GPRAltOrderSelect(MF);
+  assert(Select < 7);
+  return Order[Select];
+}
+
 namespace CCV {   // Register class instances
   extern const TargetRegisterClass GPR16RegClass = {
     &CCVMCRegisterClasses[GPR16RegClassID],
@@ -436,7 +488,7 @@ namespace CCV {   // Register class instances
     false, /* HasDisjunctSubRegs */
     false, /* CoveredBySubRegs */
     NullRegClasses,
-    nullptr
+    GPR16GetRawAllocationOrder
   };
 
   extern const TargetRegisterClass GPRRegClass = {
@@ -450,7 +502,7 @@ namespace CCV {   // Register class instances
     false, /* HasDisjunctSubRegs */
     false, /* CoveredBySubRegs */
     GPRSuperclasses,
-    nullptr
+    GPRGetRawAllocationOrder
   };
 
   extern const TargetRegisterClass GPR4RegClass = {

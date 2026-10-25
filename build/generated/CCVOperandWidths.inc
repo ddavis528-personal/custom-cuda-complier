@@ -419,11 +419,17 @@ static const CCVOperandInfo Operands_SUBI_P[] = {{4, false}, {3, false}, {4, fal
 static const CCVOperandInfo Operands_SUB_P[] = {{4, false}, {3, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SUB_W16[] = {{4, false}, {4, false}, {4, false}, {4, false}};
 static const CCVOperandInfo Operands_SZ_GLOBAL_LD_S16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_GLOBAL_LD_S16_W16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
 static const CCVOperandInfo Operands_SZ_GLOBAL_LD_S8[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_GLOBAL_LD_S8_W16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
 static const CCVOperandInfo Operands_SZ_GLOBAL_LD_U16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_GLOBAL_LD_U16_W16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
 static const CCVOperandInfo Operands_SZ_GLOBAL_LD_U8[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_GLOBAL_LD_U8_W16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
 static const CCVOperandInfo Operands_SZ_GLOBAL_ST_16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_GLOBAL_ST_16_W16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
 static const CCVOperandInfo Operands_SZ_GLOBAL_ST_8[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
+static const CCVOperandInfo Operands_SZ_GLOBAL_ST_8_W16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
 static const CCVOperandInfo Operands_SZ_SHARED_LD_S16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
 static const CCVOperandInfo Operands_SZ_SHARED_LD_S8[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
 static const CCVOperandInfo Operands_SZ_SHARED_LD_U16[] = {{4, false}, {4, false}, {4, false}, {1, false}, {8, true}};
@@ -853,11 +859,17 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"SUB_P", 5, Operands_SUB_P},
   {"SUB_W16", 4, Operands_SUB_W16},
   {"SZ_GLOBAL_LD_S16", 5, Operands_SZ_GLOBAL_LD_S16},
+  {"SZ_GLOBAL_LD_S16_W16", 5, Operands_SZ_GLOBAL_LD_S16_W16},
   {"SZ_GLOBAL_LD_S8", 5, Operands_SZ_GLOBAL_LD_S8},
+  {"SZ_GLOBAL_LD_S8_W16", 5, Operands_SZ_GLOBAL_LD_S8_W16},
   {"SZ_GLOBAL_LD_U16", 5, Operands_SZ_GLOBAL_LD_U16},
+  {"SZ_GLOBAL_LD_U16_W16", 5, Operands_SZ_GLOBAL_LD_U16_W16},
   {"SZ_GLOBAL_LD_U8", 5, Operands_SZ_GLOBAL_LD_U8},
+  {"SZ_GLOBAL_LD_U8_W16", 5, Operands_SZ_GLOBAL_LD_U8_W16},
   {"SZ_GLOBAL_ST_16", 5, Operands_SZ_GLOBAL_ST_16},
+  {"SZ_GLOBAL_ST_16_W16", 5, Operands_SZ_GLOBAL_ST_16_W16},
   {"SZ_GLOBAL_ST_8", 5, Operands_SZ_GLOBAL_ST_8},
+  {"SZ_GLOBAL_ST_8_W16", 5, Operands_SZ_GLOBAL_ST_8_W16},
   {"SZ_SHARED_LD_S16", 5, Operands_SZ_SHARED_LD_S16},
   {"SZ_SHARED_LD_S8", 5, Operands_SZ_SHARED_LD_S8},
   {"SZ_SHARED_LD_U16", 5, Operands_SZ_SHARED_LD_U16},
@@ -873,4 +885,4 @@ static const CCVInstOperands CCVInstOperandTable[] = {
   {"XOR_P", 5, Operands_XOR_P},
   {"XOR_W16", 4, Operands_XOR_W16},
 };
-static const unsigned CCVNumInstOperands = 432;
+static const unsigned CCVNumInstOperands = 438;

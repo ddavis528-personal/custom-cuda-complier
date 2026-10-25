@@ -40,7 +40,23 @@ foreach i = 0-3 in {
 }
 
 // chwidth=32 only, for now. See the note above on the narrow widths.
-def GPR : RegisterClass<"CCV", [i32, f32], 32, (sequence "R%u", 0, 15)>;
+def GPR : RegisterClass<"CCV", [i32, f32], 32, (sequence "R%u", 0, 15)> {
+  // F-200: a narrow kernel's top N registers of R8-R13, from R13 down, hold
+  // its 16-bit integers, set to 16 bits once at the entry, so 32-bit values
+  // never take them. One order per N from 2 to 6, then the control's
+  // (-ccv-test-narrow-no-partition), which offers them to 32-bit values early.
+  let AltOrders = [(sub GPR, R12, R13),
+                   (sub GPR, R11, R12, R13),
+                   (sub GPR, R10, R11, R12, R13),
+                   (sub GPR, R9, R10, R11, R12, R13),
+                   (sub GPR, R8, R9, R10, R11, R12, R13),
+                   (add R0, R1, R2, R3, R8, R9, R10, R11, R12, R13, R4, R5,
+                        R6, R7, R14, R15)];
+  let AltOrderSelect = [{
+    unsigned N = MF.getSubtarget<CCVSubtarget>().narrowRegs();
+    return N ? ccvNarrowGPROrder(N) : 0;
+  }];
+}
 
 // The SAME sixteen registers, viewed at 16-bit element width. §1 makes element
 // width per-register state, not a second register file, so this is not a
@@ -78,7 +94,17 @@ def GPR : RegisterClass<"CCV", [i32, f32], 32, (sequence "R%u", 0, 15)>;
 // equal to GPR's; it is reserved (O-30) and the allocator skips it regardless.
 def GPR16 : RegisterClass<"CCV", [i16], 32,
     (add R14, R13, R12, R11, R10, R9, R8, R7, R6, R5, R4, R3, R2, R1, R0,
-         R15)>;
+         R15)> {
+  // F-200: a narrow kernel's 16-bit integers, and only there: its top N of
+  // R8-R13, one order per N from 2 to 6.
+  let AltOrders = [(add R13, R12), (add R13, R12, R11), (add R13, R12, R11, R10),
+                   (add R13, R12, R11, R10, R9),
+                   (add R13, R12, R11, R10, R9, R8)];
+  let AltOrderSelect = [{
+    unsigned N = MF.getSubtarget<CCVSubtarget>().narrowRegs();
+    return N ? N - 1 : 0;
+  }];
+}
 
 // 8-bit elements (F-161). i8 is not a legal type: a byte value lives in a
 // 32-bit register as i32, and the type legalizer promotes byte arithmetic as

@@ -140,12 +140,12 @@
   {
     "kernel": "vadd16",
     "ccv": {
-      "instrs": 23,
-      "bytes": 78
+      "instrs": 24,
+      "bytes": 82
     },
     "ccv_aligned": {
-      "instrs": 16,
-      "bytes": 56
+      "instrs": 17,
+      "bytes": 60
     },
     "amdgcn": {
       "instrs": 29,
@@ -156,12 +156,12 @@
       "instrs": 21
     },
     "dyn": {
-      "per_thread": 16.0,
+      "per_thread": 17.0,
       "simt": 100.0,
-      "lane_act": 512,
-      "lane_instr": 512,
-      "issues": 16,
-      "narrow": 0,
+      "lane_act": 544,
+      "lane_instr": 544,
+      "issues": 17,
+      "narrow": 4,
       "element_work": 14
     },
     "arches": {
@@ -192,12 +192,12 @@
       }
     },
     "mask_off": {
-      "per_thread": 16.0,
+      "per_thread": 17.0,
       "simt": 100.0,
-      "lane_act": 512,
-      "lane_instr": 512,
-      "issues": 16,
-      "narrow": 0,
+      "lane_act": 544,
+      "lane_instr": 544,
+      "issues": 17,
+      "narrow": 4,
       "element_work": 14
     },
     "sass": {
@@ -278,12 +278,12 @@
   {
     "kernel": "vadd16_loop",
     "ccv": {
-      "instrs": 27,
-      "bytes": 92
+      "instrs": 28,
+      "bytes": 96
     },
     "ccv_aligned": {
-      "instrs": 19,
-      "bytes": 64
+      "instrs": 20,
+      "bytes": 68
     },
     "amdgcn": {
       "instrs": 35,
@@ -294,12 +294,12 @@
       "instrs": 23
     },
     "dyn": {
-      "per_thread": 68.0,
+      "per_thread": 69.0,
       "simt": 100.0,
-      "lane_act": 2176,
-      "lane_instr": 2176,
-      "issues": 68,
-      "narrow": 0,
+      "lane_act": 2208,
+      "lane_instr": 2208,
+      "issues": 69,
+      "narrow": 32,
       "element_work": 58
     },
     "arches": {
@@ -330,12 +330,12 @@
       }
     },
     "mask_off": {
-      "per_thread": 68.0,
+      "per_thread": 69.0,
       "simt": 100.0,
-      "lane_act": 2176,
-      "lane_instr": 2176,
-      "issues": 68,
-      "narrow": 0,
+      "lane_act": 2208,
+      "lane_instr": 2208,
+      "issues": 69,
+      "narrow": 32,
       "element_work": 58
     },
     "sass": {

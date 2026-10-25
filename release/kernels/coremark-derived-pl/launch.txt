@@ -1,0 +1,211 @@
+# coremark-derived-pl: ccv-sim kernel.bin -entry <entry> -threads <T> [-warp <w>] -const-range <const>
+# followed by the pokes: the launch block and the module's relocated data image, at its window (word 28).
+# Word 0x20030 is the iteration count; word 0x20000, ntid, follows -threads.
+# Every lane runs its own context, so AR-20's shapes are -threads 1, 32, and
+# 128 with -warp 0-3; each thread's CRCs are written to window 0x40, 8 bytes a thread,
+# and thread t's must be the host's at seed t (1 iteration), threads 0..127:
+#    0 e714 e714 1fd7 8e3a
+#    1 493e 493e d807 dff1
+#    2 0358 0358 0327 7c51
+#    3 363c 363c 6a99 3fcb
+#    4 3f2b 3f2b 177f 2f7f
+#    5 fa72 fa72 b953 e376
+#    6 22a3 22a3 d684 fe8f
+#    7 d7c1 d7c1 e0c1 eb40
+#    8 bb15 bb15 7933 2e7b
+#    9 22d2 22d2 f91c 240d
+#   10 efb9 efb9 1852 33b4
+#   11 47dc 47dc 873d 44a0
+#   12 7ceb 7ceb 6eb4 ed29
+#   13 ec06 ec06 4a8d d50f
+#   14 eda5 eda5 58a9 25aa
+#   15 c796 c796 97ac 2a63
+#   16 e7f5 e7f5 a08b b1f9
+#   17 c6a7 c6a7 6a6d c582
+#   18 b050 b050 5d3d c2df
+#   19 968d 968d 1606 d82b
+#   20 7153 7153 9fe9 f91c
+#   21 0b61 0b61 58c6 a6cf
+#   22 8518 8518 4f98 75c8
+#   23 107c 107c f76b eb8a
+#   24 eb78 eb78 65da f3e3
+#   25 8cc8 8cc8 a5bb 52b6
+#   26 e888 e888 921e e6ee
+#   27 1269 1269 8238 02bf
+#   28 d200 d200 51f5 399d
+#   29 0b70 0b70 7f04 04d8
+#   30 a597 a597 3ed5 4072
+#   31 de06 de06 d3b3 14c8
+#   32 1f50 1f50 3ca8 77ff
+#   33 b667 b667 4c78 f2ad
+#   34 4512 4512 d7cd bd51
+#   35 f9b8 f9b8 3615 b835
+#   36 f9cf f9cf fc7b 77c0
+#   37 cfa0 cfa0 af72 2a50
+#   38 866b 866b 3555 1415
+#   39 fbe6 fbe6 0fc1 56b9
+#   40 f353 f353 963b 0e06
+#   41 834d 834d ed4c cc66
+#   42 00b3 00b3 280b 55a0
+#   43 2ec9 2ec9 7e91 a2a9
+#   44 622d 622d 7481 e228
+#   45 e4be e4be c23d d2cb
+#   46 2786 2786 eaa3 61a6
+#   47 3afc 3afc 7cd2 b2ae
+#   48 aa24 aa24 7281 058d
+#   49 05fd 05fd fd18 c582
+#   50 d196 d196 fa38 01bb
+#   51 bde1 bde1 b216 2793
+#   52 e80e e80e ca99 a8ac
+#   53 de23 de23 0d69 ea4e
+#   54 f412 f412 9849 fb57
+#   55 0e6c 0e6c 7323 2eda
+#   56 4a08 4a08 456f 1c12
+#   57 19df 19df 6adb 1d64
+#   58 e40b e40b 0b1e 47bc
+#   59 f8c5 f8c5 9b0f 0cf2
+#   60 d877 d877 11f1 e773
+#   61 1918 1918 cc73 eae2
+#   62 b5bf b5bf 6697 6d45
+#   63 e2f5 e2f5 0a07 6688
+#   64 5597 5597 b4d0 499d
+#   65 0d2c 0d2c 7368 f2ad
+#   66 0ac8 0ac8 bec8 f43f
+#   67 9333 9333 467c b835
+#   68 b284 b284 fa7c b179
+#   69 0438 0438 0b07 2a50
+#   70 7ef3 7ef3 fd4f e309
+#   71 e598 e598 60f0 56b9
+#   72 cf90 cf90 7933 7de2
+#   73 1f67 1f67 efd4 cc66
+#   74 6952 6952 3e40 e0ad
+#   75 082f 082f df2c e0fa
+#   76 a74d a74d ecd3 ae02
+#   77 f844 f844 b99d c658
+#   78 a16f a16f 8f78 5a28
+#   79 c00f c00f 17bd b2ae
+#   80 013d 013d 103c bbd0
+#   81 8776 8776 9111 c582
+#   82 934d 934d e07d fcba
+#   83 094f 094f e32d 2af3
+#   84 1d46 1d46 2ac1 2aaf
+#   85 6985 6985 de20 ea4e
+#   86 db01 db01 66da 91d9
+#   87 898a 898a ce2b 2eda
+#   88 61c1 61c1 376c 7249
+#   89 19df 19df 6adb 1d64
+#   90 9e59 9e59 d622 cc0b
+#   91 e0d1 e0d1 0578 0cf2
+#   92 5d98 5d98 e38f 9e43
+#   93 315d 315d b907 eae2
+#   94 214b 214b 01f9 82e7
+#   95 3582 3582 2978 6688
+#   96 5a33 5a33 af5b f138
+#   97 13f1 13f1 f863 9e0e
+#   98 07c4 07c4 9574 fd0e
+#   99 24ed 24ed fbce 2b1e
+#   100 c00b c00b 7c82 89ab
+#   101 2143 2143 00dc f9e0
+#   102 18fd 18fd 1190 89da
+#   103 be9d be9d b549 7a81
+#   104 7159 7159 b811 2889
+#   105 a92c a92c 5058 f67b
+#   106 b10a b10a 9d5c b572
+#   107 8713 8713 920a 75ae
+#   108 2309 2309 d78a ebb0
+#   109 d54e d54e 22ba f5ca
+#   110 287f 287f ff62 40b2
+#   111 f2a4 f2a4 7d6a b29e
+#   112 593c 593c e421 38ef
+#   113 ac87 ac87 a99a ec80
+#   114 58fb 58fb 0f41 0ef1
+#   115 5f14 5f14 84d1 6db9
+#   116 a70d a70d a8d7 b99d
+#   117 c243 c243 faa0 7c5f
+#   118 f981 f981 451f ad37
+#   119 9b26 9b26 63dd 4743
+#   120 4f27 4f27 48a9 b269
+#   121 083a 083a acdc d215
+#   122 9458 9458 22e5 b3b7
+#   123 15d9 15d9 49fd 29e8
+#   124 ac54 ac54 4770 e0b0
+#   125 c03e c03e 5b93 b146
+#   126 c0c0 c0c0 d83f d78a
+#   127 e57b e57b 135a e7a0
+threads 32
+ctas 1
+entry 0x3330
+const 0x2000000:0x2000100
+cta 0
+-poke 0x2000000=33554560
+-poke 0x2000004=0
+-poke 0x2000008=33554565
+-poke 0x200000c=0
+-poke 0x2000010=33554570
+-poke 0x2000014=0
+-poke 0x2000018=33554575
+-poke 0x200001c=0
+-poke 0x2000020=33554580
+-poke 0x2000024=0
+-poke 0x2000028=33554589
+-poke 0x200002c=0
+-poke 0x2000030=33554598
+-poke 0x2000034=0
+-poke 0x2000038=33554607
+-poke 0x200003c=0
+-poke 0x2000040=33554616
+-poke 0x2000044=0
+-poke 0x2000048=33554625
+-poke 0x200004c=0
+-poke 0x2000050=33554634
+-poke 0x2000054=0
+-poke 0x2000058=33554643
+-poke 0x200005c=0
+-poke 0x2000060=33554652
+-poke 0x2000064=0
+-poke 0x2000068=33554661
+-poke 0x200006c=0
+-poke 0x2000070=33554670
+-poke 0x2000074=0
+-poke 0x2000078=33554679
+-poke 0x200007c=0
+-poke 0x2000080=842084405
+-poke 0x2000084=858927360
+-poke 0x2000088=942473268
+-poke 0x200008c=721433655
+-poke 0x2000090=3289649
+-poke 0x2000094=892220723
+-poke 0x2000098=808465460
+-poke 0x200009c=842083840
+-poke 0x20000a0=808793139
+-poke 0x20000a4=825032752
+-poke 0x20000a8=925773873
+-poke 0x20000ac=721432624
+-poke 0x20000b0=875966000
+-poke 0x20000b4=3158068
+-poke 0x20000b8=808791605
+-poke 0x20000bc=858481968
+-poke 0x20000c0=825109760
+-poke 0x20000c4=761606962
+-poke 0x20000c8=942473266
+-poke 0x20000cc=942368055
+-poke 0x20000d0=721433139
+-poke 0x20000d4=1698049584
+-poke 0x20000d8=3289389
+-poke 0x20000dc=858665044
+-poke 0x20000e0=1177628005
+-poke 0x20000e4=777268480
+-poke 0x20000e8=1412115284
+-poke 0x20000ec=1412497521
+-poke 0x20000f0=1697918515
+-poke 0x20000f4=855669300
+-poke 0x20000f8=1697656372
+-poke 0x20000fc=6181933
+-poke 0x2001c=512
+-poke 0x20000=32
+-poke 0x20018=256
+-poke 0x20020=16
+-poke 0x20024=66000
+-poke 0x20028=64
+-poke 0x2002c=0
+-poke 0x20030=1

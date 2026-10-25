@@ -711,11 +711,17 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(68),	// SUB_P
     UINT64_C(64),	// SUB_W16
     UINT64_C(1504),	// SZ_GLOBAL_LD_S16
+    UINT64_C(1504),	// SZ_GLOBAL_LD_S16_W16
     UINT64_C(1376),	// SZ_GLOBAL_LD_S8
+    UINT64_C(1376),	// SZ_GLOBAL_LD_S8_W16
     UINT64_C(1440),	// SZ_GLOBAL_LD_U16
+    UINT64_C(1440),	// SZ_GLOBAL_LD_U16_W16
     UINT64_C(1312),	// SZ_GLOBAL_LD_U8
+    UINT64_C(1312),	// SZ_GLOBAL_LD_U8_W16
     UINT64_C(1632),	// SZ_GLOBAL_ST_16
+    UINT64_C(1632),	// SZ_GLOBAL_ST_16_W16
     UINT64_C(1568),	// SZ_GLOBAL_ST_8
+    UINT64_C(1568),	// SZ_GLOBAL_ST_8_W16
     UINT64_C(1888),	// SZ_SHARED_LD_S16
     UINT64_C(1760),	// SZ_SHARED_LD_S8
     UINT64_C(1824),	// SZ_SHARED_LD_U16
@@ -1833,11 +1839,17 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     case CCV::ST_GLOBAL_IDX_W16:
     case CCV::ST_SHARED_IDX:
     case CCV::SZ_GLOBAL_LD_S8:
+    case CCV::SZ_GLOBAL_LD_S8_W16:
     case CCV::SZ_GLOBAL_LD_S16:
+    case CCV::SZ_GLOBAL_LD_S16_W16:
     case CCV::SZ_GLOBAL_LD_U8:
+    case CCV::SZ_GLOBAL_LD_U8_W16:
     case CCV::SZ_GLOBAL_LD_U16:
+    case CCV::SZ_GLOBAL_LD_U16_W16:
     case CCV::SZ_GLOBAL_ST_8:
+    case CCV::SZ_GLOBAL_ST_8_W16:
     case CCV::SZ_GLOBAL_ST_16:
+    case CCV::SZ_GLOBAL_ST_16_W16:
     case CCV::SZ_SHARED_LD_S8:
     case CCV::SZ_SHARED_LD_S16:
     case CCV::SZ_SHARED_LD_U8:
@@ -2695,11 +2707,17 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
     case CCV::ST_GLOBAL_IDX_W16:
     case CCV::ST_SHARED_IDX:
     case CCV::SZ_GLOBAL_LD_S8:
+    case CCV::SZ_GLOBAL_LD_S8_W16:
     case CCV::SZ_GLOBAL_LD_S16:
+    case CCV::SZ_GLOBAL_LD_S16_W16:
     case CCV::SZ_GLOBAL_LD_U8:
+    case CCV::SZ_GLOBAL_LD_U8_W16:
     case CCV::SZ_GLOBAL_LD_U16:
+    case CCV::SZ_GLOBAL_LD_U16_W16:
     case CCV::SZ_GLOBAL_ST_8:
+    case CCV::SZ_GLOBAL_ST_8_W16:
     case CCV::SZ_GLOBAL_ST_16:
+    case CCV::SZ_GLOBAL_ST_16_W16:
     case CCV::SZ_SHARED_LD_S8:
     case CCV::SZ_SHARED_LD_S16:
     case CCV::SZ_SHARED_LD_U8:

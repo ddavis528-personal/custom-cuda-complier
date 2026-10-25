@@ -1,5 +1,6 @@
 //===-- CCVInstrInfo.cpp --------------------------------------------------===//
 #include "CCVInstrInfo.h"
+#include "CCVSubtarget.h"
 #include "MCTargetDesc/CCVMCTargetDesc.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -85,6 +86,18 @@ void CCVInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     return;
   }
 
+  // F-200: a narrow kernel's narrow registers are at 16 bits and the rest at
+  // 32, so a copy between them converts. A `mov` is a rename-time no-op (§3),
+  // which cannot extend or truncate, so the copy is `addi rd, rs, 0`, an
+  // operation O-67 defines across widths: the source's element, zero-extended
+  // or truncated to the destination's width.
+  const auto &STI = MBB.getParent()->getSubtarget<CCVSubtarget>();
+  if (STI.narrowInt() && STI.isNarrowReg(DestReg) != STI.isNarrowReg(SrcReg)) {
+    BuildMI(MBB, MI, DL, get(CCV::ADDI), DestReg)
+        .addReg(SrcReg, getKillRegState(KillSrc))
+        .addImm(0);
+    return;
+  }
   // The compressed mov is 16 bits and is a rename-time no-op at execution
   // (§3, Format K).
   BuildMI(MBB, MI, DL, get(CCV::C_MOV), DestReg)

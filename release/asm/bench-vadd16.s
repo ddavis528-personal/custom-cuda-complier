@@ -3,6 +3,7 @@
 	.globl	_Z6vadd16PsPKsS1_i
 	.type	_Z6vadd16PsPKsS1_i,@function
 _Z6vadd16PsPKsS1_i:
+	chwidth.multi 12288, 1
 	movi r0, 2
 	ld.global r1, [r0]
 	srd r2, 0
@@ -15,16 +16,16 @@ _Z6vadd16PsPKsS1_i:
 	ld.global r2, [r0 + 44]
 	add r2, r1
 	ld.global r3, [r0 + 40]
-	ld.global.u16 r2, [r3, r2, 0, 0]
-	ld.global r3, [r0 + 52]
-	add r3, r1
-	ld.global r4, [r0 + 48]
-	ld.global.u16 r3, [r4, r3, 0, 0]
-	add r2, r3, r2
-	ld.global r3, [r0 + 36]
-	add r1, r3, r1
+	ld.global.u16 r13, [r3, r2, 0, 0]
+	ld.global r2, [r0 + 52]
+	add r2, r1
+	ld.global r3, [r0 + 48]
+	ld.global.u16 r12, [r3, r2, 0, 0]
+	add r13, r12, r13
+	ld.global r2, [r0 + 36]
+	add r1, r2, r1
 	ld.global r0, [r0 + 32]
-	st.global.16 r2, [r0, r1, 0, 0]
+	st.global.16 r13, [r0, r1, 0, 0]
 LBB0_2:
 	exit
 Lfunc_end0:

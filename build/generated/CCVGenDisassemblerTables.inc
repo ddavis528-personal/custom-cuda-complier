@@ -390,11 +390,11 @@ static const uint8_t DecoderTable32[] = {
 /* 896 */     MCD::OPC_FilterValue, 4, 4, 0, 0, // Skip to: 905
 /* 901 */     MCD::OPC_Decode, 151, 4, 24, // Opcode: LD_LOCAL
 /* 905 */     MCD::OPC_FilterValue, 5, 4, 0, 0, // Skip to: 914
-/* 910 */     MCD::OPC_Decode, 191, 5, 21, // Opcode: SZ_GLOBAL_LD_U8
+/* 910 */     MCD::OPC_Decode, 194, 5, 21, // Opcode: SZ_GLOBAL_LD_U8
 /* 914 */     MCD::OPC_FilterValue, 6, 4, 0, 0, // Skip to: 923
-/* 919 */     MCD::OPC_Decode, 193, 5, 21, // Opcode: SZ_GLOBAL_ST_8
+/* 919 */     MCD::OPC_Decode, 198, 5, 21, // Opcode: SZ_GLOBAL_ST_8
 /* 923 */     MCD::OPC_FilterValue, 7, 107, 13, 0, // Skip to: 4363
-/* 928 */     MCD::OPC_Decode, 196, 5, 21, // Opcode: SZ_SHARED_LD_U16
+/* 928 */     MCD::OPC_Decode, 202, 5, 21, // Opcode: SZ_SHARED_LD_U16
 /* 932 */     MCD::OPC_FilterValue, 36, 57, 0, 0, // Skip to: 994
 /* 937 */     MCD::OPC_ExtractField, 8, 3,  // Inst{10-8} ...
 /* 940 */     MCD::OPC_FilterValue, 0, 4, 0, 0, // Skip to: 949
@@ -429,7 +429,7 @@ static const uint8_t DecoderTable32[] = {
 /* 1081 */    MCD::OPC_FilterValue, 1, 18, 0, 0, // Skip to: 1104
 /* 1086 */    MCD::OPC_CheckField, 22, 5, 0, 198, 12, 0, // Skip to: 4363
 /* 1093 */    MCD::OPC_CheckField, 11, 8, 0, 191, 12, 0, // Skip to: 4363
-/* 1100 */    MCD::OPC_Decode, 202, 5, 29, // Opcode: VOTE_ANY
+/* 1100 */    MCD::OPC_Decode, 208, 5, 29, // Opcode: VOTE_ANY
 /* 1104 */    MCD::OPC_FilterValue, 2, 182, 12, 0, // Skip to: 4363
 /* 1109 */    MCD::OPC_CheckField, 30, 2, 0, 175, 12, 0, // Skip to: 4363
 /* 1116 */    MCD::OPC_CheckField, 22, 5, 0, 168, 12, 0, // Skip to: 4363
@@ -503,7 +503,7 @@ static const uint8_t DecoderTable32[] = {
 /* 1430 */    MCD::OPC_FilterValue, 2, 30, 0, 0, // Skip to: 1465
 /* 1435 */    MCD::OPC_ExtractField, 27, 5,  // Inst{31-27} ...
 /* 1438 */    MCD::OPC_FilterValue, 0, 4, 0, 0, // Skip to: 1447
-/* 1443 */    MCD::OPC_Decode, 203, 5, 9, // Opcode: XOR
+/* 1443 */    MCD::OPC_Decode, 209, 5, 9, // Opcode: XOR
 /* 1447 */    MCD::OPC_FilterValue, 1, 4, 0, 0, // Skip to: 1456
 /* 1452 */    MCD::OPC_Decode, 137, 4, 9, // Opcode: FSUB_F1
 /* 1456 */    MCD::OPC_FilterValue, 2, 86, 11, 0, // Skip to: 4363
@@ -563,7 +563,7 @@ static const uint8_t DecoderTable32[] = {
 /* 1698 */    MCD::OPC_FilterValue, 2, 21, 0, 0, // Skip to: 1724
 /* 1703 */    MCD::OPC_ExtractField, 30, 2,  // Inst{31-30} ...
 /* 1706 */    MCD::OPC_FilterValue, 0, 4, 0, 0, // Skip to: 1715
-/* 1711 */    MCD::OPC_Decode, 206, 5, 11, // Opcode: XOR_P
+/* 1711 */    MCD::OPC_Decode, 212, 5, 11, // Opcode: XOR_P
 /* 1715 */    MCD::OPC_FilterValue, 2, 83, 10, 0, // Skip to: 4363
 /* 1720 */    MCD::OPC_Decode, 236, 2, 11, // Opcode: CVT_D0_S2_R1_P
 /* 1724 */    MCD::OPC_FilterValue, 3, 21, 0, 0, // Skip to: 1750
@@ -597,7 +597,7 @@ static const uint8_t DecoderTable32[] = {
 /* 1851 */    MCD::OPC_FilterValue, 0, 4, 0, 0, // Skip to: 1860
 /* 1856 */    MCD::OPC_Decode, 184, 5, 13, // Opcode: SUBI
 /* 1860 */    MCD::OPC_FilterValue, 2, 4, 0, 0, // Skip to: 1869
-/* 1865 */    MCD::OPC_Decode, 204, 5, 13, // Opcode: XORI
+/* 1865 */    MCD::OPC_Decode, 210, 5, 13, // Opcode: XORI
 /* 1869 */    MCD::OPC_FilterValue, 3, 4, 0, 0, // Skip to: 1878
 /* 1874 */    MCD::OPC_Decode, 162, 5, 14, // Opcode: SRAI
 /* 1878 */    MCD::OPC_FilterValue, 5, 176, 9, 0, // Skip to: 4363
@@ -607,7 +607,7 @@ static const uint8_t DecoderTable32[] = {
 /* 1895 */    MCD::OPC_FilterValue, 0, 4, 0, 0, // Skip to: 1904
 /* 1900 */    MCD::OPC_Decode, 185, 5, 16, // Opcode: SUBI_P
 /* 1904 */    MCD::OPC_FilterValue, 2, 4, 0, 0, // Skip to: 1913
-/* 1909 */    MCD::OPC_Decode, 205, 5, 16, // Opcode: XORI_P
+/* 1909 */    MCD::OPC_Decode, 211, 5, 16, // Opcode: XORI_P
 /* 1913 */    MCD::OPC_FilterValue, 3, 141, 9, 0, // Skip to: 4363
 /* 1918 */    MCD::OPC_Decode, 163, 5, 17, // Opcode: SRAI_P
 /* 1922 */    MCD::OPC_FilterValue, 88, 77, 0, 0, // Skip to: 2004
@@ -650,11 +650,11 @@ static const uint8_t DecoderTable32[] = {
 /* 2092 */    MCD::OPC_FilterValue, 4, 4, 0, 0, // Skip to: 2101
 /* 2097 */    MCD::OPC_Decode, 175, 5, 24, // Opcode: ST_LOCAL
 /* 2101 */    MCD::OPC_FilterValue, 5, 4, 0, 0, // Skip to: 2110
-/* 2106 */    MCD::OPC_Decode, 189, 5, 21, // Opcode: SZ_GLOBAL_LD_S8
+/* 2106 */    MCD::OPC_Decode, 190, 5, 21, // Opcode: SZ_GLOBAL_LD_S8
 /* 2110 */    MCD::OPC_FilterValue, 6, 4, 0, 0, // Skip to: 2119
-/* 2115 */    MCD::OPC_Decode, 192, 5, 21, // Opcode: SZ_GLOBAL_ST_16
+/* 2115 */    MCD::OPC_Decode, 196, 5, 21, // Opcode: SZ_GLOBAL_ST_16
 /* 2119 */    MCD::OPC_FilterValue, 7, 191, 8, 0, // Skip to: 4363
-/* 2124 */    MCD::OPC_Decode, 194, 5, 21, // Opcode: SZ_SHARED_LD_S16
+/* 2124 */    MCD::OPC_Decode, 200, 5, 21, // Opcode: SZ_SHARED_LD_S16
 /* 2128 */    MCD::OPC_FilterValue, 100, 57, 0, 0, // Skip to: 2190
 /* 2133 */    MCD::OPC_ExtractField, 8, 3,  // Inst{10-8} ...
 /* 2136 */    MCD::OPC_FilterValue, 0, 4, 0, 0, // Skip to: 2145
@@ -675,7 +675,7 @@ static const uint8_t DecoderTable32[] = {
 /* 2206 */    MCD::OPC_FilterValue, 112, 18, 0, 0, // Skip to: 2229
 /* 2211 */    MCD::OPC_CheckField, 19, 8, 0, 97, 8, 0, // Skip to: 4363
 /* 2218 */    MCD::OPC_CheckField, 8, 7, 2, 90, 8, 0, // Skip to: 4363
-/* 2225 */    MCD::OPC_Decode, 200, 5, 35, // Opcode: UNBALLOT
+/* 2225 */    MCD::OPC_Decode, 206, 5, 35, // Opcode: UNBALLOT
 /* 2229 */    MCD::OPC_FilterValue, 124, 145, 0, 0, // Skip to: 2379
 /* 2234 */    MCD::OPC_ExtractField, 8, 3,  // Inst{10-8} ...
 /* 2237 */    MCD::OPC_FilterValue, 0, 28, 0, 0, // Skip to: 2270
@@ -823,7 +823,7 @@ static const uint8_t DecoderTable32[] = {
 /* 2880 */    MCD::OPC_FilterValue, 2, 4, 0, 0, // Skip to: 2889
 /* 2885 */    MCD::OPC_Decode, 174, 2, 13, // Opcode: ANDNI
 /* 2889 */    MCD::OPC_FilterValue, 5, 189, 5, 0, // Skip to: 4363
-/* 2894 */    MCD::OPC_Decode, 201, 5, 14, // Opcode: UNPACKI
+/* 2894 */    MCD::OPC_Decode, 207, 5, 14, // Opcode: UNPACKI
 /* 2898 */    MCD::OPC_FilterValue, 144, 1, 21, 0, 0, // Skip to: 2925
 /* 2904 */    MCD::OPC_ExtractField, 8, 3,  // Inst{10-8} ...
 /* 2907 */    MCD::OPC_FilterValue, 0, 4, 0, 0, // Skip to: 2916
@@ -871,11 +871,11 @@ static const uint8_t DecoderTable32[] = {
 /* 3099 */    MCD::OPC_FilterValue, 4, 4, 0, 0, // Skip to: 3108
 /* 3104 */    MCD::OPC_Decode, 153, 4, 37, // Opcode: LD_PRED_LOCAL
 /* 3108 */    MCD::OPC_FilterValue, 5, 4, 0, 0, // Skip to: 3117
-/* 3113 */    MCD::OPC_Decode, 190, 5, 21, // Opcode: SZ_GLOBAL_LD_U16
+/* 3113 */    MCD::OPC_Decode, 192, 5, 21, // Opcode: SZ_GLOBAL_LD_U16
 /* 3117 */    MCD::OPC_FilterValue, 6, 4, 0, 0, // Skip to: 3126
-/* 3122 */    MCD::OPC_Decode, 197, 5, 21, // Opcode: SZ_SHARED_LD_U8
+/* 3122 */    MCD::OPC_Decode, 203, 5, 21, // Opcode: SZ_SHARED_LD_U8
 /* 3126 */    MCD::OPC_FilterValue, 7, 208, 4, 0, // Skip to: 4363
-/* 3131 */    MCD::OPC_Decode, 199, 5, 21, // Opcode: SZ_SHARED_ST_8
+/* 3131 */    MCD::OPC_Decode, 205, 5, 21, // Opcode: SZ_SHARED_ST_8
 /* 3135 */    MCD::OPC_FilterValue, 164, 1, 39, 0, 0, // Skip to: 3180
 /* 3141 */    MCD::OPC_ExtractField, 8, 3,  // Inst{10-8} ...
 /* 3144 */    MCD::OPC_FilterValue, 0, 4, 0, 0, // Skip to: 3153
@@ -1094,9 +1094,9 @@ static const uint8_t DecoderTable32[] = {
 /* 4106 */    MCD::OPC_FilterValue, 5, 4, 0, 0, // Skip to: 4115
 /* 4111 */    MCD::OPC_Decode, 188, 5, 21, // Opcode: SZ_GLOBAL_LD_S16
 /* 4115 */    MCD::OPC_FilterValue, 6, 4, 0, 0, // Skip to: 4124
-/* 4120 */    MCD::OPC_Decode, 195, 5, 21, // Opcode: SZ_SHARED_LD_S8
+/* 4120 */    MCD::OPC_Decode, 201, 5, 21, // Opcode: SZ_SHARED_LD_S8
 /* 4124 */    MCD::OPC_FilterValue, 7, 234, 0, 0, // Skip to: 4363
-/* 4129 */    MCD::OPC_Decode, 198, 5, 21, // Opcode: SZ_SHARED_ST_16
+/* 4129 */    MCD::OPC_Decode, 204, 5, 21, // Opcode: SZ_SHARED_ST_16
 /* 4133 */    MCD::OPC_FilterValue, 228, 1, 39, 0, 0, // Skip to: 4178
 /* 4139 */    MCD::OPC_ExtractField, 8, 3,  // Inst{10-8} ...
 /* 4142 */    MCD::OPC_FilterValue, 0, 4, 0, 0, // Skip to: 4151
