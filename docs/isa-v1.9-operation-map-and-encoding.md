@@ -197,6 +197,12 @@ this of the compiler, and the machine now checks it, so the core and ccv-sim agr
 the compiler errs. Narrow work in diverged code uses the sized forms (O-80) or runs at 32 bits.
 A new cause of an existing fault; no encoding changes.
 
+### `mov` across widths follows the mixed-width rule (O-82; CP-51)
+
+A `mov` between registers of different widths reads its source as the element, zero-extended or
+truncated to the destination's width, as every operation does. Move elimination at rename applies
+only when the widths match. No encoding changes.
+
 ### Still open
 
 Nothing from IS-2, IS-12 or IS-16 remains open. The SFU bound table is written (O-70).
@@ -778,8 +784,11 @@ so one opcode point covers sixteen values.
 **On the destructive form.** Requiring `rd == rs0` is free in a renaming machine — the RAT
 handles the read-write dependency like any other. When the compiler cannot arrange it, the
 fallback is a compressed `mov` plus a compressed op: 32 bits total, exactly break-even
-against one 32-bit three-operand instruction, and the `mov` is a rename-time no-op at
-execution. So the compressed reg-reg form is a win whenever `rd == rs0` falls out naturally
+against one 32-bit three-operand instruction, and the `mov` can be a rename-time no-op at
+execution. **`mov` is an operation like any other (O-82):** it reads `rs` as its element at
+`rs`'s width, zero-extended or truncated to `rd`'s width (O-67). So an implementation may
+eliminate a `mov` at rename only when `rd` and `rs` have the same width; across widths it
+executes, and `rd` never sees bits above `rs`'s element. So the compressed reg-reg form is a win whenever `rd == rs0` falls out naturally
 (accumulation, in-place update, dead source) and never a loss otherwise.
 
 **No compressed form is predicated**, and none carries a predicate destination. Both would
@@ -3337,6 +3346,20 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-82 — `mov` across widths follows the mixed-width rule — decided in 1.9.** CP-51. CP's converged-narrowing pass keeps a
+call-free kernel's 16-bit integers in fixed narrow registers, so values cross between 16- and
+32-bit registers. CP asked what `mov` gives when `rd` and `rs` differ in width, since §3 called it
+"a rename-time no-op at execution" and ccv-sim copied all 32 raw bits. `mov` sits in the opcode
+maps as an operation (Format A integer point 18, Format K point 14), so O-67 already answers: the
+source is its element at its own width, zero-extended or truncated to the destination's. The
+rename remark was a performance note, now qualified: a `mov` may be eliminated only when the two
+widths match. ccv-sim's raw copy exposed bits above a narrow element, which O-38 and O-79 forbid.
+Rejected: CP's suggestion that a cross-width `mov` fault with `F-WIDTH`, which would make an
+ordinary operation the one exception to O-67 when `addi rd, rs, 0` already gives the same
+result. Also rejected: the raw copy. No encoding changes.
 
 ---
 
