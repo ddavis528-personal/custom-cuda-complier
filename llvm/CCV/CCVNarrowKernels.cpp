@@ -12,8 +12,8 @@
 // 16-bit values in the top N of R8-R13, 32-bit values in the rest
 // (CCVRegisterInfo.td's alternative orders), N sized by its 16-bit work so a
 // small kernel does not spill its 32-bit values. CCVRegisterInfo::shouldCoalesce
-// keeps a conversion between them a copy, which copyPhysReg makes an `addi`,
-// O-67's zero-extension or truncation.
+// keeps a conversion between them a copy: a `mov` across widths, which
+// zero-extends or truncates (O-82).
 // CCVInsertChwidth sets the narrow registers at the entry and checks that it
 // places nothing else.
 //

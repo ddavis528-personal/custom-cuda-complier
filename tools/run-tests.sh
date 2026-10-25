@@ -386,6 +386,19 @@ run_sized() {
     echo "  FAIL  sized: got '$got', want '$want' (control '$ctl', F-WIDTH $fault)"; return 1
   fi
 }
+# --- mov across widths (O-82) ----------------------------------------------
+run_mov_width() {
+  python3 "$AS" "$JSON" test/mov-width.s "$TMP/mw.bin" >/dev/null || return 1
+  local got ctl
+  got=$("$SIM" "$TMP/mw.bin" -peek 0x90000 2>&1 | grep -oP '\] = \K\d+')
+  # The control: mov copies all 32 bits, as ccv-sim did before O-82.
+  ctl=$("$SIM" "$TMP/mw.bin" -peek 0x90000 -ccv-test-mov-raw 2>&1 | grep -oP '\] = \K\d+')
+  if [ "$got" = 63096 ] && [ "$ctl" = 305460856 ]; then
+    echo "  PASS  mov across widths truncates to the element and zero-extends it (O-82; control copies 32 bits)"
+  else
+    echo "  FAIL  mov-width: got '$got', want 63096 (control: '$ctl', want 305460856)"; return 1
+  fi
+}
 # --- a chwidth from a diverged warp (O-81) ----------------------------------
 run_diverged_chwidth() {
   python3 "$AS" "$JSON" test/faults/diverged-chwidth.s "$TMP/dc.bin" >/dev/null || return 1
@@ -461,6 +474,7 @@ run_mixed_width || fail=1
 run_addr_narrow || fail=1
 run_sized || fail=1
 run_diverged_chwidth || fail=1
+run_mov_width || fail=1
 
 # --- the fault model (ISA v1.9 section 12, O-57/O-58) ------------------------
 # Each case names the record it must produce. A fault exits 3, distinct from a

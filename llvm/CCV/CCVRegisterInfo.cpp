@@ -203,9 +203,8 @@ bool CCVRegisterInfo::shouldCoalesce(MachineInstr *MI,
                                      LiveIntervals &) const {
   // F-200: a narrow kernel keeps its 16-bit integers in R8-R13 at width 16 and
   // everything else out of them, so a value crossing between the classes is a
-  // copy, which CCVInstrInfo::copyPhysReg makes an `addi`: O-67 reads its
-  // source as its element, zero-extended or truncated to the destination's
-  // width. The classes have different value types, so the coalescer has no
+  // copy, a `mov` across widths: rs's element, zero-extended or truncated to
+  // rd's width (O-82). The classes have different value types, so the coalescer has no
   // common class to join them in today; this keeps that true if one appears.
   const MachineFunction &MF = *MI->getMF();
   if (!MF.getSubtarget<CCVSubtarget>().narrowInt())

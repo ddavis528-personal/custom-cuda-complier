@@ -615,13 +615,20 @@ had measured that. The simulator now counts it:
   sgemm            514        492       0   0.000       514.0       --
 ```
 
-**`vadd16` is exactly break-even.** 18 issued instructions, 4 of them narrow
-element work, gives `14 + 4/2 = 16.0` cycles against `vadd`'s 16.0. The 2× rate
-recovers the two instructions the narrow form costs and returns nothing beyond
-them — while still delivering half the memory traffic, which no cycle column
-shows.
+**`vadd16` is below break-even: 0.867×.** 17 issued instructions, 4 of them
+narrow element work, gives `13 + 4/2 = 15.0` cycles against `vadd`'s 13.0. The
+2× rate recovers two of the four instructions the narrow form costs (one is
+F-200's entry `chwidth`) — while still delivering half the memory traffic,
+which no cycle column shows. The 2× is also a bound, not CCV's rate: it retires
+narrow loads and stores at twice the 32-bit rate too, but a warp issues at most
+one memop a cycle, and narrow memops co-issue only across warps (OI-33), so one
+warp gets none of it on three of its four narrow instructions. At four warps,
+sectioned issue measured `alu16` at 1.59× (AR, 2026-10-25).
 
-Three things follow, and the first is the one that should shape the hardware:
+When this section was first written, `vadd16` issued 18 against `vadd`'s 16 and
+was exactly break-even at 16.0 cycles. The figures in the three points below
+are that revision's; the reasoning stands, and the first point is the one that
+should shape the hardware:
 
 **1. The narrow work here is memory, not ALU.** Of `vadd16`'s four narrow
 instructions, **one is an ALU operation and three are loads and stores**. So the

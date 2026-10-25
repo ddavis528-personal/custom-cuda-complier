@@ -106,7 +106,7 @@ LBB0_3:
 	ld.global.u8 r6, [r1, r6, 0, 0]
 	setp.eq p0, r6, 0
 	@p0 bra LBB0_4
-	add r13, r6, 0
+	mov r13, r6
 	add r6, r4, r2
 	add r7, r15, -1
 	st.global.8 r13, [r7, r6, 0, 0]
@@ -116,7 +116,7 @@ LBB0_3:
 	add r5, r2, 1
 	setp.eq p0, r7, 0
 	@p0 bra LBB0_9
-	add r13, r7, 0
+	mov r13, r7
 	add r5, r4, r5
 	add r7, r15, -1
 	st.global.8 r13, [r7, r5, 0, 0]
@@ -125,7 +125,7 @@ LBB0_3:
 	add r5, r2, 2
 	setp.eq p0, r6, 0
 	@p0 bra LBB0_9
-	add r13, r6, 0
+	mov r13, r6
 	add r5, r4, r5
 	add r6, r15, -1
 	st.global.8 r13, [r6, r5, 0, 0]
@@ -155,9 +155,9 @@ LBB0_10:
 	@p0 bra LBB0_10
 	add r3, r10, r0
 	mul.lo r4, r0, 7
-	add r13, r4, 0
+	mov r13, r4
 	add r13, r13, 1
-	add r4, r13, 0
+	mov r4, r13
 	ld.local r5, [32]
 	st.global.8 r4, [r5, r3, 0, 0]
 	mov r3, r0
@@ -166,8 +166,8 @@ LBB0_10:
 	add r4, r3
 	ld.local r5, [16]
 	ld.global.u16 r12, [r5, r4, 0, 0]
-	add r13, r0, 0
-	add r4, r12, 0
+	mov r13, r0
+	mov r4, r12
 	setp.eq p0, r4, 0
 	@p0 bra LBB0_13
 	ld.local r4, [40]
@@ -176,7 +176,7 @@ LBB0_10:
 	st.global.16 r12, [r4, r3, 0, 0]
 LBB0_13:
 	add r13, r13, -56
-	add r3, r13, 0
+	mov r3, r13
 	movi r4, 0
 	st.shared.8 r3, [r0, r4, 0, 0]
 	ld.local r3, [28]

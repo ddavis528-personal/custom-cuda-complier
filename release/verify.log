@@ -206,7 +206,7 @@ checked 438 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 204 findings and 81 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 204 findings and 82 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -280,6 +280,7 @@ checked 438 instructions
   PASS  a narrow index contributes only its element (O-79; control reads 32 bits)
   PASS  sized loads and stores: u8, s8, u16, s16, st.8, st.16 on .global and .shared, scaled, into a narrow rdata, and F-WIDTH when the transfer is wider (O-80)
   PASS  a chwidth from a diverged warp raises F-WIDTH, a converged one does not (O-81)
+  PASS  mov across widths truncates to the element and zero-extends it (O-82; control copies 32 bits)
 
   --- the fault model (ISA v1.9 section 12) ---
   PASS  faults: F-ALIGN precise and predicate-gated, F-WIDTH ignores the predicate, F-ILLEGAL, F-FETCH, F-BARRIER

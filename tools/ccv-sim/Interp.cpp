@@ -1836,8 +1836,16 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     break;
   }
   case CCV::C_MOV: {
+    // O-82: a mov is an operation, so O-67 applies: rs's element, zero-extended
+    // or truncated to rd's width, and rd's bits above its element kept. Move
+    // elimination is an implementation's, at equal widths only.
     unsigned D = regOf(MI, 0), Sx = regOf(MI, 1);
-    forEachLane([&](unsigned L) { W.GPR[D][L] = W.GPR[Sx][L]; });
+    uint8_t WS = W.ChWidth[Sx], WD = W.ChWidth[D];
+    forEachLane([&](unsigned L) {
+      W.GPR[D][L] = nfp::TestMovRaw
+                        ? W.GPR[Sx][L]
+                        : writeElem(W.GPR[D][L], opnd(W.GPR[Sx][L], WS, WD), WD);
+    });
     break;
   }
 
