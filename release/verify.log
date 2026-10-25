@@ -77,18 +77,18 @@ checked 438 instructions
   PASS  slot reach: 16 slot-form accesses at NT=16, past the
         4-byte stride's ceiling of 8, with 0 spill transfers
   device-function calls (F-21)
-  PASS  calls.cu, callee-saved set 'none': 32 lanes correct (512 issue groups)
-  PASS  calls.cu, callee-saved set 'six': 32 lanes correct (507 issue groups)
-  PASS  calls.cu, callee-saved set 'eight': 32 lanes correct (534 issue groups)
+  PASS  calls.cu, callee-saved set 'none': 32 lanes correct (540 issue groups)
+  PASS  calls.cu, callee-saved set 'six': 32 lanes correct (536 issue groups)
+  PASS  calls.cu, callee-saved set 'eight': 32 lanes correct (559 issue groups)
   PASS  static frames: scratch at -16..-4, the kernel below it at -48..-36; stack arguments at [-20, -16, -12, -8, -4]
   PASS  control -ccv-test-flat-frames is caught: 32 of 32 lanes wrong; lane 0: got 2100353410, want 2099963488
-  PASS  control -ccv-test-mask-device-functions is caught: 31 of 32 lanes wrong; lane 1: got 1256357052, want 1256146136
+  PASS  control -ccv-test-mask-device-functions is caught: 31 of 32 lanes wrong; lane 1: got 1256472948, want 1256146136
   PASS  control -ccv-test-i16-legal -ccv-test-no-call-widths is caught: 32 of 32 lanes wrong; lane 0: got -334240, want 2099963488
   PASS  control -ccv-test-drop-pair-offset is caught: 32 of 32 lanes wrong; lane 0: got -638511925, want 2099963488
   PASS  control -ccv-test-stack-args-at-zero is caught: 32 of 32 lanes wrong; lane 0: got 2099614111, want 2099963488
   PASS  control -ccv-test-ignore-indirect-frames is caught: 15 of 32 lanes wrong; lane 2: got 472433552, want 472433554
   PASS  control -ccv-test-flat-local is caught: 32 of 32 lanes wrong; lane 0: got -559038737, want 2099963488
-  PASS  control -ccv-code-base=0 is caught: did not run: FAULT F-FETCH  pc=0  lanes=aaaaaaaa  addr=0  cta=0 warp=0
+  PASS  control -ccv-code-base=0 is caught: did not run: FAULT F-FETCH  pc=0xc  lanes=55555555  addr=0  cta=0 warp=0
   pointers in memory (CP-3)
   PASS  ptrmem.cu: 32 pointers read from memory and 32 written, across 4 GiB (39 issue groups)
   PASS  control -ccv-test-no-ptr-carry is caught: 8 wrong; first: slots[3] = 0x0, want 0x100000000
@@ -140,7 +140,7 @@ checked 438 instructions
   PASS  control -ccv-test-i16-legal -ccv-test-no-sized -ccv-no-narrow-kernels is caught: did not run: FAULT F-WIDTH  pc=0x11ba  lanes=77777777  addr=0  cta=0 warp=0
   exported kernels (TI-30)
   PASS  coremark-derived: 32 lanes give e714 e714 1fd7 8e3a; 65 opcodes, 661982 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
-  PASS  coremark-derived-pl: each lane its own seed, diverging, gives the host's CRCs at that seed; 65 opcodes, 2331819 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
+  PASS  coremark-derived-pl: each lane its own seed, diverging, gives the host's CRCs at that seed; 65 opcodes, 2329069 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
   PASS  coremark-derived-pl-fault: FAULT F-WIDTH  pc=0x186e  lanes=000000f0  addr=0  cta=0 warp=0, at C_CHWIDTH (issue 7500, mask 0x000000f0); launch.txt alone raises the same; coremark-derived-pl, built as released, does not fault
   PASS  rope: 2 CTAs of 32 threads match the reference; 32 opcodes, 354 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
   PASS  rope-diverged: 2 CTAs of 32 threads match the reference; 32 opcodes, 406 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
@@ -183,7 +183,7 @@ checked 438 instructions
   PASS  control -ccv-test-i16-legal -ccv-test-no-sized -ccv-test-narrow-data-shared is caught: 32 of 32 lanes wrong; lane 0: ac96 d793 1fd7 ad85, want 72be e714 1fd7 8e3a
   PASS  control -ccv-test-i16-legal -ccv-test-no-sized -ccv-test-narrow-in-place -ccv-test-trunc-as-copy is caught: 32 of 32 lanes wrong; lane 0: 7795 88c3 4192 9e9e, want 72be e714 1fd7 8e3a
   PASS  control -ccv-test-i16-legal -ccv-test-no-sized -ccv-test-chwidth-defs-only is caught: did not run: error: C_ANDN has no semantics in the simulator yet
-  PASS  CoreMark-derived with a seed per lane: every lane diverges on its own data and matches the host at its seed (5180451 issue groups)
+  PASS  CoreMark-derived with a seed per lane: every lane diverges on its own data and matches the host at its seed (4973358 issue groups)
   PASS  control -ccv-test-i16-legal is caught on the per-lane-seed module: did not run: FAULT F-WIDTH  pc=0x186e  lanes=000000f0  addr=0  cta=0 warp=0
   PASS  control -ccv-test-no-sized is caught on the per-lane-seed module: did not run: FAULT F-WIDTH  pc=0x1744  lanes=000000f8  addr=0  cta=0 warp=0
   PASS  no narrow access shares its data register with its address (control -ccv-test-narrow-data-shared: 13 sites)
@@ -206,7 +206,7 @@ checked 438 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 204 findings and 82 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 205 findings and 82 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -292,6 +292,7 @@ checked 438 instructions
         return, link = byte address of the next instruction (32 lanes)
   PASS  three mutated call sequences each change an answer
   PASS  the same answers loaded at 0x1_0000_1000: ret keeps its 4 GiB window
+  PASS  a ret to two targets is two passes in the oracle, lowest lane's first (AR-24 (b); control: one)
   PASS  chwidth placed on data registers only (5 emitted, incl. chwidth.multi)
   PASS  16-bit base+offset accesses take the sized forms (3 accesses, O-80)
   PASS  zext costs no instruction beyond the width change (O-38)
