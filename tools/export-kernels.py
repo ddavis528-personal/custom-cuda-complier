@@ -174,23 +174,30 @@ def run(binpath, cta, L, oracle):
     return got, r.stdout
 
 
-def export_coremark(out, tmp):
+def export_coremark(out, tmp, per_lane=False):
     """The CoreMark-derived workload (AR-20): module data, calls, an entry past
     its device functions. Its pokes are the oracle init record's seeded memory
     from a run with the data image, so they are exactly what ccv-sim loads: the
     launch block, the relocated image and word 28. Checked by every lane's
-    CRCs against the host build; the control runs without the image."""
+    CRCs against the host build; the control runs without the image.
+
+    per_lane: coremark-derived-pl (AR-24's fourth shape), lane t seeded with t,
+    so the lanes take their own paths and the warp diverges; it is the core's
+    O-81 control kernel. Lane t's CRCs are the host's at seed t."""
     import importlib.util
     spec = importlib.util.spec_from_file_location(
         "sweep", os.path.join(ROOT, "tools/sweep-coremark.py"))
     sw = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(sw)
-    sw.build(tmp)
+    name, mod = ("coremark-derived-pl", "pl") if per_lane else ("coremark-derived", "cm")
+    sw.build(tmp, "-DCCV_SEED_PER_LANE" if per_lane else "", mod)
     it, threads, MEMW, OUTW = 1, 32, sw.MEM, sw.OUT
-    want = subprocess.run([f"{tmp}/host", str(it)], capture_output=True, text=True,
-                          check=True).stdout.strip()
-    o = f"{tmp}/cm.o"
-    subprocess.run([f"{ROOT}/build/ccv-llc", f"{tmp}/cm-lowered.ll", "-o", o, "-obj"],
+    wants = [subprocess.run([f"{tmp}/host", str(it)] + ([str(t)] if per_lane else []),
+                            capture_output=True, text=True, check=True).stdout.strip()
+             for t in range(128 if per_lane else 1)]    # AR-20's largest shape
+    want = wants[:threads] if per_lane else wants * threads
+    o = f"{tmp}/{mod}.o"
+    subprocess.run([f"{ROOT}/build/ccv-llc", f"{tmp}/{mod}-lowered.ll", "-o", o, "-obj"],
                    check=True, capture_output=True)
     for sec in ("text", "ccv_data", "ccv_reloc", "ccv_info"):
         subprocess.run(["llvm-objcopy", "-O", "binary", f"--only-section=.{sec}", o,
@@ -228,9 +235,9 @@ def export_coremark(out, tmp):
             return None
         got = {int(m[0], 16): int(m[1]) for m in
                re.findall(r"\[(0x[0-9a-f]+)\] = (\d+)", r.stdout)}
-        return {f"{got[(OUTW << 16) + 8 * t] & 0xffff:04x} {got[(OUTW << 16) + 8 * t] >> 16:04x} "
+        return [f"{got[(OUTW << 16) + 8 * t] & 0xffff:04x} {got[(OUTW << 16) + 8 * t] >> 16:04x} "
                 f"{got[(OUTW << 16) + 8 * t + 4] & 0xffff:04x} {got[(OUTW << 16) + 8 * t + 4] >> 16:04x}"
-                for t in range(threads)}
+                for t in range(threads)]
 
     crcs = go(True, f"{tmp}/cm.jsonl")
     init = json.loads(open(f"{tmp}/cm.jsonl").readline())["init"]
@@ -242,42 +249,140 @@ def export_coremark(out, tmp):
             issued += 1
     control = go(False, f"{tmp}/ctl.jsonl")
     replayed = go(False, f"{tmp}/rp.jsonl", (init["mem"], init.get("const")))
-    d = os.path.join(out, "coremark-derived")
+    d = os.path.join(out, name)
     os.makedirs(d, exist_ok=True)
     open(f"{d}/kernel.s", "w").write(
-        "# coremark-derived: test/coremark-derived, compiled; ccv-as source, reassembled\n"
+        f"# {name}: test/coremark-derived{' -DCCV_SEED_PER_LANE' if per_lane else ''}, compiled; ccv-as source, reassembled\n"
         f"# byte for byte by tools/ccv-dis.py --check. Load at ccv-sim's -code-base\n"
         f"# (0x1000: function pointers are absolute); the kernel's entry is {entry:#x}.\n" + src)
     open(f"{d}/kernel.bin", "wb").write(open(f"{tmp}/cm.text", "rb").read())
     with open(f"{d}/launch.txt", "w") as f:
-        f.write("# coremark-derived: ccv-sim kernel.bin -entry <entry> -threads <T> "
+        f.write(f"# {name}: ccv-sim kernel.bin -entry <entry> -threads <T> "
                 "[-warp <w>] -const-range <const>\n# followed by the pokes: the launch "
                 "block and the module's relocated data image, at its window (word 28).\n"
                 "# Word 0x20030 is the iteration count; word 0x20000, ntid, follows -threads.\n"
                 "# Every lane runs its own context, so AR-20's shapes are -threads 1, 32, and\n"
                 "# 128 with -warp 0-3; each thread's CRCs are written to window "
-                f"{OUTW:#x}, 8 bytes a thread,\n# and must be {want} ({it} iteration).\n")
+                f"{OUTW:#x}, 8 bytes a thread,\n" +
+                (f"# and thread t's must be the host's at seed t ({it} iteration), threads 0..127:\n"
+                 + "".join(f"#   {t:2} {w}\n" for t, w in enumerate(wants)) if per_lane else
+                 f"# and must be {wants[0]} ({it} iteration).\n"))
         f.write(f"threads {threads}\nctas 1\nentry {entry:#x}\n")
         if "const" in init:
             f.write(f"const {init['const'][0]:#x}:{init['const'][1]:#x}\n")
         f.write("cta 0\n")
         f.writelines(f"-poke {a:#x}={v}\n" for a, v in init["mem"])
     with open(f"{d}/ops.txt", "w") as f:
-        f.write(f"# coremark-derived: opcodes issued by one warp of {threads} lanes, "
+        f.write(f"# {name}: opcodes issued by one warp of {threads} lanes, "
                 f"by ccv-sim's names; {issued} issue groups\n")
         f.writelines(f"{n:<18} {c}\n" for n, c in sorted(ops.items()))
-    if crcs != {want}:
-        print(f"  FAIL  coremark-derived: CRCs {sorted(crcs or [])}, want {want}")
+    if crcs != want:
+        bad = next((t for t in range(threads) if not crcs or crcs[t] != want[t]), 0)
+        print(f"  FAIL  {name}: lane {bad}: {crcs[bad] if crcs else 'did not run'}, "
+              f"want {want[bad]}")
         return 1
-    if replayed != {want}:
-        print(f"  FAIL  coremark-derived: launch.txt alone gives {sorted(replayed or [])}")
+    if replayed != want:
+        print(f"  FAIL  {name}: launch.txt alone does not reproduce every lane's CRCs")
         return 1
-    if control == {want}:
-        print("  FAIL  coremark-derived: control: without the data image it still matched")
+    if control == want:
+        print(f"  FAIL  {name}: control: without the data image it still matched")
         return 1
-    print(f"  PASS  coremark-derived: {threads} lanes give {want}; {len(ops)} opcodes, "
+    what = ("each lane its own seed, diverging, gives the host's CRCs at that seed"
+            if per_lane else f"{threads} lanes give {wants[0]}")
+    print(f"  PASS  {name}: {what}; {len(ops)} opcodes, "
           f"{issued} issue groups; launch.txt alone reproduces it, data image included; "
           "without the image it fails")
+    return 0
+
+
+def export_coremark_fault(out, tmp):
+    """coremark-derived-pl-fault: O-81's negative kernel (TI's rev 194). The
+    per-lane-seed module compiled with -ccv-test-i16-legal, which runs its
+    16-bit integers at width 16 by chwidth, as before F-199, so a chwidth
+    issues while the warp is diverged and ccv-sim raises F-WIDTH. The export
+    checks the fault is F-WIDTH, on a chwidth, from a partial issue mask; that
+    the oracle's last record is that fault; that launch.txt alone reproduces
+    it; and, as the control, that coremark-derived-pl, the same launch built as
+    released, does not fault."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "sweep", os.path.join(ROOT, "tools/sweep-coremark.py"))
+    sw = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sw)
+    sw.build(tmp, "-DCCV_SEED_PER_LANE", "pl")
+    name, it, threads, MEMW, OUTW = "coremark-derived-pl-fault", 1, 32, sw.MEM, sw.OUT
+    o = f"{tmp}/plf.o"
+    subprocess.run([f"{ROOT}/build/ccv-llc", f"{tmp}/pl-lowered.ll", "-o", o, "-obj",
+                    "-ccv-test-i16-legal"], check=True, capture_output=True)
+    for sec in ("text", "ccv_data", "ccv_reloc", "ccv_info"):
+        subprocess.run(["llvm-objcopy", "-O", "binary", f"--only-section=.{sec}", o,
+                        f"{tmp}/plf.{sec}"], check=True)
+    entry = next(int(l.split()[0], 16) for l in subprocess.run(
+        ["llvm-nm", o], capture_output=True, text=True, check=True).stdout.splitlines()
+        if " T _Z8coremark" in l)
+    src = subprocess.run([sys.executable, f"{ROOT}/tools/ccv-dis.py", JSON,
+                          f"{tmp}/plf.text", "--check"],
+                         capture_output=True, text=True, check=True).stdout
+    launch = [(LAUNCH + 0, threads), (LAUNCH + 24, 256), (LAUNCH + 32, MEMW),
+              (LAUNCH + 36, 66000), (LAUNCH + 40, OUTW), (LAUNCH + 44, 0),
+              (LAUNCH + 48, it)]
+    base = [SIM, f"{tmp}/plf.text", "-entry", hex(entry), "-threads", str(threads),
+            "-max-steps", "100000000"]
+    data = ["-data", f"{tmp}/plf.ccv_data", "-data-info", f"{tmp}/plf.ccv_info"]
+    if os.path.getsize(f"{tmp}/plf.ccv_reloc"):
+        data += ["-data-reloc", f"{tmp}/plf.ccv_reloc"]
+    pokes = [x for a, v in launch for x in ("-poke", f"{a:#x}={v}")]
+
+    def fault(r):
+        return next((l.strip() for l in r.stdout.splitlines() if "FAULT" in l), None)
+    r = subprocess.run(base + data + pokes + ["-oracle", f"{tmp}/plf.jsonl"],
+                       capture_output=True, text=True)
+    first = fault(r)
+    recs = [json.loads(l) for l in open(f"{tmp}/plf.jsonl")]
+    init = recs[0]["init"]
+    last = next((x for x in reversed(recs) if x.get("kind") == "fault"), {})
+    replay = list(base)
+    if "const" in init:
+        replay += ["-const-range", f"{init['const'][0]:#x}:{init['const'][1]:#x}"]
+    replay += [x for a, v in init["mem"] for x in ("-poke", f"{a:#x}={v}")]
+    again = fault(subprocess.run(replay, capture_output=True, text=True))
+
+    d = os.path.join(out, name)
+    os.makedirs(d, exist_ok=True)
+    open(f"{d}/kernel.s", "w").write(
+        f"# {name}: test/coremark-derived -DCCV_SEED_PER_LANE, compiled with\n"
+        "# -ccv-test-i16-legal so that it FAULTS (O-81's negative kernel); ccv-as\n"
+        "# source, reassembled byte for byte by tools/ccv-dis.py --check. Load at\n"
+        f"# ccv-sim's -code-base (0x1000); the kernel's entry is {entry:#x}.\n" + src)
+    open(f"{d}/kernel.bin", "wb").write(open(f"{tmp}/plf.text", "rb").read())
+    with open(f"{d}/launch.txt", "w") as f:
+        f.write(f"# {name}: ccv-sim kernel.bin -entry <entry> -threads <T> -const-range "
+                "<const>\n# followed by the pokes, as coremark-derived-pl's. It must "
+                "not finish: it must raise\n# F-WIDTH at the chwidth fault.txt names, "
+                "with that issue mask (O-81).\n")
+        f.write(f"threads {threads}\nctas 1\nentry {entry:#x}\n")
+        if "const" in init:
+            f.write(f"const {init['const'][0]:#x}:{init['const'][1]:#x}\n")
+        f.write("cta 0\n")
+        f.writelines(f"-poke {a:#x}={v}\n" for a, v in init["mem"])
+    with open(f"{d}/fault.txt", "w") as f:
+        f.write(f"# {name}: what ccv-sim raises, and its oracle's record of the faulting\n"
+                f"# instruction (kind \"fault\"), issue {last.get('seq')}.\n")
+        f.write(f"FAULT={first.split()[1] if first else ''}\n{first}\n")
+        f.write(json.dumps(last) + "\n")
+    ok = (first and first.split()[1] == "F-WIDTH" and last.get("kind") == "fault"
+          and "CHWIDTH" in last.get("op", "") and last.get("mask") != 0xffffffff
+          and f"pc={last['pc']:#x}" in first)
+    if not ok:
+        print(f"  FAIL  {name}: want F-WIDTH on a diverged chwidth; got {first}, "
+              f"record {last.get('kind')} {last.get('op')} mask {last.get('mask', 0):#x}")
+        return 1
+    if again != first:
+        print(f"  FAIL  {name}: launch.txt alone gives {again}, not {first}")
+        return 1
+    print(f"  PASS  {name}: {first}, at {last['op']} (issue {last['seq']}, mask {last['mask']:#010x}); "
+          "launch.txt alone raises the same; coremark-derived-pl, built as released, "
+          "does not fault")
     return 0
 
 
@@ -286,6 +391,8 @@ def main():
     bad = 0
     with tempfile.TemporaryDirectory() as tmp:
         bad |= export_coremark(out, tmp)
+        bad |= export_coremark(out, tmp, per_lane=True)
+        bad |= export_coremark_fault(out, tmp)
         for name, fn in KERNELS.items():
             src, image = build(name, tmp)
             threads, ctas = fn()

@@ -39,6 +39,7 @@ def count_chwidth(text):
 
 narrow_asm    = listing(W/"8-narrow-asm.s")
 narrow_body   = body_of(W/"8-narrow-asm.s")
+sized_body    = body_of(W/"8-narrow-asm-sized.s")
 wide_body     = body_of(W/"8-wide-asm.s")
 noedge_body   = body_of(W/"8-narrow-asm-noedge.s")
 unal_body     = body_of(W/"8-narrow-asm-unaligned.s")
@@ -240,6 +241,27 @@ nothing but width:
 ```cuda
 {narrow_src}
 ```
+
+Compiled as it is today, its loop changes no width:
+
+```
+{sized_body}
+```
+
+The loads and the store are §3's sized forms (O-80), whose opcode names the
+transfer and which extend into a register at its own width. The add runs at
+16 bits in `r12` and `r13`. Those two were set to 16 bits once, by one
+`chwidth.multi` at the kernel's entry, and nothing changes width after it
+(F-200). That is the rule rather than a choice: a `chwidth` may issue only
+where the warp is converged (O-81). The entry is the one place a scalar kernel
+is known converged, since its lanes then diverge on their data, here at the
+bounds check. So a call-free kernel with 16-bit integer work keeps them in
+R8-R13 at 16 bits for its whole run and its 32-bit values in the rest. A copy
+between the two is an `addi`, which O-67 defines as the zero-extension or
+truncation. Any other kernel runs its 16-bit integers at 32 bits (F-199). The
+rest of this section shows the older machinery, which placed a width change
+wherever one was needed, on the same kernel, in the configuration that still
+has it: `-ccv-test-i16-legal -ccv-test-no-sized -ccv-no-narrow-kernels`.
 
 ### The mode switches are not in the loop
 

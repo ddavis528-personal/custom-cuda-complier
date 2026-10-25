@@ -72,9 +72,9 @@ questions and only one of them can be measured on both machines.
   --------------------------------------------------------------------------------
   vadd       |     20     62   24.8 |     13     42 |     29    152   41.9 |     21
   saxpy      |     19     64   26.9 |     14     48 |     25    136   43.5 |     19
-  vadd16     |     21     68   25.9 |     14     48 |     29    152   41.9 |     21
+  vadd16     |     24     82   27.3 |     17     60 |     29    152   41.9 |     21
   vadd_loop  |     24     74   24.7 |     16     50 |     35    184   42.1 |     23
-  vadd16_loop |     25     80   25.6 |     17     56 |     35    184   42.1 |     23
+  vadd16_loop |     28     96   27.4 |     20     68 |     35    184   42.1 |     23
   dot        |     52    162   24.9 |     43    134 |     60    300   40.0 |     46
   reduce     |     48    150   25.0 |     41    128 |     54    268   39.7 |     41
   transpose  |     63    220   27.9 |     55    194 |     64    308   38.5 |     43
@@ -89,9 +89,9 @@ questions and only one of them can be measured on both machines.
   ----------------------------------------------------------------------------------------------
   vadd           13.0   100%         29 |       416       100%   exact: no backward branch
   saxpy          14.0   100%         25 |       448       100%   exact: no backward branch
-  vadd16         14.0   100%         29 |       448       100%   exact: no backward branch
+  vadd16         17.0   100%         29 |       544       100%   exact: no backward branch
   vadd_loop      65.0   100%         -- |      2080       100%   has 1 loops; not modelled
-  vadd16_loop     66.0   100%         -- |      2112       100%   has 1 loops; not modelled
+  vadd16_loop     69.0   100%         -- |      2208       100%   has 1 loops; not modelled
   dot            74.9    66%         -- |      2397       100%   has 3 loops; not modelled
   reduce         72.9    66%         -- |      2333       100%   has 3 loops; not modelled
   transpose      55.0   100%         64 |      1189        68%   exact: no backward branch
@@ -133,9 +133,9 @@ spanning both encoding families and the datacentre line.
   --------------------------------------------------------------------------------------------------------------------
   vadd                  24.8          128.0           41.9           48.6           46.0           48.0           48.7
   saxpy                 26.9          128.0           43.5           47.3           44.6           46.9           47.2
-  vadd16                25.9          128.0           41.9           49.8           47.0           49.0           48.7
+  vadd16                27.3          128.0           41.9           49.8           47.0           49.0           48.7
   vadd_loop             24.7          128.0           42.1           42.9           41.8           45.9           45.2
-  vadd16_loop            25.6          128.0           42.1           43.6           42.4           46.8           45.2
+  vadd16_loop            27.4          128.0           42.1           43.6           42.4           46.8           45.2
   dot                   24.9          128.0           40.0           41.5           40.9           42.3           42.1
   reduce                25.0          128.0           39.7           42.9           39.2           41.4           40.2
   transpose             27.9          128.0           38.5           41.1           39.6           39.2           38.7
@@ -152,9 +152,9 @@ spanning both encoding families and the datacentre line.
   --------------------------------------------------------------------------------------------------------------------
   vadd                    20             17             29             27             32             32             23
   saxpy                   19             16             25             23             28             28             21
-  vadd16                  21             17             29             27             32             32             23
+  vadd16                  24             17             29             27             32             32             23
   vadd_loop               24             20             35             44             49             39             29
-  vadd16_loop              25             20             35             44             49             39             29
+  vadd16_loop              28             20             35             44             49             39             29
   dot                     52             42             60             64             68             62             54
   reduce                  48             39             54             50             71             58             51
   transpose               63             53             64             60             76             76             62
@@ -327,7 +327,7 @@ GCN5 the counts are within 30% and CCV is *lower* on nine of ten:
 
 | | vadd | saxpy | vadd16 | vadd_loop | vadd16_loop | dot | reduce | transpose | gemv | sgemm |
 |---|---|---|---|---|---|---|---|---|---|---|
-| CCV | 20 | 19 | 21 | 24 | 25 | 52 | 48 | 63 | 202 | 386 |
+| CCV | 20 | 19 | 24 | 24 | 28 | 52 | 48 | 63 | 202 | 386 |
 | GCN | 29 | 25 | 29 | 35 | 35 | 60 | 54 | 64 | 306 | 238 |
 
 `sgemm` is the exception and it is not a small one: 384 against 238. Read it
@@ -364,16 +364,16 @@ emits `.amdhsa_wavefront_size32` and its absence means wave64.
   issues / 1K elem
     vadd                  416            464            864           1024           1024            368
     saxpy                 448            400            736            896            896            336
-    vadd16                448            464            864           1024           1024            368
+    vadd16                544            464            864           1024           1024            368
     vadd_loop             260             --             --             --             --             --
-    vadd16_loop            264             --             --             --             --             --
+    vadd16_loop            276             --             --             --             --             --
     transpose            1760           1024           1920           2432           2432            992
   instr bytes / 1K elem
     vadd                 1344           2432           5248           5888           6144           2240
     saxpy                1536           2176           4352           4992           5248           1984
-    vadd16               1536           2432           5376           6016           6272           2240
+    vadd16               1920           2432           5376           6016           6272           2240
     vadd_loop             200             --             --             --             --             --
-    vadd16_loop            224             --             --             --             --             --
+    vadd16_loop            272             --             --             --             --             --
     transpose            6208           4928           9856          12032          11904           4800
 ```
 
@@ -605,9 +605,9 @@ had measured that. The simulator now counts it:
   --------------------------------------------------------------------
   vadd              13         11       0   0.000        13.0   1.000x
   saxpy             14         12       0   0.000        14.0       --
-  vadd16            14         11       4   0.364        12.0   1.083x
+  vadd16            17         14       4   0.286        15.0   0.867x
   vadd_loop         65         55       0   0.000        65.0   1.000x
-  vadd16_loop       66         55      32   0.582        50.0   1.300x
+  vadd16_loop       69         58      32   0.552        53.0   1.226x
   dot              113         92       0   0.000       113.0       --
   reduce           111         90       0   0.000       111.0       --
   transpose         55         51       0   0.000        55.0       --
@@ -615,13 +615,20 @@ had measured that. The simulator now counts it:
   sgemm            514        492       0   0.000       514.0       --
 ```
 
-**`vadd16` is exactly break-even.** 18 issued instructions, 4 of them narrow
-element work, gives `14 + 4/2 = 16.0` cycles against `vadd`'s 16.0. The 2× rate
-recovers the two instructions the narrow form costs and returns nothing beyond
-them — while still delivering half the memory traffic, which no cycle column
-shows.
+**`vadd16` is below break-even: 0.867×.** 17 issued instructions, 4 of them
+narrow element work, gives `13 + 4/2 = 15.0` cycles against `vadd`'s 13.0. The
+2× rate recovers two of the four instructions the narrow form costs (one is
+F-200's entry `chwidth`) — while still delivering half the memory traffic,
+which no cycle column shows. The 2× is also a bound, not CCV's rate: it retires
+narrow loads and stores at twice the 32-bit rate too, but a warp issues at most
+one memop a cycle, and narrow memops co-issue only across warps (OI-33), so one
+warp gets none of it on three of its four narrow instructions. At four warps,
+sectioned issue measured `alu16` at 1.59× (AR, 2026-10-25).
 
-Three things follow, and the first is the one that should shape the hardware:
+When this section was first written, `vadd16` issued 18 against `vadd`'s 16 and
+was exactly break-even at 16.0 cycles. The figures in the three points below
+are that revision's; the reasoning stands, and the first point is the one that
+should shape the hardware:
 
 **1. The narrow work here is memory, not ALU.** Of `vadd16`'s four narrow
 instructions, **one is an ALU operation and three are loads and stores**. So the

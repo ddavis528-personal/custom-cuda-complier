@@ -54,17 +54,23 @@ if [ "$ub" -ne 0 ]; then
 fi
 echo "  PASS  no width transition inside the unaligned loop body either (F-80)"
 
+# Each binary runs twice: one warp over 256 elements, and (F-200) a CTA of four
+# warps over 1000, whose last iteration diverges on warp 3. F-200 sets the
+# kernel's 16-bit registers once, at the converged entry, so the diverged tail
+# must neither fault (O-81) nor compute at the wrong width.
+fail=0
 for BIN in "$TMP/v.bin" "$TMP/u.bin"; do
-python3 - "$BIN" <<'PY'
+for NT in "256 32" "1000 128"; do
+python3 - "$BIN" $NT <<'PY' || fail=1
 import subprocess, sys, re
-binf = sys.argv[1]
+binf, N, T = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 LAUNCH, A, B, C = 0x20000, 0x30000, 0x40000, 0x50000
-N = 256            # 8 iterations per thread at 32 threads
+# 8 iterations per thread; N even, so the guard is a whole word.
 GUARD = 0xABCD
 a = [(i * 7 + 3) & 0xFFFF for i in range(N)]
 b = [(i * 251 + 11) & 0xFFFF for i in range(N)]
 
-pokes = ["-poke", f"{hex(LAUNCH)}=32"]
+pokes = ["-poke", f"{hex(LAUNCH)}={T}"]
 for slot, val in ((0x20, C >> 16), (0x28, A >> 16), (0x30, B >> 16), (0x38, N)):
     pokes += ["-poke", f"{hex(LAUNCH + slot)}={val}"]
 for i in range(0, N, 2):
@@ -77,7 +83,8 @@ for i in range(0, N, 2):
     peeks += ["-peek", hex(C + i * 2)]
 peeks += ["-peek", hex(C + N * 2)]
 
-r = subprocess.run(["build/ccv-sim", binf, *pokes, *peeks],
+cta = ["-threads", str(T), "-cta"] if T > 32 else []
+r = subprocess.run(["build/ccv-sim", binf, *cta, *pokes, *peeks],
                    capture_output=True, text=True)
 got = [int(x) for x in re.findall(r"= (\d+)", r.stdout)]
 if len(got) != N // 2 + 1:
@@ -95,12 +102,13 @@ if bad:
     print(f"  FAIL  {len(bad)} of {N} elements wrong; first: "
           f"c[{bad[0][0]}] = {bad[0][1]}, want {bad[0][2]}")
     # Which iteration failed says what broke: element j is handled on
-    # iteration j//32, so all-but-the-first means the mode did not survive
+    # iteration j//T, so all-but-the-first means the mode did not survive
     # the back edge.
-    iters = sorted({j // 32 for j, _, _ in bad})
+    iters = sorted({j // T for j, _, _ in bad})
     print(f"        failing iterations: {iters}")
     sys.exit(1)
-print(f"  PASS  vadd16_loop: {N} elements over 8 iterations per thread, all correct")
+print(f"  PASS  vadd16_loop: {N} elements over 8 iterations per thread on "
+      f"{T // 32} warp(s), all correct")
 
 guard = got[-1]
 if guard != (GUARD | (GUARD << 16)):
@@ -109,3 +117,5 @@ if guard != (GUARD | (GUARD << 16)):
 print("  PASS  the element past the array is untouched (2-byte stores)")
 PY
 done
+done
+exit $fail

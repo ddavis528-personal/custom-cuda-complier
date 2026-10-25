@@ -96,6 +96,7 @@ add_library(CCVMC STATIC
   llvm/CCV/CCVFrameLowering.cpp
   llvm/CCV/CCVTargetTransformInfo.cpp
   llvm/CCV/CCVUniformity.cpp
+  llvm/CCV/CCVNarrowKernels.cpp
   llvm/CCV/CCVMaskUniform.cpp
   llvm/CCV/CCVFuseRcpSeed.cpp
   llvm/CCV/CCVInsertChwidth.cpp

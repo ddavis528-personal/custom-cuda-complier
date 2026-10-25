@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <array>
 #include "Interp.h"
 #include "NarrowFP.h"
 #include "SfuMath.h"
@@ -68,6 +69,25 @@ static cl::opt<unsigned> LaneContexts("lane-contexts", cl::init(4096),
 static cl::opt<bool> TestFAddDescending("ccv-test-atomic-fadd-descending",
     cl::Hidden, cl::desc("apply atom.add.f32's lanes in descending order, to "
                          "test that the order is observed (O-76)"));
+static cl::opt<bool> TestDivergedChwidth(
+    "ccv-test-diverged-chwidth", cl::Hidden,
+    cl::desc("execute a chwidth whose issue mask is not every live lane, as "
+             "before O-81, rather than raise F-WIDTH"));
+static cl::opt<bool> TestSizedNoSext(
+    "ccv-test-sized-no-sext", cl::Hidden,
+    cl::desc("zero-extend ld.s8 and ld.s16, to test that the sign is checked"));
+static cl::opt<bool> TestAddrFull(
+    "ccv-test-address-full-width", cl::Hidden,
+    cl::desc("read a narrow address or return register at all 32 bits, as O-39 "
+             "did, rather than its element (O-79)"));
+static cl::opt<bool> TestRetOnePass(
+    "ccv-test-ret-one-pass", cl::Hidden,
+    cl::desc("return every lane of a ret in one issue, whatever its target, "
+             "rather than a pass per distinct target (AR-24 (b))"));
+static cl::opt<bool> TestMovRaw(
+    "ccv-test-mov-raw", cl::Hidden,
+    cl::desc("a mov copies all 32 bits of its source, as before O-82, rather "
+             "than its element at the destination's width"));
 static cl::opt<bool> TestAtomNoIndex("ccv-test-atomic-no-index", cl::Hidden,
     cl::desc("address atomics without their index register, as before O-72, "
              "to test that it is caught"));
@@ -97,6 +117,9 @@ static cl::opt<bool> WholeCta(
 static cl::opt<bool> TestWarpBarrier("ccv-test-cta-warp-barrier", cl::Hidden,
     cl::desc("with -cta, a barrier waits for its own warp only, to test that "
              "it is caught"));
+static cl::opt<bool> NoopWidthPCs("noop-width-pcs", cl::Hidden,
+    cl::desc("with -counters, list the PCs of chwidths that set a register to "
+             "the width it already had (TI-45)"));
 static cl::opt<bool> TestIgnoreCount("ccv-test-bar-ignore-count", cl::Hidden,
     cl::desc("make bar.init a no-op, as before O-74, to test that it is "
              "caught"));
@@ -213,6 +236,10 @@ int main(int argc, char **argv) {
   nfp::TestHostNaN = TestFpHostNaN;
   sfu::TestTruncate = TestSfuTruncate;
   nfp::TestAtomNoIndex = TestAtomNoIndex;
+  nfp::TestAddrFull = TestAddrFull;
+  nfp::TestMovRaw = TestMovRaw;
+  nfp::TestSizedNoSext = TestSizedNoSext;
+  nfp::TestDivergedChwidth = TestDivergedChwidth;
   nfp::TestFAddDescending = TestFAddDescending;
   nfp::SfuErrorUlps = SfuErrorUlps;
   nfp::TestByValue = TestMixedByValue;
@@ -291,6 +318,9 @@ int main(int argc, char **argv) {
     I.Cta = &Warps;
   I.TestWarpBarrier = TestWarpBarrier;
   I.TestIgnoreCount = TestIgnoreCount;
+  std::map<uint64_t, uint64_t> NoopPCs;
+  if (NoopWidthPCs)
+    I.NoopWidthPCs = &NoopPCs;
 
   std::vector<std::string> AllPokes;
   if (!DataImage.empty()) {
@@ -585,6 +615,32 @@ int main(int argc, char **argv) {
     Journal.clear(); ShJournal.clear();
 
     auto R = I.step(W, MI, Mask, Target, unsigned(Size));
+    // A ret's lanes may return to different call sites. The hardware runs it
+    // in passes (AR-24 (b)): RCU's done names the lanes whose target is the
+    // lowest issuing lane's, those return, and the ret issues again for the
+    // rest. So one issue here is one pass, its taken mask the lanes that
+    // return; the others hold the ret's PC and are scheduled again.
+    // -ccv-test-ret-one-pass returns every lane in one issue, as before.
+    std::array<uint64_t, kLanes> RetPC{};
+    if (R.Kind == Interp::Result::Return) {
+      for (unsigned L = 0; L != kLanes; ++L)
+        if (Mask & (1u << L)) {
+          // §3 Format E (v1.8, 3013036): the PC is {PC[47:32] of the ret,
+          // rs[31:0]} -- a concatenation under the ret's own 4 GiB code
+          // window, not an add, so no image base reaches the redirect.
+          // A narrow rs contributes its element, zero-extended (O-79).
+          uint32_t RS = W.GPR[R.Target][L];
+          unsigned N = 32 >> W.ChWidth[R.Target];
+          if (N < 32 && !TestAddrFull)
+            RS &= (1u << N) - 1;
+          RetPC[L] = (Target & ~uint64_t(0xffffffff)) | RS;
+        }
+      uint64_t First = RetPC[llvm::countr_zero(Mask)];
+      R.TakenMask = 0;
+      for (unsigned L = 0; L != kLanes; ++L)
+        if ((Mask & (1u << L)) && (TestRetOnePass || RetPC[L] == First))
+          R.TakenMask |= 1u << L;
+    }
     ++Issued;
     ++IssuedBy[Cur];
     // A fault: undo it first, then record the instruction as it was issued
@@ -617,9 +673,7 @@ int main(int argc, char **argv) {
                    // lowest issuing lane's, and the register it came from is
                    // in the instruction bytes.
                    (unsigned long long)(R.Kind == Interp::Result::Return
-                       ? ((Target & ~uint64_t(0xffffffff)) |
-                          W.GPR[R.Target][llvm::countr_zero(Mask)])
-                       : R.Target),
+                       ? RetPC[llvm::countr_zero(Mask)] : R.Target),
                    R.TakenMask,
                    int(D.mayLoad()), int(D.mayStore()));
       // Register operands in operand order: uses read BEFORE the step, defs
@@ -822,10 +876,15 @@ int main(int argc, char **argv) {
       }
       else if (D.mayLoad() || D.mayStore()) {
         ++C.Mem;
+        // O-80's sized forms count with their space's loads and stores.
+        bool SzG = Op >= CCV::SZ_GLOBAL_LD_S16 && Op <= CCV::SZ_GLOBAL_ST_8;
+        bool SzS = Op >= CCV::SZ_SHARED_LD_S16 && Op <= CCV::SZ_SHARED_ST_8;
         int Slot = Op == CCV::LD_GLOBAL || Op == CCV::LD_GLOBAL_IDX ? 0
                    : Op == CCV::ST_GLOBAL || Op == CCV::ST_GLOBAL_IDX ? 1
                    : Op == CCV::LD_SHARED || Op == CCV::LD_SHARED_IDX ? 2
-                   : Op == CCV::ST_SHARED || Op == CCV::ST_SHARED_IDX ? 3 : -1;
+                   : Op == CCV::ST_SHARED || Op == CCV::ST_SHARED_IDX ? 3
+                   : SzG ? (D.mayLoad() ? 0 : 1)
+                   : SzS ? (D.mayLoad() ? 2 : 3) : -1;
         if (Slot >= 0) ++C.LdSt[Slot];
         // A transfer through the frame pointer is a spill; R15 is reserved
         // (O-30), so nothing else can be addressing through it.
@@ -868,12 +927,10 @@ int main(int argc, char **argv) {
         if (Mask & (1u << L)) W.PC[L] = R.Target;
       break;
     case Interp::Result::Return:
+      // This pass's lanes return; the rest hold the ret's PC (see above).
       for (unsigned L = 0; L != kLanes; ++L)
-        // §3 Format E (v1.8, 3013036): the PC is {PC[47:32] of the ret,
-        // rs[31:0]} -- a concatenation under the ret's own 4 GiB code window,
-        // not an add, so no image base reaches the redirect.
-        if (Mask & (1u << L))
-          W.PC[L] = (Target & ~uint64_t(0xffffffff)) | W.GPR[R.Target][L];
+        if (R.TakenMask & (1u << L))
+          W.PC[L] = RetPC[L];
       break;
     case Interp::Result::BranchPred:
       // Lanes split here. No bracket, no mask stack -- they simply hold
@@ -932,6 +989,8 @@ int main(int argc, char **argv) {
                      unsigned(WholeCta ? NumThreads : Threads))
            << format("  SIMT efficiency         %9.1f%%   (lanes active per issue, of %u)\n",
                      pct(C.LaneInstrs, C.IssueGroups * Threads), Threads)
+           << format("  no-op widths            %10llu   (registers a chwidth set to the "
+                     "width they had, TI-45)\n", (unsigned long long)I.NoopWidths)
            << format("  fairness overrides      %10llu   (O-60 picks that left min-PC)\n",
                      (unsigned long long)C.FairPicks)
            << format("  predicate-file ops      %10llu   (no GPR lane activates)\n",
@@ -987,5 +1046,8 @@ int main(int argc, char **argv) {
     }
     outs() << format("  [%#llx] = %u\n", (unsigned long long)Addr, I.Mem.read32(Addr));
   }
+  for (auto [PC, N] : NoopPCs)
+    outs() << format("  no-op width at %#llx: %llu\n", (unsigned long long)PC,
+                     (unsigned long long)N);
   return 0;
 }

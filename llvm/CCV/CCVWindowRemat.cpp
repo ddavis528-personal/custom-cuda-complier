@@ -38,6 +38,7 @@ using namespace llvm;
 
 namespace llvm {
 FunctionPass *createCCVWindowRemat();
+bool ccvSizedAccesses();   // CCVISelLowering: -ccv-test-no-sized
 }
 
 #define DEBUG_TYPE "ccv-window-remat"
@@ -111,7 +112,39 @@ bool isRematerializable(const Instruction *I) {
 /// Collect the operand cone of Root in dependency order, or return false if any
 /// of it cannot be cloned. Constants and arguments are leaves and need no
 /// cloning, so they are not collected.
+/// Is every access through this pointer a byte or halfword one? O-80's sized
+/// forms, which those take, have no launch-slot variant, so for them a cloned
+/// launch-block load is a real load, every iteration in a loop.
+bool onlyNarrowAccesses(const Instruction *Root) {
+  SmallVector<const Instruction *, 8> Work{Root};
+  SmallPtrSet<const Instruction *, 8> Seen;
+  bool Any = false;
+  while (!Work.empty()) {
+    const Instruction *I = Work.pop_back_val();
+    if (!Seen.insert(I).second)
+      continue;
+    for (const User *U : I->users()) {
+      const auto *UI = cast<Instruction>(U);
+      Type *T = nullptr;
+      if (const auto *LI = dyn_cast<LoadInst>(UI))
+        T = LI->getType();
+      else if (const auto *SI = dyn_cast<StoreInst>(UI))
+        T = SI->getPointerOperand() == I ? SI->getValueOperand()->getType()
+                                         : nullptr;
+      else if (isa<GetElementPtrInst>(UI)) {
+        Work.push_back(UI);
+        continue;
+      }
+      if (!T || !T->isIntegerTy() || T->getIntegerBitWidth() > 16)
+        return false;
+      Any = true;
+    }
+  }
+  return Any;
+}
+
 bool collectChain(Instruction *Root, SmallVectorImpl<Instruction *> &Order) {
+  const bool Narrow = ccvSizedAccesses() && onlyNarrowAccesses(Root);
   SmallPtrSet<Instruction *, 8> Seen;
   // Depth first, post-order: operands land ahead of the user.
   SmallVector<std::pair<Instruction *, bool>, 8> Stack{{Root, false}};
@@ -145,8 +178,10 @@ bool collectChain(Instruction *Root, SmallVectorImpl<Instruction *> &Order) {
         // F-86 declined to pay for is now free, and declining still costs the
         // whole optimisation, because SelectionDAG works one block at a time
         // and cannot see a window load that LICM hoisted to the preheader.
+        // And not even then for a pointer only byte and halfword accesses
+        // use (O-80): their sized forms take a base register, not a slot.
         if (StopAtGPR && fitsRegister(OpI->getType()) &&
-            !isLaunchBlockLoad(OpI))
+            (!isLaunchBlockLoad(OpI) || Narrow))
           continue;
         Stack.push_back({OpI, false});
       }

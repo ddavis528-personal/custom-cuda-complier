@@ -85,8 +85,10 @@ void CCVInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     return;
   }
 
-  // The compressed mov is 16 bits and is a rename-time no-op at execution
-  // (§3, Format K).
+  // The compressed mov is 16 bits (§3, Format K). Between registers of one
+  // width it is a rename-time no-op. Across widths, as a narrow kernel's
+  // copies between its 16- and 32-bit registers are (F-200), it executes as
+  // an operation: rs's element, zero-extended or truncated to rd's (O-82).
   BuildMI(MBB, MI, DL, get(CCV::C_MOV), DestReg)
       .addReg(SrcReg, getKillRegState(KillSrc));
 }

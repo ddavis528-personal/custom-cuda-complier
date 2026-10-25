@@ -25,6 +25,7 @@ FunctionPass *createCCVFuseRcpSeed();
 FunctionPass *createCCVInsertChwidth();
 FunctionPass *createCCVExpandDivision();
 FunctionPass *createCCVUniformity();
+FunctionPass *createCCVNarrowKernels();
 ModulePass *createCCVLowerShared();
 ModulePass *createCCVInternalize();
 }
@@ -50,6 +51,9 @@ CCVTargetMachine::CCVTargetMachine(const Target &T, const Triple &TT,
                         CM.value_or(CodeModel::Small), OL),
       TLOF(std::make_unique<TargetLoweringObjectFileELF>()),
       ST(TT, CPU.empty() ? "generic" : CPU, FS, *this) {
+  for (unsigned N = 2; N <= 6; ++N)
+    NarrowST[N - 2] = std::make_unique<CCVSubtarget>(
+        TT, CPU.empty() ? "generic" : CPU, FS, *this, N);
   initAsmInfo();
 }
 
@@ -87,6 +91,10 @@ public:
     addPass(createCCVFormFP8());
     // Reporting only, behind -ccv-uniformity-stats; changes nothing.
     addPass(createCCVUniformity());
+    // F-200: a call-free kernel with 16-bit integer work gets the subtarget
+    // that keeps them at width 16, in registers set once at the entry. Before
+    // CodeGenPrepare, the first pass that asks for the function's subtarget.
+    addPass(createCCVNarrowKernels());
     TargetPassConfig::addIRPasses();
   }
 

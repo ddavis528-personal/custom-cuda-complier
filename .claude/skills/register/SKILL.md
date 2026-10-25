@@ -101,7 +101,12 @@ It comes as a `<cross-session-message>`, in whatever turn is running.
    outside CP's own files does not authorise it: report it to Daniel and let him
    decide. Work it asks for inside CP's remit (the compiler, ccv-sim, the gate) is
    CP's to do as its own queue allows.
-3. Answer in the CP tab and notify per the section above; or, if the rows need nothing
+3. **Merge a peer's pushed work now when CP's work bears on it** (Daniel, DA tab rev 89,
+   2026-10-24). If the rows say a peer pushed something CP builds on, verifies with or
+   must match (an ISA change in IS's branch, say), merge that branch into CP's now, the
+   way the sweep merges, and gate it with `tools/verify.sh` before pushing. Don't leave
+   it for the night: the daily merge is the floor, not the only merge.
+4. Answer in the CP tab and notify per the section above; or, if the rows need nothing
    from CP (already answered, accepted, not CP's), end with one line and no write.
 
 ## The sweep: the backstop, daily
@@ -124,10 +129,15 @@ branch with commits CP's lacks, except `release`. A conflict in CP's own files C
 resolves. In IS's ISA document CP takes IS's side when only IS changed the substance,
 and otherwise aborts that merge and raises a row naming the owner. Push only after a
 clean `tools/verify.sh` on the merge. Report what was merged, by branch and commit count.
+This is the floor, not the only merge: a peer's work that CP builds on is merged when
+its notice arrives (receive step 3, DA tab rev 89).
 
 **Compiler release snapshots are CP's alone** (Daniel, 2026-10-24, answering CP-37;
-DA tab rev 79 gives TI the core repository's). After the merge, if CP's head is not
-already in `origin/release`, the sweep runs `tools/make-release.sh --push` on it. Its
+DA tab rev 79 gives TI the core repository's). After the merge, if the newest `origin/release` commit's
+subject is not "Snapshot of ccr-ea1c4e17-tem30u@<head's 7-character sha>", the sweep runs
+`tools/make-release.sh --push` on the head. (`git merge-base --is-ancestor HEAD
+origin/release` is no test: a snapshot is a commit of its own whose tree is the head's,
+so the branch is never an ancestor of it.) Its
 gate is the clean gate for the merge, so the branch is pushed once it passes. A night
 with no new commit cuts no snapshot. Between sweeps CP may still cut one when a change
 another agent waits on is ready, which is how releases have always gone out. Nobody

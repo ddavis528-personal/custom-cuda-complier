@@ -156,9 +156,11 @@ print(f"  PASS  static frames: scratch at {min(stores[s])}..{max(stores[s])}, th
       f"below it at {min(own)}..{max(own)}; stack arguments at {sorted(args)}")
 PY
 
-# Controls. Each breaks one thing the passes above depend on.
+# Controls. Each breaks one thing the passes above depend on. The call-widths
+# one needs a narrow register live across a call, which only 16-bit integers
+# at width 16 make (F-199: by default they run at 32 bits).
 for c in "-ccv-test-flat-frames" "-ccv-test-mask-device-functions" \
-         "-ccv-test-no-call-widths" "-ccv-test-drop-pair-offset" \
+         "-ccv-test-i16-legal -ccv-test-no-call-widths" "-ccv-test-drop-pair-offset" \
          "-ccv-test-stack-args-at-zero" "-ccv-test-ignore-indirect-frames" \
          "-ccv-test-flat-local" "-ccv-code-base=0"; do
   out=$(run $c)

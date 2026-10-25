@@ -11,9 +11,11 @@
 # block after the compare that widened them (F-164).
 #
 # Controls, which must fail: -ccv-test-bytes-at-32 selects the 32-bit forms for
-# byte accesses, so each transfer moves four bytes; and
-# -ccv-test-chwidth-defs-only models only definitions in chwidth's dataflow,
-# as before F-164, so a short stored after a widening compare moves four.
+# byte accesses, so each transfer moves four bytes; and the chwidth model of
+# narrow data (-ccv-test-i16-legal -ccv-test-no-sized, with F-200's narrow
+# kernel off, as F-199 compiled it), whose width changes this kernel's
+# diverged lanes fault on (O-81). F-164's control,
+# -ccv-test-chwidth-defs-only, runs on CoreMark-derived, which never diverges.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
@@ -96,7 +98,8 @@ case "$out" in
   ok*) echo "  PASS  bytes.cu: signed and unsigned bytes, a string, .shared, the frame, and 32 packed byte stores on 32 lanes (${out#ok } issue groups)" ;;
   *)   echo "  FAIL  bytes.cu: $out"; fail=1 ;;
 esac
-for c in -ccv-test-bytes-at-32 -ccv-test-chwidth-defs-only; do
+for c in -ccv-test-bytes-at-32 \
+         "-ccv-test-i16-legal -ccv-test-no-sized -ccv-no-narrow-kernels"; do
   out=$(run $c)
   case "$out" in
     ok*) echo "  FAIL  control $c still computed every lane right"; fail=1 ;;

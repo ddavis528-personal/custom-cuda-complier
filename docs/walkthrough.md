@@ -362,6 +362,34 @@ __global__ void vadd16_loop(short *ALIGNED c, const short *ALIGNED a,
 }
 ```
 
+Compiled as it is today, its loop changes no width:
+
+```
+LBB0_1:
+	ld.global.u16 r13, [r3, r1, 1, 0]
+	ld.global.u16 r12, [r2, r1, 1, 0]
+	add r13, r12, r13
+	st.global.16 r13, [r4, r1, 1, 0]
+	add r1, r0
+	setp.lt.u p0, r1, r5
+	@p0 bra LBB0_1
+```
+
+The loads and the store are §3's sized forms (O-80), whose opcode names the
+transfer and which extend into a register at its own width. The add runs at
+16 bits in `r12` and `r13`. Those two were set to 16 bits once, by one
+`chwidth.multi` at the kernel's entry, and nothing changes width after it
+(F-200). That is the rule rather than a choice: a `chwidth` may issue only
+where the warp is converged (O-81). The entry is the one place a scalar kernel
+is known converged, since its lanes then diverge on their data, here at the
+bounds check. So a call-free kernel with 16-bit integer work keeps them in
+R8-R13 at 16 bits for its whole run and its 32-bit values in the rest. A copy
+between the two is an `addi`, which O-67 defines as the zero-extension or
+truncation. Any other kernel runs its 16-bit integers at 32 bits (F-199). The
+rest of this section shows the older machinery, which placed a width change
+wherever one was needed, on the same kernel, in the configuration that still
+has it: `-ccv-test-i16-legal -ccv-test-no-sized -ccv-no-narrow-kernels`.
+
 ### The mode switches are not in the loop
 
 ```

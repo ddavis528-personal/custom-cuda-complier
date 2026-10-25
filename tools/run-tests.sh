@@ -167,6 +167,27 @@ run_call() {
     { echo "$hi"; echo "  FAIL  call.s loaded at 0x1_0000_1000 did not run"; return 1; }
   [ "$hi" = "$out" ] && echo "  PASS  the same answers loaded at 0x1_0000_1000: ret keeps its 4 GiB window" \
                      || { echo "  FAIL  call.s gives different answers loaded above 4 GiB"; return 1; }
+  # AR-24 (b): the stub's ret sends even lanes to one callee and odd lanes to
+  # the other, so the oracle records it as the hardware issues it, a pass per
+  # target, lowest lane first: all 32 lanes issue and the even ones return,
+  # then the odd ones issue and return. The control is one pass for all.
+  # The stub's ret (`C_RET 80`, ret R5), by its offset in the image.
+  local stub ctl
+  stub=$(printf 0x%x $((0x1000 + $(python3 tools/ccv-dis.py "$JSON" "$TMP/call.bin" |
+                                   grep -m1 -oP 'C_RET\s+80\s+# \K0x[0-9a-f]+'))))
+  passes() {
+    "$SIM" "$TMP/call.bin" -oracle "$TMP/call.jsonl" "$@" >/dev/null 2>&1 || return
+    python3 -c 'import json, sys
+pc = int(sys.argv[2], 16)
+print(" ".join("%x/%x" % (r["mask"], r["taken"]) for r in map(json.loads, open(sys.argv[1]))
+               if r.get("kind") == "return" and r["pc"] == pc))' "$TMP/call.jsonl" "$stub"
+  }
+  got=$(passes); ctl=$(passes -ccv-test-ret-one-pass)
+  if [ "$got" = "ffffffff/55555555 aaaaaaaa/aaaaaaaa" ] && [ "$ctl" = "ffffffff/ffffffff" ]; then
+    echo "  PASS  a ret to two targets is two passes in the oracle, lowest lane's first (AR-24 (b); control: one)"
+  else
+    echo "  FAIL  ret passes: got '$got', want 'ffffffff/55555555 aaaaaaaa/aaaaaaaa' (control '$ctl')"; return 1
+  fi
 }
 # --- ld.pred / st.pred (IS-15) -----------------------------------------------
 # The backend spills predicates through these, and until IS-15 the simulator
@@ -355,6 +376,63 @@ run_mixed_width() {
     echo "  FAIL  mixed-width: got '$got', want '$want' (by value: '$ctl')"; return 1
   fi
 }
+# --- a narrow address register (O-79) ---------------------------------------
+run_addr_narrow() {
+  python3 "$AS" "$JSON" test/addr-narrow.s "$TMP/an.bin" >/dev/null || return 1
+  local args="-poke 0x80004=17 -poke 0x80704=34 -peek 0x90000" got ctl
+  got=$("$SIM" "$TMP/an.bin" $args 2>&1 | grep -oP '\] = \K\d+')
+  # The control: the index read at all 32 bits, as O-39 had it.
+  ctl=$("$SIM" "$TMP/an.bin" $args -ccv-test-address-full-width 2>&1 | grep -oP '\] = \K\d+')
+  if [ "$got" = 17 ] && [ "$ctl" = 34 ]; then
+    echo "  PASS  a narrow index contributes only its element (O-79; control reads 32 bits)"
+  else
+    echo "  FAIL  addr-narrow: got '$got', want 17 (control: '$ctl', want 34)"; return 1
+  fi
+}
+# --- sized loads and stores (O-80) ------------------------------------------
+run_sized() {
+  python3 "$AS" "$JSON" test/sized.s "$TMP/sz.bin" >/dev/null || return 1
+  python3 "$AS" "$JSON" test/faults/sized-width.s "$TMP/szw.bin" >/dev/null || return 1
+  local args="-poke 0x80000=2155999487 -poke 0x90010=2863311530 -poke 0x90014=2863311530"
+  local k got ctl fault
+  for k in 0 4 8 12 16 20 24 28 32 36; do args="$args -peek $(printf 0x%x $((0x90000 + k)))"; done
+  local want="255 4294967295 32897 4294934657 2863311480 2863289976 22136 86 32897 65535"
+  got=$("$SIM" "$TMP/sz.bin" $args 2>&1 | grep -oP '\] = \K\d+' | xargs)
+  # The control: ld.s8 and ld.s16 zero-extend.
+  ctl=$("$SIM" "$TMP/sz.bin" $args -ccv-test-sized-no-sext 2>&1 | grep -oP '\] = \K\d+' | xargs)
+  fault=$("$SIM" "$TMP/szw.bin" 2>&1 | grep -c 'FAULT F-WIDTH')
+  if [ "$got" = "$want" ] && [ "$ctl" != "$want" ] && [ "$fault" = 1 ]; then
+    echo "  PASS  sized loads and stores: u8, s8, u16, s16, st.8, st.16 on .global and .shared, scaled, into a narrow rdata, and F-WIDTH when the transfer is wider (O-80)"
+  else
+    echo "  FAIL  sized: got '$got', want '$want' (control '$ctl', F-WIDTH $fault)"; return 1
+  fi
+}
+# --- mov across widths (O-82) ----------------------------------------------
+run_mov_width() {
+  python3 "$AS" "$JSON" test/mov-width.s "$TMP/mw.bin" >/dev/null || return 1
+  local got ctl
+  got=$("$SIM" "$TMP/mw.bin" -peek 0x90000 2>&1 | grep -oP '\] = \K\d+')
+  # The control: mov copies all 32 bits, as ccv-sim did before O-82.
+  ctl=$("$SIM" "$TMP/mw.bin" -peek 0x90000 -ccv-test-mov-raw 2>&1 | grep -oP '\] = \K\d+')
+  if [ "$got" = 63096 ] && [ "$ctl" = 305460856 ]; then
+    echo "  PASS  mov across widths truncates to the element and zero-extends it (O-82; control copies 32 bits)"
+  else
+    echo "  FAIL  mov-width: got '$got', want 63096 (control: '$ctl', want 305460856)"; return 1
+  fi
+}
+# --- a chwidth from a diverged warp (O-81) ----------------------------------
+run_diverged_chwidth() {
+  python3 "$AS" "$JSON" test/faults/diverged-chwidth.s "$TMP/dc.bin" >/dev/null || return 1
+  local got ctl
+  got=$("$SIM" "$TMP/dc.bin" 2>&1 | grep -c 'FAULT F-WIDTH  pc=0x100e  lanes=0000ffff')
+  # The control: the diverged chwidth executes, as before O-81.
+  ctl=$("$SIM" "$TMP/dc.bin" -ccv-test-diverged-chwidth 2>&1 | grep -c 'FAULT')
+  if [ "$got" = 1 ] && [ "$ctl" = 0 ]; then
+    echo "  PASS  a chwidth from a diverged warp raises F-WIDTH, a converged one does not (O-81)"
+  else
+    echo "  FAIL  diverged-chwidth: fault $got, want 1 (control faults $ctl, want 0)"; return 1
+  fi
+}
 # --- srd #2, %lanectx (O-64) -----------------------------------------------
 run_lanectx() {
   python3 "$AS" "$JSON" test/lanectx.s "$TMP/lc.bin" >/dev/null || return 1
@@ -414,6 +492,10 @@ run_atomics_fadd || fail=1
 echo
 echo "  --- the mixed-width rule (O-67) ---"
 run_mixed_width || fail=1
+run_addr_narrow || fail=1
+run_sized || fail=1
+run_diverged_chwidth || fail=1
+run_mov_width || fail=1
 
 # --- the fault model (ISA v1.9 section 12, O-57/O-58) ------------------------
 # Each case names the record it must produce. A fault exits 3, distinct from a
@@ -540,8 +622,10 @@ echo "  --- call and ret (F-21) ---"
 run_call || fail=1
 
 # The compiler side: CCVInsertChwidth places the mode switches, and the two
-# things that are easy to get wrong are both pinned here.
-chw=$(build/ccv-llc test/accept/chwidth-i16.ll -o - 2>/dev/null)
+# things that are easy to get wrong are both pinned here. Default code has no
+# 16-bit integer width to place (F-199: i16 runs at 32 bits, narrow accesses
+# are sized), so this runs the configuration that still has one.
+chw=$(build/ccv-llc test/accept/chwidth-i16.ll -o - -ccv-test-i16-legal -ccv-test-no-sized -ccv-no-narrow-kernels 2>/dev/null)
 if ! grep -q "chwidth r" <<< "$chw"; then
   echo "  FAIL  no chwidth emitted for a 16-bit kernel"
   fail=1
@@ -571,6 +655,11 @@ bo=$(build/ccv-llc test/accept/base-offset-i16.ll -o - 2>/dev/null)
 if [ -z "$bo" ]; then
   echo "  FAIL  base-offset-i16.ll did not compile"
   fail=1
+elif grep -q "ld.global.u16" <<< "$bo" && grep -q "st.global.16" <<< "$bo" &&
+     ! grep -qE "^	(ld|st)\.global r" <<< "$bo"; then
+  # O-80: the sized forms name the transfer in the opcode, so a 16-bit access
+  # cannot move four bytes whatever the data register's width.
+  echo "  PASS  16-bit base+offset accesses take the sized forms ($(grep -cE 'global\.(u16|16)' <<< "$bo") accesses, O-80)"
 elif grep -qE "chwidth(\.multi)? [^,]+, 0$" <<< "$bo"; then
   echo "  FAIL  16-bit base+offset access selected the 32-bit form"
   echo "        (a widening chwidth in an all-16-bit kernel means the"

@@ -678,17 +678,15 @@ let isCodeGenOnly = 1 in {
   def ST_SHARED_W16 : FormatD<0b00011, (outs),
                              (ins GPR16:$rdata, GPR:$rbase, simm13:$off),
                              "st.shared $rdata, [$rbase + $off]">;
-  // No earlyclobber: the destination MAY share a register with the base or the
-  // index. §3 now says the base and index are read at 32 bits whatever the
-  // register's `chwidth` (O-39), so
+  // No earlyclobber here: §3 lets the destination share a register with the
+  // base or the index, read at 32 bits whatever its `chwidth` (O-39), so
   //
   //     chwidth   r2, 1
   //     ld.global r2, [r3, r2, 0, 0]
   //
-  // is well defined -- the index read takes all 32 bits, which narrowing left
-  // intact because `chwidth` reinterprets rather than converts, and the load
-  // then writes the 16-bit element. An earlyclobber was there while F-68 was
-  // open and cost an extra register per narrow load.
+  // is defined. CCVNarrowUses keeps them apart anyway (F-198), by marking the
+  // destination early-clobber per instruction: a sliced register (OI-29) holds
+  // nothing above its element for that 32-bit read to take.
   let mayLoad = 1 in
   def LD_GLOBAL_IDX_W16 : FormatDidx<0b00100, (outs GPR16:$rdata),
                              (ins GPR:$rbase, GPR:$rindex, uimm2:$scale,
@@ -825,6 +823,74 @@ let mayStore = 1 in
 def ST_SHARED_IDX : FormatDidx<0b00111, (outs),
                                (ins GPR:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
                                "st.shared $rdata, [$rbase, $rindex, $scale, $disp]">;
+
+// Sized loads and stores (O-80, DA tab rev 90): the opcode names the transfer,
+// so `rdata` keeps its width (32 in scalar code) and a byte or halfword access
+// needs no `chwidth`, which code that may be diverged cannot have (O-78). Base
+// + index layout at every point; .global shifts the base by 16 as the other
+// .global forms do, .shared does not. Scale-enable scales `rindex` by the
+// transfer size. A load zero- or sign-extends to `rdata`'s width.
+multiclass SizedMem<bits<5> ld8u, bits<5> ld8s, bits<5> ld16u, bits<5> ld16s,
+                    bits<5> st8, bits<5> st16, string sp> {
+  let mayLoad = 1 in {
+  def _LD_U8  : FormatDidx<ld8u, (outs GPR:$rdata),
+                  (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                  "ld."#sp#".u8 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _LD_S8  : FormatDidx<ld8s, (outs GPR:$rdata),
+                  (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                  "ld."#sp#".s8 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _LD_U16 : FormatDidx<ld16u, (outs GPR:$rdata),
+                  (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                  "ld."#sp#".u16 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _LD_S16 : FormatDidx<ld16s, (outs GPR:$rdata),
+                  (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                  "ld."#sp#".s16 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  }
+  let mayStore = 1 in {
+  def _ST_8   : FormatDidx<st8, (outs),
+                  (ins GPR:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                  "st."#sp#".8 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _ST_16  : FormatDidx<st16, (outs),
+                  (ins GPR:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                  "st."#sp#".16 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  }
+}
+defm SZ_GLOBAL : SizedMem<0b10100, 0b10101, 0b10110, 0b10111, 0b11000, 0b11001, "global">;
+defm SZ_SHARED : SizedMem<0b11010, 0b11011, 0b11100, 0b11101, 0b11110, 0b11111, "shared">;
+
+// F-200: the same forms with a 16-bit rdata, for a narrow kernel, whose 16-bit
+// integers live in R8-R13 at width 16. O-80 extends a load to rdata's width,
+// so a halfword or byte loads straight into the narrow register, with no move
+// between the partitions. Encoded identically, so isCodeGenOnly, as the W16
+// twins are.
+multiclass SizedMem16<bits<5> ld8u, bits<5> ld8s, bits<5> ld16u, bits<5> ld16s,
+                      bits<5> st8, bits<5> st16, string sp> {
+  let isCodeGenOnly = 1 in {
+  let mayLoad = 1 in {
+  def _LD_U8_W16  : FormatDidx<ld8u, (outs GPR16:$rdata),
+                      (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                      "ld."#sp#".u8 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _LD_S8_W16  : FormatDidx<ld8s, (outs GPR16:$rdata),
+                      (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                      "ld."#sp#".s8 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _LD_U16_W16 : FormatDidx<ld16u, (outs GPR16:$rdata),
+                      (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                      "ld."#sp#".u16 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _LD_S16_W16 : FormatDidx<ld16s, (outs GPR16:$rdata),
+                      (ins GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                      "ld."#sp#".s16 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  }
+  let mayStore = 1 in {
+  def _ST_8_W16   : FormatDidx<st8, (outs),
+                      (ins GPR16:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                      "st."#sp#".8 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  def _ST_16_W16  : FormatDidx<st16, (outs),
+                      (ins GPR16:$rdata, GPR:$rbase, GPR:$rindex, uimm2:$scale, simm8:$disp),
+                      "st."#sp#".16 $rdata, [$rbase, $rindex, $scale, $disp]">;
+  }
+  }
+}
+defm SZ_GLOBAL : SizedMem16<0b10100, 0b10101, 0b10110, 0b10111, 0b11000, 0b11001, "global">;
 
 // Predicate transfer (v1.3, O-19). [14:11] is a predicate mask, not rdata.
 let mayLoad = 1 in
@@ -1105,10 +1171,22 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
   // branch folder invert a condition rather than adding an instruction.
   // A narrow use's own copy of a value also read wider (F-169), made before
   // allocation by CCVNarrowUses. Not a COPY, so nothing folds it back into its
-  // source; CCVInsertChwidth makes it a move, or nothing when both landed in
-  // one register.
-  def PSEUDO_NARROW : CCVInst<0, (outs GPR:$rd), (ins GPR:$rs),
-                              "# narrow $rd, $rs">;
+  // source; CCVInsertChwidth makes it a move, if the two did not land in one
+  // register, and then, if $w is not 0, narrows $rd to width code $w
+  // (F-195): where the narrow value is read at 32 bits, which counts on a
+  // widening to clear the high bits (O-38), the register must be narrow.
+  def PSEUDO_NARROW : CCVInst<0, (outs GPR:$rd), (ins GPR:$rs, i32imm:$w),
+                              "# narrow $rd, $rs, $w">;
+
+  // `trunc i32 -> i16` (F-195). It was a COPY, and LLVM's copy folding takes a
+  // COPY into GPR16 and back out as the original value, so a 16-bit shift
+  // done through the 32-bit instruction read the i32's high bits. A pseudo
+  // nothing folds, expanded with PSEUDO_NARROW: a move if needed, then, when
+  // $narrow is 1, the narrowing chwidth that makes the high bits not part of
+  // the value. CCVNarrowUses clears $narrow where nothing reads the value at
+  // 32 bits through a widening copy, the only reader that sees those bits.
+  def PSEUDO_TRUNC16 : CCVInst<0, (outs GPR16:$rd), (ins GPR:$rs, i32imm:$narrow),
+                               "# trunc16 $rd, $rs, $narrow">;
 
   // O-33's broadcast. Tied because the shuffle is in-place: lanes 1-31 read
   // lane 0's copy of the SAME register, and lane 0 keeps its own value because

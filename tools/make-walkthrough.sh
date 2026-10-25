@@ -17,19 +17,25 @@ mv "$OUT/x-clang.ll" "$OUT/2-clang.ll"; mv "$OUT/x-lowered.ll" "$OUT/3-lowered.l
 # §8's narrow-width case. Both widths of the same loop kernel, so the section
 # can put them side by side, plus the chwidth pass's own account of where it
 # put the mode switches and why.
+# Default scalar code changes no width past the entry (F-199, F-200), so §8
+# shows it once and then shows the mode-switch machinery in the configuration
+# that still places width changes anywhere.
 CCV_CFLAGS=-DCCV_ALIGNED ./tools/cuda-to-asm.sh test/bench/vadd16_loop.cu \
+    "$OUT/8-narrow-asm-sized.s" "$OUT/s" >/dev/null
+LEGACY="-ccv-test-i16-legal -ccv-test-no-sized -ccv-no-narrow-kernels"
+CCV_LLCFLAGS="$LEGACY" CCV_CFLAGS=-DCCV_ALIGNED ./tools/cuda-to-asm.sh test/bench/vadd16_loop.cu \
     "$OUT/8-narrow-asm.s" "$OUT/n" >/dev/null
 CCV_CFLAGS=-DCCV_ALIGNED ./tools/cuda-to-asm.sh test/bench/vadd_loop.cu \
     "$OUT/8-wide-asm.s" "$OUT/w" >/dev/null
-./tools/cuda-to-asm.sh test/bench/vadd16_loop.cu "$OUT/8-narrow-asm-unaligned.s" \
-    "$OUT/nu" >/dev/null
-build/ccv-llc "$OUT/n-lowered.ll" -o /dev/null -ccv-chwidth-stats \
+CCV_LLCFLAGS="$LEGACY" ./tools/cuda-to-asm.sh test/bench/vadd16_loop.cu \
+    "$OUT/8-narrow-asm-unaligned.s" "$OUT/nu" >/dev/null
+build/ccv-llc "$OUT/n-lowered.ll" -o /dev/null -ccv-chwidth-stats $LEGACY \
     2> "$OUT/8-chwidth-stats.txt"
 # The same kernel with each optimisation turned off, so the section shows what
 # they are worth rather than asserting it.
 build/ccv-llc "$OUT/n-lowered.ll" -o "$OUT/8-narrow-asm-noedge.s" \
-    -ccv-chwidth-cross-block=false
-rm -f "$OUT"/n-*.ll "$OUT"/w-*.ll "$OUT"/nu-*.ll
+    -ccv-chwidth-cross-block=false $LEGACY
+rm -f "$OUT"/n-*.ll "$OUT"/w-*.ll "$OUT"/nu-*.ll "$OUT"/s-*.ll
 
 build/ccv-llc "$OUT/3-lowered.ll" -o "$OUT/5-object.o" -obj
 llvm-objcopy -O binary --only-section=.text "$OUT/5-object.o" "$OUT/5-text.bin"

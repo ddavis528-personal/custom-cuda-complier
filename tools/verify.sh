@@ -153,6 +153,12 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-barcount.sh || fail=1
 fi
 
+# F-195: a truncation to 16 bits read back at 32 bits, with two controls.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  16-bit truncations (F-195)"
+  ./tools/check-trunc16.sh || fail=1
+fi
+
 # IS-13 (2): 64-bit integers through 32-bit pairs, every operation executed
 # against C's semantics, with a control; and the add.cc/addc measurement.
 if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then

@@ -23,6 +23,23 @@ static constexpr unsigned AS_CONST  = 4;
 
 #include "CCVGenCallingConv.inc"
 
+// O-81: a chwidth may issue only where the warp is converged, and scalar code
+// cannot tell where it is. So i16 is not a legal type: 16-bit integer code is
+// promoted to 32 bits by the type legalizer and needs no width, and memory
+// takes O-80's sized forms. -ccv-test-i16-legal puts the 16-bit register class
+// back, whose chwidths a diverged warp then faults on (F-197, F-199).
+static cl::opt<bool> TestI16Legal(
+    "ccv-test-i16-legal", cl::init(false), cl::Hidden,
+    cl::desc("make i16 a legal type at width 16 again, as before F-199"));
+
+// TI-45's measurement, off until F-197 is settled: i16 and/or/xor done at 32
+// bits change the shape of the width code enough to expose F-197 (check-fp4's
+// __NV_NOSAT kernels), so they are opt-in.
+static cl::opt<bool> Logic16At32(
+    "ccv-logic16-at-32", cl::init(false), cl::Hidden,
+    cl::desc("do 16-bit and, or and xor at 32 bits (TI-45; unsound until "
+             "F-197)"));
+
 // Mutation control for tools/check-int64.sh: sign-extend every load widened
 // to 64 bits, whatever its extension.
 static cl::opt<bool> TestWideLoadSext(
@@ -32,13 +49,14 @@ static cl::opt<bool> TestWideLoadSext(
 
 CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
                                      const CCVSubtarget &STI)
-    : TargetLowering(TM) {
+    : TargetLowering(TM), I16Legal(TestI16Legal || STI.narrowInt()) {
   addRegisterClass(MVT::i32, &CCV::GPRRegClass);
   // §1: element width is per-register state, so the SAME sixteen registers
   // hold 16-bit elements. There is no separate class -- the width is a
   // property of the value, carried to the post-RA chwidth pass in TSFlags
   // (F-3). i8 and i4 are not legal yet; i4 has no MVT at all.
-  addRegisterClass(MVT::i16, &CCV::GPR16RegClass);
+  if (I16Legal)
+    addRegisterClass(MVT::i16, &CCV::GPR16RegClass);
   addRegisterClass(MVT::f32, &CCV::GPRRegClass);
   // A predicate is its own namespace with its own RAT (invariant 5), so i1
   // lives in PR rather than being promoted into a GPR. One bit per lane in
@@ -121,6 +139,19 @@ CCVTargetLowering::CCVTargetLowering(const TargetMachine &TM,
   // reached an i16 multiply nothing selects (F-161).
   // Shifts are not here: LegalizeDAG does not promote them, so they have
   // patterns that do the same through the 32-bit instructions.
+  //
+  // And, or and xor too, with -ccv-logic16-at-32 (TI-45, opt-in until F-197),
+  // although they have 16-bit forms. Done at 16 they cost a narrowing before
+  // and a widening after, and need no width: the low 16 bits of the result
+  // depend only on the operands' low 16.
+  // CoreMark's CRC-16 narrowed 19,877 values a thread for nothing else. The
+  // promotion any-extends, so the i32 may carry high bits; the truncation
+  // back clears them wherever a 32-bit read would see them (F-195).
+  if (Logic16At32)
+    for (unsigned Op : {ISD::AND, ISD::OR, ISD::XOR}) {
+      setOperationAction(Op, MVT::i16, Promote);
+      AddPromotedToType(Op, MVT::i16, MVT::i32);
+    }
   for (unsigned Op : {ISD::MUL, ISD::MULHS, ISD::MULHU,
                       ISD::SDIV, ISD::UDIV, ISD::SREM, ISD::UREM,
                       ISD::UMIN, ISD::UMAX, ISD::ABS, ISD::CTPOP, ISD::CTLZ,
@@ -555,6 +586,33 @@ static bool matchFrame(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
   return false;
 }
 
+/// O-80 in the frame: a sized access takes base + index only, whose 8-bit
+/// displacement cannot reach a frame object past 127 bytes. So it addresses the
+/// frame as a frame pointer does (CCVPointerPairs): the window below R15's as
+/// the base, and the object's offset in it (FRAMEOFF, which eliminateFrameIndex
+/// fills in) plus the access's own offsets as the index.
+static void frameSized(SelectionDAG &DAG, const SDLoc &DL, EVT MemVT,
+                       SDValue FI, SDValue Idx, SDValue Disp, bool Scale,
+                       SDValue &Base, SDValue &Index) {
+  SDValue R15 = DAG.getCopyFromReg(DAG.getEntryNode(), DL, CCV::R15, MVT::i32);
+  Base = DAG.getNode(ISD::ADD, DL, MVT::i32, R15,
+                     DAG.getConstant(-1, DL, MVT::i32));
+  int FIdx = cast<FrameIndexSDNode>(FI)->getIndex();
+  Index = DAG.getNode(CCVISD::FRAMEOFF, DL, MVT::i32,
+                      DAG.getTargetFrameIndex(FIdx, MVT::i32));
+  if (int64_t D = cast<ConstantSDNode>(Disp)->getSExtValue())
+    Index = DAG.getNode(ISD::ADD, DL, MVT::i32, Index,
+                        DAG.getConstant(D, DL, MVT::i32));
+  if (!Idx.isUndef()) {
+    SDValue I = Idx;
+    if (Scale && MemVT.getSizeInBits() > 8)
+      I = DAG.getNode(ISD::SHL, DL, MVT::i32, I,
+                      DAG.getConstant(Log2_32(MemVT.getSizeInBits() / 8), DL,
+                                      MVT::i32));
+    Index = DAG.getNode(ISD::ADD, DL, MVT::i32, Index, I);
+  }
+}
+
 static bool matchBaseOff(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
                          SDValue &Base, SDValue &Off) {
   // A window plus a constant, or a window alone: a global at a fixed offset
@@ -877,6 +935,26 @@ static SDValue combineAtomic(AtomicSDNode *AN, TargetLowering::DAGCombinerInfo &
   return DCI.CombineTo(AN, Old, New.getValue(1));
 }
 
+// Measurement control for TI-45: a byte load's zero extension left unsaid,
+// as before, so the masks it lets the combiner drop come back.
+// O-80's control: narrow accesses take the chwidth forms again, their transfer
+// size from rdata's width, as before the sized loads and stores.
+static cl::opt<bool> TestNoSized(
+    "ccv-test-no-sized", cl::init(false), cl::Hidden,
+    cl::desc("make byte and halfword accesses with the chwidth forms, not "
+             "O-80's sized loads and stores"));
+
+namespace llvm {
+/// For CCVWindowRemat: whether narrow accesses take O-80's sized forms, which
+/// have no launch-slot variant.
+bool ccvSizedAccesses() { return !TestNoSized; }
+} // namespace llvm
+
+static cl::opt<bool> TestNoByteAssertZext(
+    "ccv-test-no-byte-assertzext", cl::init(false), cl::Hidden,
+    cl::desc("do not mark a byte load as zero-extended, to measure the masks "
+             "that marking removes"));
+
 // Mutation control for tools/check-atomics.sh: every atomic a plain load,
 // operation and store, which lanes racing on one word expose.
 static cl::opt<bool> TestAtomicPlain(
@@ -1037,19 +1115,50 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
       if (MemVT == MVT::i32)
         Ext = ISD::NON_EXTLOAD;
     }
-    const bool Byte = MemVT == MVT::i8;
+    // With i16 not a legal type (F-199), a halfword load is handled
+    // as a byte load is: its value lands in a 32-bit register.
+    const bool Byte = MemVT == MVT::i8 || (MemVT == MVT::i16 && !I16Legal);
     if (Byte ? !(VT == MVT::i8 || VT == MVT::i16 || VT == MVT::i32)
              : Ext != ISD::NON_EXTLOAD && (MemVT != MVT::i16 || VT != MVT::i32))
       return SDValue();
+    // O-80: a byte or halfword load outside the frame is a sized load into a
+    // 32-bit register, zero- or sign-extended by the opcode, so it needs no
+    // chwidth, which code that may be diverged cannot have (O-78). Sized forms
+    // exist in the base + index layout only, so a base + offset or launch-slot
+    // address becomes base + index here; the frame keeps its chwidth forms.
+    const bool Sized = !TestNoSized && (MemVT == MVT::i8 || MemVT == MVT::i16);
+    const bool Signed = Ext == ISD::SEXTLOAD;
     SDVTList VTs = DAG.getVTList(Byte                      ? MVT::i32
                                  : Ext == ISD::NON_EXTLOAD ? VT
                                                            : MVT::i16,
                                  MVT::Other);
+    // F-200: in a narrow kernel an i16 value loads straight into a 16-bit
+    // register, extended to its width (O-80), with no move between the
+    // partitions.
+    const bool Into16 = I16Legal && VT == MVT::i16;
+    SDVTList SizedVTs = DAG.getVTList(Into16 ? MVT::i16 : MVT::i32, MVT::Other);
+    auto SizedLoad = [&](SDValue Base, SDValue Idx, bool Scale, int64_t Disp) {
+      SDValue Ops[] = {LD->getChain(), Base, Idx,
+                       DAG.getTargetConstant(Scale, DL, MVT::i32),
+                       DAG.getTargetConstant(Disp, DL, MVT::i32),
+                       DAG.getTargetConstant(Signed, DL, MVT::i32)};
+      return DAG.getMemIntrinsicNode(CCVISD::LD_BASEIDX, DL, SizedVTs, Ops,
+                                     LD->getMemoryVT(), LD->getMemOperand());
+    };
     SDValue Base, Idx, New;
     bool Scale = false;
     int64_t IdxDisp = 0;
-    if (matchBaseIdx(DAG, DL, LD->getBasePtr(), LD->getMemoryVT(), Base, Idx,
-                     Scale, IdxDisp)) {
+    bool IsSized = false;
+    if (Sized && matchBaseIdx(DAG, DL, LD->getBasePtr(), LD->getMemoryVT(),
+                              Base, Idx, Scale, IdxDisp)) {
+      New = SizedLoad(Base, Idx, Scale, IdxDisp);
+      IsSized = true;
+    } else if (Sized && matchBaseOff(DAG, DL, LD->getBasePtr(), Base, Idx)) {
+      int64_t Off = cast<ConstantSDNode>(Idx)->getSExtValue();
+      New = SizedLoad(Base, DAG.getConstant(Off, DL, MVT::i32), false, 0);
+      IsSized = true;
+    } else if (matchBaseIdx(DAG, DL, LD->getBasePtr(), LD->getMemoryVT(), Base,
+                            Idx, Scale, IdxDisp)) {
       SDValue D = DAG.getTargetConstant(IdxDisp, DL, MVT::i32);
       // O-45: when the window is a launch-block slot, the AGU reads it and the
       // value never occupies a register. The window load is left behind with no
@@ -1070,6 +1179,13 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
       SDValue Ops[] = {LD->getChain(), Base, Idx};
       New = DAG.getMemIntrinsicNode(CCVISD::LD_BASEOFF, DL, VTs, Ops,
                                     LD->getMemoryVT(), LD->getMemOperand());
+    } else if (SDValue Disp; Sized && matchFrame(DAG, DL, LD->getBasePtr(),
+                                                 LD->getMemoryVT(), Base, Idx,
+                                                 Disp, Scale)) {
+      SDValue W, I;
+      frameSized(DAG, DL, MemVT, Base, Idx, Disp, Scale, W, I);
+      New = SizedLoad(W, I, false, 0);
+      IsSized = true;
     } else if (SDValue Disp; matchFrame(DAG, DL, LD->getBasePtr(),
                                         LD->getMemoryVT(), Base, Idx, Disp,
                                         Scale)) {
@@ -1088,10 +1204,27 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     // value and leave the chain hanging off the dead original, which shows up
     // later as an unexpandable i64 rather than as anything recognisable.
     SDValue V = New.getValue(0);
-    if (Byte) {
+    if (IsSized && Into16) {
+      if (MemVT == MVT::i8)
+        V = DAG.getNode(Signed ? ISD::AssertSext : ISD::AssertZext, DL,
+                        MVT::i16, V, DAG.getValueType(MemVT));
+    } else if (IsSized) {
+      // Extended by the opcode, which the combiner may rely on.
+      V = DAG.getNode(Signed ? ISD::AssertSext : ISD::AssertZext, DL, MVT::i32,
+                      V, DAG.getValueType(MemVT));
+      if (VT != MVT::i32)
+        V = DAG.getNode(ISD::TRUNCATE, DL, VT, V);
+    } else if (Byte) {
+      // Any other byte load is zero-extended by construction: its 32-bit
+      // reader sees it only after a widening chwidth, which clears [31:8]
+      // (O-38). Said, so the combiner can drop the `and 255` a later zext of
+      // the i8 becomes (TI-45: 684 a thread on CoreMark-derived).
       if (Ext == ISD::SEXTLOAD)
         V = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, MVT::i32, V,
-                        DAG.getValueType(MVT::i8));
+                        DAG.getValueType(MemVT));
+      else if (!TestNoByteAssertZext)
+        V = DAG.getNode(ISD::AssertZext, DL, MVT::i32, V,
+                        DAG.getValueType(MemVT));
       if (VT != MVT::i32)
         V = DAG.getNode(ISD::TRUNCATE, DL, VT, V);
     } else if (Ext != ISD::NON_EXTLOAD) {
@@ -1119,7 +1252,49 @@ SDValue CCVTargetLowering::PerformDAGCombine(SDNode *N,
     // its value is any-extended to i32 and the memory type stays i8, which
     // selects the W8 form.
     SDValue Val = ST->getValue();
-    if (ST->getMemoryVT() == MVT::i8) {
+    // O-80: a byte or halfword store outside the frame is a sized store of a
+    // 32-bit register's low bytes, as for loads above.
+    const bool Sized = !TestNoSized && (ST->getMemoryVT() == MVT::i8 ||
+                                        (ST->getMemoryVT() == MVT::i16 &&
+                                         (ST->isTruncatingStore() ||
+                                          Val.getValueType() == MVT::i16)));
+    if (Sized) {
+      // F-200: a narrow kernel stores an i16 straight from its 16-bit register.
+      SDValue V32 = Val.getValueType() == MVT::i32 ||
+                            (I16Legal && Val.getValueType() == MVT::i16)
+                        ? Val
+                        : DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i32, Val);
+      auto SizedStore = [&](SDValue Base, SDValue Idx, bool Scale,
+                            int64_t Disp) {
+        SDValue Ops[] = {ST->getChain(), V32, Base, Idx,
+                         DAG.getTargetConstant(Scale, DL, MVT::i32),
+                         DAG.getTargetConstant(Disp, DL, MVT::i32),
+                         DAG.getTargetConstant(1, DL, MVT::i32)};
+        return DAG.getMemIntrinsicNode(CCVISD::ST_BASEIDX, DL,
+                                       DAG.getVTList(MVT::Other), Ops,
+                                       ST->getMemoryVT(), ST->getMemOperand());
+      };
+      SDValue Base, Idx;
+      bool Scale = false;
+      int64_t IdxDisp = 0;
+      if (matchBaseIdx(DAG, DL, ST->getBasePtr(), ST->getMemoryVT(), Base, Idx,
+                       Scale, IdxDisp))
+        return SizedStore(Base, Idx, Scale, IdxDisp);
+      if (matchBaseOff(DAG, DL, ST->getBasePtr(), Base, Idx))
+        return SizedStore(
+            Base,
+            DAG.getConstant(cast<ConstantSDNode>(Idx)->getSExtValue(), DL,
+                            MVT::i32),
+            false, 0);
+      if (SDValue Disp; matchFrame(DAG, DL, ST->getBasePtr(), ST->getMemoryVT(),
+                                   Base, Idx, Disp, Scale)) {
+        SDValue W, I;
+        frameSized(DAG, DL, ST->getMemoryVT(), Base, Idx, Disp, Scale, W, I);
+        return SizedStore(W, I, false, 0);
+      }
+    }
+    if (ST->getMemoryVT() == MVT::i8 ||
+        (ST->getMemoryVT() == MVT::i16 && !I16Legal)) {
       if (Val.getValueType() != MVT::i32)
         Val = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i32, Val);
     } else if (ST->isTruncatingStore()) {
@@ -1177,7 +1352,7 @@ CCVTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
   if (Constraint.size() == 1 && (Constraint[0] == 'r' || Constraint[0] == 'f'))
     return {0U, &CCV::GPRRegClass};
   if (Constraint.size() == 1 && Constraint[0] == 'h')
-    return {0U, &CCV::GPR16RegClass};
+    return {0U, I16Legal ? &CCV::GPR16RegClass : &CCV::GPRRegClass};
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
 

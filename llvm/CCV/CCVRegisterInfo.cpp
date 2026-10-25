@@ -179,3 +179,38 @@ bool CCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
 Register CCVRegisterInfo::getFrameRegister(const MachineFunction &) const {
   return CCV::R15;
 }
+
+// Mutation control for tools/check-narrow-loop.sh: a narrow kernel's 32-bit
+// values take R8-R13 first, the registers it holds at 16 bits, so their 16-bit
+// view truncates them. A run must catch it.
+static cl::opt<bool> TestNarrowNoPartition(
+    "ccv-test-narrow-no-partition", cl::init(false), cl::Hidden,
+    cl::desc("allocate a narrow kernel's 32-bit values to R8-R13 first, to "
+             "test that the partition is what keeps them whole"));
+
+namespace llvm {
+/// CCVRegisterInfo.td's GPR order for a narrow kernel with N narrow
+/// registers: N - 1 for F-200's partition (orders 1 to 5), 6 the control's.
+unsigned ccvNarrowGPROrder(unsigned N) {
+  return TestNarrowNoPartition ? 6 : N - 1;
+}
+} // namespace llvm
+
+bool CCVRegisterInfo::shouldCoalesce(MachineInstr *MI,
+                                     const TargetRegisterClass *SrcRC,
+                                     unsigned, const TargetRegisterClass *DstRC,
+                                     unsigned, const TargetRegisterClass *,
+                                     LiveIntervals &) const {
+  // F-200: a narrow kernel keeps its 16-bit integers in R8-R13 at width 16 and
+  // everything else out of them, so a value crossing between the classes is a
+  // copy, a `mov` across widths: rs's element, zero-extended or truncated to
+  // rd's width (O-82). The classes have different value types, so the coalescer has no
+  // common class to join them in today; this keeps that true if one appears.
+  const MachineFunction &MF = *MI->getMF();
+  if (!MF.getSubtarget<CCVSubtarget>().narrowInt())
+    return true;
+  auto Narrow = [](const TargetRegisterClass *RC) {
+    return RC == &CCV::GPR16RegClass;
+  };
+  return Narrow(SrcRC) == Narrow(DstRC);
+}

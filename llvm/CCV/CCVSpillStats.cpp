@@ -102,6 +102,12 @@ bool isAddressOperand(const MachineInstr &MI, unsigned I) {
   case CCV::LD_GLOBAL_IDX:  case CCV::LD_GLOBAL_IDX_W16: case CCV::LD_GLOBAL_IDX_W8:
   case CCV::ST_GLOBAL_IDX:  case CCV::ST_GLOBAL_IDX_W16: case CCV::ST_GLOBAL_IDX_W8:
   case CCV::LD_SHARED_IDX:  case CCV::ST_SHARED_IDX:
+  case CCV::SZ_GLOBAL_LD_U8:  case CCV::SZ_GLOBAL_LD_S8:
+  case CCV::SZ_GLOBAL_LD_U16: case CCV::SZ_GLOBAL_LD_S16:
+  case CCV::SZ_GLOBAL_ST_8:   case CCV::SZ_GLOBAL_ST_16:
+  case CCV::SZ_SHARED_LD_U8:  case CCV::SZ_SHARED_LD_S8:
+  case CCV::SZ_SHARED_LD_U16: case CCV::SZ_SHARED_LD_S16:
+  case CCV::SZ_SHARED_ST_8:   case CCV::SZ_SHARED_ST_16:
     return I == 1 || I == 2;             // rbase, rindex
   default:
     return false;
@@ -130,6 +136,8 @@ bool isStagedDef(const MachineInstr &MI) {
   switch (MI.getOpcode()) {
   case CCV::LD_SHARED:     case CCV::LD_SHARED_W16: case CCV::LD_SHARED_W8:
   case CCV::LD_SHARED_IDX:
+  case CCV::SZ_SHARED_LD_U8:  case CCV::SZ_SHARED_LD_S8:
+  case CCV::SZ_SHARED_LD_U16: case CCV::SZ_SHARED_LD_S16:
     return true;
   default:
     return false;
