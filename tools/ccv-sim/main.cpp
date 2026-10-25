@@ -79,6 +79,10 @@ static cl::opt<bool> TestAddrFull(
     "ccv-test-address-full-width", cl::Hidden,
     cl::desc("read a narrow address or return register at all 32 bits, as O-39 "
              "did, rather than its element (O-79)"));
+static cl::opt<bool> TestMovRaw(
+    "ccv-test-mov-raw", cl::Hidden,
+    cl::desc("a mov copies all 32 bits of its source, as before O-82, rather "
+             "than its element at the destination's width"));
 static cl::opt<bool> TestAtomNoIndex("ccv-test-atomic-no-index", cl::Hidden,
     cl::desc("address atomics without their index register, as before O-72, "
              "to test that it is caught"));
@@ -228,6 +232,7 @@ int main(int argc, char **argv) {
   sfu::TestTruncate = TestSfuTruncate;
   nfp::TestAtomNoIndex = TestAtomNoIndex;
   nfp::TestAddrFull = TestAddrFull;
+  nfp::TestMovRaw = TestMovRaw;
   nfp::TestSizedNoSext = TestSizedNoSext;
   nfp::TestDivergedChwidth = TestDivergedChwidth;
   nfp::TestFAddDescending = TestFAddDescending;
