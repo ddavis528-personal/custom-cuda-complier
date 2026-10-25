@@ -167,6 +167,27 @@ run_call() {
     { echo "$hi"; echo "  FAIL  call.s loaded at 0x1_0000_1000 did not run"; return 1; }
   [ "$hi" = "$out" ] && echo "  PASS  the same answers loaded at 0x1_0000_1000: ret keeps its 4 GiB window" \
                      || { echo "  FAIL  call.s gives different answers loaded above 4 GiB"; return 1; }
+  # AR-24 (b): the stub's ret sends even lanes to one callee and odd lanes to
+  # the other, so the oracle records it as the hardware issues it, a pass per
+  # target, lowest lane first: all 32 lanes issue and the even ones return,
+  # then the odd ones issue and return. The control is one pass for all.
+  # The stub's ret (`C_RET 80`, ret R5), by its offset in the image.
+  local stub ctl
+  stub=$(printf 0x%x $((0x1000 + $(python3 tools/ccv-dis.py "$JSON" "$TMP/call.bin" |
+                                   grep -m1 -oP 'C_RET\s+80\s+# \K0x[0-9a-f]+'))))
+  passes() {
+    "$SIM" "$TMP/call.bin" -oracle "$TMP/call.jsonl" "$@" >/dev/null 2>&1 || return
+    python3 -c 'import json, sys
+pc = int(sys.argv[2], 16)
+print(" ".join("%x/%x" % (r["mask"], r["taken"]) for r in map(json.loads, open(sys.argv[1]))
+               if r.get("kind") == "return" and r["pc"] == pc))' "$TMP/call.jsonl" "$stub"
+  }
+  got=$(passes); ctl=$(passes -ccv-test-ret-one-pass)
+  if [ "$got" = "ffffffff/55555555 aaaaaaaa/aaaaaaaa" ] && [ "$ctl" = "ffffffff/ffffffff" ]; then
+    echo "  PASS  a ret to two targets is two passes in the oracle, lowest lane's first (AR-24 (b); control: one)"
+  else
+    echo "  FAIL  ret passes: got '$got', want 'ffffffff/55555555 aaaaaaaa/aaaaaaaa' (control '$ctl')"; return 1
+  fi
 }
 # --- ld.pred / st.pred (IS-15) -----------------------------------------------
 # The backend spills predicates through these, and until IS-15 the simulator
