@@ -1,0 +1,5 @@
+# coremark-derived-pl-fault: what ccv-sim raises, and its oracle's record of the faulting
+# instruction (kind "fault"), issue 7500.
+FAULT=F-WIDTH
+FAULT F-WIDTH  pc=0x186e  lanes=000000f0  addr=0  cta=0 warp=0
+{"seq": 7500, "pc": 6254, "size": 2, "bytes": "c20d", "mask": 240, "op": "C_CHWIDTH", "kind": "fault", "target": 0, "taken": 240, "load": 0, "store": 0, "imms": [0], "quals": [], "uses": [{"reg": "R13", "vals": [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]}], "defs": [], "mem": []}

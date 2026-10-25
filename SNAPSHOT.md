@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-10-24-e63f9d3
+# Snapshot snapshot-2026-10-25-8a58ce8
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `e63f9d34c2564c0d5bb9810b607acf5aea6707dc`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `8a58ce8032340db442931ed6051957e7c3f158c8`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -24,8 +24,8 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `e63f9d34c2564c0d5bb9810b607acf5aea6707dc` |
-| Built | 2026-10-24 (UTC) |
+| Source | `ccr-ea1c4e17-tem30u` @ `8a58ce8032340db442931ed6051957e7c3f158c8` |
+| Built | 2026-10-25 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
 | LLVM | 18.1.3 |
@@ -74,7 +74,11 @@ d9e3e29cdc3a7411b972a4fbef69a2bed68355798daf5f65bbf21a7cc8ae9c02  release/bench/
 19dc6a0419a0eaf6cfbabd8c6afd2f30a8636fd8a4c6676bc6025141eb90b16f  release/bench/sweep-frames.txt
 28c14ebc8397a6ec18b69bcb5ebe93a64c94cd04b97c971dd526f78ff72f423b  release/bench/sweep-tiles.txt
 d7303feb386ed15e365b64f67d75360f25293d59f3ffb96b5e6e51b116f4a7f5  release/bin/ccv-sim
-03a6fdfcc96075b2af7a843f5ec5770f143da923146db0c8461f2a34ae90af86  release/bin/ccv-sim.txt
+40c0964ceceae1fcf9821fbfcb5fc7d6e5f149e88ce3ca8e3324920d358fa277  release/bin/ccv-sim.txt
+f231d365df194ce6f12f73e2437a59a115f34cf57aedebe66d7b0195e4cae4fd  release/kernels/coremark-derived-pl-fault/fault.txt
+8b8842c5494794bd649d17c4a587ba08742c3c6ec2df6871ad8d024a0713a006  release/kernels/coremark-derived-pl-fault/kernel.bin
+99167615fa013359299835de1b75f9e9c8ea1c6c5518681cef1071f599563e95  release/kernels/coremark-derived-pl-fault/kernel.s
+20e4317a820d352564b394c6e925a0cbda1554f0595d1124d03aa42ea130f4fb  release/kernels/coremark-derived-pl-fault/launch.txt
 dca2e02e33501b1bf87e053adfec123cfe804d9c8729d91d78f1e597a32373b3  release/kernels/coremark-derived-pl/kernel.bin
 29bd1ce33bb5e6a890ee3cee0bd2ac121aa5816bdd0a7796b1b170be2fbc6312  release/kernels/coremark-derived-pl/kernel.s
 9b5ac7519b9437941463c1eb76db94d919d20afedca8f28a3c4395f4417088ad  release/kernels/coremark-derived-pl/launch.txt
@@ -95,5 +99,5 @@ ce8e645c8b285ff035aa6d701ee7dc1207459bf060c85e27f4239d48b84d580b  release/kernel
 ba1f77ebad84a1da78c82e9c3ef4f1e466cb8da7d8634dc0f234f7303a1ab069  release/kernels/rope/kernel.s
 12795ff2ace11fc143ad508c1a541846387f492fba37433e1502316ec19c65b3  release/kernels/rope/launch.txt
 1fd038c15e2c80787853fb2af63019b6d6fa9e86459b373fee9974181eb0c477  release/kernels/rope/ops.txt
-419b681a6aaffc48e4a6518e90c47ecbc81ad2bd8359058c388adca8cd9f70d4  release/verify.log
+f254cee77e968ee3113ec39739faa9bb9529898ab33415f0ad09298818eecddc  release/verify.log
 ```

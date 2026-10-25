@@ -141,6 +141,7 @@ checked 438 instructions
   exported kernels (TI-30)
   PASS  coremark-derived: 32 lanes give e714 e714 1fd7 8e3a; 65 opcodes, 661982 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
   PASS  coremark-derived-pl: each lane its own seed, diverging, gives the host's CRCs at that seed; 65 opcodes, 2331819 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
+  PASS  coremark-derived-pl-fault: FAULT F-WIDTH  pc=0x186e  lanes=000000f0  addr=0  cta=0 warp=0, at C_CHWIDTH (issue 7500, mask 0x000000f0); launch.txt alone raises the same; coremark-derived-pl, built as released, does not fault
   PASS  rope: 2 CTAs of 32 threads match the reference; 32 opcodes, 354 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
   PASS  rope-diverged: 2 CTAs of 32 threads match the reference; 32 opcodes, 406 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
   PASS  layernorm: 2 CTAs of 32 threads match the reference; 37 opcodes, 536 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
