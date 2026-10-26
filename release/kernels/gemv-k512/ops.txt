@@ -1,0 +1,27 @@
+# gemv-k512: opcodes issued over the launch's 8 CTAs, by ccv-sim's names; 22488 issue groups
+ADD                384
+ADDI               4096
+BRA                136
+BRA_PRED           264
+C_ADD              136
+C_BAR_ARRIVE       256
+C_BAR_WAIT         256
+C_EXIT             8
+C_LD_GLOBAL        8
+C_MOV              8
+C_MUL_LO           8
+C_SHLI             272
+FFMA_ACC_F0        4096
+LD_GLOBAL          272
+LD_GLOBAL_SLOT     4224
+LD_LOCAL           8
+LD_SHARED          4096
+MADLO              8
+MOVI               3528
+SETP_LT_NP         128
+SETP_LT_NPI        8
+SETP_LT_U_NP       128
+SRD                16
+ST_GLOBAL_SLOT     8
+ST_LOCAL           8
+ST_SHARED          128

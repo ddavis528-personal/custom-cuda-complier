@@ -6,7 +6,9 @@
 // (release/kernels/transpose-128).
 #include "portable.h"
 #define TILE 32
+#ifndef ROWS
 #define ROWS 4
+#endif
 __global__ void transpose32(float *ALIGNED out, const float *ALIGNED in, int n) {
     __shared__ float tile[TILE][TILE + 1];
     unsigned tx = TID_X % TILE, ty = TID_X / TILE;

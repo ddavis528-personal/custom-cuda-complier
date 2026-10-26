@@ -153,6 +153,14 @@ checked 438 instructions
   PASS  sgemm-128: 2 CTA(s) of 128 threads, four warps, match the reference; 49 opcodes, 5880 issue groups; without its input data each fails
   PASS  cta-reduce-128: 1 CTA(s) of 128 threads, four warps, match the reference; 24 opcodes, 5420 issue groups; without its input data each fails
   PASS  transpose-128: 4 CTA(s) of 128 threads, four warps, match the reference; 36 opcodes, 3904 issue groups; without its input data each fails
+  PASS  gemv-k128: 8 one-warp CTAs exact; 5784 issue groups; without the loaded inputs each fails
+  PASS  gemv-k512: 8 one-warp CTAs exact; 22488 issue groups; without the loaded inputs each fails
+  PASS  gemv-k2048: 8 one-warp CTAs exact; 89304 issue groups; without the loaded inputs each fails
+  PASS  sgemm-n256: 16 one-warp CTAs exact; 96384 issue groups; without the loaded inputs each fails
+  PASS  sgemm-n512: 16 one-warp CTAs exact; 189568 issue groups; without the loaded inputs each fails
+  PASS  transpose-n128: 16 one-warp CTAs exact; 10928 issue groups; without the loaded inputs each fails
+  PASS  transpose-n256: 64 one-warp CTAs exact; 43712 issue groups; without the loaded inputs each fails
+  PASS  transpose-n512: 256 one-warp CTAs exact; 174848 issue groups; without the loaded inputs each fails
   PASS  rope: 2 CTAs of 32 threads match the reference; 32 opcodes, 354 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
   PASS  rope-diverged: 2 CTAs of 32 threads match the reference; 32 opcodes, 406 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
   PASS  layernorm: 2 CTAs of 32 threads match the reference; 37 opcodes, 536 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
@@ -217,7 +225,7 @@ checked 438 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 206 findings and 83 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 207 findings and 83 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -293,6 +301,7 @@ checked 438 instructions
   PASS  a chwidth from a diverged warp raises F-WIDTH, a converged one does not (O-81)
   PASS  mov across widths truncates to the element and zero-extends it (O-82; control copies 32 bits)
   PASS  interleaved per-thread memory: each lane's own bytes, one line a word, sized in its cell, decided on the lowest issuing lane; F-ADDR past L and in the run's windows (O-83)
+  PASS  -load puts a file's words in memory and in the oracle's init record; -dump writes them back (control: without -load, 0)
 
   --- the fault model (ISA v1.9 section 12) ---
   PASS  faults: F-ALIGN precise and predicate-gated, F-WIDTH ignores the predicate, F-ILLEGAL, F-FETCH, F-BARRIER

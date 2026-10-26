@@ -1,0 +1,27 @@
+# gemv-k2048: opcodes issued over the launch's 8 CTAs, by ccv-sim's names; 89304 issue groups
+ADD                1536
+ADDI               16384
+BRA                520
+BRA_PRED           1032
+C_ADD              520
+C_BAR_ARRIVE       1024
+C_BAR_WAIT         1024
+C_EXIT             8
+C_LD_GLOBAL        8
+C_MOV              8
+C_MUL_LO           8
+C_SHLI             1040
+FFMA_ACC_F0        16384
+LD_GLOBAL          1040
+LD_GLOBAL_SLOT     16896
+LD_LOCAL           8
+LD_SHARED          16384
+MADLO              8
+MOVI               13896
+SETP_LT_NP         512
+SETP_LT_NPI        8
+SETP_LT_U_NP       512
+SRD                16
+ST_GLOBAL_SLOT     8
+ST_LOCAL           8
+ST_SHARED          512

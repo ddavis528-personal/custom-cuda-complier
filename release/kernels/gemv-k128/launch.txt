@@ -1,0 +1,92 @@
+# gemv-k128: gemv.cu, K 128: W is 256 x 128 floats (128 KiB).
+# One-warp CTAs, meant to run four resident on a core (CTA c on hardware
+# context c mod 4), so they compete for L1 (AR's rev 229). Each CTA alone is
+# ccv-sim kernel.bin -threads 32 -ctaid <cta> -context <cta mod 4>, the
+# 'load' lines as -load=<addr>=<file> (files of little-endian words, in this
+# directory), then that CTA's pokes. Results are checked bit for bit
+# (export-kernels.py), and without the loaded inputs each CTA fails.
+threads 32
+resident 4
+ctas 8
+load 0x200000 W.bin 131072
+load 0x600000 x.bin 512
+cta 0
+-poke 0x20000=32
+-poke 0x20018=256
+-poke 0x20020=160
+-poke 0x20024=0
+-poke 0x20028=32
+-poke 0x2002c=0
+-poke 0x20030=96
+-poke 0x20034=0
+-poke 0x20038=128
+cta 1
+-poke 0x20000=32
+-poke 0x20018=256
+-poke 0x20020=160
+-poke 0x20024=0
+-poke 0x20028=32
+-poke 0x2002c=0
+-poke 0x20030=96
+-poke 0x20034=0
+-poke 0x20038=128
+cta 2
+-poke 0x20000=32
+-poke 0x20018=256
+-poke 0x20020=160
+-poke 0x20024=0
+-poke 0x20028=32
+-poke 0x2002c=0
+-poke 0x20030=96
+-poke 0x20034=0
+-poke 0x20038=128
+cta 3
+-poke 0x20000=32
+-poke 0x20018=256
+-poke 0x20020=160
+-poke 0x20024=0
+-poke 0x20028=32
+-poke 0x2002c=0
+-poke 0x20030=96
+-poke 0x20034=0
+-poke 0x20038=128
+cta 4
+-poke 0x20000=32
+-poke 0x20018=256
+-poke 0x20020=160
+-poke 0x20024=0
+-poke 0x20028=32
+-poke 0x2002c=0
+-poke 0x20030=96
+-poke 0x20034=0
+-poke 0x20038=128
+cta 5
+-poke 0x20000=32
+-poke 0x20018=256
+-poke 0x20020=160
+-poke 0x20024=0
+-poke 0x20028=32
+-poke 0x2002c=0
+-poke 0x20030=96
+-poke 0x20034=0
+-poke 0x20038=128
+cta 6
+-poke 0x20000=32
+-poke 0x20018=256
+-poke 0x20020=160
+-poke 0x20024=0
+-poke 0x20028=32
+-poke 0x2002c=0
+-poke 0x20030=96
+-poke 0x20034=0
+-poke 0x20038=128
+cta 7
+-poke 0x20000=32
+-poke 0x20018=256
+-poke 0x20020=160
+-poke 0x20024=0
+-poke 0x20028=32
+-poke 0x2002c=0
+-poke 0x20030=96
+-poke 0x20034=0
+-poke 0x20038=128
