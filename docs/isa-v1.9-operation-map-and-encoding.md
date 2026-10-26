@@ -1247,8 +1247,9 @@ rearranged by wiring.
   calls, and every other function allocates it as an ordinary register.
 
 **Interleaved per-thread memory (O-83).** Not an addressing mode and not an opcode: an ordinary
-`.global` access, in either form, a sized form (O-80), `ld.pred`/`st.pred` or Format M, is
-interleaved when its `rbase` lies in the private run. The decision, the address and the faults
+`.global` access in base + offset or base + index form, a sized form (O-80), `ld.pred`/`st.pred`
+or Format M, is interleaved when its `rbase` lies in the private run. The launch-slot form names
+no `rbase` and is never interleaved. The decision, the address and the faults
 are in §5.9.
 
 **Launch-slot + index (O-45).** A third addressing mode in which `[18:15]` is **not a register
@@ -2872,8 +2873,9 @@ spill space, which occupies windows `local_base + CCV_LANE_CONTEXTS` up to
 `CCV_PRIV_WINDOWS`. A kernel forms *W* once, from a launch-slot load of word 24, `srd #3` and an
 add, and its pointer into the region is `W << 16`, the shape §5.1's split already uses.
 
-**The decision.** A `.global` access, in any form that takes `rbase` (Format D in both forms,
-the sized forms of O-80, `ld.pred`/`st.pred`, and Format M), is *interleaved* when
+**The decision.** A `.global` access, in any form that takes `rbase` (Format D's base + offset
+and base + index forms, the sized forms of O-80, `ld.pred`/`st.pred`, and Format M), is
+*interleaved* when
 
 ```
     rbase(d) >> k  ==  W >> k
@@ -2883,7 +2885,9 @@ where *d* is the lowest lane of the issuing group's issue mask, whether or not i
 set, and `rbase(d)` is that lane's `rbase` value (its element, zero-extended, at a narrow width,
 O-79). Otherwise the access is an ordinary `.global` access and §5.1 applies unchanged. The
 decision is one per issue, not one per lane. `.shared` accesses and O-69's local forms are never
-interleaved.
+interleaved. Nor is the launch-slot form (O-45), which names a launch-block slot, not an `rbase`
+register: it is always an ordinary access, so a slot whose window lies in the run's own windows
+raises `F-ADDR`, as any ordinary access there does (CP-63).
 
 **The address.** In an interleaved access, lane *l* forms
 
