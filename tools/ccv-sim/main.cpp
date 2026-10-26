@@ -84,6 +84,14 @@ static cl::opt<bool> TestRetOnePass(
     "ccv-test-ret-one-pass", cl::Hidden,
     cl::desc("return every lane of a ret in one issue, whatever its target, "
              "rather than a pass per distinct target (AR-24 (b))"));
+static cl::opt<unsigned> PrivWindows("priv-windows", cl::init(1),
+    cl::desc("CCV_PRIV_WINDOWS: 64 KiB windows in each thread's O-83 region, a "
+             "power of two"));
+static cl::opt<bool> TestPrivLane0("ccv-test-priv-lane0", cl::Hidden,
+    cl::desc("decide O-83's interleaving on lane 0's rbase, not the lowest "
+             "issuing lane's"));
+static cl::opt<bool> TestPrivContiguous("ccv-test-priv-contiguous", cl::Hidden,
+    cl::desc("lay O-83's per-thread regions out contiguously, not interleaved"));
 static cl::opt<bool> TestMovRaw(
     "ccv-test-mov-raw", cl::Hidden,
     cl::desc("a mov copies all 32 bits of its source, as before O-82, rather "
@@ -177,6 +185,16 @@ static cl::opt<std::string> ConstRange(
     cl::value_desc("base:limit"));
 static cl::list<std::string> Pokes("poke", cl::desc("addr=value, before run"),
                                    cl::value_desc("hex=hex"));
+// AR-24's L1 traces carry megabytes of input, which -poke words would turn
+// into a command line no system takes. A file of little-endian words loads at
+// an address, as if each word were poked, and the oracle's init record lists
+// them as it lists pokes; -dump writes a range back out after the run.
+static cl::list<std::string> Loads("load",
+    cl::desc("addr=file: the file's little-endian words, before the run"),
+    cl::ZeroOrMore);
+static cl::list<std::string> Dumps("dump",
+    cl::desc("addr,bytes,file: write that range of .global after the run"),
+    cl::ZeroOrMore);
 static cl::list<std::string> Peeks("peek", cl::desc("addr, after run"),
                                    cl::value_desc("hex"));
 static cl::opt<std::string> OracleFile(
@@ -238,6 +256,8 @@ int main(int argc, char **argv) {
   nfp::TestAtomNoIndex = TestAtomNoIndex;
   nfp::TestAddrFull = TestAddrFull;
   nfp::TestMovRaw = TestMovRaw;
+  nfp::TestPrivLane0 = TestPrivLane0;
+  nfp::TestPrivContiguous = TestPrivContiguous;
   nfp::TestSizedNoSext = TestSizedNoSext;
   nfp::TestDivergedChwidth = TestDivergedChwidth;
   nfp::TestFAddDescending = TestFAddDescending;
@@ -283,6 +303,11 @@ int main(int argc, char **argv) {
   Interp I;
   I.BarrierCount = std::min(unsigned(Barriers), 16u);
   I.LaneContexts = LaneContexts;
+  if (!PrivWindows || (PrivWindows & (PrivWindows - 1))) {
+    errs() << "error: -priv-windows must be a power of two (O-83)\n";
+    return 1;
+  }
+  I.PrivWindows = PrivWindows;
   I.Mem.AddrLimit = 1ull << 48;            // F-ADDR (O-75); .shared has none
   if (WholeCta && WarpInCta) {
     errs() << "error: -cta runs every warp; -warp names one\n";
@@ -344,6 +369,23 @@ int main(int argc, char **argv) {
       AllPokes.push_back(utostr(Base + I) + "=" +
                          utostr(support::endian::read32le(&D[I])));
     AllPokes.push_back(utostr(launchBlockBase() + 28) + "=" + utostr(DataWindow));
+  }
+  for (const auto &L : Loads) {
+    auto [A, F] = StringRef(L).split('=');
+    uint64_t Base;
+    if (A.getAsInteger(0, Base) || (Base & 3) || F.empty()) {
+      errs() << "error: bad -load '" << L << "' (addr=file, addr word-aligned)\n";
+      return 1;
+    }
+    auto Buf = MemoryBuffer::getFile(F);
+    if (!Buf || (*Buf)->getBufferSize() % 4) {
+      errs() << "error: -load " << F << ": unreadable, or not whole words\n";
+      return 1;
+    }
+    StringRef B = (*Buf)->getBuffer();
+    for (size_t I = 0; I != B.size(); I += 4)
+      AllPokes.push_back(utostr(Base + I) + "=" +
+                         utostr(support::endian::read32le(B.data() + I)));
   }
   AllPokes.insert(AllPokes.end(), Pokes.begin(), Pokes.end());
 
@@ -1045,6 +1087,21 @@ int main(int argc, char **argv) {
       errs() << "error: bad -peek '" << P << "'\n"; return 1;
     }
     outs() << format("  [%#llx] = %u\n", (unsigned long long)Addr, I.Mem.read32(Addr));
+  }
+  for (const auto &D : Dumps) {
+    SmallVector<StringRef, 3> F;
+    StringRef(D).split(F, ',', 2);
+    uint64_t Addr, Len;
+    if (F.size() != 3 || F[0].getAsInteger(0, Addr) || F[1].getAsInteger(0, Len)) {
+      errs() << "error: bad -dump '" << D << "' (addr,bytes,file)\n"; return 1;
+    }
+    std::FILE *Out = std::fopen(F[2].str().c_str(), "wb");
+    if (!Out) { errs() << "error: cannot write " << F[2] << "\n"; return 1; }
+    for (uint64_t K = 0; K < Len; K += 4) {
+      uint32_t V = I.Mem.peek32(Addr + K);
+      std::fwrite(&V, 4, 1, Out);
+    }
+    std::fclose(Out);
   }
   for (auto [PC, N] : NoopPCs)
     outs() << format("  no-op width at %#llx: %llu\n", (unsigned long long)PC,

@@ -200,6 +200,8 @@ bool CCVExpandPTXAsm::runOnMachineFunction(MachineFunction &MF) {
       static const Regex Bar(
           "^(bar|barrier)(\\.cta)?\\.(arrive|sync)(\\.aligned)? "
           "(\\$[0-9]+|[0-9]+)(, (\\$[0-9]+|[0-9]+))?$");
+      // O-83: %privoff, srd #3, for CCVLowerKernelArgs's __ccv_privbase.
+      static const Regex PrivOff("^ccv\\.privoff \\$([0-9]+)$");
       static const Regex F16F32(
           "^cvt\\.rn\\.f16\\.f32 \\$([0-9]+), \\$([0-9]+)$");
 
@@ -299,6 +301,8 @@ bool CCVExpandPTXAsm::runOnMachineFunction(MachineFunction &MF) {
       } else if (F16F32.match(T, &M)) {
         unsigned Opc = CCV::CVT_D0_S0_R0_W16_32;
         cvt(Opc, op(M[1]), op(M[2]));
+      } else if (PrivOff.match(T, &M)) {
+        BuildMI(MBB, MI, DL, TII->get(CCV::SRD), op(M[1])).addImm(3);
       } else if (Bar.match(T, &M)) {
         // O-74: bar.init #a, b, then the arrival, then for a sync the wait,
         // as the intrinsics select (CCVISelDAGToDAG). a and b must be

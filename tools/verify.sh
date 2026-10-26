@@ -180,6 +180,13 @@ if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
   ./tools/check-globals.sh || fail=1
 fi
 
+# O-83: interleaved per-thread memory through __ccv_privbase, executed, and
+# CoreMark-derived with its blocks there, with the contiguous-layout control.
+if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
+  echo "  interleaved per-thread memory (O-83)"
+  ./tools/check-privbase.sh || fail=1
+fi
+
 # F-161: byte memory access at chwidth 8, and F-164's narrow store after a
 # widening use, executed, with two controls.
 if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then

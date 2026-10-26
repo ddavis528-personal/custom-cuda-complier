@@ -62,8 +62,8 @@ class Launch:
 
 
 # --- rope: rotary embedding, query and key heads ---------------------------
-def rope(NH=2, NKV=1, HS=64, RD=64, positions=(3, 7)):
-    T, NPOS = 32, 8
+def rope(NH=2, NKV=1, HS=64, RD=64, positions=(3, 7), T=32):
+    NPOS = 8
     half = RD // 2
     positions = list(positions)
     cache = [math.cos(0.1 * p * (i + 1)) if i < half else math.sin(0.1 * p * (i - half + 1))
@@ -174,7 +174,7 @@ def run(binpath, cta, L, oracle):
     return got, r.stdout
 
 
-def export_coremark(out, tmp, per_lane=False):
+def export_coremark(out, tmp, per_lane=False, priv=False):
     """The CoreMark-derived workload (AR-20): module data, calls, an entry past
     its device functions. Its pokes are the oracle init record's seeded memory
     from a run with the data image, so they are exactly what ccv-sim loads: the
@@ -183,14 +183,21 @@ def export_coremark(out, tmp, per_lane=False):
 
     per_lane: coremark-derived-pl (AR-24's fourth shape), lane t seeded with t,
     so the lanes take their own paths and the warp diverges; it is the core's
-    O-81 control kernel. Lane t's CRCs are the host's at seed t."""
+    O-81 control kernel. Lane t's CRCs are the host's at seed t.
+
+    priv: coremark-derived-priv, each thread's block in its O-83 interleaved
+    region (-DCCV_PRIV_BASE, __ccv_privbase), so a warp's same-offset access is
+    one line (PF-46, DA tab rev 95). Its run needs ccv-sim's defaults
+    -lane-contexts 4096 and -priv-windows 1, and the launch's word 24."""
     import importlib.util
     spec = importlib.util.spec_from_file_location(
         "sweep", os.path.join(ROOT, "tools/sweep-coremark.py"))
     sw = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(sw)
-    name, mod = ("coremark-derived-pl", "pl") if per_lane else ("coremark-derived", "cm")
-    sw.build(tmp, "-DCCV_SEED_PER_LANE" if per_lane else "", mod)
+    name, mod, flag = (("coremark-derived-pl", "pl", "-DCCV_SEED_PER_LANE") if per_lane else
+                       ("coremark-derived-priv", "pv", "-DCCV_PRIV_BASE") if priv else
+                       ("coremark-derived", "cm", ""))
+    sw.build(tmp, flag, mod)
     it, threads, MEMW, OUTW = 1, 32, sw.MEM, sw.OUT
     wants = [subprocess.run([f"{tmp}/host", str(it)] + ([str(t)] if per_lane else []),
                             capture_output=True, text=True, check=True).stdout.strip()
@@ -252,7 +259,7 @@ def export_coremark(out, tmp, per_lane=False):
     d = os.path.join(out, name)
     os.makedirs(d, exist_ok=True)
     open(f"{d}/kernel.s", "w").write(
-        f"# {name}: test/coremark-derived{' -DCCV_SEED_PER_LANE' if per_lane else ''}, compiled; ccv-as source, reassembled\n"
+        f"# {name}: test/coremark-derived{' ' + flag if flag else ''}, compiled; ccv-as source, reassembled\n"
         f"# byte for byte by tools/ccv-dis.py --check. Load at ccv-sim's -code-base\n"
         f"# (0x1000: function pointers are absolute); the kernel's entry is {entry:#x}.\n" + src)
     open(f"{d}/kernel.bin", "wb").write(open(f"{tmp}/cm.text", "rb").read())
@@ -386,13 +393,417 @@ def export_coremark_fault(out, tmp):
     return 0
 
 
+# --- AR-24's corpus sweep: one CTA of four warps (TI's rev 227) --------------
+# Each kernel runs one CTA of 128 threads as a whole, its four warps sharing
+# .shared and the barriers (ccv-sim -cta), and is checked against a reference
+# computed here. The inputs are small multiples of 1/8, so every product and
+# sum is exact in fp32 and the float kernels' results must match exactly; the
+# transcendental ones (rope, layernorm) keep the relative 1e-5 the 32-thread
+# exports use. The control runs each launch without its input data.
+T4 = 128
+DATA = 0x30000                       # windows 3 and up hold the kernels' arrays
+
+
+def q8(i, mod, off):                  # a small multiple of 1/8, exact in fp32
+    return ((i * 37 + off) % mod - mod // 2) / 8.0
+
+
+def layernorm128():
+    H, ROWS, EPS = 512, 2, 1e-5
+    x = [((i * 29) % 83 - 41) / 16.0 for i in range(ROWS * H)]
+    w = [1.0 + ((i * 7) % 11) / 20.0 for i in range(H)]
+    bias = [((i * 5) % 13 - 6) / 10.0 for i in range(H)]
+    ctas = []
+    for row in range(ROWS):
+        L = Launch(T4)
+        for k, win in enumerate((3, 4, 5, 6, 7, 8)):        # out mean rstd in w b
+            L.ptr(32 + 8 * k, win)
+        L.word(80, f2u(EPS)); L.word(84, H)
+        L.floats(6, x); L.floats(7, w); L.floats(8, bias)
+        L.watch(3, ROWS * H); L.watch(4, ROWS); L.watch(5, ROWS)
+        r = x[row * H:(row + 1) * H]
+        m = sum(r) / H
+        rstd = 1.0 / math.sqrt(sum(v * v for v in r) / H - m * m + EPS)
+        want = {(3 << 16) + 4 * (row * H + i): (r[i] - m) * rstd * w[i] + bias[i]
+                for i in range(H)}
+        want[(4 << 16) + 4 * row] = m
+        want[(5 << 16) + 4 * row] = rstd
+        ctas.append((L, want, 1e-5))
+    return ctas
+
+
+def rope_diverged128():
+    _, ctas = rope(2, 1, 8, 8, (1, 1), T4)
+    return [(L, want, 1e-5) for L, want in ctas]
+
+
+def gemv128():
+    K, NCTA = 64, 2
+    rows = T4 * NCTA
+    W = [q8(i, 15, 3) for i in range(rows * K)]
+    x = [q8(i, 9, 1) for i in range(K)]
+    y = [sum(W[r * K + k] * x[k] for k in range(K)) for r in range(rows)]
+    ctas = []
+    for c in range(NCTA):
+        L = Launch(T4)
+        L.ptr(32, 3); L.ptr(40, 4); L.ptr(48, 5); L.word(56, K)
+        L.floats(4, W); L.floats(5, x); L.watch(3, rows)
+        ctas.append((L, {(3 << 16) + 4 * r: y[r] for r in range(c * T4, (c + 1) * T4)}, 0))
+    return ctas
+
+
+def sgemm128():
+    N, BX, BY, TM, TN = 32, 16, 8, 2, 2
+    bpr = N // (BX * TN)
+    A = [q8(i, 11, 2) for i in range(N * N)]
+    B = [q8(i, 13, 5) for i in range(N * N)]
+    C = [sum(A[r * N + k] * B[k * N + c] for k in range(N)) for r in range(N) for c in range(N)]
+    ctas = []
+    for cta in range((N // (BY * TM)) * bpr):
+        brow, bcol = cta // bpr, cta % bpr
+        L = Launch(T4)
+        L.ptr(32, 3); L.ptr(40, 4); L.ptr(48, 5); L.word(56, N); L.word(60, bpr)
+        L.floats(4, A); L.floats(5, B); L.watch(3, N * N)
+        want = {(3 << 16) + 4 * (r * N + c): C[r * N + c]
+                for r in range(brow * BY * TM, (brow + 1) * BY * TM)
+                for c in range(bcol * BX * TN, (bcol + 1) * BX * TN)}
+        ctas.append((L, want, 0))
+    return ctas
+
+
+def cta_reduce128():
+    vin = [(i * 2654435761) % 1000 + 1 for i in range(T4)]
+    def steps(v):
+        n = 0
+        while v > 1:
+            v = 3 * v + 1 if v & 1 else v >> 1
+            n += 1
+        return n
+    total = sum(steps(v) for v in vin)
+    L = Launch(T4)
+    L.ptr(32, 3); L.ptr(40, 4)
+    L.ints(3, vin); L.watch(4, T4)
+    return [(L, {(4 << 16) + 4 * t: total + t for t in range(T4)}, None)]
+
+
+def transpose128():
+    n, TILE = 64, 32
+    a = [q8(i, 17, 4) for i in range(n * n)]
+    ctas = []
+    tiles = n // TILE
+    for cta in range(tiles * tiles):
+        bx, by = cta % tiles, cta // tiles
+        L = Launch(T4)
+        L.ptr(32, 3); L.ptr(40, 4); L.word(48, n)
+        L.floats(4, a); L.watch(3, n * n)
+        want = {(3 << 16) + 4 * ((bx * TILE + r) * n + by * TILE + c): a[(by * TILE + c) * n + bx * TILE + r]
+                for r in range(TILE) for c in range(TILE)}
+        ctas.append((L, want, 0))
+    return ctas
+
+
+# name: (source, extra flags, the argument layout it must have, generator)
+KERNELS128 = {
+    "rope-diverged-128": ("test/cuda/fusion/rope.cu", "-Itest/cuda/fusion",
+                          "p32,p40,p48,p56,s64,s68,s72,s76", rope_diverged128),
+    "layernorm-128": ("test/cuda/fusion/layernorm.cu", "-Itest/cuda/fusion -DNWARP_THREADS=128",
+                      "p32,p40,p48,p56,p64,p72,s80,s84", layernorm128),
+    "gemv-128": ("test/cuda/gemv.cu", "", "p32,p40,p48,s56", gemv128),
+    "sgemm-128": ("test/cuda/sgemm.cu", "-DBX=16 -DBY=8", "p32,p40,p48,s56,s60", sgemm128),
+    "cta-reduce-128": ("test/cuda/cta-reduce.cu", "", "p32,p40", cta_reduce128),
+    "transpose-128": ("test/cuda/transpose32.cu", "", "p32,p40,s48", transpose128),
+}
+
+
+def build128(name, tmp, spec=None):
+    src, flags, layout, _ = spec or KERNELS128[name]
+    stem = f"{tmp}/{name}"
+    env = dict(os.environ, CCV_CFLAGS=f"-Itest/bench {flags}")
+    subprocess.run(["./tools/cuda-to-asm.sh", src, f"{stem}.ll.s", stem],
+                   cwd=ROOT, env=env, check=True, capture_output=True)
+    got = re.search(r'ccv-arg-layout"="([^"]*)"', open(f"{stem}-lowered.ll").read())
+    if not got or got.group(1).rstrip(",") != layout:
+        sys.exit(f"export-kernels: {name}'s argument layout is "
+                 f"{got.group(1) if got else 'missing'}, not {layout}")
+    subprocess.run([f"{ROOT}/build/ccv-llc", f"{stem}-lowered.ll", "-o", f"{stem}.o", "-obj"],
+                   check=True, capture_output=True)
+    subprocess.run(["llvm-objcopy", "-O", "binary", "--only-section=.text",
+                    f"{stem}.o", f"{stem}.bin"], check=True)
+    for sec in ("ccv_data", "ccv_reloc"):
+        p = f"{stem}.{sec}"
+        subprocess.run(["llvm-objcopy", "-O", "binary", f"--only-section=.{sec}",
+                        f"{stem}.o", p], check=True)
+        if os.path.getsize(p):
+            sys.exit(f"export-kernels: {name} has module data, which launch.txt "
+                     "cannot carry yet")
+    nm = subprocess.run(["llvm-nm", f"{stem}.o"], capture_output=True, text=True,
+                        check=True).stdout
+    if not any(l.split()[1:2] == ["T"] and int(l.split()[0], 16) == 0 for l in nm.splitlines()):
+        sys.exit(f"export-kernels: {name}'s entry is not at offset 0")
+    dis = subprocess.run([sys.executable, f"{ROOT}/tools/ccv-dis.py", JSON, f"{stem}.bin",
+                          "--check"], capture_output=True, text=True, check=True).stdout
+    return dis, open(f"{stem}.bin", "rb").read()
+
+
+def run128(binpath, cta, pokes, peeks, oracle):
+    args = [SIM, binpath, "-threads", str(T4), "-cta", "-ctaid", str(cta), "-oracle", oracle]
+    for a, v in pokes:
+        args += ["-poke", f"{a:#x}={v}"]
+    for a in peeks:
+        args += ["-peek", f"{a:#x}"]
+    r = subprocess.run(args, capture_output=True, text=True)
+    if r.returncode:
+        return None, (r.stderr or r.stdout).strip().splitlines()[0]
+    return {int(a, 16): int(v) for a, v in
+            re.findall(r"\[(0x[0-9a-f]+)\] = (\d+)", r.stdout)}, r.stdout
+
+
+def matches(got, want, tol):
+    for a, v in want.items():
+        g = got.get(a)
+        if g is None:
+            return f"[{a:#x}] not read"
+        if tol is None:
+            if g != v:
+                return f"[{a:#x}] = {g}, want {v}"
+        elif not abs(u2f(g) - v) <= tol * max(1.0, abs(v)):
+            return f"[{a:#x}] = {u2f(g)}, want {v}"
+    return None
+
+
+def export128(out, tmp):
+    bad = 0
+    for name, (src_path, flags, _, gen) in KERNELS128.items():
+        dis, image = build128(name, tmp)
+        ctas = gen()
+        d = os.path.join(out, name)
+        os.makedirs(d, exist_ok=True)
+        open(f"{d}/kernel.s", "w").write(
+            f"# {name}: {src_path}{' ' + flags if flags else ''}, compiled; ccv-as source,\n"
+            "# reassembled byte for byte by tools/ccv-dis.py --check. Load at ccv-sim's\n"
+            "# -code-base; entry at offset 0.\n" + dis)
+        open(f"{d}/kernel.bin", "wb").write(image)
+        ops, issued, wrong = collections.Counter(), 0, []
+        for cta, (L, want, tol) in enumerate(ctas):
+            got, text = run128(f"{d}/kernel.bin", cta, L.pokes, L.peeks, f"{tmp}/o.jsonl")
+            if got is None:
+                wrong.append(f"CTA {cta} did not run: {text}"); continue
+            for w in range(T4 // 32):
+                path = f"{tmp}/o.jsonl" if w == 0 else f"{tmp}/o.{w}.jsonl"
+                for line in open(path):
+                    rec = json.loads(line)
+                    if "op" in rec:
+                        ops[rec["op"]] += 1
+                        issued += 1
+            err = matches(got, want, tol)
+            if err:
+                wrong.append(f"CTA {cta} {err}")
+            # The control: the same launch without its input data must not match.
+            bare = [(a, v) for a, v in L.pokes if a < DATA]
+            got0, _ = run128(f"{d}/kernel.bin", cta, bare, L.peeks, f"{tmp}/c.jsonl")
+            if got0 is not None and matches(got0, want, tol) is None:
+                wrong.append(f"control: CTA {cta} without its input data still matched")
+        with open(f"{d}/launch.txt", "w") as f:
+            f.write(f"# {name}: ccv-sim kernel.bin -threads {T4} -cta -ctaid <cta>, followed by\n"
+                    "# that CTA's pokes. One CTA of four warps a run, sharing .shared and the\n"
+                    "# barriers; with the skeleton, the four warps' records are oracle.jsonl and\n"
+                    "# oracle.<w>.jsonl. Results are checked exactly"
+                    + (", or to a relative 1e-5 for its transcendentals" if any(t for _, _, t in ctas) else "")
+                    + " (export-kernels.py).\n")
+            f.write(f"threads {T4}\nwarps {T4 // 32}\nctas {len(ctas)}\n")
+            for cta, (L, _, _) in enumerate(ctas):
+                f.write(f"cta {cta}\n")
+                f.writelines(f"-poke {a:#x}={v}\n" for a, v in L.pokes)
+        with open(f"{d}/ops.txt", "w") as f:
+            f.write(f"# {name}: opcodes issued over the launch's {len(ctas)} CTAs of four warps, "
+                    f"by ccv-sim's names; {issued} issue groups\n")
+            f.writelines(f"{n:<18} {c}\n" for n, c in sorted(ops.items()))
+        if wrong:
+            bad = 1
+            print(f"  FAIL  {name}: {len(wrong)} wrong; {wrong[0]}")
+        else:
+            print(f"  PASS  {name}: {len(ctas)} CTA(s) of {T4} threads, four warps, match the "
+                  f"reference; {len(ops)} opcodes, {issued} issue groups; without its input "
+                  "data each fails")
+    return bad
+
+
+# --- AR-24's L1 capacity traces (AR's rev 229) -------------------------------
+# gemv, sgemm and transpose at sizes whose working sets span about 64 KiB to
+# 1 MiB, as one-warp CTAs meant to run four resident on a core, so they
+# compete for L1. The inputs are megabytes, so they ship as files of
+# little-endian words beside launch.txt, loaded with ccv-sim -load (whose
+# oracle init record lists them as pokes), and each CTA's result is read back
+# with -dump. Inputs are small multiples of 1/8 and every sum is exact in
+# fp32, so results are checked bit for bit. The control runs each CTA without
+# its loaded inputs. The arrays sit in windows 0x20, 0x60 and 0xA0 (2, 6 and
+# 10 MiB), clear of the launch block and of .local's windows from 256 up.
+import array
+
+WA, WB, WC = 0x20, 0x60, 0xA0
+
+
+def fbits(xs):
+    return array.array("f", xs)
+
+
+def l1_gemv(K):
+    T, NCTA = 32, 8
+    rows = T * NCTA
+    W = [q8(i, 15, 3) for i in range(rows * K)]
+    x = [q8(i, 9, 1) for i in range(K)]
+    y = [sum(W[r * K + k] * x[k] for k in range(K)) for r in range(rows)]
+    ctas = []
+    for c in range(NCTA):
+        L = Launch(T)
+        L.ptr(32, WC); L.ptr(40, WA); L.ptr(48, WB); L.word(56, K)
+        ctas.append((L, (WC << 16) + 4 * c * T, y[c * T:(c + 1) * T], 1))
+    return T, {"W.bin": (WA, fbits(W)), "x.bin": (WB, fbits(x))}, ctas, \
+        f"gemv.cu, K {K}: W is {rows} x {K} floats ({rows * K * 4 // 1024} KiB)"
+
+
+def l1_sgemm(N, NCTA=16):
+    T, BX, BY, TM, TN = 32, 8, 4, 2, 2
+    bpr = N // (BX * TN)
+    A = [q8(i, 11, 2) for i in range(N * N)]
+    B = [q8(i, 13, 5) for i in range(N * N)]
+    ctas = []
+    for cta in range(NCTA):          # row band 0: every CTA reads the same rows of A
+        brow, bcol = cta // bpr, cta % bpr
+        rows = range(brow * BY * TM, (brow + 1) * BY * TM)
+        cols = range(bcol * BX * TN, (bcol + 1) * BX * TN)
+        want = []
+        for r in rows:
+            for c in range(N):
+                want.append(sum(A[r * N + k] * B[k * N + c] for k in range(N))
+                            if c in cols else None)
+        L = Launch(T)
+        L.ptr(32, WC); L.ptr(40, WA); L.ptr(48, WB); L.word(56, N); L.word(60, bpr)
+        ctas.append((L, (WC << 16) + 4 * rows[0] * N, want, 1))
+    return T, {"A.bin": (WA, fbits(A)), "B.bin": (WB, fbits(B))}, ctas, \
+        f"sgemm.cu, N {N}: A and B are {N * N * 4 // 1024} KiB each; CTAs 0-{NCTA - 1} of " \
+        f"{(N // (BY * TM)) * bpr}, the first row band, so they share A's rows"
+
+
+def l1_transpose(n):
+    T, TILE = 32, 32
+    a = [q8(i, 17, 4) for i in range(n * n)]
+    tiles = n // TILE
+    ctas = []
+    for cta in range(tiles * tiles):
+        bx, by = cta % tiles, cta // tiles
+        want = []
+        for r in range(TILE):
+            for c in range(n):
+                want.append(a[(by * TILE + (c - by * TILE)) * n + bx * TILE + r]
+                            if by * TILE <= c < (by + 1) * TILE else None)
+        L = Launch(T)
+        L.ptr(32, WC); L.ptr(40, WA); L.word(48, n)
+        ctas.append((L, (WC << 16) + 4 * (bx * TILE) * n, want, 1))
+    return T, {"in.bin": (WA, fbits(a))}, ctas, \
+        f"transpose32.cu -DROWS=1, n {n}: {n * n * 4 // 1024} KiB in and out; every CTA"
+
+
+# name: (source, flags, argument layout, generator)
+KERNELS_L1 = {
+    "gemv-k128":      ("test/cuda/gemv.cu", "", "p32,p40,p48,s56", lambda: l1_gemv(128)),
+    "gemv-k512":      ("test/cuda/gemv.cu", "", "p32,p40,p48,s56", lambda: l1_gemv(512)),
+    "gemv-k2048":     ("test/cuda/gemv.cu", "", "p32,p40,p48,s56", lambda: l1_gemv(2048)),
+    "sgemm-n256":     ("test/cuda/sgemm.cu", "", "p32,p40,p48,s56,s60", lambda: l1_sgemm(256)),
+    "sgemm-n512":     ("test/cuda/sgemm.cu", "", "p32,p40,p48,s56,s60", lambda: l1_sgemm(512)),
+    "transpose-n128": ("test/cuda/transpose32.cu", "-DROWS=1", "p32,p40,s48", lambda: l1_transpose(128)),
+    "transpose-n256": ("test/cuda/transpose32.cu", "-DROWS=1", "p32,p40,s48", lambda: l1_transpose(256)),
+    "transpose-n512": ("test/cuda/transpose32.cu", "-DROWS=1", "p32,p40,s48", lambda: l1_transpose(512)),
+}
+
+
+def export_l1(out, tmp):
+    bad = 0
+    for name, (src_path, flags, layout, gen) in KERNELS_L1.items():
+        dis, image = build128(name, tmp, (src_path, flags, layout, None))
+        T, files, ctas, what = gen()
+        d = os.path.join(out, name)
+        os.makedirs(d, exist_ok=True)
+        open(f"{d}/kernel.s", "w").write(
+            f"# {name}: {src_path}{' ' + flags if flags else ''}, compiled; ccv-as source,\n"
+            "# reassembled byte for byte by tools/ccv-dis.py --check. Load at ccv-sim's\n"
+            "# -code-base; entry at offset 0.\n" + dis)
+        open(f"{d}/kernel.bin", "wb").write(image)
+        loads = []
+        for fname, (win, data) in files.items():
+            with open(f"{d}/{fname}", "wb") as f:
+                data.tofile(f)
+            loads += ["-load", f"{win << 16:#x}={d}/{fname}"]
+        ops, issued, wrong = collections.Counter(), 0, []
+        for cta, (L, at, want, _) in enumerate(ctas):
+            def go(with_loads, oracle):
+                args = [SIM, f"{d}/kernel.bin", "-threads", str(T), "-ctaid", str(cta),
+                        "-context", str(cta % 4), "-max-steps", "200000000",
+                        "-dump", f"{at:#x},{4 * len(want)},{tmp}/dump.bin"]
+                if oracle:
+                    args += ["-oracle", oracle]
+                if with_loads:
+                    args += loads
+                for a, v in L.pokes:
+                    args += ["-poke", f"{a:#x}={v}"]
+                r = subprocess.run(args, capture_output=True, text=True)
+                if r.returncode:
+                    return None
+                got = array.array("f")
+                with open(f"{tmp}/dump.bin", "rb") as f:
+                    got.fromfile(f, len(want))
+                return got
+            got = go(True, f"{tmp}/l1.jsonl")
+            if got is None:
+                wrong.append(f"CTA {cta} did not run"); continue
+            for line in open(f"{tmp}/l1.jsonl"):
+                if line.startswith('{"seq"'):
+                    issued += 1
+                    ops[json.loads(line)["op"]] += 1
+            want32 = fbits([0.0 if v is None else v for v in want])
+            bad_at = next((i for i, v in enumerate(want) if v is not None and got[i] != want32[i]), None)
+            if bad_at is not None:
+                wrong.append(f"CTA {cta} [{at + 4 * bad_at:#x}] = {got[bad_at]}, want {want[bad_at]}")
+            got0 = go(False, None)
+            if got0 is not None and all(v is None or got0[i] == want32[i] for i, v in enumerate(want)):
+                wrong.append(f"control: CTA {cta} without its loaded inputs still matched")
+        with open(f"{d}/launch.txt", "w") as f:
+            f.write(f"# {name}: {what}.\n"
+                    f"# One-warp CTAs, meant to run four resident on a core (CTA c on hardware\n"
+                    f"# context c mod 4), so they compete for L1 (AR's rev 229). Each CTA alone is\n"
+                    f"# ccv-sim kernel.bin -threads {T} -ctaid <cta> -context <cta mod 4>, the\n"
+                    "# 'load' lines as -load=<addr>=<file> (files of little-endian words, in this\n"
+                    "# directory), then that CTA's pokes. Results are checked bit for bit\n"
+                    "# (export-kernels.py), and without the loaded inputs each CTA fails.\n")
+            f.write(f"threads {T}\nresident 4\nctas {len(ctas)}\n")
+            for fname, (win, data) in files.items():
+                f.write(f"load {win << 16:#x} {fname} {len(data) * 4}\n")
+            for cta, (L, _, _, _) in enumerate(ctas):
+                f.write(f"cta {cta}\n")
+                f.writelines(f"-poke {a:#x}={v}\n" for a, v in L.pokes)
+        with open(f"{d}/ops.txt", "w") as f:
+            f.write(f"# {name}: opcodes issued over the launch's {len(ctas)} CTAs, "
+                    f"by ccv-sim's names; {issued} issue groups\n")
+            f.writelines(f"{n:<18} {c}\n" for n, c in sorted(ops.items()))
+        if wrong:
+            bad = 1
+            print(f"  FAIL  {name}: {len(wrong)} wrong; {wrong[0]}")
+        else:
+            print(f"  PASS  {name}: {len(ctas)} one-warp CTAs exact; {issued} issue groups; "
+                  "without the loaded inputs each fails")
+    return bad
+
+
 def main():
     out = sys.argv[1]
     bad = 0
     with tempfile.TemporaryDirectory() as tmp:
         bad |= export_coremark(out, tmp)
         bad |= export_coremark(out, tmp, per_lane=True)
+        bad |= export_coremark(out, tmp, priv=True)
         bad |= export_coremark_fault(out, tmp)
+        bad |= export128(out, tmp)
+        bad |= export_l1(out, tmp)
         for name, fn in KERNELS.items():
             src, image = build(name, tmp)
             threads, ctas = fn()

@@ -407,6 +407,50 @@ run_sized() {
     echo "  FAIL  sized: got '$got', want '$want' (control '$ctl', F-WIDTH $fault)"; return 1
   fi
 }
+# --- -load and -dump (AR-24's L1 traces) ----------------------------------
+run_load_dump() {
+  printf 'C_EXIT 0\n' > "$TMP/ld.s"
+  python3 "$AS" "$JSON" "$TMP/ld.s" "$TMP/ld.bin" >/dev/null || return 1
+  python3 -c 'import struct, sys; open(sys.argv[1], "wb").write(struct.pack("<4I", 1, 2, 3, 0xdeadbeef))' "$TMP/w.bin"
+  local got ctl
+  got=$("$SIM" "$TMP/ld.bin" -load 0x200000="$TMP/w.bin" -peek 0x20000c -dump 0x200000,16,"$TMP/d.bin" \
+        -oracle "$TMP/ld.jsonl" 2>&1 | grep -oP '\] = \K\d+')
+  # The control: without -load the word is not there.
+  ctl=$("$SIM" "$TMP/ld.bin" -peek 0x20000c 2>&1 | grep -oP '\] = \K\d+')
+  if [ "$got" = 3735928559 ] && [ "$ctl" = 0 ] && cmp -s "$TMP/w.bin" "$TMP/d.bin" &&
+     grep -q '\[2097164,3735928559\]' "$TMP/ld.jsonl"; then
+    echo "  PASS  -load puts a file's words in memory and in the oracle's init record; -dump writes them back (control: without -load, 0)"
+  else
+    echo "  FAIL  -load/-dump: peek '$got' (control '$ctl')"; return 1
+  fi
+}
+# --- interleaved per-thread memory (O-83) ----------------------------------
+run_priv() {
+  python3 "$AS" "$JSON" test/priv.s "$TMP/pv.bin" >/dev/null || return 1
+  python3 "$AS" "$JSON" test/faults/priv-addr.s "$TMP/pva.bin" >/dev/null || return 1
+  # An ordinary access into the run's own windows: base W - 1, offset 64 KiB + 8.
+  sed 's/^        MOVI48       R8, 65536$/        ADDI         R5, R5, -1\n        MOVI48       R8, 65544/' \
+    test/faults/priv-addr.s > "$TMP/pvu.s"
+  python3 "$AS" "$JSON" "$TMP/pvu.s" "$TMP/pvu.bin" >/dev/null || return 1
+  local a="-lane-contexts 1024 -poke 0x20018=256" p="" l want="" got ctl1 ctl2 f1 f2
+  for l in 0 1 31; do
+    p="$p -peek $(printf 0x%x $((0x90000 + 4 * l))) -peek $(printf 0x%x $((0xD010100 + 4 * l)))"
+    p="$p -peek $(printf 0x%x $((0xD010180 + 4 * l))) -peek $(printf 0x%x $((0xA0000 + 4 * l)))"
+    want="$want $((l + 100)) $((l + 100)) $(((l + 100) << 16)) $([ $l = 0 ] && echo 0 || echo $((l + 100)))"
+  done
+  got=$("$SIM" "$TMP/pv.bin" $a $p 2>&1 | grep -oP '\] = \K\d+' | xargs)
+  # Controls: the decision on lane 0's rbase faults lanes 1-31's store; a
+  # contiguous layout leaves the interleaved cells empty.
+  ctl1=$("$SIM" "$TMP/pv.bin" $a $p -ccv-test-priv-lane0 2>&1 | grep -c 'FAULT F-ADDR')
+  ctl2=$("$SIM" "$TMP/pv.bin" $a $p -ccv-test-priv-contiguous 2>&1 | grep -oP '\] = \K\d+' | xargs)
+  f1=$("$SIM" "$TMP/pva.bin" $a 2>&1 | grep -c 'FAULT F-ADDR  pc=0x1014  lanes=ffffffff  addr=0xd010000')
+  f2=$("$SIM" "$TMP/pvu.bin" $a 2>&1 | grep -c 'FAULT F-ADDR')
+  if [ "$got" = "${want# }" ] && [ "$ctl1" = 1 ] && [ "$ctl2" != "$got" ] && [ "$f1" = 1 ] && [ "$f2" = 1 ]; then
+    echo "  PASS  interleaved per-thread memory: each lane's own bytes, one line a word, sized in its cell, decided on the lowest issuing lane; F-ADDR past L and in the run's windows (O-83)"
+  else
+    echo "  FAIL  priv: got '$got', want '${want# }' (lane-0 control faults $ctl1, contiguous '$ctl2', F-ADDR $f1 $f2)"; return 1
+  fi
+}
 # --- mov across widths (O-82) ----------------------------------------------
 run_mov_width() {
   python3 "$AS" "$JSON" test/mov-width.s "$TMP/mw.bin" >/dev/null || return 1
@@ -438,8 +482,8 @@ run_lanectx() {
   python3 "$AS" "$JSON" test/lanectx.s "$TMP/lc.bin" >/dev/null || return 1
   local args="-threads 52 -warp 1 -peek 0x30080 -peek 0x300cc" out ill
   out=$("$SIM" "$TMP/lc.bin" $args 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
-  # The control: selector 3 is still reserved, F-ILLEGAL.
-  sed 's/SRD           R1, 2 /SRD           R1, 3 /' test/lanectx.s > "$TMP/lc3.s"
+  # The control: selector 4 is still reserved, F-ILLEGAL (3 is O-83's).
+  sed 's/SRD           R1, 2 /SRD           R1, 4 /' test/lanectx.s > "$TMP/lc3.s"
   python3 "$AS" "$JSON" "$TMP/lc3.s" "$TMP/lc3.bin" >/dev/null || return 1
   ill=$("$SIM" "$TMP/lc3.bin" $args 2>&1)
   # TI-35: -context names the warp's hardware context, here 3 for warp 0.
@@ -447,9 +491,9 @@ run_lanectx() {
   local c3; c3=$("$SIM" "$TMP/lc.bin" $ctx 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
   if [ "${out% }" = "32 51" ] && grep -q "F-ILLEGAL" <<< "$ill" && [ "${c3% }" = "96 127" ] &&
      grep -q '"lane_context":3,' "$TMP/lc.jsonl"; then
-    echo "  PASS  srd #2 gives (context << 5) | lane, -context sets it (TI-35), and srd #3 is still F-ILLEGAL"
+    echo "  PASS  srd #2 gives (context << 5) | lane, -context sets it (TI-35), and srd #4 is still F-ILLEGAL"
   else
-    echo "  FAIL  srd #2: got '$out', want '32 51'; -context 3: '$c3', want '96 127'; srd #3: $ill"; return 1
+    echo "  FAIL  srd #2: got '$out', want '32 51'; -context 3: '$c3', want '96 127'; srd #4: $ill"; return 1
   fi
 }
 # --- narrow FP executed (CP-6) ----------------------------------------------
@@ -496,6 +540,8 @@ run_addr_narrow || fail=1
 run_sized || fail=1
 run_diverged_chwidth || fail=1
 run_mov_width || fail=1
+run_priv || fail=1
+run_load_dump || fail=1
 
 # --- the fault model (ISA v1.9 section 12, O-57/O-58) ------------------------
 # Each case names the record it must produce. A fault exits 3, distinct from a
