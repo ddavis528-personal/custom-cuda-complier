@@ -1,0 +1,25 @@
+# cta-reduce-128: opcodes issued over the launch's 1 CTAs of four warps, by ccv-sim's names; 5420 issue groups
+ADD                20
+ANDI               560
+BRA_PRED           592
+C_ADDI             1120
+C_BAR_ARRIVE       45
+C_BAR_WAIT         65
+C_EXIT             4
+C_MOV              4
+C_SHLI             4
+C_SHRI             560
+LD_GLOBAL          8
+LD_GLOBAL_SLOT     4
+LD_SHARED          12
+LD_SHARED_IDX      8
+MOVI               76
+MOV_P              560
+MULI               560
+SETP_LT_NP         45
+SETP_LT_U_NP       560
+SETP_LT_U_NPI      4
+SETP_NE_NPI        560
+SRD                4
+ST_GLOBAL_SLOT     4
+ST_SHARED          41

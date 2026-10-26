@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-10-25-c15dc96
+# Snapshot snapshot-2026-10-26-ef4b4ad
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `c15dc9671709b818851419830cf71bb0513ef592`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `ef4b4adfb8980dfb1d02df73b7626ee983448bc9`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -24,8 +24,8 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `c15dc9671709b818851419830cf71bb0513ef592` |
-| Built | 2026-10-25 (UTC) |
+| Source | `ccr-ea1c4e17-tem30u` @ `ef4b4adfb8980dfb1d02df73b7626ee983448bc9` |
+| Built | 2026-10-26 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
 | LLVM | 18.1.3 |
@@ -65,16 +65,17 @@ f3c651b17dd3a8f6ed20445f43005aba851eb2ce7d648e3d61685391e6df2f07  release/asm/cu
 e4703fb1c0b5a880ab1554c695dc2dc0f81743a655255af45ad7aa0f2e054526  release/asm/cuda-sfu.s
 4e28f920d2d25a1a2943611243f41a0a72bddf00d7cc895ad4e0b6df2cafaa27  release/asm/cuda-sgemm.s
 1b38a19d06d2db75cb19303a3cb990abecade207eb7b83d60346f4919adab75a  release/asm/cuda-spinwait.s
+f33f3380f2176952d8bfe11bf3601cf75bc8344b12c4ca20e071e4a8430ca0a8  release/asm/cuda-transpose32.s
 56f8bc23746061159d146f248d605bdd2f430be318ba29477aa4c946533bc993  release/asm/cuda-vadd-aligned.s
 f540a502bf7063cfb75450053c5163bc8986871d7cb0aa9bc2b8ee8cb9637a3c  release/asm/cuda-vadd.s
 d9e3e29cdc3a7411b972a4fbef69a2bed68355798daf5f65bbf21a7cc8ae9c02  release/bench/bench.json
 718ae7f2f5b7ea13cf7af347850b325d3156c4afa4592a3f0c471ac35d9e9337  release/bench/bench.txt
 7f482c4f970a8526328886a67b04f998e134c4e0ed9a6e8194b309d48b142839  release/bench/sweep-coremark.txt
 0529582a0572b0828fefa8b9e57ba448529f16369affe535b1acbb20816662de  release/bench/sweep-decode.txt
-19dc6a0419a0eaf6cfbabd8c6afd2f30a8636fd8a4c6676bc6025141eb90b16f  release/bench/sweep-frames.txt
+37b65e87b06f698c3935dda945ea4263ae8e7e7d25d0a28e0350315a4dda59fa  release/bench/sweep-frames.txt
 28c14ebc8397a6ec18b69bcb5ebe93a64c94cd04b97c971dd526f78ff72f423b  release/bench/sweep-tiles.txt
 7b4b49f74dc02b920cb0fc4893f6d849b6e923e9a92b2bd031dccc98aae4a379  release/bin/ccv-sim
-48b6c58d71f8c4a507c350681008937c5e8d63d57bae1b391da05ac1adf1f692  release/bin/ccv-sim.txt
+867431d122de1a79703b5c6bd823c00b195e59babdb4260ef4f854c861cf01df  release/bin/ccv-sim.txt
 f231d365df194ce6f12f73e2437a59a115f34cf57aedebe66d7b0195e4cae4fd  release/kernels/coremark-derived-pl-fault/fault.txt
 8b8842c5494794bd649d17c4a587ba08742c3c6ec2df6871ad8d024a0713a006  release/kernels/coremark-derived-pl-fault/kernel.bin
 99167615fa013359299835de1b75f9e9c8ea1c6c5518681cef1071f599563e95  release/kernels/coremark-derived-pl-fault/kernel.s
@@ -87,10 +88,26 @@ ed9aeec6bb4123fd717374193573f2829b94d33a675a789eb3f3953de84d7145  release/kernel
 0b8ac17a2ab14f16fd36e7c5cae02eafd20224cc55c4f7133ec5688dd435aa25  release/kernels/coremark-derived/kernel.s
 a8864f78f739ccd8e1fb7b0f3ca3ab081e20de092e4970dc27e8975812280063  release/kernels/coremark-derived/launch.txt
 2c4a24944619aadca94641d1a5c64728b46bcc315904f0dfac02e4a637da44ed  release/kernels/coremark-derived/ops.txt
+3e1434a68ee524a5e671fa37b2f14731d1641f06d08786c8dc407f711b2a9379  release/kernels/cta-reduce-128/kernel.bin
+fa735608caf63466b3d264cba1efecc372b228acc1edeedf004daa3ee59c3ae0  release/kernels/cta-reduce-128/kernel.s
+9d862dd1b95666854d36b639b477602278f65ad0422180c668e3343c866373fc  release/kernels/cta-reduce-128/launch.txt
+b949d7719988d01ec77b9b7fedd586ede8ec7aa93e7a0b2b9ab204d485db7a4e  release/kernels/cta-reduce-128/ops.txt
+0e154de90e0d1d0407969e63eb45720f96800f3a17aa40c60aca2bde3945f20a  release/kernels/gemv-128/kernel.bin
+9e2636fc338f25579c6c06aeead9cf92a12853f471872c837438861668aa4cde  release/kernels/gemv-128/kernel.s
+5d0e3797c93a5c1b92abb5984fe6463612b130040782a923c6f8b6c3fc675736  release/kernels/gemv-128/launch.txt
+264ef14343f58307744a4b20b299bbd927cbc5bef1c643a39dd5e9738fa48e0c  release/kernels/gemv-128/ops.txt
+4ea5ee23eda353fe553bca1c7b7d9c5d88355c2c58f7bcc78ad60d4ba16f4178  release/kernels/layernorm-128/kernel.bin
+ec8c9c06e5effc716d08e0b93c098edba4bb9e5b9167167efc49d838b1eff752  release/kernels/layernorm-128/kernel.s
+24d94ef7fe1f2cb1e28ccc9047850b224720ef6ca33c7f0f58d35a6e8a1b7f91  release/kernels/layernorm-128/launch.txt
+fa62e2a18a2bd9e70c96344924e34c5beab409edbd5ae4cff5633d8f395906f7  release/kernels/layernorm-128/ops.txt
 0ddda9feb5145350dcfd3d94a9eb5028bfbd1d0ad41f12851bfce048c0c7ffc9  release/kernels/layernorm/kernel.bin
 d881d8dc76c9b594ec1f203de485ce16f3f6b281d657610e97483bc8400feea5  release/kernels/layernorm/kernel.s
 e5769fbef4614ef8aed74537de07a82c9018d4215845ec73a517026f606d6d54  release/kernels/layernorm/launch.txt
 8be4de0c8320086709d5cfe8b2ad0cf39abdecbfe215d30603382efb3399b411  release/kernels/layernorm/ops.txt
+4bddc1e8455d2804aba4f611563a578cb8be84807cef847c18746218461301a0  release/kernels/rope-diverged-128/kernel.bin
+d9137a44aab312c6d29c8bfc1b269e3e1037ee1ef2c018d2d8e39a78b6090703  release/kernels/rope-diverged-128/kernel.s
+ce799edaf5bb411d1e8555ada2fc42c507cddedc2de8be867374245469602d42  release/kernels/rope-diverged-128/launch.txt
+f2fc80b20d64d2ce37d1bf19c663350f7294260db879ad244e43c955ee23131b  release/kernels/rope-diverged-128/ops.txt
 4bddc1e8455d2804aba4f611563a578cb8be84807cef847c18746218461301a0  release/kernels/rope-diverged/kernel.bin
 ce8e645c8b285ff035aa6d701ee7dc1207459bf060c85e27f4239d48b84d580b  release/kernels/rope-diverged/kernel.s
 83f10add70f50dda02e88cee00aad593b5491fbc47f7f70793eb0c07cd75318e  release/kernels/rope-diverged/launch.txt
@@ -99,5 +116,13 @@ ce8e645c8b285ff035aa6d701ee7dc1207459bf060c85e27f4239d48b84d580b  release/kernel
 ba1f77ebad84a1da78c82e9c3ef4f1e466cb8da7d8634dc0f234f7303a1ab069  release/kernels/rope/kernel.s
 12795ff2ace11fc143ad508c1a541846387f492fba37433e1502316ec19c65b3  release/kernels/rope/launch.txt
 1fd038c15e2c80787853fb2af63019b6d6fa9e86459b373fee9974181eb0c477  release/kernels/rope/ops.txt
-ece963e20c4cae7882f56bbb31f5bad76a149fd177dab6b495062128cbe5fad8  release/verify.log
+e7d42b6cb41a28c988a12dcd14b556c234d72a275458b78a9dbedb41b0962d53  release/kernels/sgemm-128/kernel.bin
+e17a0caf0a36157b6cfb742e92812290178e48c3ded4e2a9e11c3da065f4e024  release/kernels/sgemm-128/kernel.s
+b19fb49ab368a4f25684159127a1665c5585b9d80db9c3fa849b22a41241e218  release/kernels/sgemm-128/launch.txt
+d5287cba2663923e9e691d8c5a28bcd52dec7fd2b82c15f3874e18b8ed842443  release/kernels/sgemm-128/ops.txt
+2c58c38463d32d49d81bb2981c97ec5120b738c529f8f0b23fec9b2321a543c2  release/kernels/transpose-128/kernel.bin
+8ea569209c7e1fe171dde5b6575f7f308e060537a0a59feaa307e0b95ef21012  release/kernels/transpose-128/kernel.s
+53693ec18a4b4dfa5eb8d3d4b81c93f3bb02586502f1a50a620fd74e7f232143  release/kernels/transpose-128/launch.txt
+7a45607cb63ab1de3104a704898e6eda868b4af18d03bc60733b20a8d1717931  release/kernels/transpose-128/ops.txt
+ecca221ffb8a76b7669b9b5cfbaced5bb4170f58bc30d063b9293199051c24bc  release/verify.log
 ```

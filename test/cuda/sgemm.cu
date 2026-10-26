@@ -21,8 +21,14 @@
 #endif
 
 // One warp per block, so the simulator can execute what it measures. BX*BY=32.
+// The thread block is BX x BY; 8 x 4 is one warp. -DBX=16 -DBY=8 gives the
+// four-warp CTA release/kernels/sgemm-128 is exported at (AR-24).
+#ifndef BX
 #define BX 8
+#endif
+#ifndef BY
 #define BY 4
+#endif
 #define KT 8                       // K-tile depth staged through shared memory
 
 // How far the K loop is unrolled. Full is what a CUDA programmer writes, and
