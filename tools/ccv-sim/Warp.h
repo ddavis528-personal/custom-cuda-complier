@@ -117,8 +117,16 @@ public:
   uint64_t AddrLimit = 0;
   uint32_t AddrLanes = 0;
   uint64_t AddrAddr = 0;
+  /// O-83 (§5.9): the run's own windows [UnmapLo, UnmapHi) name logical
+  /// offsets only, and the runtime maps no page there, so an ordinary access
+  /// into them raises F-ADDR. Refuse is one-shot: an interleaved lane whose b
+  /// lies outside [0, L) is refused at the address it would otherwise form.
+  uint64_t UnmapLo = 0, UnmapHi = 0;
+  bool Refuse = false;
   bool addrOK(uint64_t Addr) {
-    if (!AddrLimit || Addr < AddrLimit)
+    bool Bad = Refuse || (Addr >= UnmapLo && Addr < UnmapHi);
+    Refuse = false;
+    if (!Bad && (!AddrLimit || Addr < AddrLimit))
       return true;
     if (!AddrLanes)
       AddrAddr = Addr;

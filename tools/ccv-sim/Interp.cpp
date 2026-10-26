@@ -145,6 +145,49 @@ uint64_t Interp::localAddr(const Warp &W, uint64_t B, unsigned L) {
   return ((LocalBase + LaneContexts) << 16) + (uint64_t(W.WarpCtx) << 22) +
          128 * (B / 4) + 4 * L + B % 4;
 }
+static uint32_t addrReg(const Warp &W, unsigned R, unsigned L);   // below
+
+/// O-83 (§5.9): the run's base window, W = local_base + %privoff, where
+/// %privoff = srd #3 = 3 * CCV_LANE_CONTEXTS, past O-69's spill space. Its
+/// own windows map nothing.
+void Interp::syncPriv() {
+  PrivRun = uint64_t(Mem.peek32(kLaunchBase + 24)) + 3ull * LaneContexts;
+  Mem.UnmapLo = PrivRun << 16;
+  Mem.UnmapHi = (PrivRun + PrivWindows) << 16;
+}
+
+/// O-83: one decision an issue, on the lowest lane of the issue mask, whether
+/// or not its predicate is set: is its rbase in the run?
+bool Interp::privDecide(const Warp &W, unsigned Base, uint32_t Mask) {
+  if (!Mask)
+    return false;
+  unsigned D = nfp::TestPrivLane0 ? 0 : unsigned(llvm::countr_zero(Mask));
+  unsigned K = unsigned(llvm::countr_zero(PrivWindows));
+  return (uint64_t(addrReg(W, Base, D)) >> K) == (PrivRun >> K);
+}
+
+/// A .global access's address for lane L: (rbase << 16) + Off, or under O-83,
+/// lane LaneTerm's cell of byte b of the warp context's region, where
+/// b = ((rbase(L) - W) << 16) + Off. A b outside [0, L) is refused (F-ADDR).
+uint64_t Interp::gAddr(const Warp &W, unsigned Base, unsigned L, int64_t Off,
+                       bool Ilv, int LaneTerm) {
+  uint64_t RB = addrReg(W, Base, L);
+  if (!Ilv)
+    return (RB << kBaseShift) + Off;
+  const int64_t Size = int64_t(PrivWindows) << kBaseShift;
+  int64_t B = ((int64_t(RB) - int64_t(PrivRun)) << kBaseShift) + Off;
+  if (B < 0 || B >= Size) {
+    Mem.Refuse = true;
+    return (RB << kBaseShift) + Off;
+  }
+  uint64_t Reg = ((PrivRun + PrivWindows) << kBaseShift) +
+                 uint64_t(W.WarpCtx) * 32 * uint64_t(Size);
+  unsigned Lt = LaneTerm < 0 ? L : unsigned(LaneTerm);
+  if (nfp::TestPrivContiguous)
+    return Reg + uint64_t(Lt) * uint64_t(Size) + uint64_t(B);
+  return Reg + 128 * (uint64_t(B) / 4) + 4 * Lt + uint64_t(B) % 4;
+}
+
 static constexpr unsigned kOffArgs    = 32;
 // Eight, matching the compiler: a slot names a window word and §5.2 puts those
 // 8 bytes apart (DA's response CP-4, 2026-10-08). If this disagrees with the
@@ -856,6 +899,8 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   // CurLane lets the memories attribute an F-ALIGN to its lane.
   Mem.AlignLanes = Shared.AlignLanes = 0;
   Mem.RoLanes = Mem.AddrLanes = 0;
+  Mem.Refuse = false;
+  syncPriv();
   auto forEachLane = [&](auto &&Fn) {
     for (unsigned L = 0; L != kLanes; ++L)
       if (Mask & (1u << L)) {
@@ -1063,8 +1108,10 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       forEachLane([&](unsigned L) { W.GPR[D][L] = W.CtaId; });
     else if (Sel == 2)   // %lanectx: (hardware warp context << 5) | lane (O-64)
       forEachLane([&](unsigned L) { W.GPR[D][L] = (W.WarpCtx << 5) | L; });
+    else if (Sel == 3)   // %privoff: 3 * CCV_LANE_CONTEXTS, broadcast (O-83)
+      forEachLane([&](unsigned L) { W.GPR[D][L] = 3 * LaneContexts; });
     else {
-      // Selectors 3-15 are reserved values in a defined field: F-ILLEGAL at
+      // Selectors 4-15 are reserved values in a defined field: F-ILLEGAL at
       // decode, whole instruction (ISA v1.9 §12.3).
       Result F{Result::Fault, 0};
       F.Cause = "F-ILLEGAL";
@@ -1452,8 +1499,9 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     // its element's bytes, which is the whole point -- a 16-bit kernel moves
     // half the memory traffic of a 32-bit one.
     unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
+    const bool Ilv = privDecide(W, Base, Mask);
     forEachLane([&](unsigned L) {
-      uint64_t A = (uint64_t(addrReg(W, Base, L)) << kBaseShift) + Off;
+      uint64_t A = gAddr(W, Base, L, Off, Ilv);
       if (IsLoad) W.GPR[Data][L] =
               writeElem(W.GPR[Data][L], Mem.readN(A, Bytes), W.ChWidth[Data]);
       else        Mem.writeN(A, narrow(W.GPR[Data][L], W.ChWidth[Data]), Bytes);
@@ -1470,8 +1518,16 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::ST_PRED_G: {
     unsigned PMask = unsigned(MI.getOperand(0).getImm()) & 0xf;
     unsigned Base = regOf(MI, 1);
-    uint64_t A = (uint64_t(addrReg(W, Base, 0)) << kBaseShift) +
-                 MI.getOperand(2).getImm();
+    // O-83: interleaved, the lane term is 0 and lane d's rbase forms it.
+    const bool Ilv = privDecide(W, Base, Mask);
+    const unsigned D0 = Ilv ? unsigned(llvm::countr_zero(Mask)) : 0;
+    const int64_t POff = MI.getOperand(2).getImm();
+    // Word P's address, formed where it is used, so an interleaved refusal
+    // (one-shot) reaches its own access.
+    auto PA = [&](unsigned P) {
+      return Ilv ? gAddr(W, Base, D0, POff + 4 * int64_t(P), true, 0)
+                 : gAddr(W, Base, 0, POff, false) + 4 * P;
+    };
     Mem.CurLane = 0;
     for (unsigned P = 0; P != kPreds; ++P) {
       if (!(PMask & (1u << P)))
@@ -1481,7 +1537,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       if (Op == CCV::LD_PRED_G) {
         // O-62: only the issuing group's lanes take the loaded bits; a lane
         // outside the issue mask is another thread, and keeps its own.
-        uint32_t V = Mem.readN(A + 4 * P, 4);
+        uint32_t V = Mem.readN(PA(P), 4);
         if (Mem.AlignLanes || Mem.AddrLanes)
           break;
         W.Pred[P] = (W.Pred[P] & ~Mask) | (V & Mask);
@@ -1490,8 +1546,9 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       // O-63: only the issuing group's bits, merged into memory's word, so
       // a slot shared by diverged groups is per-lane storage. The read is the
       // merge's, not a load: it is not logged.
-      uint32_t Old = Mem.peek32(A + 4 * P);
-      Mem.writeN(A + 4 * P, (Old & ~Mask) | (W.Pred[P] & Mask), 4);
+      uint64_t AP = PA(P);
+      uint32_t Old = Mem.peek32(AP);
+      Mem.writeN(AP, (Old & ~Mask) | (W.Pred[P] & Mask), 4);
       if (Mem.AlignLanes || Mem.AddrLanes || Mem.RoLanes)
         break;
     }
@@ -1567,9 +1624,10 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     // is also where §3 takes the scale and the transfer size from.
     unsigned Sh = ScaleEn ? (2 - W.ChWidth[Data]) : 0;
     unsigned Bytes = widthBits(W.ChWidth[Data]) / 8;
+    const bool Ilv = privDecide(W, Base, Mask);
     forEachLane([&](unsigned L) {
-      uint64_t A = (uint64_t(addrReg(W, Base, L)) << kBaseShift) +
-                   (uint64_t(addrReg(W, Idx, L)) << Sh) + Disp;
+      uint64_t A = gAddr(W, Base, L,
+                         int64_t(uint64_t(addrReg(W, Idx, L)) << Sh) + Disp, Ilv);
       if (IsLoad)
         W.GPR[Data][L] =
             writeElem(W.GPR[Data][L], Mem.readN(A, Bytes), W.ChWidth[Data]);
@@ -1655,6 +1713,7 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       R.ActiveSet = true;
     }
     Memory &M = Sh ? Shared : Mem;
+    const bool Ilv = !Sh && privDecide(W, Base, Mask);   // O-83: on the issue mask
     uint32_t Succ = 0;
     // O-76: add.f32's same-address lanes apply in ascending lane order, and
     // that order is the result's, since each add rounds; for the integer
@@ -1666,12 +1725,10 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
       if (!(G & (1u << L)))
         continue;
       Mem.CurLane = Shared.CurLane = L;
-      uint64_t A =
-          (nfp::TestAtomNoIndex ? 0 : uint64_t(addrReg(W, Idx, L)) << Scale) + Disp;
-      A += Sh ? uint64_t(addrReg(W, Base, L))
-              : uint64_t(addrReg(W, Base, L)) << kBaseShift;
-      if (Sh)
-        A &= 0xFFFFFFFFu;                // .shared is 32 bits (§5.1)
+      const int64_t Off =
+          int64_t(nfp::TestAtomNoIndex ? 0 : uint64_t(addrReg(W, Idx, L)) << Scale) + Disp;
+      uint64_t A = Sh ? (uint64_t(addrReg(W, Base, L)) + Off) & 0xFFFFFFFFu   // .shared: 32 bits (§5.1)
+                      : gAddr(W, Base, L, Off, Ilv);
       const uint32_t Old = M.readN(A, 4), X = W.GPR[S1][L];
       uint32_t New = Old;
       switch (Op) {
@@ -1768,11 +1825,12 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     int64_t Disp = MI.getOperand(4).getImm();
     unsigned Sh = ScaleEn ? (Z.Bytes == 2 ? 1 : 0) : 0;
     uint8_t WD = W.ChWidth[Data];
+    const bool Ilv = !Z.Shared && privDecide(W, Base, Mask);
     forEachLane([&](unsigned L) {
       uint64_t Ix = uint64_t(addrReg(W, Idx, L)) << Sh;
       uint64_t A = Z.Shared
                        ? (uint64_t(addrReg(W, Base, L)) + Ix + Disp) & 0xFFFFFFFFu
-                       : (uint64_t(addrReg(W, Base, L)) << kBaseShift) + Ix + Disp;
+                       : gAddr(W, Base, L, int64_t(Ix) + Disp, Ilv);
       Memory &M = Z.Shared ? Shared : Mem;
       if (Z.Load) {
         uint32_t V = M.readN(A, Z.Bytes);
@@ -1911,13 +1969,13 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
     int64_t Off = MI.getOperand(3).getImm();
     uint32_t G = guardMask(W, uint32_t(MI.getOperand(1).getImm())) & Mask;
     R.Active = G; R.ActiveSet = true;
+    const bool Ilv = privDecide(W, Base, Mask);   // O-83: issue mask, not guard
     forEachLane([&](unsigned L) {
       if (!((G >> L) & 1))
         return;                  // invariant 10: excluded lanes preserved
       // Through the checked path: a misaligned predicated-on lane raises
       // F-ALIGN, a predicated-off one never reaches here (O-58, §12.2).
-      W.GPR[Data][L] =
-          Mem.readN((uint64_t(addrReg(W, Base, L)) << kBaseShift) + Off, 4);
+      W.GPR[Data][L] = Mem.readN(gAddr(W, Base, L, Off, Ilv), 4);
     });
     break;
   }

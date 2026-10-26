@@ -84,6 +84,14 @@ static cl::opt<bool> TestRetOnePass(
     "ccv-test-ret-one-pass", cl::Hidden,
     cl::desc("return every lane of a ret in one issue, whatever its target, "
              "rather than a pass per distinct target (AR-24 (b))"));
+static cl::opt<unsigned> PrivWindows("priv-windows", cl::init(1),
+    cl::desc("CCV_PRIV_WINDOWS: 64 KiB windows in each thread's O-83 region, a "
+             "power of two"));
+static cl::opt<bool> TestPrivLane0("ccv-test-priv-lane0", cl::Hidden,
+    cl::desc("decide O-83's interleaving on lane 0's rbase, not the lowest "
+             "issuing lane's"));
+static cl::opt<bool> TestPrivContiguous("ccv-test-priv-contiguous", cl::Hidden,
+    cl::desc("lay O-83's per-thread regions out contiguously, not interleaved"));
 static cl::opt<bool> TestMovRaw(
     "ccv-test-mov-raw", cl::Hidden,
     cl::desc("a mov copies all 32 bits of its source, as before O-82, rather "
@@ -238,6 +246,8 @@ int main(int argc, char **argv) {
   nfp::TestAtomNoIndex = TestAtomNoIndex;
   nfp::TestAddrFull = TestAddrFull;
   nfp::TestMovRaw = TestMovRaw;
+  nfp::TestPrivLane0 = TestPrivLane0;
+  nfp::TestPrivContiguous = TestPrivContiguous;
   nfp::TestSizedNoSext = TestSizedNoSext;
   nfp::TestDivergedChwidth = TestDivergedChwidth;
   nfp::TestFAddDescending = TestFAddDescending;
@@ -283,6 +293,11 @@ int main(int argc, char **argv) {
   Interp I;
   I.BarrierCount = std::min(unsigned(Barriers), 16u);
   I.LaneContexts = LaneContexts;
+  if (!PrivWindows || (PrivWindows & (PrivWindows - 1))) {
+    errs() << "error: -priv-windows must be a power of two (O-83)\n";
+    return 1;
+  }
+  I.PrivWindows = PrivWindows;
   I.Mem.AddrLimit = 1ull << 48;            // F-ADDR (O-75); .shared has none
   if (WholeCta && WarpInCta) {
     errs() << "error: -cta runs every warp; -warp names one\n";

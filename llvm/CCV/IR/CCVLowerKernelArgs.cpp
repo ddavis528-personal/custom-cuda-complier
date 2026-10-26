@@ -26,6 +26,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/Metadata.h"
@@ -108,8 +109,64 @@ static bool isKernel(const Function &F) {
 
 } // namespace
 
+/// O-83 (§5.9): CCV_PRIV_WINDOWS, the device's 64 KiB windows a thread's
+/// interleaved region spans. The build sets it from the device.
+static cl::opt<unsigned> PrivWindows(
+    "ccv-priv-windows", cl::init(1),
+    cl::desc("CCV_PRIV_WINDOWS: 64 KiB windows in each thread's O-83 region"));
+
+/// O-83: `__ccv_privbase(size)` is the source-level entry to a thread's
+/// interleaved region, a pointer to its byte 0. W = local_base (launch-block
+/// word 24) + %privoff (srd #3, which only the device knows), and the pointer
+/// is W << 16, the shape every .global access already splits, so W lands in
+/// rbase. A size over L is a compile error where it is a constant, and a null
+/// pointer at run time otherwise, so the source's fallback takes over (CP-60).
+static bool lowerPrivBase(Module &M) {
+  Function *PB = M.getFunction("__ccv_privbase");
+  if (!PB)
+    return false;
+  if (!PrivWindows || (PrivWindows & (PrivWindows - 1)))
+    report_fatal_error("CCV: -ccv-priv-windows must be a power of two (O-83)");
+  LLVMContext &Ctx = M.getContext();
+  Type *I32 = Type::getInt32Ty(Ctx), *I64 = Type::getInt64Ty(Ctx);
+  const uint64_t L = uint64_t(PrivWindows) << 16;
+  for (User *U : make_early_inc_range(PB->users())) {
+    auto *CI = dyn_cast<CallInst>(U);
+    if (!CI || CI->getCalledFunction() != PB || CI->arg_size() != 1)
+      report_fatal_error("CCV: __ccv_privbase is called as __ccv_privbase(size) (O-83)");
+    Value *Size = CI->getArgOperand(0);
+    auto *C = dyn_cast<ConstantInt>(Size);
+    if (C && C->getZExtValue() > L)
+      report_fatal_error("CCV: __ccv_privbase(" + Twine(C->getZExtValue()) +
+                         ") in " + CI->getFunction()->getName() +
+                         ": a thread's interleaved region is " + Twine(L) +
+                         " bytes (-ccv-priv-windows=" + Twine(PrivWindows) +
+                         "); keep this data in plain .global (O-83)");
+    IRBuilder<> B(CI);
+    auto *Slot = ConstantExpr::getIntToPtr(ConstantInt::get(I64, LaunchBase + 24),
+                                           PointerType::get(Ctx, /*AddressSpace=*/4));
+    auto *LB = B.CreateAlignedLoad(I32, Slot, Align(4), "local.base");
+    LB->setMetadata(LLVMContext::MD_invariant_load, MDNode::get(Ctx, {}));
+    // srd #3 has no IR: CCVExpandPTXAsm selects this template, as it does
+    // the other ccv.* ones.
+    auto *Off = B.CreateCall(InlineAsm::get(FunctionType::get(I32, false),
+                                            "ccv.privoff $0", "=r", false),
+                             {}, "privoff");
+    Value *W = B.CreateAdd(LB, Off, "priv.window");
+    Value *P = B.CreateIntToPtr(B.CreateShl(B.CreateZExt(W, I64), 16), CI->getType(),
+                                "priv.base");
+    if (!C)
+      P = B.CreateSelect(B.CreateICmpULE(B.CreateZExtOrTrunc(Size, I64),
+                                         ConstantInt::get(I64, L)),
+                         P, Constant::getNullValue(CI->getType()), "priv.base.or.null");
+    CI->replaceAllUsesWith(P);
+    CI->eraseFromParent();
+  }
+  return true;
+}
+
 PreservedAnalyses LowerKernelArgs::run(Module &M, ModuleAnalysisManager &) {
-  bool Changed = false;
+  bool Changed = lowerPrivBase(M);
   LLVMContext &Ctx = M.getContext();
   Type *I32 = Type::getInt32Ty(Ctx);
   Type *I64 = Type::getInt64Ty(Ctx);
