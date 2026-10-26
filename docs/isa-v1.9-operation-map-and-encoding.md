@@ -203,6 +203,16 @@ A `mov` between registers of different widths reads its source as the element, z
 truncated to the destination's width, as every operation does. Move elimination at rename applies
 only when the widths match. No encoding changes.
 
+### Interleaved per-thread memory (O-83; IS-24)
+
+Adopted by DA on 2026-10-26. A run of `.global` windows, at `local_base + %privoff`, is
+per-thread memory, interleaved across the warp's lanes as O-69's spill space is. The access is
+decided on `rbase`: an ordinary `.global` load, store or atomic whose base lies in the run names
+its own lane's bytes, and MIU lays word *w* of every lane's region in one 128-byte line. Per-thread
+arrays that CUDA code indexes by thread then coalesce instead of touching one line a lane. On
+CoreMark-derived TI measured -46.1% cycles at one warp, -72.1% at four, and -7.1% with a seed per
+lane. One reserved value becomes defined: `srd` selector 3, `%privoff`. No opcode is added.
+
 ### Still open
 
 Nothing from IS-2, IS-12 or IS-16 remains open. The SFU bound table is written (O-70).
@@ -1235,6 +1245,11 @@ rearranged by wiring.
   stack-passed argument, or an O-30 fallback, all known before register allocation. Such a
   function forms R15 at entry (O-30's prologue, with `srd #2`). R15 is not preserved across
   calls, and every other function allocates it as an ordinary register.
+
+**Interleaved per-thread memory (O-83).** Not an addressing mode and not an opcode: an ordinary
+`.global` access, in either form, a sized form (O-80), `ld.pred`/`st.pred` or Format M, is
+interleaved when its `rbase` lies in the private run. The decision, the address and the faults
+are in §5.9.
 
 **Launch-slot + index (O-45).** A third addressing mode in which `[18:15]` is **not a register
 number but a 4-bit launch-block slot index**: the window base comes from the launch block
@@ -2497,7 +2512,9 @@ belong to. `local_base`, word 24, is the context's, the same in every CTA's laun
 runtime reserves `local_base` through `local_base + CCV_LANE_CONTEXTS − 1` per context, sized
 by the device's lane contexts, not by the grid. The spill space (O-69) follows at window
 `local_base + CCV_LANE_CONTEXTS`, 4 MiB per hardware warp context, so the runtime reserves that
-too. It is address space only: a warp touches the pages its spills reach. O-30's prologue reads `srd #2` where it read
+too. It is address space only: a warp touches the pages its spills reach. The private run (O-83,
+§5.9) follows the spill space at window `local_base + 3·CCV_LANE_CONTEXTS`, with its warps'
+regions after it, so the runtime reserves those as well. O-30's prologue reads `srd #2` where it read
 `srd #0`, and is otherwise unchanged.
 
 **The whole launch window is read-only (O-61).** `LAUNCH_BASE` is 64 KiB-aligned, and the
@@ -2559,14 +2576,15 @@ putting it in the block would mean materializing one block per CTA, a hundred th
 them for a hundred-thousand-CTA grid. Thread index is per-lane by definition and no single
 location can hold it.
 
-`srd rd, #sel` is specified in §3 under Format K. Three selectors are allocated:
+`srd rd, #sel` is specified in §3 under Format K. Four selectors are allocated:
 
 | Selector | Value |
 |---|---|
 | `0` | `%ctatid` — flat thread index within CTA, 10 bits |
 | `1` | `%ctaid` — flat CTA index within grid |
 | `2` | `%lanectx` — the lane's hardware context: unique among all lanes live on the device at once, constant for the warp's lifetime, below `CCV_LANE_CONTEXTS` (O-64) |
-| `3–15` | reserved — `%smid`, `%clock`, `%globaltimer` if a workload forces them |
+| `3` | `%privoff` — the private run's window offset from `local_base`, `3·CCV_LANE_CONTEXTS`: a device constant, the same in every lane, warp and CTA (O-83, §5.9) |
+| `4–15` | reserved — `%smid`, `%clock`, `%globaltimer` if a workload forces them |
 
 **Everything else derives**, using dimensions the block already carries:
 
@@ -2588,7 +2606,7 @@ source.** Every other
 instruction is lane-wise from lane-wise sources or a broadcast; §3 Format F states that
 immediates are warp-uniform, broadcast to all lanes. `srd #0` writes lane *n* with
 `warp_base + n` — a broadcast of the warp's base index ORed with a per-lane wire. Selector 1
-is a plain broadcast. Selector 2 is built as selector 0 is: the warp's hardware context
+is a plain broadcast, and so is selector 3, whose value is fixed for the device. Selector 2 is built as selector 0 is: the warp's hardware context
 index, composed with the core's index where a device has several cores, shifted left 5, ORed
 with the lane. Its value is bounded nondeterminism (§12.1): which context a warp occupies is
 the dispatcher's choice, so a program may use it only as a name, as O-30's frames do, and never
@@ -2604,6 +2622,7 @@ three scopes, covering everything this revision needs:
 |---|---|
 | Thread-private | `.local`'s address-taken objects and stack arguments (O-30, O-64) |
 | Warp-private, lane-interleaved | spill slots — `ld.local` / `st.local`, `ld.pred.local` / `st.pred.local` (O-69) |
+| Thread-private, lane-interleaved | per-thread data reached by pointer — any `.global` access whose `rbase` lies in the private run (O-83, §5.9) |
 | Warp-private | predicate spill region — `ld.pred` / `st.pred`, §3 |
 | CTA-private | launch block and kernel arguments, §5.2 |
 
@@ -2831,6 +2850,91 @@ from the source evaluated as written, and from NVIDIA's code, which forms an FMA
 That is the latitude C gives every contraction, and two compilers already differ where they
 contract differently. A compiler must not form it without contraction permission on every
 operation it absorbs. It must offer a way to keep the written order (CCV's: `-ccv-fp8-dot=false`).
+
+### 5.9 Interleaved per-thread memory (O-83) — normative
+
+CUDA code commonly gives each thread its own block of a global array, `mem + t·size`. With
+blocks thousands of bytes apart, a warp's access to one field touches 32 lines. O-83 makes a
+run of `.global` windows per-thread memory laid out as O-69's spill space is, so that access is
+one line. A program reaches it with ordinary instructions and ordinary pointers.
+
+**The run.** `CCV_PRIV_WINDOWS` = 2^*k*, *k* ≥ 0, is a device constant: the number of 64 KiB
+windows each thread's region spans. A thread's region is *L* = `CCV_PRIV_WINDOWS` × 64 KiB bytes.
+The run's base window is
+
+```
+    W = local_base + %privoff        %privoff = srd #3 = 3·CCV_LANE_CONTEXTS
+```
+
+with `local_base` launch-block word 24 (§5.2). So the run starts at the first window past O-69's
+spill space, which occupies windows `local_base + CCV_LANE_CONTEXTS` up to
+`local_base + 3·CCV_LANE_CONTEXTS`. The runtime places `local_base` so that *W* is a multiple of
+`CCV_PRIV_WINDOWS`. A kernel forms *W* once, from a launch-slot load of word 24, `srd #3` and an
+add, and its pointer into the region is `W << 16`, the shape §5.1's split already uses.
+
+**The decision.** A `.global` access, in any form that takes `rbase` (Format D in both forms,
+the sized forms of O-80, `ld.pred`/`st.pred`, and Format M), is *interleaved* when
+
+```
+    rbase(d) >> k  ==  W >> k
+```
+
+where *d* is the lowest lane of the issuing group's issue mask, whether or not its predicate is
+set, and `rbase(d)` is that lane's `rbase` value (its element, zero-extended, at a narrow width,
+O-79). Otherwise the access is an ordinary `.global` access and §5.1 applies unchanged. The
+decision is one per issue, not one per lane. `.shared` accesses and O-69's local forms are never
+interleaved.
+
+**The address.** In an interleaved access, lane *l* forms
+
+```
+    b = ((rbase(l) − W) << 16) + (rindex(l) << scale) + disp        (exact, signed)
+```
+
+from its own `rbase` and `rindex` (`rindex` and `scale` absent in the base + offset form). A *b*
+below 0 or at or above *L* raises `F-ADDR`. That includes a lane whose own `rbase` lies outside
+the run when lane *d*'s does not. Otherwise lane *l*'s byte *b* is at
+
+```
+    R(ctx) + 128·⌊b/4⌋ + 4l + (b mod 4)
+    R(ctx) = ((W + CCV_PRIV_WINDOWS) << 16) + ctx·32·L
+```
+
+with `ctx` = `%lanectx >> 5`, the warp's hardware context (§5.3). Each warp context has a 32·*L*
+region of its own, after the run's own windows, so word *w* of every lane's region is one 128-byte
+line, lanes four bytes apart. MIU decides on lane *d* beside the add, holds *W* per CTA from the
+`local_base` it already holds (TI-31), and forms R(ctx) by wiring, as it does O-69's.
+
+- **Transfer size and alignment** are as for any access of the form. Natural alignment applies
+  to *b* (`F-ALIGN`), and since no transfer exceeds 4 bytes, every access stays inside its lane's
+  4-byte cell. A sized form (O-80) moves its byte or halfword within the cell.
+- **Atomics** act on their own lane's cell. Lanes of one warp never share a cell, so an
+  interleaved atomic never meets another lane of its warp. `atom.add.f32`'s serial order (O-76)
+  is unobservable here.
+- **`ld.pred` / `st.pred`** are warp-scoped (§3), so the lane term is 0: word *i* of the 16-byte
+  frame at *b* is at the formula's address for byte *b* + 4*i* with *l* = 0, from lane *d*'s
+  address, as O-69's `ld.pred.local` is.
+- **Faults** are `F-ADDR` for *b* outside [0, *L*), and otherwise those of any access at the
+  formed address (`F-ADDR`, and `F-RO` should a runtime map the region read-only), per lane and
+  predicate-gated as §3 states for every execute-stage cause.
+
+**A pointer into the run is lane-relative — normative.** The same `rbase` and offset name
+different bytes in different lanes: each lane's own. A pointer passed between lanes (a shuffle, or
+a store by one lane and a load by another) therefore names the receiving lane's bytes. The
+region's storage is thread-private: no other thread, in this warp or another, can name a lane's
+cells through the run. A compiler may keep a pointer here only for data its thread alone uses.
+CP's `__ccv_privbase(size)` is the source-level entry. A size over *L* is a compile error where
+constant, and a run-time null otherwise, so the source's fallback takes over.
+
+**The run's own windows and the regions are address space with fixed roles.** The runtime maps no
+page in windows `[W, W + CCV_PRIV_WINDOWS)`, which name logical offsets only. So an ordinary access
+whose address falls there, because its lane *d* lay outside the run, raises `F-ADDR`. The regions
+after them are ordinary `.global` memory. An ordinary access whose address lies in a region is a
+plain access to those bytes, which are then named two ways. The memory model orders the two forms
+as it orders any two accesses to one address: under a race, one of the values, never a blend. The
+runtime places the regions apart from every allocation, so no pointer formed from an allocation
+reaches them, and the hardware does not check. This is the same exposure as a stray pointer into
+the spill space. Containment between contexts is O-38's.
 
 ---
 
@@ -3346,6 +3450,30 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-83 — Interleaved per-thread memory, decided on `rbase` — decided in 1.9.** IS-24, PF-46,
+from AR-24, CP-55 to CP-61 and TI's bounds. DA's words: "Let's adopt IS-24 option W as you
+recommend" (2026-10-26). CoreMark-derived gives each thread a 2,000-byte block, `mem + t·2000`.
+A warp's access to one field touches 28 lines, and four warps' blocks pile same-offset lines into
+a few cache sets at any associativity a real L1 has. TI's exact bound, interleaving those blocks
+word by word, is -46.1% cycles at one warp, -72.1% at four, and -7.1% with a seed per lane, where
+diverged lanes walk different nodes and 55.5% of memops stay one line. Interleaved at 8 KiB beat
+plain at 64 KiB by 3.0×. A line-aligned row was worth 4 points, which W's placement gives by
+construction. Adopted: option W, §5.9. A run of `.global` windows at `local_base + %privoff` is
+interleaved per warp context as O-69's spill space is, decided on the issuing group's lowest
+lane's `rbase` against an aligned run of 2^*k* windows (CP-59), so every split of an address into
+the region and every index from its base agrees. `srd #3` returns `%privoff` = 3·`CCV_LANE_CONTEXTS`,
+a constant OOE substitutes with no state (AR: `local_base` is not among what OOE shadows), and
+the kernel adds word 24. No launch word: bytes 0 to 23 are all read (CP-59). Cost (AR's estimate):
+MIU's 32 narrow equalities and a priority select beside the add, about 1,000 to 1,500 gates, one
+carry-save level, and *W* per CTA at table fill. OOE has one constant (imm_kind 5); the compiler
+three instructions a kernel. What lost: option M, two Format D opcodes plus a whole-module
+points-to analysis whose errors are silent corruption; the compiler-only layout (+21% to +34%
+issue groups); and pointers that mean the same in every lane. An ordinary access into a region is
+defined, a second name for the same bytes, not undefined (invariant 12). One reserved value,
+`srd` selector 3, becomes defined; no opcode is added.
 
 ---
 
@@ -5206,7 +5334,7 @@ raises an execute-stage fault, whatever its operand values.
 | `F-WIDTH` | Dispatch | Memory access (Formats D, D′, M, M′) whose `rdata` is at `chwidth`=4; sized access (O-80) whose transfer is wider than `rdata`'s `chwidth`; `chwidth` or `chwidth.multi` whose issue mask is not every live lane of the warp (O-81) |
 | `F-FORMAT` | Dispatch | FP or `cvt` format code reserved at its operand register's `chwidth` |
 | `F-ALIGN` | Execute | A lane's effective address not a multiple of its transfer size (O-58) |
-| `F-ADDR` | Execute | Effective address not mapped, or not permitted for the context |
+| `F-ADDR` | Execute | Effective address not mapped, or not permitted for the context; an interleaved access whose per-thread offset *b* lies outside [0, *L*) (O-83) |
 | `F-SHARED` | Execute | `.shared` access outside the CTA's allocation |
 | `F-RO` | Execute | Store or atomic any byte of which lies in read-only memory: the launch block and `.const` (§5.2, O-51) |
 | `F-BARRIER` | Dispatch | Barrier ID (`bar.arrive`, `bar.wait`, `bar.init`, `bar.wait.phase`) at or above the CTA's allocated barrier count (O-59) |
@@ -5214,7 +5342,7 @@ raises an execute-stage fault, whatever its operand values.
 **`F-ILLEGAL` covers every encoding that names no operation.** Reserved opcode points (Format K
 29–31, §4 integer 26–31, `dp` 60–63, Format D `01110`–`01111`, the local forms `10000`–`10011` in D′, Format E `00101`+, Format M 10–15 and 26–31, M′ other than 16–17, any tag at a length it
 has no form for); reserved field bits nonzero (Format I `[47:37]`, `bar.wait`'s `[14:15]`, and
-every other field §3 marks reserved); reserved values in defined fields (`srd` selectors 3–15, `fence` scopes 3–7,
+every other field §3 marks reserved); reserved values in defined fields (`srd` selectors 4–15, `fence` scopes 3–7,
 the meaningless-rounding points of the conversion product); and non-canonical encodings (A′ long
 with `opcode[9:7]` = `000`, O-37). Must-be-zero rather than ignored: an ignored field can never
 be given meaning, because code that happened to set it would change behaviour.
