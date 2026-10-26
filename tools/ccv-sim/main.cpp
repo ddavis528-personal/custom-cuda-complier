@@ -185,6 +185,16 @@ static cl::opt<std::string> ConstRange(
     cl::value_desc("base:limit"));
 static cl::list<std::string> Pokes("poke", cl::desc("addr=value, before run"),
                                    cl::value_desc("hex=hex"));
+// AR-24's L1 traces carry megabytes of input, which -poke words would turn
+// into a command line no system takes. A file of little-endian words loads at
+// an address, as if each word were poked, and the oracle's init record lists
+// them as it lists pokes; -dump writes a range back out after the run.
+static cl::list<std::string> Loads("load",
+    cl::desc("addr=file: the file's little-endian words, before the run"),
+    cl::ZeroOrMore);
+static cl::list<std::string> Dumps("dump",
+    cl::desc("addr,bytes,file: write that range of .global after the run"),
+    cl::ZeroOrMore);
 static cl::list<std::string> Peeks("peek", cl::desc("addr, after run"),
                                    cl::value_desc("hex"));
 static cl::opt<std::string> OracleFile(
@@ -359,6 +369,23 @@ int main(int argc, char **argv) {
       AllPokes.push_back(utostr(Base + I) + "=" +
                          utostr(support::endian::read32le(&D[I])));
     AllPokes.push_back(utostr(launchBlockBase() + 28) + "=" + utostr(DataWindow));
+  }
+  for (const auto &L : Loads) {
+    auto [A, F] = StringRef(L).split('=');
+    uint64_t Base;
+    if (A.getAsInteger(0, Base) || (Base & 3) || F.empty()) {
+      errs() << "error: bad -load '" << L << "' (addr=file, addr word-aligned)\n";
+      return 1;
+    }
+    auto Buf = MemoryBuffer::getFile(F);
+    if (!Buf || (*Buf)->getBufferSize() % 4) {
+      errs() << "error: -load " << F << ": unreadable, or not whole words\n";
+      return 1;
+    }
+    StringRef B = (*Buf)->getBuffer();
+    for (size_t I = 0; I != B.size(); I += 4)
+      AllPokes.push_back(utostr(Base + I) + "=" +
+                         utostr(support::endian::read32le(B.data() + I)));
   }
   AllPokes.insert(AllPokes.end(), Pokes.begin(), Pokes.end());
 
@@ -1060,6 +1087,21 @@ int main(int argc, char **argv) {
       errs() << "error: bad -peek '" << P << "'\n"; return 1;
     }
     outs() << format("  [%#llx] = %u\n", (unsigned long long)Addr, I.Mem.read32(Addr));
+  }
+  for (const auto &D : Dumps) {
+    SmallVector<StringRef, 3> F;
+    StringRef(D).split(F, ',', 2);
+    uint64_t Addr, Len;
+    if (F.size() != 3 || F[0].getAsInteger(0, Addr) || F[1].getAsInteger(0, Len)) {
+      errs() << "error: bad -dump '" << D << "' (addr,bytes,file)\n"; return 1;
+    }
+    std::FILE *Out = std::fopen(F[2].str().c_str(), "wb");
+    if (!Out) { errs() << "error: cannot write " << F[2] << "\n"; return 1; }
+    for (uint64_t K = 0; K < Len; K += 4) {
+      uint32_t V = I.Mem.peek32(Addr + K);
+      std::fwrite(&V, 4, 1, Out);
+    }
+    std::fclose(Out);
   }
   for (auto [PC, N] : NoopPCs)
     outs() << format("  no-op width at %#llx: %llu\n", (unsigned long long)PC,

@@ -407,6 +407,23 @@ run_sized() {
     echo "  FAIL  sized: got '$got', want '$want' (control '$ctl', F-WIDTH $fault)"; return 1
   fi
 }
+# --- -load and -dump (AR-24's L1 traces) ----------------------------------
+run_load_dump() {
+  printf 'C_EXIT 0\n' > "$TMP/ld.s"
+  python3 "$AS" "$JSON" "$TMP/ld.s" "$TMP/ld.bin" >/dev/null || return 1
+  python3 -c 'import struct, sys; open(sys.argv[1], "wb").write(struct.pack("<4I", 1, 2, 3, 0xdeadbeef))' "$TMP/w.bin"
+  local got ctl
+  got=$("$SIM" "$TMP/ld.bin" -load 0x200000="$TMP/w.bin" -peek 0x20000c -dump 0x200000,16,"$TMP/d.bin" \
+        -oracle "$TMP/ld.jsonl" 2>&1 | grep -oP '\] = \K\d+')
+  # The control: without -load the word is not there.
+  ctl=$("$SIM" "$TMP/ld.bin" -peek 0x20000c 2>&1 | grep -oP '\] = \K\d+')
+  if [ "$got" = 3735928559 ] && [ "$ctl" = 0 ] && cmp -s "$TMP/w.bin" "$TMP/d.bin" &&
+     grep -q '\[2097164,3735928559\]' "$TMP/ld.jsonl"; then
+    echo "  PASS  -load puts a file's words in memory and in the oracle's init record; -dump writes them back (control: without -load, 0)"
+  else
+    echo "  FAIL  -load/-dump: peek '$got' (control '$ctl')"; return 1
+  fi
+}
 # --- interleaved per-thread memory (O-83) ----------------------------------
 run_priv() {
   python3 "$AS" "$JSON" test/priv.s "$TMP/pv.bin" >/dev/null || return 1
@@ -524,6 +541,7 @@ run_sized || fail=1
 run_diverged_chwidth || fail=1
 run_mov_width || fail=1
 run_priv || fail=1
+run_load_dump || fail=1
 
 # --- the fault model (ISA v1.9 section 12, O-57/O-58) ------------------------
 # Each case names the record it must produce. A fault exits 3, distinct from a

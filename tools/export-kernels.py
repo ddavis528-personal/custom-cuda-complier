@@ -515,8 +515,8 @@ KERNELS128 = {
 }
 
 
-def build128(name, tmp):
-    src, flags, layout, _ = KERNELS128[name]
+def build128(name, tmp, spec=None):
+    src, flags, layout, _ = spec or KERNELS128[name]
     stem = f"{tmp}/{name}"
     env = dict(os.environ, CCV_CFLAGS=f"-Itest/bench {flags}")
     subprocess.run(["./tools/cuda-to-asm.sh", src, f"{stem}.ll.s", stem],
@@ -628,6 +628,172 @@ def export128(out, tmp):
     return bad
 
 
+# --- AR-24's L1 capacity traces (AR's rev 229) -------------------------------
+# gemv, sgemm and transpose at sizes whose working sets span about 64 KiB to
+# 1 MiB, as one-warp CTAs meant to run four resident on a core, so they
+# compete for L1. The inputs are megabytes, so they ship as files of
+# little-endian words beside launch.txt, loaded with ccv-sim -load (whose
+# oracle init record lists them as pokes), and each CTA's result is read back
+# with -dump. Inputs are small multiples of 1/8 and every sum is exact in
+# fp32, so results are checked bit for bit. The control runs each CTA without
+# its loaded inputs. The arrays sit in windows 0x20, 0x60 and 0xA0 (2, 6 and
+# 10 MiB), clear of the launch block and of .local's windows from 256 up.
+import array
+
+WA, WB, WC = 0x20, 0x60, 0xA0
+
+
+def fbits(xs):
+    return array.array("f", xs)
+
+
+def l1_gemv(K):
+    T, NCTA = 32, 8
+    rows = T * NCTA
+    W = [q8(i, 15, 3) for i in range(rows * K)]
+    x = [q8(i, 9, 1) for i in range(K)]
+    y = [sum(W[r * K + k] * x[k] for k in range(K)) for r in range(rows)]
+    ctas = []
+    for c in range(NCTA):
+        L = Launch(T)
+        L.ptr(32, WC); L.ptr(40, WA); L.ptr(48, WB); L.word(56, K)
+        ctas.append((L, (WC << 16) + 4 * c * T, y[c * T:(c + 1) * T], 1))
+    return T, {"W.bin": (WA, fbits(W)), "x.bin": (WB, fbits(x))}, ctas, \
+        f"gemv.cu, K {K}: W is {rows} x {K} floats ({rows * K * 4 // 1024} KiB)"
+
+
+def l1_sgemm(N, NCTA=16):
+    T, BX, BY, TM, TN = 32, 8, 4, 2, 2
+    bpr = N // (BX * TN)
+    A = [q8(i, 11, 2) for i in range(N * N)]
+    B = [q8(i, 13, 5) for i in range(N * N)]
+    ctas = []
+    for cta in range(NCTA):          # row band 0: every CTA reads the same rows of A
+        brow, bcol = cta // bpr, cta % bpr
+        rows = range(brow * BY * TM, (brow + 1) * BY * TM)
+        cols = range(bcol * BX * TN, (bcol + 1) * BX * TN)
+        want = []
+        for r in rows:
+            for c in range(N):
+                want.append(sum(A[r * N + k] * B[k * N + c] for k in range(N))
+                            if c in cols else None)
+        L = Launch(T)
+        L.ptr(32, WC); L.ptr(40, WA); L.ptr(48, WB); L.word(56, N); L.word(60, bpr)
+        ctas.append((L, (WC << 16) + 4 * rows[0] * N, want, 1))
+    return T, {"A.bin": (WA, fbits(A)), "B.bin": (WB, fbits(B))}, ctas, \
+        f"sgemm.cu, N {N}: A and B are {N * N * 4 // 1024} KiB each; CTAs 0-{NCTA - 1} of " \
+        f"{(N // (BY * TM)) * bpr}, the first row band, so they share A's rows"
+
+
+def l1_transpose(n):
+    T, TILE = 32, 32
+    a = [q8(i, 17, 4) for i in range(n * n)]
+    tiles = n // TILE
+    ctas = []
+    for cta in range(tiles * tiles):
+        bx, by = cta % tiles, cta // tiles
+        want = []
+        for r in range(TILE):
+            for c in range(n):
+                want.append(a[(by * TILE + (c - by * TILE)) * n + bx * TILE + r]
+                            if by * TILE <= c < (by + 1) * TILE else None)
+        L = Launch(T)
+        L.ptr(32, WC); L.ptr(40, WA); L.word(48, n)
+        ctas.append((L, (WC << 16) + 4 * (bx * TILE) * n, want, 1))
+    return T, {"in.bin": (WA, fbits(a))}, ctas, \
+        f"transpose32.cu -DROWS=1, n {n}: {n * n * 4 // 1024} KiB in and out; every CTA"
+
+
+# name: (source, flags, argument layout, generator)
+KERNELS_L1 = {
+    "gemv-k128":      ("test/cuda/gemv.cu", "", "p32,p40,p48,s56", lambda: l1_gemv(128)),
+    "gemv-k512":      ("test/cuda/gemv.cu", "", "p32,p40,p48,s56", lambda: l1_gemv(512)),
+    "gemv-k2048":     ("test/cuda/gemv.cu", "", "p32,p40,p48,s56", lambda: l1_gemv(2048)),
+    "sgemm-n256":     ("test/cuda/sgemm.cu", "", "p32,p40,p48,s56,s60", lambda: l1_sgemm(256)),
+    "sgemm-n512":     ("test/cuda/sgemm.cu", "", "p32,p40,p48,s56,s60", lambda: l1_sgemm(512)),
+    "transpose-n128": ("test/cuda/transpose32.cu", "-DROWS=1", "p32,p40,s48", lambda: l1_transpose(128)),
+    "transpose-n256": ("test/cuda/transpose32.cu", "-DROWS=1", "p32,p40,s48", lambda: l1_transpose(256)),
+    "transpose-n512": ("test/cuda/transpose32.cu", "-DROWS=1", "p32,p40,s48", lambda: l1_transpose(512)),
+}
+
+
+def export_l1(out, tmp):
+    bad = 0
+    for name, (src_path, flags, layout, gen) in KERNELS_L1.items():
+        dis, image = build128(name, tmp, (src_path, flags, layout, None))
+        T, files, ctas, what = gen()
+        d = os.path.join(out, name)
+        os.makedirs(d, exist_ok=True)
+        open(f"{d}/kernel.s", "w").write(
+            f"# {name}: {src_path}{' ' + flags if flags else ''}, compiled; ccv-as source,\n"
+            "# reassembled byte for byte by tools/ccv-dis.py --check. Load at ccv-sim's\n"
+            "# -code-base; entry at offset 0.\n" + dis)
+        open(f"{d}/kernel.bin", "wb").write(image)
+        loads = []
+        for fname, (win, data) in files.items():
+            with open(f"{d}/{fname}", "wb") as f:
+                data.tofile(f)
+            loads += ["-load", f"{win << 16:#x}={d}/{fname}"]
+        ops, issued, wrong = collections.Counter(), 0, []
+        for cta, (L, at, want, _) in enumerate(ctas):
+            def go(with_loads, oracle):
+                args = [SIM, f"{d}/kernel.bin", "-threads", str(T), "-ctaid", str(cta),
+                        "-context", str(cta % 4), "-max-steps", "200000000",
+                        "-dump", f"{at:#x},{4 * len(want)},{tmp}/dump.bin"]
+                if oracle:
+                    args += ["-oracle", oracle]
+                if with_loads:
+                    args += loads
+                for a, v in L.pokes:
+                    args += ["-poke", f"{a:#x}={v}"]
+                r = subprocess.run(args, capture_output=True, text=True)
+                if r.returncode:
+                    return None
+                got = array.array("f")
+                with open(f"{tmp}/dump.bin", "rb") as f:
+                    got.fromfile(f, len(want))
+                return got
+            got = go(True, f"{tmp}/l1.jsonl")
+            if got is None:
+                wrong.append(f"CTA {cta} did not run"); continue
+            for line in open(f"{tmp}/l1.jsonl"):
+                if line.startswith('{"seq"'):
+                    issued += 1
+                    ops[json.loads(line)["op"]] += 1
+            want32 = fbits([0.0 if v is None else v for v in want])
+            bad_at = next((i for i, v in enumerate(want) if v is not None and got[i] != want32[i]), None)
+            if bad_at is not None:
+                wrong.append(f"CTA {cta} [{at + 4 * bad_at:#x}] = {got[bad_at]}, want {want[bad_at]}")
+            got0 = go(False, None)
+            if got0 is not None and all(v is None or got0[i] == want32[i] for i, v in enumerate(want)):
+                wrong.append(f"control: CTA {cta} without its loaded inputs still matched")
+        with open(f"{d}/launch.txt", "w") as f:
+            f.write(f"# {name}: {what}.\n"
+                    f"# One-warp CTAs, meant to run four resident on a core (CTA c on hardware\n"
+                    f"# context c mod 4), so they compete for L1 (AR's rev 229). Each CTA alone is\n"
+                    f"# ccv-sim kernel.bin -threads {T} -ctaid <cta> -context <cta mod 4>, the\n"
+                    "# 'load' lines as -load=<addr>=<file> (files of little-endian words, in this\n"
+                    "# directory), then that CTA's pokes. Results are checked bit for bit\n"
+                    "# (export-kernels.py), and without the loaded inputs each CTA fails.\n")
+            f.write(f"threads {T}\nresident 4\nctas {len(ctas)}\n")
+            for fname, (win, data) in files.items():
+                f.write(f"load {win << 16:#x} {fname} {len(data) * 4}\n")
+            for cta, (L, _, _, _) in enumerate(ctas):
+                f.write(f"cta {cta}\n")
+                f.writelines(f"-poke {a:#x}={v}\n" for a, v in L.pokes)
+        with open(f"{d}/ops.txt", "w") as f:
+            f.write(f"# {name}: opcodes issued over the launch's {len(ctas)} CTAs, "
+                    f"by ccv-sim's names; {issued} issue groups\n")
+            f.writelines(f"{n:<18} {c}\n" for n, c in sorted(ops.items()))
+        if wrong:
+            bad = 1
+            print(f"  FAIL  {name}: {len(wrong)} wrong; {wrong[0]}")
+        else:
+            print(f"  PASS  {name}: {len(ctas)} one-warp CTAs exact; {issued} issue groups; "
+                  "without the loaded inputs each fails")
+    return bad
+
+
 def main():
     out = sys.argv[1]
     bad = 0
@@ -637,6 +803,7 @@ def main():
         bad |= export_coremark(out, tmp, priv=True)
         bad |= export_coremark_fault(out, tmp)
         bad |= export128(out, tmp)
+        bad |= export_l1(out, tmp)
         for name, fn in KERNELS.items():
             src, image = build(name, tmp)
             threads, ctas = fn()
