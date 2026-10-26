@@ -174,7 +174,7 @@ def run(binpath, cta, L, oracle):
     return got, r.stdout
 
 
-def export_coremark(out, tmp, per_lane=False):
+def export_coremark(out, tmp, per_lane=False, priv=False):
     """The CoreMark-derived workload (AR-20): module data, calls, an entry past
     its device functions. Its pokes are the oracle init record's seeded memory
     from a run with the data image, so they are exactly what ccv-sim loads: the
@@ -183,14 +183,21 @@ def export_coremark(out, tmp, per_lane=False):
 
     per_lane: coremark-derived-pl (AR-24's fourth shape), lane t seeded with t,
     so the lanes take their own paths and the warp diverges; it is the core's
-    O-81 control kernel. Lane t's CRCs are the host's at seed t."""
+    O-81 control kernel. Lane t's CRCs are the host's at seed t.
+
+    priv: coremark-derived-priv, each thread's block in its O-83 interleaved
+    region (-DCCV_PRIV_BASE, __ccv_privbase), so a warp's same-offset access is
+    one line (PF-46, DA tab rev 95). Its run needs ccv-sim's defaults
+    -lane-contexts 4096 and -priv-windows 1, and the launch's word 24."""
     import importlib.util
     spec = importlib.util.spec_from_file_location(
         "sweep", os.path.join(ROOT, "tools/sweep-coremark.py"))
     sw = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(sw)
-    name, mod = ("coremark-derived-pl", "pl") if per_lane else ("coremark-derived", "cm")
-    sw.build(tmp, "-DCCV_SEED_PER_LANE" if per_lane else "", mod)
+    name, mod, flag = (("coremark-derived-pl", "pl", "-DCCV_SEED_PER_LANE") if per_lane else
+                       ("coremark-derived-priv", "pv", "-DCCV_PRIV_BASE") if priv else
+                       ("coremark-derived", "cm", ""))
+    sw.build(tmp, flag, mod)
     it, threads, MEMW, OUTW = 1, 32, sw.MEM, sw.OUT
     wants = [subprocess.run([f"{tmp}/host", str(it)] + ([str(t)] if per_lane else []),
                             capture_output=True, text=True, check=True).stdout.strip()
@@ -252,7 +259,7 @@ def export_coremark(out, tmp, per_lane=False):
     d = os.path.join(out, name)
     os.makedirs(d, exist_ok=True)
     open(f"{d}/kernel.s", "w").write(
-        f"# {name}: test/coremark-derived{' -DCCV_SEED_PER_LANE' if per_lane else ''}, compiled; ccv-as source, reassembled\n"
+        f"# {name}: test/coremark-derived{' ' + flag if flag else ''}, compiled; ccv-as source, reassembled\n"
         f"# byte for byte by tools/ccv-dis.py --check. Load at ccv-sim's -code-base\n"
         f"# (0x1000: function pointers are absolute); the kernel's entry is {entry:#x}.\n" + src)
     open(f"{d}/kernel.bin", "wb").write(open(f"{tmp}/cm.text", "rb").read())
@@ -627,6 +634,7 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         bad |= export_coremark(out, tmp)
         bad |= export_coremark(out, tmp, per_lane=True)
+        bad |= export_coremark(out, tmp, priv=True)
         bad |= export_coremark_fault(out, tmp)
         bad |= export128(out, tmp)
         for name, fn in KERNELS.items():

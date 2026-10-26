@@ -56,6 +56,11 @@ inline bool TestAddrFull = false;
 // -ccv-test-mov-raw: a mov copies all 32 bits of rs, as ccv-sim did before
 // O-82, rather than rs's element at rd's width.
 inline bool TestMovRaw = false;
+// O-83's controls: -ccv-test-priv-lane0 decides on lane 0's rbase rather than
+// the lowest issuing lane's; -ccv-test-priv-contiguous lays a lane's region out
+// contiguously, b bytes from its own L-byte block, rather than interleaved.
+inline bool TestPrivLane0 = false;
+inline bool TestPrivContiguous = false;
 /// O-80's control: ld.s8 and ld.s16 zero-extend.
 inline bool TestSizedNoSext = false;
 /// O-81's control: a chwidth from a diverged warp executes, as before.

@@ -25,7 +25,8 @@ fi
 # 32-bit (§5.1) and need no window at all. NVPTX runs the same pass for the
 # same reason.
 ./tools/cuda-to-ir.sh "$IN" "$CLANG_LL" >/dev/null
-opt -load-pass-plugin=build/CCVLowerKernelArgs.so \
+# CCV_OPTFLAGS reaches the plugin's own options (-ccv-priv-windows, O-83).
+opt -load-pass-plugin=build/CCVLowerKernelArgs.so ${CCV_OPTFLAGS:-} \
     -passes='function(infer-address-spaces),ccv-lower-kernel-args,function(instcombine,gvn,simplifycfg)' \
     -S "$CLANG_LL" -o "$LOWERED_LL" 2>/dev/null
 # CCV_LLCFLAGS lets a caller A/B a backend flag without editing this script.

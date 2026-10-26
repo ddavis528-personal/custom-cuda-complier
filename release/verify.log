@@ -134,6 +134,10 @@ checked 438 instructions
   PASS  globals.cu: a module's data image, relocated and read through word 28 on 32 lanes (49 issue groups)
   PASS  control -ccv-test-no-data-reloc is caught: 32 of 32 lanes wrong; lane 0: [-2, 0], want [-1, 0]
   PASS  control -ccv-test-data-word-24 is caught: 32 of 32 lanes wrong; lane 0: [0, 0], want [-1, 0]
+  interleaved per-thread memory (O-83)
+  PASS  __ccv_privbase: 32 threads read their own words at one pointer, interleaved a lane a word; a size over L gives null (control: contiguous regions are caught)
+  PASS  a constant size over L is a compile error naming L; at -ccv-priv-windows=2 it compiles and runs
+  PASS  CoreMark-derived in the region: 32 lanes give the host's e714 e714 1fd7 8e3a, 1.46 lines a load memop (contiguous control: 27.9)
   byte memory access (F-161, F-164)
   PASS  bytes.cu: signed and unsigned bytes, a string, .shared, the frame, and 32 packed byte stores on 32 lanes (506 issue groups)
   PASS  control -ccv-test-bytes-at-32 is caught: did not run: FAULT F-ALIGN  pc=0x1086  lanes=eeeeeeee  addr=0x30001  cta=0 warp=0
@@ -141,6 +145,7 @@ checked 438 instructions
   exported kernels (TI-30)
   PASS  coremark-derived: 32 lanes give e714 e714 1fd7 8e3a; 65 opcodes, 661982 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
   PASS  coremark-derived-pl: each lane its own seed, diverging, gives the host's CRCs at that seed; 65 opcodes, 2329069 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
+  PASS  coremark-derived-priv: 32 lanes give e714 e714 1fd7 8e3a; 71 opcodes, 661966 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
   PASS  coremark-derived-pl-fault: FAULT F-WIDTH  pc=0x186e  lanes=000000f0  addr=0  cta=0 warp=0, at C_CHWIDTH (issue 7500, mask 0x000000f0); launch.txt alone raises the same; coremark-derived-pl, built as released, does not fault
   PASS  rope-diverged-128: 2 CTA(s) of 128 threads, four warps, match the reference; 32 opcodes, 928 issue groups; without its input data each fails
   PASS  layernorm-128: 2 CTA(s) of 128 threads, four warps, match the reference; 37 opcodes, 2168 issue groups; without its input data each fails
@@ -212,7 +217,7 @@ checked 438 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 205 findings and 82 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 206 findings and 83 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -267,7 +272,7 @@ checked 438 instructions
   PASS  -warp 1 of a 52-thread CTA: threads 32-51 on lanes 0-19, warp_in_cta in the record, a barrier refused
 
   --- srd #2, %lanectx (O-64) ---
-  PASS  srd #2 gives (context << 5) | lane, -context sets it (TI-35), and srd #3 is still F-ILLEGAL
+  PASS  srd #2 gives (context << 5) | lane, -context sets it (TI-35), and srd #4 is still F-ILLEGAL
 
   --- the interleaved spill space (O-69) ---
   PASS  ld.local/st.local and the .pred forms at O-69's interleaved addresses, a narrow store included
@@ -287,6 +292,7 @@ checked 438 instructions
   PASS  sized loads and stores: u8, s8, u16, s16, st.8, st.16 on .global and .shared, scaled, into a narrow rdata, and F-WIDTH when the transfer is wider (O-80)
   PASS  a chwidth from a diverged warp raises F-WIDTH, a converged one does not (O-81)
   PASS  mov across widths truncates to the element and zero-extends it (O-82; control copies 32 bits)
+  PASS  interleaved per-thread memory: each lane's own bytes, one line a word, sized in its cell, decided on the lowest issuing lane; F-ADDR past L and in the run's windows (O-83)
 
   --- the fault model (ISA v1.9 section 12) ---
   PASS  faults: F-ALIGN precise and predicate-gated, F-WIDTH ignores the predicate, F-ILLEGAL, F-FETCH, F-BARRIER

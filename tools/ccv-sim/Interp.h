@@ -67,6 +67,14 @@ public:
   unsigned LaneContexts = 4096;
   /// O-69: lane L's byte B of the warp's interleaved spill frame.
   uint64_t localAddr(const Warp &W, uint64_t B, unsigned L);
+  /// O-83: CCV_PRIV_WINDOWS (2^k windows a thread's region spans), and the
+  /// run's base window W = local_base + 3 * CCV_LANE_CONTEXTS, set per issue.
+  unsigned PrivWindows = 1;
+  uint64_t PrivRun = 0;
+  void syncPriv();
+  bool privDecide(const Warp &W, unsigned Base, uint32_t Mask);
+  uint64_t gAddr(const Warp &W, unsigned Base, unsigned L, int64_t Off, bool Ilv,
+                 int LaneTerm = -1);
 
   struct Result {
     /// Return: each issuing lane's PC becomes its own lane of GPR `Target`.

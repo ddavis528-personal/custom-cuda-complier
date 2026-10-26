@@ -11,6 +11,11 @@ extern "C" __host__ __device__ ee_s32 portme_sys3(void) { return 0x66; }
 extern "C" __host__ __device__ ee_s32 portme_sys4(void) { return 1; }
 extern "C" __host__ __device__ ee_s32 portme_sys5(void) { return 0; }
 extern "C" __host__ __device__ void *iterate(void *) { return 0; }
+#ifdef CCV_PRIV_BASE
+// O-83: each thread's block in its interleaved region instead of mem, so a
+// warp's same-offset access is one line (PF-46, DA tab rev 95).
+extern "C" __device__ void *__ccv_privbase(unsigned size);
+#endif
 // One CoreMark context per lane: each runs list, matrix and state on its own
 // 2000-byte block, and writes its four CRCs.
 __global__ void coremark(ee_u8 *mem, ee_u16 *out, int iterations) {
@@ -27,7 +32,12 @@ __global__ void coremark(ee_u8 *mem, ee_u16 *out, int iterations) {
   r.seed2 = 0; r.seed3 = 0x66; r.iterations = iterations;
   r.execs = ALL_ALGORITHMS_MASK;
   r.size = TOTAL_DATA_SIZE / NUM_ALGORITHMS;
+#ifdef CCV_PRIV_BASE
+  ee_u8 *b = (ee_u8 *)__ccv_privbase(TOTAL_DATA_SIZE);
+  (void)mem;
+#else
   ee_u8 *b = mem + t * TOTAL_DATA_SIZE;
+#endif
   r.memblock[0] = b;
   for (int i = 0; i < NUM_ALGORITHMS; ++i)
     r.memblock[i + 1] = b + r.size * i;
