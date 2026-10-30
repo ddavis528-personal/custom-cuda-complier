@@ -39,7 +39,7 @@ make-release if the head is not snapshotted; pings on Fridays; report in a
 few lines.
 
 ## Register bookmarks (revs read through), scratchpad cp-register-bookmarks.json
-CP 147, IS 178, OA 279, AR 250, TI 267, OI 227, DA 97, Conventions 15.
+CP 148, IS 178, OA 279, AR 250, TI 269, OI 227, DA 97, Conventions 15.
 Sessions: AR 01FnGhxke3r33MeArLeQJRcD, OA 01TbX2MyX6quhjarDR7J2bMR,
 IS 01989HiTNh4Gx7XMSsdvdE7Z, TI 01J4Yp3xeV6DJtgCtcoqVsAq,
 OI 01DMw4FtFbGoVboMGxWpLBuv (all `session_` + id).
@@ -47,14 +47,14 @@ Tabs: AR bc521c46-9710, OA 4c6a3151-83eb, IS 60e6f93a-7fdc,
 TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c.
 
 ## State
-- Branch tip 8ebd324; last snapshot 4573338 (8ebd324). Before it d9ddd2c
+- Branch tip 03a64ba; last snapshot c9b0864 (03a64ba). Before it d9ddd2c
   (f5fa030): O-84/IS-25 frames at the bottom of the O-83 region, default.
   TI pinned d9ddd2c (core 5fe7177).
 - IS's branch ccr-3868632d-p8esoz: IS now skips equal-tree merges and
   fast-forwards (CP-69, CP-70).
 
 ## Open work, most urgent first
-1. TI-48 answered (CP-72).
+1. TI-48 closed (TI rev 269); autoCompactWindow 400000 set here as in core (CP-73).
 2. TI-49 (2), (3) are OA's to rule; nothing for CP until then.
 3. Nothing else queued. Recent rows: CP-65..CP-71 (IS-25 design, build,
    release).
