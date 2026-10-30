@@ -139,16 +139,22 @@ subject is not "Snapshot of ccr-ea1c4e17-tem30u@<head's 7-character sha>", the s
 origin/release` is no test: a snapshot is a commit of its own whose tree is the head's,
 so the branch is never an ancestor of it.) Its
 gate is the clean gate for the merge, so the branch is pushed once it passes. A night
-with no new commit cuts no snapshot. Between sweeps CP may still cut one when a change
-another agent waits on is ready, which is how releases have always gone out. Nobody
-else cuts the compiler's.
+with no new commit cuts no snapshot. Nobody else cuts the compiler's.
+
+**The nightly gate is a floor, not a schedule** (Daniel, 2026-10-30). CP runs the gate,
+and `tools/make-release.sh --push` with it, during the day whenever there is a reason:
+a change another agent waits on is ready, a peer's merge needs gating, or committed work
+should not sit unpushed until 02:19. Waiting for the sweep is right only when nothing is
+waiting on the push. Either way the rules are the same: a clean gate before any push,
+and no edit to the tree while a gate runs.
 
 ## Ping and pong: is every agent still reachable, and the right one?
 
 Daniel, 2026-10-24 (DA tab rev 81, TI-44): after a migration, agents went on messaging
-replaced sessions for days, and a lost notice says nothing. So each daily sweep, after
-the merge and the snapshot, checks the pongs to its previous pings and then pings every
-other agent. The directory is `docs/register/roster.json` in custom-cuda-core, read from
+replaced sessions for days, and a lost notice says nothing. So CP pings every other
+agent in the Friday sweep, after the merge and the snapshot, and the Saturday sweep
+checks the pongs: weekly since Daniel, 2026-10-30 (TI-49), not daily. A ping received
+is still answered the same day. The directory is `docs/register/roster.json` in custom-cuda-core, read from
 the merged branch (`git show origin/claude/custom-cuda-core-infra-6msg93:docs/register/roster.json`).
 Every prefix with a non-null session is pinged; DA is a person and has none. The core
 repository's register skill section 6 and `tools/notice.py` define the line formats. If
