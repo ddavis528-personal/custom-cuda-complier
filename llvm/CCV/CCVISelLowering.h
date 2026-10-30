@@ -24,7 +24,7 @@ enum NodeType : unsigned {
   LD_FRAME,   ///< load  from a .local frame slot -- chain, FI, idx, scale
   ST_FRAME,   ///< store to   a .local frame slot -- chain, value, FI, idx, scale
   CODEADDR,   ///< a function's 32-bit code address -- target global (F-21)
-  FRAMEOFF,   ///< a frame object's offset in the window below R15's -- target FI
+  FRAMEOFF,   ///< a frame object's offset in the frame's window (R15's under IS-25) -- target FI
   ATOM,       ///< O-72 RMW -- chain, base, idx, scale, disp, value, op, shared
   CAS,        ///< O-72 CAS -- chain, base, idx, scale, disp, cmp, swap, shared
 };

@@ -3,10 +3,15 @@
 #
 # test/cuda/privbase.cu: each of 32 threads writes eight words at the same
 # pointer and sums them back. Every thread must read its own words, and they
-# must lie interleaved, word i of lane l at R(0) + 128*i + 4*l. A size over L
+# must lie interleaved, word i of lane l at R(0) + 128*(S/4 + i) + 4*l, where
+# S = (L - size) rounded down to 16: the data runs from L down, since IS-25
+# puts the kernel's frames at the region's bottom. A size over L
 # must give the source's null at run time, and a constant one must not
 # compile; with -ccv-priv-windows=2 (and ccv-sim's -priv-windows 2) L doubles
-# and the same size works. Then CoreMark-derived with its blocks in the region
+# and the same size works. With -DFRAME=2048 the kernel keeps an address-taken
+# 2 KiB array, at the region's bottom: the largest size that clears its F bytes
+# runs with the frame intact, 16 bytes more gives null, and as a constant does
+# not compile. Then CoreMark-derived with its blocks in the region
 # (-DCCV_PRIV_BASE): every lane's CRCs are the host's, and a load touches
 # about one line.
 #
@@ -28,9 +33,9 @@ build() {   # <out-stem> [CCV_CFLAGS] [CCV_OPTFLAGS]
 }
 run() {     # <bin> <n> [ccv-sim flags...]: each thread's sum, then lane cells
   local bin=$1 n=$2; shift 2
-  local p=""
+  local p="" w=$(( ((65536 - n) & ~15) / 4 + 5 ))
   for l in 0 1 31; do p="$p -peek $(printf 0x%x $((0x30000 + 4 * l)))"; done
-  for l in 0 1 31; do p="$p -peek $(printf 0x%x $((REG + 128 * 5 + 4 * l)))"; done
+  for l in 0 1 31; do p="$p -peek $(printf 0x%x $((REG + 128 * w + 4 * l)))"; done
   build/ccv-sim "$bin" $SIMA -poke 0x20000=32 -poke 0x20020=3 -poke 0x20024=0 \
     -poke 0x20028=$n $p "$@" 2>&1 | grep -oP '\] = \K\d+' | xargs
 }
@@ -59,6 +64,38 @@ else
   echo "  FAIL  constant size: '$err'"; fail=1
 fi
 
+# IS-25: the data clears the frames. F from the kernel's frame layout.
+build "$TMP/f" "-DFRAME=2048" || echo "  FAIL  privbase.cu -DFRAME=2048 did not compile"
+F=$(CCV_CFLAGS="-Itest/bench -DFRAME=2048" CCV_LLCFLAGS=-ccv-frame-stats \
+      ./tools/cuda-to-asm.sh test/cuda/privbase.cu "$TMP/f2.s" 2>&1 | grep -oP 'frame _Z8privbase\S*: \K\d+')
+fit=$(( 65536 - ((${F:-0} + 15) & ~15) ))
+frame() {   # <n> [bin stem]: lanes 0, 1, 31's data sums, then their frame sums
+  local p="" stem=${2:-$TMP/f}
+  for l in 0 1 31 32 33 63; do p="$p -peek $(printf 0x%x $((0x30000 + 4 * l)))"; done
+  local entry=0x$(llvm-nm "$stem.o" | awk '/ T _Z8privbase/ {print $1}')
+  build/ccv-sim "$stem.bin" -entry "$entry" $SIMA -poke 0x20000=32 -poke 0x20020=3 -poke 0x20024=0 \
+    -poke 0x20028=$1 $p 2>&1 | grep -oP '\] = \K\d+' | xargs
+}
+# The frame's sum: 512 t + 130816 (FRAME/4 = 512 words, t + i each).
+fwant="28 156 3996 130816 131328 146688"
+fgot=$(frame $fit)
+fnull=$(frame $((fit + 16)) | cut -d' ' -f1-3)
+# Control, which must fail: a floor of 0 hands out data over the frame.
+build/ccv-llc "$TMP/f-lowered.ll" -o "$TMP/fz.o" -obj -ccv-test-priv-floor-zero 2>/dev/null &&
+  llvm-objcopy -O binary --only-section=.text "$TMP/fz.o" "$TMP/fz.bin"
+fctl=$(frame $((fit + 16)) "$TMP/fz")
+CCV_CFLAGS="-Itest/bench -DFRAME=2048 -DPRIV_CONST=$((fit + 16))" \
+  ./tools/cuda-to-asm.sh test/cuda/privbase.cu "$TMP/c2.s" > "$TMP/c2.err" 2>&1
+cerr=$(cat "$TMP/c2.err")
+if [ -n "$F" ] && [ "$F" -ge 2048 ] && [ "$fgot" = "$fwant" ] &&
+   [ "$fnull" = "4294967295 4294967295 4294967295" ] &&
+   [ -n "$fctl" ] && [ "$(cut -d' ' -f4-6 <<< "$fctl")" != "${fwant#* * * }" ] &&
+   grep -q "inside the $F bytes of frames" <<< "$cerr"; then
+  echo "  PASS  IS-25: with $F bytes of frame at the region's bottom, size $fit runs with the frame intact, $((fit + 16)) gives null and as a constant does not compile (control: a floor of 0 overwrites the frame)"
+else
+  echo "  FAIL  IS-25 frame floor: F='$F' got '$fgot' want '$fwant'; over '$fnull'; floor-0 control '$fctl'; constant: '${cerr: -200}'"; fail=1
+fi
+
 # CoreMark-derived with its per-thread blocks in the region.
 D=test/coremark-derived
 python3 - "$TMP" <<'PY' || fail=1
@@ -67,23 +104,26 @@ tmp = sys.argv[1]
 spec = importlib.util.spec_from_file_location("sw", "tools/sweep-coremark.py")
 sw = importlib.util.module_from_spec(spec); spec.loader.exec_module(sw)
 sw.build(tmp, "-DCCV_PRIV_BASE", "pv")
-o = f"{tmp}/pv.o"
-subprocess.run(["build/ccv-llc", f"{tmp}/pv-lowered.ll", "-o", o, "-obj"], check=True)
-for sec in ("text", "ccv_data", "ccv_reloc", "ccv_info"):
-    subprocess.run(["llvm-objcopy", "-O", "binary", f"--only-section=.{sec}", o,
-                    f"{tmp}/pv.{sec}"], check=True)
-entry = next("0x" + l.split()[0] for l in subprocess.run(["llvm-nm", o], capture_output=True,
-             text=True).stdout.splitlines() if " T _Z8coremark" in l)
+def obj(stem, *llc):
+    o = f"{tmp}/{stem}.o"
+    subprocess.run(["build/ccv-llc", f"{tmp}/pv-lowered.ll", "-o", o, "-obj", *llc], check=True)
+    for sec in ("text", "ccv_data", "ccv_reloc", "ccv_info"):
+        subprocess.run(["llvm-objcopy", "-O", "binary", f"--only-section=.{sec}", o,
+                        f"{tmp}/{stem}.{sec}"], check=True)
+    return next("0x" + l.split()[0] for l in subprocess.run(["llvm-nm", o], capture_output=True,
+                text=True).stdout.splitlines() if " T _Z8coremark" in l)
+entries = {"pv": obj("pv"), "pf": obj("pf", "-ccv-frame-in-priv=false")}
 want = subprocess.run([f"{tmp}/host", "1"], capture_output=True, text=True).stdout.strip()
 N, OUT = 32, 7
-def go(*extra):
-    args = ["build/ccv-sim", f"{tmp}/pv.text", "-entry", entry, "-data", f"{tmp}/pv.ccv_data",
-            "-data-info", f"{tmp}/pv.ccv_info", "-max-steps", "100000000", "-oracle",
+def go(*extra, stem="pv"):
+    entry = entries[stem]
+    args = ["build/ccv-sim", f"{tmp}/{stem}.text", "-entry", entry, "-data", f"{tmp}/{stem}.ccv_data",
+            "-data-info", f"{tmp}/{stem}.ccv_info", "-max-steps", "100000000", "-oracle",
             f"{tmp}/pv.jsonl", "-poke", f"0x20000={N}", "-poke", "0x20018=256",
             "-poke", "0x20020=3", "-poke", "0x20024=66000", "-poke", f"0x20028={OUT}",
             "-poke", "0x2002c=0", "-poke", "0x20030=1", *extra]
-    if os.path.getsize(f"{tmp}/pv.ccv_reloc"):
-        args += ["-data-reloc", f"{tmp}/pv.ccv_reloc"]
+    if os.path.getsize(f"{tmp}/{stem}.ccv_reloc"):
+        args += ["-data-reloc", f"{tmp}/{stem}.ccv_reloc"]
     for w in range(2 * N):
         args += ["-peek", f"{(OUT << 16) + 4 * w:#x}"]
     r = subprocess.run(args, capture_output=True, text=True)
@@ -103,12 +143,16 @@ def go(*extra):
     return crcs, sum(lines) / max(1, len(lines))
 crcs, per = go()
 crc2, per2 = go("-ccv-test-priv-contiguous")
-if crcs == {want} and per < 2 and per2 > 10:
-    print(f"  PASS  CoreMark-derived in the region: 32 lanes give the host's {want}, "
-          f"{per:.2f} lines a load memop (contiguous control: {per2:.1f})")
+# IS-25: the frames interleaved too, so every load is one line; with O-64's
+# frame windows (-ccv-frame-in-priv=false) the frame loads touch many.
+crc3, per3 = go(stem="pf")
+if crcs == {want} and crc3 == {want} and per < 1.05 and per2 > 10 and per3 > 1.2:
+    print(f"  PASS  CoreMark-derived in the region, frames too (IS-25): 32 lanes give the "
+          f"host's {want}, {per:.2f} lines a load memop (contiguous control: {per2:.1f}; "
+          f"frames in O-64's windows: {per3:.2f})")
 else:
     print(f"  FAIL  CoreMark-derived in the region: {sorted(crcs or [])}, want {want}; "
-          f"{per:.2f} lines a load (control {per2:.1f})")
+          f"{per:.2f} lines a load (control {per2:.1f}; O-64 frames {per3:.2f}, {sorted(crc3 or [])})")
     sys.exit(1)
 PY
 exit $fail

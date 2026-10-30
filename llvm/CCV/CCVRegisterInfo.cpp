@@ -89,14 +89,16 @@ bool CCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
   // the scale-enable in between (§3). A local array indexed by a loop variable
   // selects the second (F-131), and assuming the first would have folded the
   // frame offset into the SCALE field -- silently, since both are immediates.
-  // A frame object's address as a pair's offset (CCVPointerPairs): the
-  // window is R15 - 1, so slot d is at 65536 + d in it.
+  // A frame object's address as a pair's offset (CCVPointerPairs). Under
+  // IS-25 the window is R15's own and slot d is at d in it; under O-64 the
+  // window is R15 - 1, so slot d is at 65536 + d.
   if (I.getOpcode() == CCV::MOVI) {
-    int64_t D = MF.getFrameInfo().getObjectOffset(FI) -
-                int64_t(ccvFrameBase(MF.getFunction()));
-    if (D >= 0 || D < -65536)
-      report_fatal_error("CCV: a frame object outside the window below R15's");
-    I.getOperand(FIOperandNum).ChangeToImmediate(65536 + D);
+    int64_t D = ccvFrameDisp(MF.getFunction(),
+                             MF.getFrameInfo().getObjectOffset(FI));
+    int64_t InWindow = ccvFrameInPriv() ? D : 65536 + D;
+    if (InWindow < 0 || InWindow >= 65536)
+      report_fatal_error("CCV: a frame object outside its pair's window");
+    I.getOperand(FIOperandNum).ChangeToImmediate(InWindow);
     return false;
   }
 
@@ -149,10 +151,11 @@ bool CCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
     break;
   }
   // Frames are laid out statically over the whole module (F-21): this
-  // function's frame sits below every frame its callees reach, so the same R15
-  // serves every function and a call moves nothing.
-  int64_t Off = MF.getFrameInfo().getObjectOffset(FI) -
-                int64_t(ccvFrameBase(MF.getFunction())) +
+  // function's frame sits beside every frame its callees reach -- above them
+  // under IS-25, below them under O-64 -- so the same R15 serves every
+  // function and a call moves nothing.
+  int64_t Off = ccvFrameDisp(MF.getFunction(),
+                             MF.getFrameInfo().getObjectOffset(FI)) +
                 I.getOperand(DispOp).getImm();
 
   // R15 holds the window index, so the whole frame is addressed by the

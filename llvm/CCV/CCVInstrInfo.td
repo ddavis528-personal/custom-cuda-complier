@@ -1275,6 +1275,15 @@ let isPseudo = 1, isCodeGenOnly = 1, Size = 0 in {
   def PSEUDO_LD_PRED : CCVInst<0, (outs PR:$p), (ins GPR:$rbase, simm13:$off),
                                "# ld.pred $p, [$rbase + $off]">;
 
+  // IS-25: __ccv_privbase's floor, the kernel's frame extent F, and a constant
+  // size's check against it. Both wait for the kernel's frame layout, which
+  // turns the first into a movi of F and drops the second
+  // (CCVFrameLowering's expandPrivFloor).
+  def PSEUDO_PRIVFLOOR : CCVInst<0, (outs GPR:$rd), (ins), "# privfloor $rd">;
+  let hasSideEffects = 1 in
+  def PSEUDO_PRIVCHECK : CCVInst<0, (outs), (ins i32imm:$start),
+                                 "# privcheck $start">;
+
   let isBranch = 1, isTerminator = 1 in
   def PSEUDO_BRA_PRED : CCVInst<0, (outs),
                                 (ins PR:$guard, i32imm:$neg, brtarget18:$off),

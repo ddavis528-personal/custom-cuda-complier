@@ -30,6 +30,25 @@ SIM = os.path.join(ROOT, "build/ccv-sim")
 LAUNCH = 0x20000
 
 
+# IS-25 (DA tab rev 97): each kernel's frame extent F, its frames' bytes at the
+# bottom of the thread's O-83 region, from the compile that built it. launch.txt
+# carries it as 'frame <F>', and the launch sets the region up from it.
+FRAME = [0]
+
+
+def llc(ll, o, *flags):
+    """ccv-llc, as every export compiles, keeping the kernel's frame extent."""
+    r = subprocess.run([f"{ROOT}/build/ccv-llc", ll, "-o", o, "-obj", "-ccv-frame-stats",
+                        *flags], check=True, capture_output=True, text=True)
+    sizes = [int(n) for n in re.findall(r"^  frame \S+: (\d+) bytes", r.stderr, re.M)]
+    FRAME[0] = max(sizes, default=0)
+
+
+def frame_line():
+    return (f"# F: the kernel's frame bytes at the bottom of each thread's O-83 region (IS-25).\n"
+            f"frame {FRAME[0]}\n")
+
+
 def f2u(x):
     return struct.unpack("<I", struct.pack("<f", x))[0]
 
@@ -134,8 +153,7 @@ def build(name, tmp):
     subprocess.run(["./tools/cuda-to-asm.sh", f"test/cuda/fusion/{name}.cu",
                     f"{tmp}/{name}.ll.s", f"{tmp}/{name}"],
                    cwd=ROOT, env=env, check=True, capture_output=True)
-    subprocess.run([f"{ROOT}/build/ccv-llc", f"{tmp}/{name}-lowered.ll",
-                    "-o", f"{tmp}/{name}.o", "-obj"], check=True, capture_output=True)
+    llc(f"{tmp}/{name}-lowered.ll", f"{tmp}/{name}.o")
     subprocess.run(["llvm-objcopy", "-O", "binary", "--only-section=.text",
                     f"{tmp}/{name}.o", f"{tmp}/{name}.bin"], check=True)
     for sec in ("ccv_data", "ccv_reloc"):          # module data: none expected
@@ -204,8 +222,7 @@ def export_coremark(out, tmp, per_lane=False, priv=False):
              for t in range(128 if per_lane else 1)]    # AR-20's largest shape
     want = wants[:threads] if per_lane else wants * threads
     o = f"{tmp}/{mod}.o"
-    subprocess.run([f"{ROOT}/build/ccv-llc", f"{tmp}/{mod}-lowered.ll", "-o", o, "-obj"],
-                   check=True, capture_output=True)
+    llc(f"{tmp}/{mod}-lowered.ll", o)
     for sec in ("text", "ccv_data", "ccv_reloc", "ccv_info"):
         subprocess.run(["llvm-objcopy", "-O", "binary", f"--only-section=.{sec}", o,
                         f"{tmp}/cm.{sec}"], check=True)
@@ -274,7 +291,7 @@ def export_coremark(out, tmp, per_lane=False, priv=False):
                 (f"# and thread t's must be the host's at seed t ({it} iteration), threads 0..127:\n"
                  + "".join(f"#   {t:2} {w}\n" for t, w in enumerate(wants)) if per_lane else
                  f"# and must be {wants[0]} ({it} iteration).\n"))
-        f.write(f"threads {threads}\nctas 1\nentry {entry:#x}\n")
+        f.write(f"threads {threads}\nctas 1\nentry {entry:#x}\n" + frame_line())
         if "const" in init:
             f.write(f"const {init['const'][0]:#x}:{init['const'][1]:#x}\n")
         f.write("cta 0\n")
@@ -319,8 +336,7 @@ def export_coremark_fault(out, tmp):
     sw.build(tmp, "-DCCV_SEED_PER_LANE", "pl")
     name, it, threads, MEMW, OUTW = "coremark-derived-pl-fault", 1, 32, sw.MEM, sw.OUT
     o = f"{tmp}/plf.o"
-    subprocess.run([f"{ROOT}/build/ccv-llc", f"{tmp}/pl-lowered.ll", "-o", o, "-obj",
-                    "-ccv-test-i16-legal"], check=True, capture_output=True)
+    llc(f"{tmp}/pl-lowered.ll", o, "-ccv-test-i16-legal")
     for sec in ("text", "ccv_data", "ccv_reloc", "ccv_info"):
         subprocess.run(["llvm-objcopy", "-O", "binary", f"--only-section=.{sec}", o,
                         f"{tmp}/plf.{sec}"], check=True)
@@ -367,7 +383,7 @@ def export_coremark_fault(out, tmp):
                 "<const>\n# followed by the pokes, as coremark-derived-pl's. It must "
                 "not finish: it must raise\n# F-WIDTH at the chwidth fault.txt names, "
                 "with that issue mask (O-81).\n")
-        f.write(f"threads {threads}\nctas 1\nentry {entry:#x}\n")
+        f.write(f"threads {threads}\nctas 1\nentry {entry:#x}\n" + frame_line())
         if "const" in init:
             f.write(f"const {init['const'][0]:#x}:{init['const'][1]:#x}\n")
         f.write("cta 0\n")
@@ -525,8 +541,7 @@ def build128(name, tmp, spec=None):
     if not got or got.group(1).rstrip(",") != layout:
         sys.exit(f"export-kernels: {name}'s argument layout is "
                  f"{got.group(1) if got else 'missing'}, not {layout}")
-    subprocess.run([f"{ROOT}/build/ccv-llc", f"{stem}-lowered.ll", "-o", f"{stem}.o", "-obj"],
-                   check=True, capture_output=True)
+    llc(f"{stem}-lowered.ll", f"{stem}.o")
     subprocess.run(["llvm-objcopy", "-O", "binary", "--only-section=.text",
                     f"{stem}.o", f"{stem}.bin"], check=True)
     for sec in ("ccv_data", "ccv_reloc"):
@@ -610,7 +625,7 @@ def export128(out, tmp):
                     "# oracle.<w>.jsonl. Results are checked exactly"
                     + (", or to a relative 1e-5 for its transcendentals" if any(t for _, _, t in ctas) else "")
                     + " (export-kernels.py).\n")
-            f.write(f"threads {T4}\nwarps {T4 // 32}\nctas {len(ctas)}\n")
+            f.write(f"threads {T4}\nwarps {T4 // 32}\nctas {len(ctas)}\n" + frame_line())
             for cta, (L, _, _) in enumerate(ctas):
                 f.write(f"cta {cta}\n")
                 f.writelines(f"-poke {a:#x}={v}\n" for a, v in L.pokes)
@@ -775,7 +790,7 @@ def export_l1(out, tmp):
                     "# 'load' lines as -load=<addr>=<file> (files of little-endian words, in this\n"
                     "# directory), then that CTA's pokes. Results are checked bit for bit\n"
                     "# (export-kernels.py), and without the loaded inputs each CTA fails.\n")
-            f.write(f"threads {T}\nresident 4\nctas {len(ctas)}\n")
+            f.write(f"threads {T}\nresident 4\nctas {len(ctas)}\n" + frame_line())
             for fname, (win, data) in files.items():
                 f.write(f"load {win << 16:#x} {fname} {len(data) * 4}\n")
             for cta, (L, _, _, _) in enumerate(ctas):
@@ -833,7 +848,7 @@ def main():
                 f.write(f"# {name}: ccv-sim kernel.bin -threads {threads} -ctaid <cta> "
                         "followed by that CTA's pokes.\n# Each CTA is its own run; "
                         "results are checked to a relative 1e-5.\n")
-                f.write(f"threads {threads}\nctas {len(ctas)}\n")
+                f.write(f"threads {threads}\nctas {len(ctas)}\n" + frame_line())
                 for cta, (L, _) in enumerate(ctas):
                     f.write(f"cta {cta}\n")
                     f.writelines(f"-poke {a:#x}={v}\n" for a, v in L.pokes)

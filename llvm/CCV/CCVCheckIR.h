@@ -29,6 +29,10 @@ void lowerCCVFP64Bits(Module &M);
 /// become §4's E2M1 conversions. Runs before lowerCCVFP64Bits; returns how
 /// many it folded. CCVFoldFP4.cpp.
 unsigned foldCCVFP4(Module &M);
+/// IS-25: warns, to Err, where a frame object's address visibly reaches
+/// another thread (stored to .shared or .global, an atomic's value, asm);
+/// returns how many. Runs first. CCVFrameEscape.cpp.
+unsigned warnCCVFrameEscapes(Module &M, raw_ostream &Err);
 } // namespace llvm
 
 #endif

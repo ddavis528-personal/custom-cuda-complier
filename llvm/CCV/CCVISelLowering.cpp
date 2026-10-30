@@ -389,6 +389,19 @@ static bool matchBaseIdx(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
         break;
       }
   }
+  // A window plus a constant too far for base+offset's 13 bits: the offset
+  // goes in a register as the index, in bytes. IS-25 puts __ccv_privbase's
+  // data at L - size in the region, tens of KiB into its window; before, every
+  // such constant was small, and this shape reached the type legalizer
+  // unmatched and crashed it.
+  if (!isInt<13>(Disp))
+    if (SDValue Win = matchWindow(Addr)) {
+      Base = Win;
+      Idx = DAG.getConstant(Disp, DL, MVT::i32);
+      ScaleEnable = false;
+      Disp = 0;
+      return true;
+    }
   if (Addr.getOpcode() != ISD::ADD)
     return false;
   SDValue A = Addr.getOperand(0), B = Addr.getOperand(1);
@@ -588,15 +601,16 @@ static bool matchFrame(SelectionDAG &DAG, const SDLoc &DL, SDValue Addr,
 
 /// O-80 in the frame: a sized access takes base + index only, whose 8-bit
 /// displacement cannot reach a frame object past 127 bytes. So it addresses the
-/// frame as a frame pointer does (CCVPointerPairs): the window below R15's as
-/// the base, and the object's offset in it (FRAMEOFF, which eliminateFrameIndex
+/// frame as a frame pointer does (CCVPointerPairs): the frame's window as the
+/// base (R15's under IS-25, the one below it under O-64), and the object's offset in it (FRAMEOFF, which eliminateFrameIndex
 /// fills in) plus the access's own offsets as the index.
 static void frameSized(SelectionDAG &DAG, const SDLoc &DL, EVT MemVT,
                        SDValue FI, SDValue Idx, SDValue Disp, bool Scale,
                        SDValue &Base, SDValue &Index) {
   SDValue R15 = DAG.getCopyFromReg(DAG.getEntryNode(), DL, CCV::R15, MVT::i32);
-  Base = DAG.getNode(ISD::ADD, DL, MVT::i32, R15,
-                     DAG.getConstant(-1, DL, MVT::i32));
+  Base = ccvFrameInPriv() ? R15
+                          : DAG.getNode(ISD::ADD, DL, MVT::i32, R15,
+                                        DAG.getConstant(-1, DL, MVT::i32));
   int FIdx = cast<FrameIndexSDNode>(FI)->getIndex();
   Index = DAG.getNode(CCVISD::FRAMEOFF, DL, MVT::i32,
                       DAG.getTargetFrameIndex(FIdx, MVT::i32));
@@ -1409,8 +1423,8 @@ SDValue CCVTargetLowering::LowerFormalArguments(
 }
 
 // Mutation control for tools/check-ptrlist.sh: a frame pointer's window taken
-// as R15 itself rather than the window below it, so it names the next
-// thread's frame.
+// as the wrong one -- R15's own under O-64, which names the next thread's
+// frame, or the one above R15's under IS-25, past the frames in the region.
 static cl::opt<bool> TestFrameWindowR15(
     "ccv-test-frame-window-r15", cl::init(false), cl::Hidden,
     cl::desc("give frame pointers R15's window, to test that it is caught"));
@@ -1452,14 +1466,17 @@ SDValue CCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
                          " through a pointer that is not a code address "
                          "(F-21 step 5)");
   }
-  // A pointer into the frame as a pair (CCVPointerPairs): the window below
-  // R15's, and the object's offset in it, which eliminateFrameIndex fills in.
+  // A pointer into the frame as a pair (CCVPointerPairs): the frame's window
+  // (R15's under IS-25, the one below it under O-64), and the object's offset
+  // in it, which eliminateFrameIndex fills in.
   if (G && G->getGlobal()->getName() == "__ccv_frame_window") {
     SDValue R15 = DAG.getCopyFromReg(Chain, DL, CCV::R15, MVT::i32);
-    InVals.push_back(TestFrameWindowR15
-                         ? R15
-                         : DAG.getNode(ISD::ADD, DL, MVT::i32, R15,
-                                       DAG.getConstant(-1, DL, MVT::i32)));
+    int Delta = ccvFrameInPriv() ? 0 : -1;
+    if (TestFrameWindowR15)
+      Delta += 1;
+    InVals.push_back(Delta ? DAG.getNode(ISD::ADD, DL, MVT::i32, R15,
+                                         DAG.getConstant(Delta, DL, MVT::i32))
+                           : R15);
     return R15.getValue(1);
   }
   if (G && G->getGlobal()->getName() == "__ccv_frame_offset") {
@@ -1511,8 +1528,8 @@ SDValue CCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
           "CCV: " + MF.getName() + " passes stack arguments to " +
           Callee->getName() + " before that function's frame is laid out -- "
           "a recursive call, which a static frame layout cannot place (F-21)");
-    int64_t Disp = -int64_t(TestStackArgsAtZero ? 0 : ccvFrameBase(*Callee)) -
-                   int64_t(VA.getLocMemOffset()) - 4;
+    int64_t Disp = ccvFrameDisp(*Callee, -int64_t(VA.getLocMemOffset()) - 4,
+                                TestStackArgsAtZero);
     if (!isInt<13>(Disp))
       report_fatal_error("CCV: a stack argument to " + Callee->getName() +
                          " lies past the 13-bit displacement of §3's Format D");

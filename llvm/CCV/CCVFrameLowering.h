@@ -1,12 +1,13 @@
 //===-- CCVFrameLowering.h --------------------------------------*- C++ -*-===//
 //
-// The frame is a thread-private `.local` region, reached through its own window
-// (§5.1). O-30: with S=16 a window is 64 KiB, so giving each thread a whole one
-// makes the frame POINTER a window index rather than an address -- a lane
-// uses window `local_base + %lanectx` (O-64: srd #2, unique among the device's
-// live lanes; O-30's `local_base + t` repeated across CTAs). A spill is then a single base+offset
-// instruction with no index register, and the frame costs one reserved GPR
-// instead of two.
+// The frame is thread-private, reached through one window index in R15, so an
+// access is a single base+offset instruction with no index register, and the
+// frame costs one reserved GPR. IS-25 (DA tab rev 97), the default: R15 is W,
+// the base of the thread's O-83 region (local_base + %privoff, srd #3), and the
+// frame takes the region's bottom bytes, which MIU interleaves by lane, so the
+// same R15 names each thread's own frame. Before it, O-30/O-64: each lane had
+// a whole 64 KiB window of its own, `local_base + %lanectx` (srd #2), and the
+// frame sat at the top of the window below R15's (-ccv-frame-in-priv=false).
 //
 //===----------------------------------------------------------------------===//
 #ifndef CCV_CCVFRAMELOWERING_H
@@ -44,6 +45,13 @@ unsigned ccvFrameBase(const Function &F);
 /// (word 28, O-61) read. One copy, checked against the others by
 /// tools/check-launch-abi.sh.
 uint64_t ccvLaunchBase();
+/// Whether O-30's frame is at the bottom of the thread's O-83 region (IS-25,
+/// -ccv-frame-in-priv) rather than in O-64's window below R15's.
+bool ccvFrameInPriv();
+/// The displacement from R15's window of byte ObjOff (a frame object's offset,
+/// negative, in F's own frame), with F's base taken as 0 when AtZero (the
+/// stack-argument control). Only once F is laid out.
+int64_t ccvFrameDisp(const Function &F, int64_t ObjOff, bool AtZero = false);
 /// Whether F's frame has been laid out yet. A caller's stack arguments are
 /// written at its callee's base, so the callee must come first.
 bool ccvFrameLaidOut(const Function &F);
