@@ -213,6 +213,15 @@ arrays that CUDA code indexes by thread then coalesce instead of touching one li
 CoreMark-derived TI measured -46.1% cycles at one warp, -72.1% at four, and -7.1% with a seed per
 lane. One reserved value becomes defined: `srd` selector 3, `%privoff`. No opcode is added.
 
+### Address-taken frames move into the private region (O-84; IS-25)
+
+Adopted by DA on 2026-10-30. O-30's frames, which hold address-taken objects and stack
+arguments, leave O-64's per-lane-context windows for the bottom of the thread's O-83 region,
+with R15 = *W*. MIU interleaves them as it does W's data, so a warp's access to a frame word is
+one line. On CoreMark-derived TI measured -15.7% cycles at four warps and -7.1% at one, over
+O-83 alone. A frame pointer becomes lane-relative, and recursion is refused. No encoding
+changes and no gates: the change is placement text and the ABI.
+
 ### Still open
 
 Nothing from IS-2, IS-12 or IS-16 remains open. The SFU bound table is written (O-70).
@@ -1237,14 +1246,15 @@ rearranged by wiring.
 - **Who may use it, and how — normative.** Offsets are absolute within the warp's frame, with
   no frame register, so two functions live at once must never share a slot. A compiler
   allocates spill slots statically over the call graph: a function's slots sit above the
-  largest spill extent of everything it calls, indirect calls included. A function on a
-  call-graph cycle, or one that calls a function whose frame is unknown, keeps its spills on
-  O-30's R15 frame. A slot is for data no pointer reaches: an address-taken object stays on
-  O-30's frame, whose bytes are contiguous per thread.
-- **R15 under O-69.** It is reserved only in a function with an address-taken frame object, a
-  stack-passed argument, or an O-30 fallback, all known before register allocation. Such a
-  function forms R15 at entry (O-30's prologue, with `srd #2`). R15 is not preserved across
-  calls, and every other function allocates it as an ordinary register.
+  largest spill extent of everything it calls, indirect calls included. A call-graph cycle, or
+  a call to a function whose frame is unknown, is refused by the compiler (O-84), so every
+  frame extent is static. A slot is for data no pointer reaches: an address-taken object stays on
+  its O-30 frame, whose bytes are contiguous per thread, and which O-84 places in the thread's
+  O-83 region.
+- **R15 under O-69.** It is reserved only in a function with an address-taken frame object or a
+  stack-passed argument, both known before register allocation. Such a function forms R15 at
+  entry: R15 = *W*, the private run's base window (O-84, with `srd #3` and launch word 24). R15
+  is not preserved across calls, and every other function allocates it as an ordinary register.
 
 **Interleaved per-thread memory (O-83).** Not an addressing mode and not an opcode: an ordinary
 `.global` access in base + offset or base + index form, a sized form (O-80), `ld.pred`/`st.pred`
@@ -2505,18 +2515,23 @@ struct would violate the rule. Scalars follow the pointers at their natural alig
 byte offset 24 (O-30), the module data window `W_d` at 28 (below), and the argument area from
 `OffArgs` = 32 (§3 Format D's slot rule). Everything else in the block is the launch ABI's.
 
-**`.local` frames are indexed by hardware lane context, not by thread index — normative
-(O-64).** A thread's frame is window `local_base + %lanectx`, where `%lanectx` is `srd #2`
-(§5.3). It is unique among every lane live on the device at once and constant for its warp's
-lifetime. So two threads live together never share a frame, whichever CTAs or grids they
-belong to. `local_base`, word 24, is the context's, the same in every CTA's launch block. The
-runtime reserves `local_base` through `local_base + CCV_LANE_CONTEXTS − 1` per context, sized
-by the device's lane contexts, not by the grid. The spill space (O-69) follows at window
+**`.local` frames live in the thread's private region — normative (O-84, replacing O-64's
+placement).** A thread's O-30 frame occupies the bottom *F* bytes of its O-83 region (§5.9),
+where *F* is the kernel's static frame size, and R15 = *W*. O-64 placed it at window
+`local_base + %lanectx`; that placement is withdrawn. The uniqueness O-64 needed comes from O-83
+instead: each warp context has a region of its own, and a pointer into it names its own lane's
+bytes, so two threads live together never share a frame, whichever CTAs or grids they belong
+to. `local_base`, word 24, is the context's, the same in every CTA's launch block. Windows
+`local_base` through `local_base + CCV_LANE_CONTEXTS − 1` keep their offset but hold nothing,
+so the runtime need not back them; the spaces after them keep their places, so `%privoff` is
+unchanged. The spill space (O-69) follows at window
 `local_base + CCV_LANE_CONTEXTS`, 4 MiB per hardware warp context, so the runtime reserves that
 too. It is address space only: a warp touches the pages its spills reach. The private run (O-83,
 §5.9) follows the spill space at window `local_base + 3·CCV_LANE_CONTEXTS`, with its warps'
-regions after it, so the runtime reserves those as well. O-30's prologue reads `srd #2` where it read
-`srd #0`, and is otherwise unchanged.
+regions after it, so the runtime reserves those as well. O-30's prologue forms R15 = *W* from
+word 24 and `srd #3` (O-84), where O-64's read `srd #2`, and is otherwise unchanged. A kernel
+with frames needs the run at launch even if it never calls `__ccv_privbase`, so its *F* rides
+the launch, and the runtime sets up the run from it.
 
 **The whole launch window is read-only (O-61).** `LAUNCH_BASE` is 64 KiB-aligned, and the
 launch block lies within the 64 KiB region `[LAUNCH_BASE, LAUNCH_BASE + 2^16)`, the addresses
@@ -2610,8 +2625,8 @@ immediates are warp-uniform, broadcast to all lanes. `srd #0` writes lane *n* wi
 is a plain broadcast, and so is selector 3, whose value is fixed for the device. Selector 2 is built as selector 0 is: the warp's hardware context
 index, composed with the core's index where a device has several cores, shifted left 5, ORed
 with the lane. Its value is bounded nondeterminism (§12.1): which context a warp occupies is
-the dispatcher's choice, so a program may use it only as a name, as O-30's frames do, and never
-as data. `chwidth` applies as everywhere else: the destination is written at
+the dispatcher's choice, so a program may use it only as a name, as O-69's spill space does, and
+never as data. `chwidth` applies as everywhere else: the destination is written at
 its current width and truncates below 16 bits, per invariant 3.
 
 ### 5.4 Memory scopes and windowing
@@ -2621,7 +2636,7 @@ three scopes, covering everything this revision needs:
 
 | Scope | Serves |
 |---|---|
-| Thread-private | `.local`'s address-taken objects and stack arguments (O-30, O-64) |
+| Thread-private, lane-interleaved | `.local`'s address-taken objects and stack arguments, in the bottom of the thread's O-83 region (O-30, O-84) |
 | Warp-private, lane-interleaved | spill slots — `ld.local` / `st.local`, `ld.pred.local` / `st.pred.local` (O-69) |
 | Thread-private, lane-interleaved | per-thread data reached by pointer — any `.global` access whose `rbase` lies in the private run (O-83, §5.9) |
 | Warp-private | predicate spill region — `ld.pred` / `st.pred`, §3 |
@@ -2927,8 +2942,22 @@ different bytes in different lanes: each lane's own. A pointer passed between la
 a store by one lane and a load by another) therefore names the receiving lane's bytes. The
 region's storage is thread-private: no other thread, in this warp or another, can name a lane's
 cells through the run. A compiler may keep a pointer here only for data its thread alone uses.
-CP's `__ccv_privbase(size)` is the source-level entry. A size over *L* is a compile error where
-constant, and a run-time null otherwise, so the source's fallback takes over.
+
+**The region's layout: frames below, data above — normative (O-84).** A thread's O-30 frame
+takes offsets [0, *F*), with R15 = *W*: frame slot *d* is `[R15 + d]`, and a pair uses window
+`R15 + d/64K` at offset `d mod 64K`. Frames cannot take the top of the region, since that would
+need R15 = *W* + *L*/64 KiB, outside the run, where §5.9's decision would not interleave them.
+CP's `__ccv_privbase(size)`, the source-level entry for data, returns `(W << 16) + L − size`,
+rounded down to 16 bytes. **The collision check is complete, a compiler obligation.** A kernel is
+compiled whole, and a call-graph cycle or a call to a function whose frame is unknown is
+refused, so *F* is static and known after frame layout. A constant size over *L* − *F* is a
+compile error. A run-time size over *L* − *F* makes `__ccv_privbase` return null, which faults
+on its first use. So data never overwrites a frame silently, and a frame cannot overrun.
+Recursion has no frame form: a later rule for it would need a stack in the region, with a
+stack-pointer register and a bound check. **A frame pointer is lane-relative**, as every pointer
+into the run is: `&x` handed to another thread names the receiver's own bytes. CUDA leaves that
+undefined for local memory, so no correct program depends on it. Here it is defined (invariant
+12). A compiler warns where such an escape is visible.
 
 **The run's own windows and the regions are address space with fixed roles.** The runtime maps no
 page in windows `[W, W + CCV_PRIV_WINDOWS)`, which name logical offsets only. So an ordinary access
@@ -3454,6 +3483,28 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-84 — Address-taken frames move into the private region — decided in 1.9.** IS-25, from
+AR-24 and CP-65 to CP-68. DA's words: "I agree that we should adopt IS-25" (2026-10-30). O-69
+moved spills to an interleaved space, but address-taken objects and stack arguments stayed on
+O-30's per-thread windows, since their bytes must be contiguous to a pointer. On CoreMark-derived
+they were 77.9% of DCU lookups once O-83 was in, up to 32 lines an access, and nearly every
+write-allocate miss at four warps. O-83's region has the property IS-19 lacked: a pointer into it
+has contiguous logical offsets per thread, and MIU interleaves them by wiring. TI's exact bound
+over O-83 alone is -15.7% cycles at four warps with a 64 KiB L1, -16.9% at 512 KiB, and -7.1% at
+one warp. Nothing moves on CP-64's eight traces, whose frame traffic is all O-69 spills (CP-68).
+Adopted (§5.2, §5.9): frames take the bottom *F* bytes of the thread's region, with R15 = *W*.
+`__ccv_privbase` data runs from *L* down, with a complete compile-time collision check against
+*L* − *F*, and recursion is refused. O-64's frame windows are withdrawn, and the spaces after
+them keep their places. Cost: no gates, no encoding, no net memory (*L* at two windows against
+O-83's data window plus O-64's frame window). What lost: O-30's flat frame pointers, which named
+the sender's bytes in another thread (CUDA leaves that undefined; no corpus kernel does it,
+CP-67); IS's first draft, which put frames at the top and R15 outside the run (CP-65); and any
+recursion form, which no compiler used. The L1 size is not decided by this. 512 KiB's lead on
+coremark128 grows from 7.1% to 8.4% with frames interleaved, and the size rests on the
+eight-trace sweep.
 
 ---
 
