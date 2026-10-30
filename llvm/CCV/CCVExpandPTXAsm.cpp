@@ -202,6 +202,10 @@ bool CCVExpandPTXAsm::runOnMachineFunction(MachineFunction &MF) {
           "(\\$[0-9]+|[0-9]+)(, (\\$[0-9]+|[0-9]+))?$");
       // O-83: %privoff, srd #3, for CCVLowerKernelArgs's __ccv_privbase.
       static const Regex PrivOff("^ccv\\.privoff \\$([0-9]+)$");
+      // IS-25: its floor, the kernel's frame extent, and a constant size's
+      // start checked against it, both filled in at frame layout.
+      static const Regex PrivFloor("^ccv\\.privfloor \\$([0-9]+)$");
+      static const Regex PrivCheck("^ccv\\.privcheck ([0-9]+)$");
       static const Regex F16F32(
           "^cvt\\.rn\\.f16\\.f32 \\$([0-9]+), \\$([0-9]+)$");
 
@@ -303,6 +307,12 @@ bool CCVExpandPTXAsm::runOnMachineFunction(MachineFunction &MF) {
         cvt(Opc, op(M[1]), op(M[2]));
       } else if (PrivOff.match(T, &M)) {
         BuildMI(MBB, MI, DL, TII->get(CCV::SRD), op(M[1])).addImm(3);
+      } else if (PrivFloor.match(T, &M)) {
+        BuildMI(MBB, MI, DL, TII->get(CCV::PSEUDO_PRIVFLOOR), op(M[1]));
+      } else if (PrivCheck.match(T, &M)) {
+        int64_t Start;
+        StringRef(M[1]).getAsInteger(10, Start);
+        BuildMI(MBB, MI, DL, TII->get(CCV::PSEUDO_PRIVCHECK)).addImm(Start);
       } else if (Bar.match(T, &M)) {
         // O-74: bar.init #a, b, then the arrival, then for a sync the wait,
         // as the intrinsics select (CCVISelDAGToDAG). a and b must be

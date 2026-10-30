@@ -6,7 +6,7 @@ _Z5bytesPKaPKhPhPiPKsPs:
 	chwidth.multi 12288, 1
 	movi r15, 2
 	ld.global r15, [r15 + 24]
-	srd r14, 2
+	srd r14, 3
 	add r15, r14
 	movi r2, 0
 	srd r0, 0
@@ -99,7 +99,7 @@ LBB0_1:
 	@!p0 bra LBB0_1
 	movi r2, 0
 	and r3, r0, 3
-	movi r4, 65520
+	movi r4, 0
 LBB0_3:
 	add r5, r3, r2
 	add r6, r14, r5
@@ -108,8 +108,7 @@ LBB0_3:
 	@p0 bra LBB0_4
 	mov r13, r6
 	add r6, r4, r2
-	add r7, r15, -1
-	st.global.8 r13, [r7, r6, 0, 0]
+	st.global.8 r13, [r15, r6, 0, 0]
 	add r6, r5, r14
 	add r5, r6, 1
 	ld.global.u8 r7, [r1, r5, 0, 0]
@@ -118,8 +117,7 @@ LBB0_3:
 	@p0 bra LBB0_9
 	mov r13, r7
 	add r5, r4, r5
-	add r7, r15, -1
-	st.global.8 r13, [r7, r5, 0, 0]
+	st.global.8 r13, [r15, r5, 0, 0]
 	add r5, r6, 2
 	ld.global.u8 r6, [r1, r5, 0, 0]
 	add r5, r2, 2
@@ -127,8 +125,7 @@ LBB0_3:
 	@p0 bra LBB0_9
 	mov r13, r6
 	add r5, r4, r5
-	add r6, r15, -1
-	st.global.8 r13, [r6, r5, 0, 0]
+	st.global.8 r13, [r15, r5, 0, 0]
 	add r2, 3
 	setp.eq p0, r2, 15
 	@!p0 bra LBB0_3
@@ -137,18 +134,16 @@ LBB0_3:
 LBB0_4:
 	mov r5, r2
 LBB0_9:
-	movi r3, 65520
+	movi r3, 0
 	add r1, r3, r5
-	add r2, r15, -1
-	movi r4, 0
-	st.global.8 r4, [r2, r1, 0, 0]
+	movi r2, 0
+	st.global.8 r2, [r15, r1, 0, 0]
 	f48 r2, 4294967294
 	f48 r1, 4294966296
-	add r5, r15, -1
 LBB0_10:
 	add r4, r2, r3
 	add r4, 2
-	ld.global.u8 r4, [r5, r4, 0, 0]
+	ld.global.u8 r4, [r15, r4, 0, 0]
 	add r1, r1, 1000
 	add r2, 1
 	setp.ne p0, r4, 0
@@ -197,10 +192,9 @@ LBB0_13:
 	st.global r3, [#3, r0, 0, 0]
 	add r3, r0, 4
 	st.global r11, [#3, r3, 0, 0]
-	movi r3, 65520
+	movi r3, 0
 	add r2, r3, r2
-	add r3, r15, -1
-	ld.global.u8 r2, [r3, r2, 0, 0]
+	ld.global.u8 r2, [r15, r2, 0, 0]
 	add r1, r2, r1
 	add r2, r0, 8
 	st.global r1, [#3, r2, 0, 0]

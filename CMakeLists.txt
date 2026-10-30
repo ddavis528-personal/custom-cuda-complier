@@ -80,6 +80,7 @@ add_library(CCVMC STATIC
   llvm/CCV/CCVFP64Bits.cpp
   llvm/CCV/CCVFoldFP4.cpp
   llvm/CCV/CCVInternalize.cpp
+  llvm/CCV/CCVFrameEscape.cpp
   llvm/CCV/CCVPointerPairs.cpp
   llvm/CCV/CCVCodePointers.cpp
   llvm/CCV/CCVModuleData.cpp

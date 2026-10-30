@@ -139,7 +139,7 @@ Lfunc_end2:
 _Z7ptrlistP4nodePi:
 	movi r15, 2
 	ld.global r15, [r15 + 24]
-	srd r14, 2
+	srd r14, 3
 	add r15, r14
 	srd r12, 0
 	mov r0, r12
@@ -249,18 +249,18 @@ _Z7ptrlistP4nodePi:
 	call r14, _Z7reverseP4node
 	movi r15, 2
 	ld.global r15, [r15 + 24]
-	srd r3, 2
+	srd r3, 3
 	add r15, r3
 	mov r10, r1
 	mov r11, r2
-	st.global r8, [r15 + -4]
-	st.global r8, [r15 + -8]
-	add r3, r15, -1
-	movi r4, 65528
+	st.global r8, [r15 + 4]
+	st.global r8, [r15]
+	mov r3, r15
+	movi r4, 0
 	call r14, _Z5tallyPK4nodeP3acc
 	movi r15, 2
 	ld.global r15, [r15 + 24]
-	srd r3, 2
+	srd r3, 3
 	add r15, r3
 	and r0, r12, 7
 	movi r1, 10
@@ -270,7 +270,7 @@ _Z7ptrlistP4nodePi:
 	call r14, _Z4findP4nodei
 	movi r15, 2
 	ld.global r15, [r15 + 24]
-	srd r3, 2
+	srd r3, 3
 	add r15, r3
 	mov r8, r1
 	mov r7, r2
@@ -282,16 +282,16 @@ _Z7ptrlistP4nodePi:
 	call r14, _Z4findP4nodei
 	movi r15, 2
 	ld.global r15, [r15 + 24]
-	srd r3, 2
+	srd r3, 3
 	add r15, r3
 	mov r0, r12
 	shl r0, 4
 	ld.local r3, [24]
 	add r0, r3, r0
-	ld.global r3, [r15 + -8]
+	ld.global r3, [r15]
 	st.global r3, [#1, r0, 0, 0]
 	add r0, 4
-	ld.global r3, [r15 + -4]
+	ld.global r3, [r15 + 4]
 	st.global r3, [#1, r0, 0, 0]
 	shl r0, r8, 16
 	add r3, r0, r7

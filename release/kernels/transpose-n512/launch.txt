@@ -8,6 +8,8 @@
 threads 32
 resident 4
 ctas 256
+# F: the kernel's frame bytes at the bottom of each thread's O-83 region (IS-25).
+frame 0
 load 0x200000 in.bin 1048576
 cta 0
 -poke 0x20000=32

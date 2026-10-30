@@ -3,7 +3,9 @@
 # F-WIDTH at the chwidth fault.txt names, with that issue mask (O-81).
 threads 32
 ctas 1
-entry 0x3aa8
+entry 0x3a8e
+# F: the kernel's frame bytes at the bottom of each thread's O-83 region (IS-25).
+frame 148
 const 0x2000000:0x2000100
 cta 0
 -poke 0x2000000=33554560

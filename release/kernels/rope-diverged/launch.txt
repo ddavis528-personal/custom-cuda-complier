@@ -2,6 +2,8 @@
 # Each CTA is its own run; results are checked to a relative 1e-5.
 threads 32
 ctas 2
+# F: the kernel's frame bytes at the bottom of each thread's O-83 region (IS-25).
+frame 0
 cta 0
 -poke 0x20000=32
 -poke 0x20018=256

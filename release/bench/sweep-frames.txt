@@ -11,7 +11,7 @@
   test/cuda/argorder.cu                   0         0          0
   test/cuda/atomics.cu                    0         0          0
   test/cuda/barcount.cu                  --
-  test/cuda/bytes.cu                      4         1          1
+  test/cuda/bytes.cu                      4         7          7
   test/cuda/byval.cu                      0         0          0
   test/cuda/calls.cu                     12        54         54
   test/cuda/cta-reduce.cu                 0         0          0
@@ -19,6 +19,7 @@
   test/cuda/dp4.cu                        0         0          0
   test/cuda/fp4.cu                       --
   test/cuda/fp8.cu                       --
+  test/cuda/frame-escape.cu               6         7          7
   test/cuda/fused.cu                      0         0          0
   test/cuda/fusion/adamw.cu               0         0          0
   test/cuda/fusion/add_rmsnorm.cu         0         0          0
@@ -45,17 +46,18 @@
   test/cuda/transpose32.cu                0         0          0
   test/cuda/vadd-aligned.cu               0         0          0
   test/cuda/vadd.cu                       0         0          0
-  test/coremark-derived                  37        95         83
-  frame words: 0: 39, 1-32: 3, 33-64: 1, >64: 0 of 43 kernels
+  test/coremark-derived                  37       109         97
+  frame words: 0: 39, 1-32: 4, 33-64: 1, >64: 0 of 44 kernels
 
   frame instructions by kind (static), and functions with a frame object
   kernel                              spill  args  object  fns  w/obj
-  test/cuda/bytes.cu                      1     0       0    1      1
-  test/cuda/calls.cu                     22    12      20   15      4
+  test/cuda/bytes.cu                      1     0       6    1      1
+  test/cuda/calls.cu                     20    12      22   15      4
+  test/cuda/frame-escape.cu               3     0       4    3      1
   test/cuda/ptrlist.cu                    5     0       4    4      1
-  test/coremark-derived                  50     3      42   13      2
-  total (kernels with a frame)           78    15      66
-  functions in the corpus: 77, with a frame object: 8
+  test/coremark-derived                  47     3      59   13      2
+  total (kernels with a frame)           76    15      95
+  functions in the corpus: 80, with a frame object: 9
 
   issued, at each kernel's launch (dynamic)
   kernel                 issue   memops   frame  +lane reg  st idx  idx/mem
@@ -71,11 +73,11 @@
   sgemm                    514      251       0          2       0     0.0%
   rope                     177       53       5          2       0     0.0%
   layernorm                268       93       0          0       1     1.1%
-  coremark-derived      661982   101985    6917       3619   15815    15.5%
-  total                 663590   102625    6923       3624   15817    15.4%
+  coremark-derived      661977   101983    6926       3628   15815    15.5%
+  total                 663585   102623    6932       3633   15817    15.4%
 
   frame traffic by kind, issued (IS-19)
   kernel               spill   args  object  via ptr
   gemv                     1      0       0        0
   rope                     5      0       0        0
-  coremark-derived      6888      8      21      143
+  coremark-derived      6888      9      21        0

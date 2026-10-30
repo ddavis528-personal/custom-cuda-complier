@@ -5,6 +5,8 @@
 threads 128
 warps 4
 ctas 4
+# F: the kernel's frame bytes at the bottom of each thread's O-83 region (IS-25).
+frame 0
 cta 0
 -poke 0x20000=128
 -poke 0x20018=256

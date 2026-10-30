@@ -47,6 +47,22 @@ bool llvm::ccvIsKernel(const Function &F) {
 // caller's prologue is emitted, and a callee that is not is a cycle.
 static DenseMap<const Function *, unsigned> FrameBase, FrameExtent;
 
+// IS-25 (DA tab rev 97): the frame sits at the bottom of the thread's O-83
+// region instead of in O-64's window, R15 = W (srd #3), so MIU interleaves it
+// as it does W's data. Offsets from R15 are then positive: a function's frame
+// lies above everything it calls, [base, base + size), byte ObjOff of it at
+// base + size + ObjOff. Off, the O-64 layout as before: the window below R15's,
+// a function's frame below its callees'.
+static cl::opt<bool> FrameInPriv(
+    "ccv-frame-in-priv", cl::init(true),
+    cl::desc("place O-30's frame at the bottom of the thread's O-83 region "
+             "(IS-25); false keeps O-64's per-lane-context window"));
+
+bool llvm::ccvFrameInPriv() { return FrameInPriv; }
+
+// Each function's own frame size, for the displacement above.
+static DenseMap<const Function *, unsigned> FrameSize;
+
 // O-69: the same layout for spill slots, in the warp's interleaved spill space.
 // Offsets there are absolute in the warp's frame -- no register says where a
 // function's slots are -- so a function's slots sit above the largest extent
@@ -193,6 +209,13 @@ unsigned llvm::ccvFrameBase(const Function &F) {
   return It == FrameBase.end() ? 0 : It->second;
 }
 
+int64_t llvm::ccvFrameDisp(const Function &F, int64_t ObjOff, bool AtZero) {
+  int64_t Base = AtZero ? 0 : int64_t(ccvFrameBase(F));
+  if (!FrameInPriv)
+    return ObjOff - Base;
+  return Base + int64_t(FrameSize.lookup(&F)) + ObjOff;
+}
+
 bool llvm::ccvFrameLaidOut(const Function &F) {
   return FrameExtent.count(&F);
 }
@@ -237,6 +260,51 @@ void CCVFrameLowering::processFunctionBeforeFrameFinalized(
   LocalExtent[&MF.getFunction()] = Cursor;
 }
 
+/// IS-25: __ccv_privbase's data runs from L down and must stay above the
+/// frames, [0, F) (CCVLowerKernelArgs). F, the kernel's whole frame extent, is
+/// known only here, once its callees are laid out, so the floor the lowering
+/// compares with (PSEUDO_PRIVFLOOR) becomes a movi of F, and a constant size's
+/// start (PSEUDO_PRIVCHECK) is checked against it at compile time. Without
+/// IS-25 the frames are elsewhere and the floor is 0.
+// Mutation control for tools/check-privbase.sh: __ccv_privbase's floor taken
+// as 0, so data sized to reach the frames is handed out over them.
+static cl::opt<bool> TestPrivFloorZero(
+    "ccv-test-priv-floor-zero", cl::init(false), cl::Hidden,
+    cl::desc("give __ccv_privbase a floor of 0 under IS-25, to test that it "
+             "is caught"));
+
+static void expandPrivFloor(MachineFunction &MF, unsigned Extent) {
+  const auto *TII = MF.getSubtarget<CCVSubtarget>().getInstrInfo();
+  const Function &F = MF.getFunction();
+  const unsigned Floor = FrameInPriv && !TestPrivFloorZero ? Extent : 0;
+  for (MachineBasicBlock &B : MF)
+    for (MachineInstr &MI : llvm::make_early_inc_range(B)) {
+      unsigned Opc = MI.getOpcode();
+      if (Opc != CCV::PSEUDO_PRIVFLOOR && Opc != CCV::PSEUDO_PRIVCHECK)
+        continue;
+      if (FrameInPriv && !ccvIsKernel(F))
+        report_fatal_error("CCV: __ccv_privbase in " + F.getName() +
+                           ", a device function: its data must clear the "
+                           "kernel's frames (IS-25), which only a kernel's "
+                           "layout knows; call it in the kernel and pass the "
+                           "pointer down");
+      if (Opc == CCV::PSEUDO_PRIVCHECK) {
+        int64_t Start = MI.getOperand(0).getImm();
+        if (Start < int64_t(Floor))
+          report_fatal_error(
+              "CCV: __ccv_privbase in " + F.getName() + " starts its data at " +
+              Twine(Start) + " in the thread's O-83 region, inside the " +
+              Twine(Floor) + " bytes of frames below it (IS-25); a smaller "
+              "size, or more -ccv-priv-windows");
+      } else {
+        BuildMI(B, MI, MI.getDebugLoc(), TII->get(CCV::MOVI))
+            .add(MI.getOperand(0))
+            .addImm(Floor);
+      }
+      MI.eraseFromParent();
+    }
+}
+
 void CCVFrameLowering::emitPrologue(MachineFunction &MF,
                                     MachineBasicBlock &MBB) const {
   const Function &F = MF.getFunction();
@@ -244,6 +312,8 @@ void CCVFrameLowering::emitPrologue(MachineFunction &MF,
   const unsigned Size = unsigned(MF.getFrameInfo().getStackSize());
   FrameBase[&F] = Base;
   FrameExtent[&F] = Base + Size;
+  FrameSize[&F] = Size;
+  expandPrivFloor(MF, Base + Size);
   if (FrameStats && ccvIsKernel(F))
     errs() << "  frame " << F.getName() << ": " << Base + Size
            << " bytes a thread (own " << Size << ")\n";
@@ -266,7 +336,7 @@ void CCVFrameLowering::emitPrologue(MachineFunction &MF,
       // skipping it hid one (F-179).
       if (MFI.isDeadObjectIndex(FI))
         continue;
-      int64_t D = MFI.getObjectOffset(FI) - int64_t(Base);
+      int64_t D = ccvFrameDisp(F, MFI.getObjectOffset(FI));
       const char *Kind = MFI.isFixedObjectIndex(FI) ? "fixed"
                          : MFI.isSpillSlotObjectIndex(FI) ? "spill" : "object";
       errs() << "  frame-object " << F.getName() << " " << Kind << " " << D
@@ -276,7 +346,8 @@ void CCVFrameLowering::emitPrologue(MachineFunction &MF,
 
   const auto *TII = MF.getSubtarget<CCVSubtarget>().getInstrInfo();
   // R15 = launch-block window, then the context's .local window base, then this
-  // thread's own window. The scratch is R14 in a kernel, where nothing is live
+  // thread's own window -- or, under IS-25, the run's base W, the same value
+  // __ccv_privbase forms; the lane and context are MIU's (O-83). The scratch is R14 in a kernel, where nothing is live
   // at entry (§5.2), and R0 at a device function's entry, where R14 holds the
   // return address and R0 is not an argument (kept in a cell where it is
   // callee-saved). After a call it is R3, below.
@@ -289,8 +360,10 @@ void CCVFrameLowering::emitPrologue(MachineFunction &MF,
         .addReg(CCV::R15)
         .addImm(kOffLocalBase);
     // O-64: the window is indexed by %lanectx (srd #2), unique among the
-    // device's live lanes, not by %ctatid, which every CTA repeats.
-    BuildMI(B, I, DL, TII->get(CCV::SRD), Scratch).addImm(2);  // %lanectx
+    // device's live lanes, not by %ctatid, which every CTA repeats. IS-25:
+    // %privoff (srd #3), the run's place, the same for every lane.
+    BuildMI(B, I, DL, TII->get(CCV::SRD), Scratch)
+        .addImm(FrameInPriv ? 3 : 2);  // %privoff or %lanectx
     BuildMI(B, I, DL, TII->get(CCV::ADD), CCV::R15)
         .addReg(CCV::R15)
         .addReg(Scratch)

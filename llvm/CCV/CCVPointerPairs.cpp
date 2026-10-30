@@ -218,9 +218,10 @@ std::optional<Pair> decompose(Value *V, IRBuilder<> &B, const DataLayout &DL) {
     return Pair{P->Base, TestDropPairOffset ? P->Off : Off};
   }
 
-  // A pointer into the thread's frame. Frame slot d (-4096 <= d < 0) is at
-  // (R15 << 16) + d, which as a pair is (R15 - 1, 65536 + d): the window below
-  // R15's and an offset only frame layout knows. The backend recognises these
+  // A pointer into the thread's frame. Under IS-25 frame slot d (0 <= d < 4096)
+  // is at (R15 << 16) + d, the pair (R15, d); under O-64 slot d (-4096 <= d < 0)
+  // is the pair (R15 - 1, 65536 + d), the window below R15's. Either way the
+  // offset is one only frame layout knows. The backend recognises these
   // two calls by name (CCVISelLowering, LowerCall).
   if (auto *AI = dyn_cast<AllocaInst>(V)) {
     Module *M = AI->getModule();

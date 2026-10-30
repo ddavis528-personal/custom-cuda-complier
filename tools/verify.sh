@@ -182,9 +182,12 @@ fi
 
 # O-83: interleaved per-thread memory through __ccv_privbase, executed, and
 # CoreMark-derived with its blocks there, with the contiguous-layout control.
+# IS-25: the frames at the region's bottom, the data clear of them, and the
+# warning where a frame pointer reaches another thread.
 if [ -x build/ccv-llc ] && [ -x build/ccv-sim ]; then
-  echo "  interleaved per-thread memory (O-83)"
+  echo "  interleaved per-thread memory and frames (O-83, IS-25)"
   ./tools/check-privbase.sh || fail=1
+  ./tools/check-frame-escape.sh || fail=1
 fi
 
 # F-161: byte memory access at chwidth 8, and F-164's narrow store after a

@@ -52,6 +52,9 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  // IS-25: a frame pointer handed to another thread, while globals and their
+  // address spaces are still the source's.
+  warnCCVFrameEscapes(*M, errs());
   // Pointers crossing a call become (rbase, roffset) pairs first, so the check
   // below sees only the ones that could not be split (F-22).
   lowerCCVModuleData(*M);

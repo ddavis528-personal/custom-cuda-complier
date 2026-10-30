@@ -1,8 +1,8 @@
   gen-register-info    ok (735 lines)
-  gen-instr-info       ok (6327 lines)
-  gen-emitter          ok (3006 lines)
+  gen-instr-info       ok (6343 lines)
+  gen-emitter          ok (3008 lines)
   gen-disassembler     ok (1754 lines)
-  gen-asm-writer       ok (2183 lines)
+  gen-asm-writer       ok (2187 lines)
   gen-dag-isel         ok (2190 lines)
   gen-callingconv      ok (92 lines)
 
@@ -80,12 +80,12 @@ checked 438 instructions
   PASS  calls.cu, callee-saved set 'none': 32 lanes correct (540 issue groups)
   PASS  calls.cu, callee-saved set 'six': 32 lanes correct (536 issue groups)
   PASS  calls.cu, callee-saved set 'eight': 32 lanes correct (559 issue groups)
-  PASS  static frames: scratch at -16..-4, the kernel below it at -48..-36; stack arguments at [-20, -16, -12, -8, -4]
-  PASS  control -ccv-test-flat-frames is caught: 32 of 32 lanes wrong; lane 0: got 2100353410, want 2099963488
+  PASS  static frames: scratch at 4..12, the kernel apart from it at 32..44; stack arguments at [4, 8, 12, 16, 24]
+  PASS  control -ccv-test-flat-frames is caught: 32 of 32 lanes wrong; lane 0: got 2100243487, want 2099963488
   PASS  control -ccv-test-mask-device-functions is caught: 31 of 32 lanes wrong; lane 1: got 1256472948, want 1256146136
   PASS  control -ccv-test-i16-legal -ccv-test-no-call-widths is caught: 32 of 32 lanes wrong; lane 0: got -334240, want 2099963488
   PASS  control -ccv-test-drop-pair-offset is caught: 32 of 32 lanes wrong; lane 0: got -638511925, want 2099963488
-  PASS  control -ccv-test-stack-args-at-zero is caught: 32 of 32 lanes wrong; lane 0: got 2099614111, want 2099963488
+  PASS  control -ccv-test-stack-args-at-zero is caught: 32 of 32 lanes wrong; lane 0: got 2098174411, want 2099963488
   PASS  control -ccv-test-ignore-indirect-frames is caught: 15 of 32 lanes wrong; lane 2: got 472433552, want 472433554
   PASS  control -ccv-test-flat-local is caught: 32 of 32 lanes wrong; lane 0: got -559038737, want 2099963488
   PASS  control -ccv-code-base=0 is caught: did not run: FAULT F-FETCH  pc=0xc  lanes=55555555  addr=0  cta=0 warp=0
@@ -129,24 +129,27 @@ checked 438 instructions
   pointers as values (F-22)
   PASS  ptrlist.cu: lists built, reversed, walked and searched on 32 lanes across a window boundary (817 issue groups)
   PASS  control -ccv-test-raw-ptr-compare is caught: 16 of 32 lanes wrong; lane 16: [1308, 8, 160, 33], want [1308, 8, 160, 35]
-  PASS  control -ccv-test-frame-window-r15 is caught: 32 of 32 lanes wrong; lane 0: [0, 0, 0, 35], want [28, 8, 0, 35]
+  PASS  control -ccv-test-frame-window-r15 is caught: 32 of 32 lanes wrong; lane 0: [2508, 0, 0, 35], want [28, 8, 0, 35]
   a module's data image (O-61)
   PASS  globals.cu: a module's data image, relocated and read through word 28 on 32 lanes (49 issue groups)
   PASS  control -ccv-test-no-data-reloc is caught: 32 of 32 lanes wrong; lane 0: [-2, 0], want [-1, 0]
   PASS  control -ccv-test-data-word-24 is caught: 32 of 32 lanes wrong; lane 0: [0, 0], want [-1, 0]
-  interleaved per-thread memory (O-83)
+  interleaved per-thread memory and frames (O-83, IS-25)
   PASS  __ccv_privbase: 32 threads read their own words at one pointer, interleaved a lane a word; a size over L gives null (control: contiguous regions are caught)
   PASS  a constant size over L is a compile error naming L; at -ccv-priv-windows=2 it compiles and runs
-  PASS  CoreMark-derived in the region: 32 lanes give the host's e714 e714 1fd7 8e3a, 1.46 lines a load memop (contiguous control: 27.9)
+  PASS  IS-25: with 2048 bytes of frame at the region's bottom, size 63488 runs with the frame intact, 63504 gives null and as a constant does not compile (control: a floor of 0 overwrites the frame)
+  PASS  CoreMark-derived in the region, frames too (IS-25): 32 lanes give the host's e714 e714 1fd7 8e3a, 1.00 lines a load memop (contiguous control: 27.9; frames in O-64's windows: 1.46)
+  PASS  frame-escape.cu: its two escapes, to .shared and .global, are warned and its private uses are not (control: off without IS-25)
+  PASS  no corpus kernel hands a frame pointer to another thread (29 CUDA kernels and CoreMark-derived; CP-67)
   byte memory access (F-161, F-164)
-  PASS  bytes.cu: signed and unsigned bytes, a string, .shared, the frame, and 32 packed byte stores on 32 lanes (506 issue groups)
+  PASS  bytes.cu: signed and unsigned bytes, a string, .shared, the frame, and 32 packed byte stores on 32 lanes (492 issue groups)
   PASS  control -ccv-test-bytes-at-32 is caught: did not run: FAULT F-ALIGN  pc=0x1086  lanes=eeeeeeee  addr=0x30001  cta=0 warp=0
   PASS  control -ccv-test-i16-legal -ccv-test-no-sized -ccv-no-narrow-kernels is caught: did not run: FAULT F-WIDTH  pc=0x11ba  lanes=77777777  addr=0  cta=0 warp=0
   exported kernels (TI-30)
-  PASS  coremark-derived: 32 lanes give e714 e714 1fd7 8e3a; 65 opcodes, 661982 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
-  PASS  coremark-derived-pl: each lane its own seed, diverging, gives the host's CRCs at that seed; 65 opcodes, 2329069 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
-  PASS  coremark-derived-priv: 32 lanes give e714 e714 1fd7 8e3a; 71 opcodes, 661966 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
-  PASS  coremark-derived-pl-fault: FAULT F-WIDTH  pc=0x186e  lanes=000000f0  addr=0  cta=0 warp=0, at C_CHWIDTH (issue 7500, mask 0x000000f0); launch.txt alone raises the same; coremark-derived-pl, built as released, does not fault
+  PASS  coremark-derived: 32 lanes give e714 e714 1fd7 8e3a; 67 opcodes, 661977 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
+  PASS  coremark-derived-pl: each lane its own seed, diverging, gives the host's CRCs at that seed; 67 opcodes, 2333082 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
+  PASS  coremark-derived-priv: 32 lanes give e714 e714 1fd7 8e3a; 74 opcodes, 661967 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
+  PASS  coremark-derived-pl-fault: FAULT F-WIDTH  pc=0x186e  lanes=000000f0  addr=0  cta=0 warp=0, at C_CHWIDTH (issue 7497, mask 0x000000f0); launch.txt alone raises the same; coremark-derived-pl, built as released, does not fault
   PASS  rope-diverged-128: 2 CTA(s) of 128 threads, four warps, match the reference; 32 opcodes, 928 issue groups; without its input data each fails
   PASS  layernorm-128: 2 CTA(s) of 128 threads, four warps, match the reference; 37 opcodes, 2168 issue groups; without its input data each fails
   PASS  gemv-128: 2 CTA(s) of 128 threads, four warps, match the reference; 26 opcodes, 2928 issue groups; without its input data each fails
@@ -191,7 +194,7 @@ checked 438 instructions
   PASS  from_e2m1 with -ccv-no-fold-fp4: 16 inputs as NVIDIA's header computes them
   PASS  control -ccv-test-fp64bits-rebias is caught in 3 of 4 kernels
   CoreMark-derived workload (AR-20)
-  PASS  CoreMark-derived: list, matrix and state on 32 lanes give CoreMark's CRCs, and the host's after 2 iterations (72be e714 1fd7 8e3a; 1299269 issue groups, 0 no-op widths)
+  PASS  CoreMark-derived: list, matrix and state on 32 lanes give CoreMark's CRCs, and the host's after 2 iterations (72be e714 1fd7 8e3a; 1299262 issue groups, 0 no-op widths)
   PASS  the same at width 16 and with chwidth accesses (-ccv-test-i16-legal -ccv-test-no-sized): 1502683 issue groups, 5692 no-op widths
   PASS  control -ccv-test-chwidth-reach-back-edge: 12531 no-op widths, against 5692
   PASS  control -ccv-test-no-byte-assertzext: 1523357 issue groups, against 1502683
@@ -202,7 +205,7 @@ checked 438 instructions
   PASS  control -ccv-test-i16-legal -ccv-test-no-sized -ccv-test-narrow-data-shared is caught: 32 of 32 lanes wrong; lane 0: ac96 d793 1fd7 ad85, want 72be e714 1fd7 8e3a
   PASS  control -ccv-test-i16-legal -ccv-test-no-sized -ccv-test-narrow-in-place -ccv-test-trunc-as-copy is caught: 32 of 32 lanes wrong; lane 0: 7795 88c3 4192 9e9e, want 72be e714 1fd7 8e3a
   PASS  control -ccv-test-i16-legal -ccv-test-no-sized -ccv-test-chwidth-defs-only is caught: did not run: error: C_ANDN has no semantics in the simulator yet
-  PASS  CoreMark-derived with a seed per lane: every lane diverges on its own data and matches the host at its seed (4973358 issue groups)
+  PASS  CoreMark-derived with a seed per lane: every lane diverges on its own data and matches the host at its seed (4977369 issue groups)
   PASS  control -ccv-test-i16-legal is caught on the per-lane-seed module: did not run: FAULT F-WIDTH  pc=0x186e  lanes=000000f0  addr=0  cta=0 warp=0
   PASS  control -ccv-test-no-sized is caught on the per-lane-seed module: did not run: FAULT F-WIDTH  pc=0x1744  lanes=000000f8  addr=0  cta=0 warp=0
   PASS  no narrow access shares its data register with its address (control -ccv-test-narrow-data-shared: 13 sites)
@@ -217,7 +220,7 @@ checked 438 instructions
   dp4 against a four-MAC reference
   PASS  dp4: 32 lanes correct against a four-MAC reference (1 dp4 instruction(s) emitted)
   every instruction has a production path
-  PASS  455 instructions, all with a production path (isel 90, pass 183, mc 1, declared 181)
+  PASS  457 instructions, all with a production path (isel 90, pass 185, mc 1, declared 181)
   the production-path gate catches its own cases
   PASS  removing the bra.short pattern (with insertBranch also removed) fails the check
   PASS  removing the immediate-compare mapping fails the check
@@ -225,7 +228,7 @@ checked 438 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 207 findings and 83 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 208 findings and 84 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -246,7 +249,7 @@ checked 438 instructions
 
   CCV instructions     : 438
   round trips          : 28032 (64 random operand sets each)
-  non-CCV opcodes      : 288 (LLVM pseudos and GlobalISel generics, no encoding)
+  non-CCV opcodes      : 290 (LLVM pseudos and GlobalISel generics, no encoding)
   unbuildable operands : 0
   failures             : 0
 
@@ -363,6 +366,7 @@ checked 438 instructions
   PASS  accepts sqrt-rcp.ll
   PASS  accepts switch-dense.ll
   PASS  accepts window-cross-block.ll
+  PASS  accepts window-far-offset.ll
   PASS  diagnoses atomic-64.ll: 64-bit atomic
   PASS  diagnoses bad-addr-shape.ll: unsupported address shape
   PASS  diagnoses barrier-count.ll: named barrier with a variable or out-of-range operand

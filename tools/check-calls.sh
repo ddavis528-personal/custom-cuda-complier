@@ -129,7 +129,8 @@ for csr in none six eight; do
 done
 
 # The static layout is visible in the code: scratch's array and the kernel's
-# must not share an offset below R15. The kernel also stores its callees'
+# must not share an offset from R15 (above it under IS-25, the kernel's frame
+# above its callees'; below it with -ccv-frame-in-priv=false). The kernel also stores its callees'
 # stack arguments into their frames, which is where they belong; a slot a
 # device function loads and never stores is such an argument, so it is not
 # counted as the kernel's.
@@ -140,7 +141,7 @@ loads, stores, fn = {}, {}, None
 for line in open(sys.argv[1]):
     m = re.match(r'^(\w+):', line)
     if m: fn = m.group(1)
-    for op, o in re.findall(r'(ld|st)\.global r\d+, \[r15 \+ (-\d+)\]', line):
+    for op, o in re.findall(r'(ld|st)\.global r\d+, \[r15 \+ (-?\d+)\]', line):
         (loads if op == "ld" else stores).setdefault(fn, set()).add(int(o))
 k = next(f for f in stores if "calls" in f)
 s = next(f for f in stores if "scratch" in f)
@@ -153,7 +154,7 @@ if own & stores[s]:
     print(f"  FAIL  the kernel's and scratch's frames share offsets {sorted(own & stores[s])}")
     sys.exit(1)
 print(f"  PASS  static frames: scratch at {min(stores[s])}..{max(stores[s])}, the kernel "
-      f"below it at {min(own)}..{max(own)}; stack arguments at {sorted(args)}")
+      f"apart from it at {min(own)}..{max(own)}; stack arguments at {sorted(args)}")
 PY
 
 # Controls. Each breaks one thing the passes above depend on. The call-widths

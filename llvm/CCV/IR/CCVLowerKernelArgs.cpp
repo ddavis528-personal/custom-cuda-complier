@@ -116,11 +116,17 @@ static cl::opt<unsigned> PrivWindows(
     cl::desc("CCV_PRIV_WINDOWS: 64 KiB windows in each thread's O-83 region"));
 
 /// O-83: `__ccv_privbase(size)` is the source-level entry to a thread's
-/// interleaved region, a pointer to its byte 0. W = local_base (launch-block
-/// word 24) + %privoff (srd #3, which only the device knows), and the pointer
-/// is W << 16, the shape every .global access already splits, so W lands in
-/// rbase. A size over L is a compile error where it is a constant, and a null
-/// pointer at run time otherwise, so the source's fallback takes over (CP-60).
+/// interleaved region. W = local_base (launch-block word 24) + %privoff (srd
+/// #3, which only the device knows), and the region's byte b is at
+/// (W << 16) + b, the shape every .global access already splits, so W lands in
+/// rbase. IS-25 (DA tab rev 97): the kernel's frames take the region's bottom
+/// F bytes, so the data runs from L down -- the pointer is to byte
+/// (L - size) rounded down to 16 -- and must start at F or above. F is the
+/// kernel's frame extent, known only at its frame layout: a constant size is
+/// checked there, a compile error past it (ccv.privcheck), and a run-time one
+/// compares with F (ccv.privfloor). A size over L is a compile error where it
+/// is a constant, and either way a null pointer at run time, so the source's
+/// fallback takes over (CP-60).
 static bool lowerPrivBase(Module &M) {
   Function *PB = M.getFunction("__ccv_privbase");
   if (!PB)
@@ -153,12 +159,30 @@ static bool lowerPrivBase(Module &M) {
                                             "ccv.privoff $0", "=r", false),
                              {}, "privoff");
     Value *W = B.CreateAdd(LB, Off, "priv.window");
-    Value *P = B.CreateIntToPtr(B.CreateShl(B.CreateZExt(W, I64), 16), CI->getType(),
-                                "priv.base");
-    if (!C)
-      P = B.CreateSelect(B.CreateICmpULE(B.CreateZExtOrTrunc(Size, I64),
-                                         ConstantInt::get(I64, L)),
-                         P, Constant::getNullValue(CI->getType()), "priv.base.or.null");
+    Value *Run = B.CreateIntToPtr(B.CreateShl(B.CreateZExt(W, I64), 16),
+                                  CI->getType(), "priv.run");
+    Type *I8 = Type::getInt8Ty(Ctx);
+    Value *P;
+    if (C) {
+      const uint64_t Start = (L - C->getZExtValue()) & ~uint64_t(15);
+      B.CreateCall(InlineAsm::get(FunctionType::get(Type::getVoidTy(Ctx), false),
+                                  ("ccv.privcheck " + Twine(Start)).str(), "",
+                                  /*hasSideEffects=*/true),
+                   {});
+      P = B.CreateGEP(I8, Run, ConstantInt::get(I64, Start), "priv.base");
+    } else {
+      Value *Size64 = B.CreateZExtOrTrunc(Size, I64);
+      Value *Start = B.CreateAnd(B.CreateSub(ConstantInt::get(I64, L), Size64),
+                                 ConstantInt::get(I64, ~uint64_t(15)), "priv.start");
+      auto *Floor = B.CreateCall(InlineAsm::get(FunctionType::get(I32, false),
+                                                "ccv.privfloor $0", "=r", false),
+                                 {}, "priv.floor");
+      Value *Fits = B.CreateAnd(
+          B.CreateICmpULE(Size64, ConstantInt::get(I64, L)),
+          B.CreateICmpUGE(Start, B.CreateZExt(Floor, I64)), "priv.fits");
+      P = B.CreateSelect(Fits, B.CreateGEP(I8, Run, Start, "priv.base"),
+                         Constant::getNullValue(CI->getType()), "priv.base.or.null");
+    }
     CI->replaceAllUsesWith(P);
     CI->eraseFromParent();
   }

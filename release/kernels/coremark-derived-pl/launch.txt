@@ -134,7 +134,9 @@
 #   127 e57b e57b 135a e7a0
 threads 32
 ctas 1
-entry 0x3330
+entry 0x332c
+# F: the kernel's frame bytes at the bottom of each thread's O-83 region (IS-25).
+frame 148
 const 0x2000000:0x2000100
 cta 0
 -poke 0x2000000=33554560
