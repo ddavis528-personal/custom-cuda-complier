@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-10-30-259b0c5
+# Snapshot snapshot-2026-10-30-31588ed
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `259b0c5c8f42f0c144532dd242ce91bb02dcd751`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `31588ed433beed92bdd5092a7bcbfc14d456c739`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -24,7 +24,7 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `259b0c5c8f42f0c144532dd242ce91bb02dcd751` |
+| Source | `ccr-ea1c4e17-tem30u` @ `31588ed433beed92bdd5092a7bcbfc14d456c739` |
 | Built | 2026-10-30 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
@@ -76,7 +76,7 @@ d9e3e29cdc3a7411b972a4fbef69a2bed68355798daf5f65bbf21a7cc8ae9c02  release/bench/
 570436ad10f9997d613985581afbc6bc99ce12c56fefba1e729db5a627fc7dfa  release/bench/sweep-frames.txt
 28c14ebc8397a6ec18b69bcb5ebe93a64c94cd04b97c971dd526f78ff72f423b  release/bench/sweep-tiles.txt
 361d32b0240fc340231ed7f99ea9daf3cd3928cc40dfd0b6d6236ff3584cf506  release/bin/ccv-sim
-bd0dc648ef6dbf70e63fb57efc7e9b46917dba71582f45df2b767ea413327ccc  release/bin/ccv-sim.txt
+86ab21534deb46f5ad0c2fe2c2303c62226daa016520c7992bc8f86ef71903ff  release/bin/ccv-sim.txt
 f231d365df194ce6f12f73e2437a59a115f34cf57aedebe66d7b0195e4cae4fd  release/kernels/coremark-derived-pl-fault/fault.txt
 8b8842c5494794bd649d17c4a587ba08742c3c6ec2df6871ad8d024a0713a006  release/kernels/coremark-derived-pl-fault/kernel.bin
 99167615fa013359299835de1b75f9e9c8ea1c6c5518681cef1071f599563e95  release/kernels/coremark-derived-pl-fault/kernel.s
