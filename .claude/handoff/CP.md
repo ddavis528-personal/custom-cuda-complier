@@ -40,7 +40,8 @@ Daniel before any re-run); make-release if the head is not snapshotted; pings
 on Fridays; report in a few lines.
 
 ## Register bookmarks (revs read through), scratchpad cp-register-bookmarks.json
-CP 151, IS 184, OA 295, AR 260, TI 281, OI 249, DA 100, RA 41, Conventions 15.
+CP 152, IS 185, OA 310, AR 268, TI 290, OI 252, DA 103, RA 59, Conventions 17. RI (RCU implementation, DA rev 101) has
+tab 8e4547bc-c469, session not yet in the roster.
 Sessions: AR 01FnGhxke3r33MeArLeQJRcD, OA 01TbX2MyX6quhjarDR7J2bMR,
 IS 01989HiTNh4Gx7XMSsdvdE7Z, TI 01J4Yp3xeV6DJtgCtcoqVsAq,
 OI 01DMw4FtFbGoVboMGxWpLBuv, RA 01QPk2jzLmjd3MWXjayVUy9d (RCU architect, DA rev 99;
@@ -49,8 +50,8 @@ Tabs: AR bc521c46-9710, OA 4c6a3151-83eb, IS 60e6f93a-7fdc,
 TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c.
 
 ## State
-- Last snapshot ea0b35e (aba874d): RA-19 pmov merge (CP-75), O-85 collectives
-  in .td and ccv-sim (CP-76). Before it d9ddd2c
+- Last snapshot efddc8b (b44859a); the head after it merges IS's 0aafcf5 (Format G
+  opcode points in §3). Earlier: RA-19 pmov merge (CP-75), O-85 (CP-76). Before it d9ddd2c
   (f5fa030): O-84/IS-25 frames at the bottom of the O-83 region, default.
   TI pinned d9ddd2c (core 5fe7177).
 - IS's branch ccr-3868632d-p8esoz: IS now skips equal-tree merges and
@@ -63,5 +64,7 @@ TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c.
    setup-session-home.py with Daniel's approval; --check rc=0.
 4. O-85 lowering of CUDA's __shfl_*_sync/__ballot_sync/__any_sync/__all_sync
    (F-118, F-206) is not built; offered to Daniel. IS to record CP-76's opcode
-   points; TI to take them.
+   points (done, 0aafcf5); TI to take them.
+   CP-77: the sweep should skip gate-scratch/* (TI rev 289); waits on Daniel's
+   approval to edit the sweep prompt (none exist in the compiler repo).
 5. Recent rows: CP-65..CP-76.
