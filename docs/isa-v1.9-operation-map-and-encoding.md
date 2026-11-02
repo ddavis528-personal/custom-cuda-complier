@@ -1940,7 +1940,22 @@ and `pd` both at their canonical invariant-8 positions and no new fields, as O-1
 
 **Opcode map:** `shfl.idx`, `shfl.up`, `shfl.down`, `shfl.bfly`, each with an
 immediate/register index-source bit, plus predicated `vote.any`, `vote.all`, `ballot`, and
-`unballot`.
+`unballot`. The points (O-28 makes numbering normative; recorded 2026-11-02, CP-76):
+
+| point | op | point | op |
+|---|---|---|---|
+| 0 | `shfl.idx` (immediate index) | 16 | `shfl.idx` (register index) |
+| 1 | `shfl.up` | 17 | `shfl.up` (register index) |
+| 2 | `shfl.down` | 18 | `shfl.down` (register index) |
+| 3 | `shfl.bfly` | 19 | `shfl.bfly` (register index) |
+| 4 | `vote.any` | 8 | `ballot` |
+| 5 | `vote.all` | 9 | `unballot` |
+
+Opcode bit 4 (instruction bit `[10]`) is the index-source bit. Nothing else was open: `shfl.idx`
+0, `vote.any` 4, `ballot` 8 and `unballot` 9 were assigned before the list was written out, and
+bit 4 is the only index-source bit that leaves all four where they are (bit 2 lands on
+`vote.any`, bit 3 on `ballot`). The new immediate points take list order around them. Points
+6–7, 10–15 and 20–31 are reserved.
 
 **`unballot pd, rs`** is the exact inverse of `ballot`: bit *n* of `rs` becomes lane *n*'s
 predicate bit. It fits the layout above with no new fields — `rs` at `[18:15]`, `pd` at
