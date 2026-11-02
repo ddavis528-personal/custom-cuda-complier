@@ -215,9 +215,43 @@ run_pred_spill() {
   [ "$r $w" = "4294901760 0" ] && echo "  PASS  ld.pred and st.pred move only the issuing group's lanes (O-62, O-63)" \
                                || { echo "  FAIL  predicate transfers under divergence: got $r $w, want 4294901760 0"; return 1; }
 }
+run_collectives() {
+  # O-85 (RA-20): what the collectives compute. Each control changes only the
+  # answers its rule decides.
+  python3 "$AS" "$JSON" test/collectives.s "$TMP/col.bin" >/dev/null || return 1
+  local peeks="-peek 0x30000 -peek 0x30014 -peek 0x4007c -peek 0x50010 -peek 0x6000c -peek 0x60050 -peek 0x70000 -peek 0x70050 -peek 0x90404 -peek 0x90408 -peek 0x9040c"
+  local f got ok=1
+  for f in "" -ccv-test-shfl-wrap -ccv-test-collective-issue -ccv-test-unballot-lowest; do
+    got=$("$SIM" "$TMP/col.bin" $peeks $f 2>&1 | grep -oP '\] = \K\d+' | tr '\n' ' ')
+    case "$f" in
+      "") want="0 4 31 5 6 20 0 119 4294967280 65535 4294901760 " ;;
+      -ccv-test-shfl-wrap) want="31 4 0 5 6 8 0 119 4294967280 65535 4294901760 " ;;
+      -ccv-test-collective-issue) want="0 4 31 5 6 20 4294901760 119 4294967280 0 4294967295 " ;;
+      -ccv-test-unballot-lowest) want="0 4 31 5 6 20 0 119 4294901760 65535 4294901760 " ;;
+    esac
+    [ "$got" = "$want" ] || { echo "  FAIL  collectives ${f:-(none)}: got '$got', want '$want'"; ok=0; }
+  done
+  [ $ok = 1 ] && echo "  PASS  shfl up/down/bfly and the register index, vote, ballot and the diagonal unballot (O-85; controls: wrap, issue mask, lowest lane)"
+  [ $ok = 1 ]
+}
+run_pmov_merge() {
+  # RA-19 (invariant 10, O-62): a diverged group's pmov #lanemask leaves the
+  # other group's lanes alone. The control is the ungated write.
+  python3 "$AS" "$JSON" test/pmov-merge.s "$TMP/pmv.bin" >/dev/null || return 1
+  local got ctl
+  got=$("$SIM" "$TMP/pmv.bin" -peek 0x90040 2>&1 | grep -oP '\] = \K\d+')
+  ctl=$("$SIM" "$TMP/pmv.bin" -peek 0x90040 -ccv-test-pmov-all-lanes 2>&1 | grep -oP '\] = \K\d+')
+  if [ "$got" = 4294923605 ] && [ "$ctl" = 21845 ]; then
+    echo "  PASS  pmov #lanemask writes only the issuing group's lanes (RA-19, invariant 10; control writes all 32)"
+  else
+    echo "  FAIL  pmov-merge: got '$got', want 4294923605 (control: '$ctl', want 21845)"; return 1
+  fi
+}
 echo
 echo "  --- predicate spill (IS-15) ---"
 run_pred_spill || fail=1
+run_pmov_merge || fail=1
+run_collectives || fail=1
 
 # --- one warp of a CTA of several (TI-29) ----------------------------------
 run_warp() {

@@ -1936,30 +1936,110 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::PMOV_IMM: {
     unsigned D = regOf(MI, 0);
     uint32_t LaneMask = uint32_t(MI.getOperand(1).getImm());
-    // Unpredicated and not gated by the issue mask: §3 writes bit n of the
-    // immediate to lane n's predicate bit, for all 32 lanes. That is what makes
-    // it usable to CREATE a mask -- a value gated by the current mask could not
-    // widen one.
-    W.Pred[D] = LaneMask;
+    // §3 writes bit n of the immediate to lane n's predicate bit, and
+    // invariant 10 (O-62) bounds it, as every instruction: only the issuing
+    // group's lanes change; another group's lanes are other threads and keep
+    // their bits (RA-19). Converged, that is every lane, so a mask is still
+    // created whole. -ccv-test-pmov-all-lanes is the old, ungated write.
+    W.Pred[D] = nfp::TestPmovAllLanes ? LaneMask
+                                      : (W.Pred[D] & ~Mask) | (LaneMask & Mask);
     break;
   }
 
-  // ---- Format G: shuffle -------------------------------------------------
-  case CCV::SHFL_IDX: {
+  // ---- Format G: warp-collective (O-85) ----------------------------------
+  // §3's "What the collectives compute". The participating lanes are the
+  // issue mask AND the guard; only they are written, every other lane keeps
+  // its value (invariant 10), and another PC group neither contributes nor is
+  // written (O-62).
+  case CCV::SHFL_IDX:  case CCV::SHFL_UP:  case CCV::SHFL_DOWN:  case CCV::SHFL_BFLY:
+  case CCV::SHFL_IDX_R: case CCV::SHFL_UP_R: case CCV::SHFL_DOWN_R:
+  case CCV::SHFL_BFLY_R: {
     unsigned D = regOf(MI, 0), A = regOf(MI, 2);
-    uint32_t Lane = uint32_t(MI.getOperand(3).getImm()) & 31;
     uint32_t G = guardMask(W, uint32_t(MI.getOperand(1).getImm())) & Mask;
     R.Active = G; R.ActiveSet = true;
-    // The source lane is read whether or not it is ACTIVE. A shuffle reads the
-    // register file across lanes; being masked off stops a lane writing, not
-    // its register being readable. O-33's broadcast depends on exactly this:
-    // lane 0 computes the value and is then excluded from the shuffle that
-    // distributes it.
-    uint32_t Src = W.GPR[A][Lane];
+    const bool RegIdx = Op == CCV::SHFL_IDX_R || Op == CCV::SHFL_UP_R ||
+                        Op == CCV::SHFL_DOWN_R || Op == CCV::SHFL_BFLY_R;
+    enum { Idx, Up, Down, Bfly } Mode =
+        (Op == CCV::SHFL_IDX || Op == CCV::SHFL_IDX_R)   ? Idx
+        : (Op == CCV::SHFL_UP || Op == CCV::SHFL_UP_R)   ? Up
+        : (Op == CCV::SHFL_DOWN || Op == CCV::SHFL_DOWN_R) ? Down
+                                                         : Bfly;
+    unsigned I = RegIdx ? regOf(MI, 3) : 0;
+    uint32_t Imm = RegIdx ? 0 : uint32_t(MI.getOperand(3).getImm()) & 31;
+    uint8_t WA = W.ChWidth[A], WD = W.ChWidth[D];
+    // Every lane reads before any writes: rd may be rs0 or the index register.
+    // The source lane is read whether or not it participates (§3, O-33's
+    // broadcast). The register form's c is the low 5 bits of the lane's own
+    // element of the index register. A source outside [0, 31], which only up
+    // and down can name, keeps the lane's own value, as PTX's does. Widths
+    // do not cross: the source element moves as a raw field, truncated or
+    // zero-extended into rd's (§3).
+    uint32_t Out[kLanes];
+    for (unsigned L = 0; L != kLanes; ++L) {
+      if (!((G >> L) & 1))
+        continue;
+      unsigned C = RegIdx ? narrow(W.GPR[I][L], W.ChWidth[I]) & 31 : Imm;
+      int S = Mode == Idx ? int(C) : Mode == Up ? int(L) - int(C)
+              : Mode == Down ? int(L) + int(C) : int(L ^ C);
+      if (nfp::TestShflWrap)
+        S &= 31;
+      unsigned Src = (S < 0 || S > 31) ? L : unsigned(S);
+      Out[L] = narrow(W.GPR[A][Src], WA);
+    }
     forEachLane([&](unsigned L) {
       if ((G >> L) & 1)
-        W.GPR[D][L] = Src;
+        W.GPR[D][L] = writeElem(W.GPR[D][L], Out[L], WD);
     });
+    break;
+  }
+  case CCV::VOTE_ANY:
+  case CCV::VOTE_ALL: {
+    // any = 1 if ps is set in a participating lane, all = 1 if in every one;
+    // with none participating, any = 0 and all = 1. The result goes to pd in
+    // every participating lane.
+    unsigned D = regOf(MI, 0);
+    uint32_t G = guardMask(W, uint32_t(MI.getOperand(1).getImm())) & Mask;
+    uint32_t S = guardMask(W, uint32_t(MI.getOperand(2).getImm()));
+    if (nfp::TestCollectiveIssue)
+      G = guardMask(W, uint32_t(MI.getOperand(1).getImm()));
+    R.Active = G; R.ActiveSet = true;
+    bool V = Op == CCV::VOTE_ANY ? (S & G) != 0 : (S & G) == G;
+    W.Pred[D] = (W.Pred[D] & ~G) | (V ? G : 0);
+    break;
+  }
+  case CCV::BALLOT: {
+    // rd = (ps AND the participating lanes) in every participating lane,
+    // truncated to a narrower rd.
+    unsigned D = regOf(MI, 0);
+    uint32_t G = guardMask(W, uint32_t(MI.getOperand(1).getImm())) & Mask;
+    uint32_t S = guardMask(W, uint32_t(MI.getOperand(2).getImm()));
+    if (nfp::TestCollectiveIssue)
+      G = guardMask(W, uint32_t(MI.getOperand(1).getImm()));
+    R.Active = G; R.ActiveSet = true;
+    uint32_t B = S & G;
+    uint8_t WD = W.ChWidth[D];
+    forEachLane([&](unsigned L) {
+      if ((G >> L) & 1)
+        W.GPR[D][L] = writeElem(W.GPR[D][L], B, WD);
+    });
+    break;
+  }
+  case CCV::UNBALLOT: {
+    // The diagonal: lane l's bit of pd is bit l of lane l's own rs, read at
+    // rs's width; a lane at or past that width reads 0. Nothing moves between
+    // lanes. -ccv-test-unballot-lowest is RA's lowest-lane reading, which O-85
+    // did not take.
+    unsigned D = regOf(MI, 0), A = regOf(MI, 2);
+    uint32_t G = guardMask(W, uint32_t(MI.getOperand(1).getImm())) & Mask;
+    R.Active = G; R.ActiveSet = true;
+    uint8_t WA = W.ChWidth[A];
+    uint32_t P = 0;
+    unsigned Low = G ? unsigned(llvm::countr_zero(G)) : 0;
+    for (unsigned L = 0; L != kLanes; ++L) {
+      uint32_t V = narrow(W.GPR[A][nfp::TestUnballotLowest ? Low : L], WA);
+      P |= ((V >> L) & 1u) << L;
+    }
+    W.Pred[D] = (W.Pred[D] & ~G) | (P & G);
     break;
   }
 

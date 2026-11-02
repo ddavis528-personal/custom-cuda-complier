@@ -56,6 +56,16 @@ inline bool TestAddrFull = false;
 // -ccv-test-mov-raw: a mov copies all 32 bits of rs, as ccv-sim did before
 // O-82, rather than rs's element at rd's width.
 inline bool TestMovRaw = false;
+// -ccv-test-pmov-all-lanes: pmov #lanemask writes all 32 lanes, as ccv-sim did
+// before RA-19, rather than only the issuing group's (invariant 10).
+inline bool TestPmovAllLanes = false;
+// O-85's controls: -ccv-test-shfl-wrap wraps an up/down source modulo 32
+// rather than keeping the lane's own value; -ccv-test-collective-issue lets a
+// vote or ballot count the guard's lanes outside the issue mask;
+// -ccv-test-unballot-lowest takes the lowest participating lane's whole rs.
+inline bool TestShflWrap = false;
+inline bool TestCollectiveIssue = false;
+inline bool TestUnballotLowest = false;
 // O-83's controls: -ccv-test-priv-lane0 decides on lane 0's rbase rather than
 // the lowest issuing lane's; -ccv-test-priv-contiguous lays a lane's region out
 // contiguously, b bytes from its own L-byte block, rather than interleaved.
