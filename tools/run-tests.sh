@@ -215,9 +215,23 @@ run_pred_spill() {
   [ "$r $w" = "4294901760 0" ] && echo "  PASS  ld.pred and st.pred move only the issuing group's lanes (O-62, O-63)" \
                                || { echo "  FAIL  predicate transfers under divergence: got $r $w, want 4294901760 0"; return 1; }
 }
+run_pmov_merge() {
+  # RA-19 (invariant 10, O-62): a diverged group's pmov #lanemask leaves the
+  # other group's lanes alone. The control is the ungated write.
+  python3 "$AS" "$JSON" test/pmov-merge.s "$TMP/pmv.bin" >/dev/null || return 1
+  local got ctl
+  got=$("$SIM" "$TMP/pmv.bin" -peek 0x90040 2>&1 | grep -oP '\] = \K\d+')
+  ctl=$("$SIM" "$TMP/pmv.bin" -peek 0x90040 -ccv-test-pmov-all-lanes 2>&1 | grep -oP '\] = \K\d+')
+  if [ "$got" = 4294923605 ] && [ "$ctl" = 21845 ]; then
+    echo "  PASS  pmov #lanemask writes only the issuing group's lanes (RA-19, invariant 10; control writes all 32)"
+  else
+    echo "  FAIL  pmov-merge: got '$got', want 4294923605 (control: '$ctl', want 21845)"; return 1
+  fi
+}
 echo
 echo "  --- predicate spill (IS-15) ---"
 run_pred_spill || fail=1
+run_pmov_merge || fail=1
 
 # --- one warp of a CTA of several (TI-29) ----------------------------------
 run_warp() {

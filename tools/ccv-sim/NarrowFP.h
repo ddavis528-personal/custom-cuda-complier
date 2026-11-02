@@ -56,6 +56,9 @@ inline bool TestAddrFull = false;
 // -ccv-test-mov-raw: a mov copies all 32 bits of rs, as ccv-sim did before
 // O-82, rather than rs's element at rd's width.
 inline bool TestMovRaw = false;
+// -ccv-test-pmov-all-lanes: pmov #lanemask writes all 32 lanes, as ccv-sim did
+// before RA-19, rather than only the issuing group's (invariant 10).
+inline bool TestPmovAllLanes = false;
 // O-83's controls: -ccv-test-priv-lane0 decides on lane 0's rbase rather than
 // the lowest issuing lane's; -ccv-test-priv-contiguous lays a lane's region out
 // contiguously, b bytes from its own L-byte block, rather than interleaved.

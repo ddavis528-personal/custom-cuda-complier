@@ -1936,11 +1936,13 @@ Interp::Result Interp::step(Warp &W, const MCInst &MI, uint32_t Mask,
   case CCV::PMOV_IMM: {
     unsigned D = regOf(MI, 0);
     uint32_t LaneMask = uint32_t(MI.getOperand(1).getImm());
-    // Unpredicated and not gated by the issue mask: §3 writes bit n of the
-    // immediate to lane n's predicate bit, for all 32 lanes. That is what makes
-    // it usable to CREATE a mask -- a value gated by the current mask could not
-    // widen one.
-    W.Pred[D] = LaneMask;
+    // §3 writes bit n of the immediate to lane n's predicate bit, and
+    // invariant 10 (O-62) bounds it, as every instruction: only the issuing
+    // group's lanes change; another group's lanes are other threads and keep
+    // their bits (RA-19). Converged, that is every lane, so a mask is still
+    // created whole. -ccv-test-pmov-all-lanes is the old, ungated write.
+    W.Pred[D] = nfp::TestPmovAllLanes ? LaneMask
+                                      : (W.Pred[D] & ~Mask) | (LaneMask & Mask);
     break;
   }
 
