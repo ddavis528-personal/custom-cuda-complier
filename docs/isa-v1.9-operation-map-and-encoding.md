@@ -222,6 +222,16 @@ one line. On CoreMark-derived TI measured -15.7% cycles at four warps and -7.1% 
 O-83 alone. A frame pointer becomes lane-relative, and recursion is refused. No encoding
 changes and no gates: the change is placement text and the ABI.
 
+### Warp-collective semantics defined (O-85; RA-20)
+
+Adopted by DA on 2026-11-02. v1.9 gave Format G's bit maps but not what its collectives compute
+across lanes: the source lane of `shfl.up`/`down`/`bfly`, a source out of range, the
+register-index form, which lanes a vote or ballot reads and writes, and which lane's `rs` an
+`unballot` takes. §3 now defines them, PTX-aligned. Participating lanes are the issue mask and
+the guard; only they are written. One encoding field is defined: the register-index shuffle names
+its index register at `[22:19]`, `[23]` reserved zero. No format tag or bit map otherwise
+changes.
+
 ### Still open
 
 Nothing from IS-2, IS-12 or IS-16 remains open. The SFU bound table is written (O-70).
@@ -1934,7 +1944,34 @@ immediate/register index-source bit, plus predicated `vote.any`, `vote.all`, `ba
 
 **`unballot pd, rs`** is the exact inverse of `ballot`: bit *n* of `rs` becomes lane *n*'s
 predicate bit. It fits the layout above with no new fields — `rs` at `[18:15]`, `pd` at
-`[31:30]`, both canonical. Added in 1.3; see O-14.
+`[31:30]`, both canonical. Added in 1.3; see O-14. "Bit *n* of `rs`" is lane *n*'s own `rs`
+(O-85, below).
+
+**What the collectives compute — normative (O-85).** RA-20 found that the layouts above say
+where each field sits and not what the operation does across lanes; invariant 12 does not allow
+that to stay open.
+
+- **Participating lanes.** For every collective, the participating lanes are the issue mask AND
+  the guard (the pred qualifier; Format K's unguarded `vote`/`ballot` have guard true). Only
+  participating lanes are written; every other lane keeps its value (invariant 10). A lane in
+  another PC group neither contributes nor is written (O-62).
+- **Shuffle source lane.** For lane *l* and index *c*: `shfl.idx` reads lane *c*, `shfl.up`
+  lane *l* − *c*, `shfl.down` lane *l* + *c*, `shfl.bfly` lane *l* XOR *c*. Only `up` and
+  `down` can name a lane outside [0, 31]; such a lane keeps its own value, as PTX's does. The
+  source lane is read whether or not it participates (above). There is no segment or clamp
+  operand in this revision; `[26:24]` stays reserved.
+- **Register-index form.** The opcode's index-source bit selects it. *c* is then per lane: the
+  low 5 bits of that lane's element of the index register, whose number sits at `[22:19]`, with
+  `[23]` reserved zero. The immediate form reads *c* from `[23:19]` as before.
+- **`vote.any` / `vote.all`.** `any` is 1 if `ps` is set in any participating lane, `all` is 1
+  if it is set in every one; with no participating lane, `any` = 0 and `all` = 1. The result is
+  written to `pd` in every participating lane.
+- **`ballot`.** Writes the 32-bit mask (`ps` AND the participating lanes) to `rd` in every
+  participating lane. A narrower `rd` takes it truncated, the width-mismatch rule shuffles use.
+- **`unballot`.** Lane *l*'s bit of `pd` is bit *l* of lane *l*'s own `rs`, read at `rs`'s
+  width; a lane at or past that width reads 0. No lane reads another's `rs`, so this is the one
+  collective that moves nothing between lanes. Whenever `rs` is warp-uniform, which every mask a
+  `ballot` produced is, it equals taking any one lane's whole `rs`.
 
 `unballot` and `ld.pred` address different problems and neither substitutes for the other.
 `ld.pred` reloads spilled predicate state from memory. `unballot` returns a **computed**
@@ -3488,6 +3525,24 @@ at or above the CTA's allocated count raises `F-BARRIER`, a ninth cause, at disp
 OOE against a count RAU supplies. What lost: 64 barriers per CTA, which would widen the ID to 6
 bits on both SYU channels for a reach PTX cannot use; and checking in SYU, which has no fault
 path back to OOE. No encoding changes: the field stays 6 bits, its top values reserved.
+
+---
+
+**O-85 — Warp-collective semantics defined — decided in 1.9.** RA-20, from RA's RCU build. DA's
+words: "Let's adopt your recommendation for RA-20" (2026-11-02). Format G's layouts gave every
+field's position but not what a shuffle, vote, ballot or unballot computes across lanes: the
+source lane of `up`/`down`/`bfly`, an out-of-range source, the register-index form, the lanes a
+vote or ballot reads and writes, and which lane's `rs` an `unballot` takes (`rs` is 32 lanes
+wide). RCU cannot build without them, and invariant 12 forbids leaving them open. Adopted (§3,
+Format G): participating lanes are the issue mask AND the guard, and only they are written
+(invariant 10); PTX's lane arithmetic, with an out-of-range source keeping the lane's own
+value and no segment; the register-index form's index register at `[22:19]`, `[23]` reserved
+zero; vote and ballot over the participating lanes (with none, `any` = 0 and `all` = 1); and a
+per-lane `unballot`, lane *l*'s bit from lane *l*'s own `rs`. Cost: nothing beyond what RCU
+builds for the collectives anyway; the per-lane `unballot` is a fixed wire per lane. What lost:
+RA's lowest-active-lane `unballot`, a priority pick and a 32-bit broadcast, which agrees with the
+adopted form whenever `rs` is warp-uniform. With it RA-19 confirmed that `pmov #lanemask` writes
+only the issue mask's lanes (invariant 10; no change).
 
 ---
 
