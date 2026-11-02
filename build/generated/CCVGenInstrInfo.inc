@@ -676,71 +676,79 @@ namespace CCV {
     SETP_NE_I	= 661,
     SETP_NE_NP	= 662,
     SETP_NE_NPI	= 663,
-    SHFL_IDX	= 664,
-    SHL	= 665,
-    SHLI	= 666,
-    SHLI_P	= 667,
-    SHL_P	= 668,
-    SHR	= 669,
-    SHRI	= 670,
-    SHRI_P	= 671,
-    SHR_P	= 672,
-    SIN_F32	= 673,
-    SQRT_F32	= 674,
-    SRA	= 675,
-    SRAI	= 676,
-    SRAI_P	= 677,
-    SRA_P	= 678,
-    SRD	= 679,
-    ST_GLOBAL	= 680,
-    ST_GLOBAL_IDX	= 681,
-    ST_GLOBAL_IDX_W16	= 682,
-    ST_GLOBAL_IDX_W8	= 683,
-    ST_GLOBAL_SLOT	= 684,
-    ST_GLOBAL_SLOT_W16	= 685,
-    ST_GLOBAL_SLOT_W8	= 686,
-    ST_GLOBAL_W16	= 687,
-    ST_GLOBAL_W8	= 688,
-    ST_LOCAL	= 689,
-    ST_PRED_G	= 690,
-    ST_PRED_LOCAL	= 691,
-    ST_PRED_S	= 692,
-    ST_SHARED	= 693,
-    ST_SHARED_IDX	= 694,
-    ST_SHARED_W16	= 695,
-    ST_SHARED_W8	= 696,
-    SUB	= 697,
-    SUBI	= 698,
-    SUBI_P	= 699,
-    SUB_P	= 700,
-    SUB_W16	= 701,
-    SZ_GLOBAL_LD_S16	= 702,
-    SZ_GLOBAL_LD_S16_W16	= 703,
-    SZ_GLOBAL_LD_S8	= 704,
-    SZ_GLOBAL_LD_S8_W16	= 705,
-    SZ_GLOBAL_LD_U16	= 706,
-    SZ_GLOBAL_LD_U16_W16	= 707,
-    SZ_GLOBAL_LD_U8	= 708,
-    SZ_GLOBAL_LD_U8_W16	= 709,
-    SZ_GLOBAL_ST_16	= 710,
-    SZ_GLOBAL_ST_16_W16	= 711,
-    SZ_GLOBAL_ST_8	= 712,
-    SZ_GLOBAL_ST_8_W16	= 713,
-    SZ_SHARED_LD_S16	= 714,
-    SZ_SHARED_LD_S8	= 715,
-    SZ_SHARED_LD_U16	= 716,
-    SZ_SHARED_LD_U8	= 717,
-    SZ_SHARED_ST_16	= 718,
-    SZ_SHARED_ST_8	= 719,
-    UNBALLOT	= 720,
-    UNPACKI	= 721,
-    VOTE_ANY	= 722,
-    XOR	= 723,
-    XORI	= 724,
-    XORI_P	= 725,
-    XOR_P	= 726,
-    XOR_W16	= 727,
-    INSTRUCTION_LIST_END = 728
+    SHFL_BFLY	= 664,
+    SHFL_BFLY_R	= 665,
+    SHFL_DOWN	= 666,
+    SHFL_DOWN_R	= 667,
+    SHFL_IDX	= 668,
+    SHFL_IDX_R	= 669,
+    SHFL_UP	= 670,
+    SHFL_UP_R	= 671,
+    SHL	= 672,
+    SHLI	= 673,
+    SHLI_P	= 674,
+    SHL_P	= 675,
+    SHR	= 676,
+    SHRI	= 677,
+    SHRI_P	= 678,
+    SHR_P	= 679,
+    SIN_F32	= 680,
+    SQRT_F32	= 681,
+    SRA	= 682,
+    SRAI	= 683,
+    SRAI_P	= 684,
+    SRA_P	= 685,
+    SRD	= 686,
+    ST_GLOBAL	= 687,
+    ST_GLOBAL_IDX	= 688,
+    ST_GLOBAL_IDX_W16	= 689,
+    ST_GLOBAL_IDX_W8	= 690,
+    ST_GLOBAL_SLOT	= 691,
+    ST_GLOBAL_SLOT_W16	= 692,
+    ST_GLOBAL_SLOT_W8	= 693,
+    ST_GLOBAL_W16	= 694,
+    ST_GLOBAL_W8	= 695,
+    ST_LOCAL	= 696,
+    ST_PRED_G	= 697,
+    ST_PRED_LOCAL	= 698,
+    ST_PRED_S	= 699,
+    ST_SHARED	= 700,
+    ST_SHARED_IDX	= 701,
+    ST_SHARED_W16	= 702,
+    ST_SHARED_W8	= 703,
+    SUB	= 704,
+    SUBI	= 705,
+    SUBI_P	= 706,
+    SUB_P	= 707,
+    SUB_W16	= 708,
+    SZ_GLOBAL_LD_S16	= 709,
+    SZ_GLOBAL_LD_S16_W16	= 710,
+    SZ_GLOBAL_LD_S8	= 711,
+    SZ_GLOBAL_LD_S8_W16	= 712,
+    SZ_GLOBAL_LD_U16	= 713,
+    SZ_GLOBAL_LD_U16_W16	= 714,
+    SZ_GLOBAL_LD_U8	= 715,
+    SZ_GLOBAL_LD_U8_W16	= 716,
+    SZ_GLOBAL_ST_16	= 717,
+    SZ_GLOBAL_ST_16_W16	= 718,
+    SZ_GLOBAL_ST_8	= 719,
+    SZ_GLOBAL_ST_8_W16	= 720,
+    SZ_SHARED_LD_S16	= 721,
+    SZ_SHARED_LD_S8	= 722,
+    SZ_SHARED_LD_U16	= 723,
+    SZ_SHARED_LD_U8	= 724,
+    SZ_SHARED_ST_16	= 725,
+    SZ_SHARED_ST_8	= 726,
+    UNBALLOT	= 727,
+    UNPACKI	= 728,
+    VOTE_ALL	= 729,
+    VOTE_ANY	= 730,
+    XOR	= 731,
+    XORI	= 732,
+    XORI_P	= 733,
+    XOR_P	= 734,
+    XOR_W16	= 735,
+    INSTRUCTION_LIST_END = 736
   };
 
 } // end namespace CCV
@@ -766,9 +774,9 @@ namespace Sched {
 namespace llvm {
 
 struct CCVInstrTable {
-  MCInstrDesc Insts[728];
+  MCInstrDesc Insts[736];
   static_assert(alignof(MCInstrDesc) >= alignof(MCOperandInfo), "Unwanted padding between Insts and OperandInfo");
-  MCOperandInfo OperandInfo[358];
+  MCOperandInfo OperandInfo[362];
   static_assert(alignof(MCOperandInfo) >= alignof(MCPhysReg), "Unwanted padding between OperandInfo and ImplicitOps");
   MCPhysReg ImplicitOps[1];
 };
@@ -785,70 +793,78 @@ static constexpr unsigned CCVImpOpBase = sizeof CCVInstrTable::OperandInfo / (si
 
 extern const CCVInstrTable CCVDescs = {
   {
-    { 727,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	205,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #727 = XOR_W16
-    { 726,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	194,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #726 = XOR_P
-    { 725,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	182,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #725 = XORI_P
-    { 724,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #724 = XORI
-    { 723,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	175,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #723 = XOR
-    { 722,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	355,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #722 = VOTE_ANY
-    { 721,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #721 = UNPACKI
-    { 720,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	352,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #720 = UNBALLOT
-    { 719,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #719 = SZ_SHARED_ST_8
-    { 718,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #718 = SZ_SHARED_ST_16
-    { 717,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #717 = SZ_SHARED_LD_U8
-    { 716,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #716 = SZ_SHARED_LD_U16
-    { 715,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #715 = SZ_SHARED_LD_S8
-    { 714,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #714 = SZ_SHARED_LD_S16
-    { 713,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	283,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #713 = SZ_GLOBAL_ST_8_W16
-    { 712,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #712 = SZ_GLOBAL_ST_8
-    { 711,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	283,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #711 = SZ_GLOBAL_ST_16_W16
-    { 710,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #710 = SZ_GLOBAL_ST_16
-    { 709,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	283,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #709 = SZ_GLOBAL_LD_U8_W16
-    { 708,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #708 = SZ_GLOBAL_LD_U8
-    { 707,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	283,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #707 = SZ_GLOBAL_LD_U16_W16
-    { 706,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #706 = SZ_GLOBAL_LD_U16
-    { 705,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	283,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #705 = SZ_GLOBAL_LD_S8_W16
-    { 704,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #704 = SZ_GLOBAL_LD_S8
-    { 703,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	283,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #703 = SZ_GLOBAL_LD_S16_W16
-    { 702,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #702 = SZ_GLOBAL_LD_S16
-    { 701,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	205,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #701 = SUB_W16
-    { 700,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	194,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #700 = SUB_P
-    { 699,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	182,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #699 = SUBI_P
-    { 698,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #698 = SUBI
-    { 697,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	175,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #697 = SUB
-    { 696,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	311,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #696 = ST_SHARED_W8
-    { 695,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	308,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #695 = ST_SHARED_W16
-    { 694,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #694 = ST_SHARED_IDX
-    { 693,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #693 = ST_SHARED
-    { 692,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	314,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #692 = ST_PRED_S
-    { 691,	2,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	317,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #691 = ST_PRED_LOCAL
-    { 690,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	314,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #690 = ST_PRED_G
-    { 689,	2,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	223,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #689 = ST_LOCAL
-    { 688,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	311,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #688 = ST_GLOBAL_W8
-    { 687,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	308,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #687 = ST_GLOBAL_W16
-    { 686,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	303,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #686 = ST_GLOBAL_SLOT_W8
-    { 685,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	298,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #685 = ST_GLOBAL_SLOT_W16
-    { 684,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	293,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #684 = ST_GLOBAL_SLOT
-    { 683,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	288,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #683 = ST_GLOBAL_IDX_W8
-    { 682,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	283,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #682 = ST_GLOBAL_IDX_W16
-    { 681,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #681 = ST_GLOBAL_IDX
-    { 680,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #680 = ST_GLOBAL
-    { 679,	2,	1,	2,	0,	0,	0,	CCVImpOpBase + 0,	223,	0|(1ULL<<MCID::Rematerializable)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #679 = SRD
-    { 678,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	194,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #678 = SRA_P
-    { 677,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	182,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #677 = SRAI_P
-    { 676,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #676 = SRAI
-    { 675,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	175,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #675 = SRA
-    { 674,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	175,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #674 = SQRT_F32
-    { 673,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	175,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #673 = SIN_F32
-    { 672,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	194,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #672 = SHR_P
-    { 671,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	182,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #671 = SHRI_P
-    { 670,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #670 = SHRI
-    { 669,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	175,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #669 = SHR
-    { 668,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	194,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #668 = SHL_P
-    { 667,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	182,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #667 = SHLI_P
-    { 666,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #666 = SHLI
-    { 665,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	175,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #665 = SHL
-    { 664,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	182,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #664 = SHFL_IDX
+    { 735,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	205,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #735 = XOR_W16
+    { 734,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	194,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #734 = XOR_P
+    { 733,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	182,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #733 = XORI_P
+    { 732,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #732 = XORI
+    { 731,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	175,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #731 = XOR
+    { 730,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	359,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #730 = VOTE_ANY
+    { 729,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	359,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #729 = VOTE_ALL
+    { 728,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #728 = UNPACKI
+    { 727,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	356,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #727 = UNBALLOT
+    { 726,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #726 = SZ_SHARED_ST_8
+    { 725,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #725 = SZ_SHARED_ST_16
+    { 724,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #724 = SZ_SHARED_LD_U8
+    { 723,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #723 = SZ_SHARED_LD_U16
+    { 722,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #722 = SZ_SHARED_LD_S8
+    { 721,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #721 = SZ_SHARED_LD_S16
+    { 720,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	283,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #720 = SZ_GLOBAL_ST_8_W16
+    { 719,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #719 = SZ_GLOBAL_ST_8
+    { 718,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	283,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #718 = SZ_GLOBAL_ST_16_W16
+    { 717,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #717 = SZ_GLOBAL_ST_16
+    { 716,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	283,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #716 = SZ_GLOBAL_LD_U8_W16
+    { 715,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #715 = SZ_GLOBAL_LD_U8
+    { 714,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	283,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #714 = SZ_GLOBAL_LD_U16_W16
+    { 713,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #713 = SZ_GLOBAL_LD_U16
+    { 712,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	283,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #712 = SZ_GLOBAL_LD_S8_W16
+    { 711,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #711 = SZ_GLOBAL_LD_S8
+    { 710,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	283,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #710 = SZ_GLOBAL_LD_S16_W16
+    { 709,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayLoad)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #709 = SZ_GLOBAL_LD_S16
+    { 708,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	205,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #708 = SUB_W16
+    { 707,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	194,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #707 = SUB_P
+    { 706,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	182,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #706 = SUBI_P
+    { 705,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #705 = SUBI
+    { 704,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	175,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #704 = SUB
+    { 703,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	311,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #703 = ST_SHARED_W8
+    { 702,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	308,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #702 = ST_SHARED_W16
+    { 701,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #701 = ST_SHARED_IDX
+    { 700,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #700 = ST_SHARED
+    { 699,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	314,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #699 = ST_PRED_S
+    { 698,	2,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	317,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #698 = ST_PRED_LOCAL
+    { 697,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	314,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #697 = ST_PRED_G
+    { 696,	2,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	223,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #696 = ST_LOCAL
+    { 695,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	311,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #695 = ST_GLOBAL_W8
+    { 694,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	308,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #694 = ST_GLOBAL_W16
+    { 693,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	303,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #693 = ST_GLOBAL_SLOT_W8
+    { 692,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	298,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #692 = ST_GLOBAL_SLOT_W16
+    { 691,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	293,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #691 = ST_GLOBAL_SLOT
+    { 690,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	288,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #690 = ST_GLOBAL_IDX_W8
+    { 689,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	283,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #689 = ST_GLOBAL_IDX_W16
+    { 688,	5,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	278,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #688 = ST_GLOBAL_IDX
+    { 687,	3,	0,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::MayStore)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #687 = ST_GLOBAL
+    { 686,	2,	1,	2,	0,	0,	0,	CCVImpOpBase + 0,	223,	0|(1ULL<<MCID::Rematerializable)|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #686 = SRD
+    { 685,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	194,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #685 = SRA_P
+    { 684,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	182,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #684 = SRAI_P
+    { 683,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #683 = SRAI
+    { 682,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	175,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #682 = SRA
+    { 681,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	175,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #681 = SQRT_F32
+    { 680,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	175,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #680 = SIN_F32
+    { 679,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	194,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #679 = SHR_P
+    { 678,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	182,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #678 = SHRI_P
+    { 677,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #677 = SHRI
+    { 676,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	175,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #676 = SHR
+    { 675,	5,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	194,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #675 = SHL_P
+    { 674,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	182,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #674 = SHLI_P
+    { 673,	3,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	179,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #673 = SHLI
+    { 672,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	175,	0|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #672 = SHL
+    { 671,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	352,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #671 = SHFL_UP_R
+    { 670,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	182,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #670 = SHFL_UP
+    { 669,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	352,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #669 = SHFL_IDX_R
+    { 668,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	182,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #668 = SHFL_IDX
+    { 667,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	352,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #667 = SHFL_DOWN_R
+    { 666,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	182,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #666 = SHFL_DOWN
+    { 665,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	352,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #665 = SHFL_BFLY_R
+    { 664,	4,	1,	4,	0,	0,	0,	CCVImpOpBase + 0,	182,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #664 = SHFL_BFLY
     { 663,	4,	2,	4,	0,	0,	0,	CCVImpOpBase + 0,	348,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #663 = SETP_NE_NPI
     { 662,	4,	2,	4,	0,	0,	0,	CCVImpOpBase + 0,	339,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #662 = SETP_NE_NP
     { 661,	5,	2,	4,	0,	0,	0,	CCVImpOpBase + 0,	343,	0|(1ULL<<MCID::UnmodeledSideEffects)|(1ULL<<MCID::ExtraSrcRegAllocReq)|(1ULL<<MCID::ExtraDefRegAllocReq), 0x0ULL },  // Inst #661 = SETP_NE_I
@@ -1613,8 +1629,9 @@ extern const CCVInstrTable CCVDescs = {
     /* 339 */ { CCV::PRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 }, { CCV::GPRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 }, { CCV::GPRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 }, { CCV::GPRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 },
     /* 343 */ { CCV::PRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 }, { CCV::GPRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 }, { -1, 0, CCVOp::OPERAND_PQUAL, 0 }, { CCV::GPRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 }, { -1, 0, MCOI::OPERAND_UNKNOWN, 0 },
     /* 348 */ { CCV::PRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 }, { CCV::GPRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 }, { CCV::GPRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 }, { -1, 0, MCOI::OPERAND_UNKNOWN, 0 },
-    /* 352 */ { CCV::PRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 }, { -1, 0, CCVOp::OPERAND_PQUAL, 0 }, { CCV::GPRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 },
-    /* 355 */ { CCV::PRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 }, { -1, 0, CCVOp::OPERAND_PQUAL, 0 }, { -1, 0, CCVOp::OPERAND_PSRC, 0 },
+    /* 352 */ { CCV::GPRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 }, { -1, 0, CCVOp::OPERAND_PQUAL, 0 }, { CCV::GPRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 }, { CCV::GPRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 },
+    /* 356 */ { CCV::PRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 }, { -1, 0, CCVOp::OPERAND_PQUAL, 0 }, { CCV::GPRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 },
+    /* 359 */ { CCV::PRRegClassID, 0, MCOI::OPERAND_REGISTER, 0 }, { -1, 0, CCVOp::OPERAND_PQUAL, 0 }, { -1, 0, CCVOp::OPERAND_PSRC, 0 },
   }, {
     /* 0 */
     /* 0 */ CCV::R14,
@@ -1972,439 +1989,448 @@ extern const char CCVInstrNameData[] = {
   /* 4134 */ "PATCHABLE_TYPED_EVENT_CALL\0"
   /* 4161 */ "PATCHABLE_EVENT_CALL\0"
   /* 4182 */ "FENTRY_CALL\0"
-  /* 4194 */ "KILL\0"
-  /* 4199 */ "G_CONSTANT_POOL\0"
-  /* 4215 */ "G_ROTL\0"
-  /* 4222 */ "C_FMUL\0"
-  /* 4229 */ "G_VECREDUCE_FMUL\0"
-  /* 4246 */ "G_FMUL\0"
-  /* 4253 */ "G_VECREDUCE_SEQ_FMUL\0"
-  /* 4274 */ "G_STRICT_FMUL\0"
-  /* 4288 */ "G_VECREDUCE_MUL\0"
-  /* 4304 */ "G_MUL\0"
-  /* 4310 */ "G_FREM\0"
-  /* 4317 */ "G_STRICT_FREM\0"
-  /* 4331 */ "G_SREM\0"
-  /* 4338 */ "G_UREM\0"
-  /* 4345 */ "G_SDIVREM\0"
-  /* 4355 */ "G_UDIVREM\0"
-  /* 4365 */ "PMOV_IMM\0"
-  /* 4374 */ "INLINEASM\0"
-  /* 4384 */ "G_VECREDUCE_FMINIMUM\0"
-  /* 4405 */ "G_FMINIMUM\0"
-  /* 4416 */ "G_VECREDUCE_FMAXIMUM\0"
-  /* 4437 */ "G_FMAXIMUM\0"
-  /* 4448 */ "G_FMINNUM\0"
-  /* 4458 */ "G_FMAXNUM\0"
-  /* 4468 */ "C_ANDN\0"
-  /* 4475 */ "G_INTRINSIC_ROUNDEVEN\0"
-  /* 4497 */ "G_ASSERT_ALIGN\0"
-  /* 4512 */ "G_FCOPYSIGN\0"
-  /* 4524 */ "C_FMIN\0"
-  /* 4531 */ "G_VECREDUCE_FMIN\0"
-  /* 4548 */ "G_ATOMICRMW_FMIN\0"
-  /* 4565 */ "G_VECREDUCE_SMIN\0"
-  /* 4582 */ "G_SMIN\0"
-  /* 4589 */ "G_VECREDUCE_UMIN\0"
-  /* 4606 */ "G_UMIN\0"
-  /* 4613 */ "G_ATOMICRMW_UMIN\0"
-  /* 4630 */ "G_ATOMICRMW_MIN\0"
-  /* 4646 */ "G_FSIN\0"
-  /* 4653 */ "CFI_INSTRUCTION\0"
-  /* 4669 */ "ADJCALLSTACKDOWN\0"
-  /* 4686 */ "G_SSUBO\0"
-  /* 4694 */ "G_USUBO\0"
-  /* 4702 */ "G_SADDO\0"
-  /* 4710 */ "G_UADDO\0"
-  /* 4718 */ "JUMP_TABLE_DEBUG_INFO\0"
-  /* 4740 */ "MADLO\0"
-  /* 4746 */ "G_SMULO\0"
-  /* 4754 */ "G_UMULO\0"
-  /* 4762 */ "C_MUL_LO\0"
-  /* 4771 */ "G_BZERO\0"
-  /* 4779 */ "STACKMAP\0"
-  /* 4788 */ "G_ATOMICRMW_UDEC_WRAP\0"
-  /* 4810 */ "G_ATOMICRMW_UINC_WRAP\0"
-  /* 4832 */ "G_BSWAP\0"
-  /* 4840 */ "G_SITOFP\0"
-  /* 4849 */ "G_UITOFP\0"
-  /* 4858 */ "G_FCMP\0"
-  /* 4865 */ "G_ICMP\0"
-  /* 4872 */ "SETP_GE_F1_NP\0"
-  /* 4886 */ "SETP_LE_F1_NP\0"
-  /* 4900 */ "SETP_NE_F1_NP\0"
-  /* 4914 */ "SETP_EQ_F1_NP\0"
-  /* 4928 */ "SETP_GT_F1_NP\0"
-  /* 4942 */ "SETP_LT_F1_NP\0"
-  /* 4956 */ "SETP_GE_NP\0"
-  /* 4967 */ "SETP_LE_NP\0"
-  /* 4978 */ "SETP_NE_NP\0"
-  /* 4989 */ "SETP_GE_F_NP\0"
-  /* 5002 */ "SETP_LE_F_NP\0"
-  /* 5015 */ "SETP_NE_F_NP\0"
-  /* 5028 */ "SETP_EQ_F_NP\0"
-  /* 5041 */ "SETP_GT_F_NP\0"
-  /* 5054 */ "SETP_LT_F_NP\0"
-  /* 5067 */ "SETP_EQ_NP\0"
-  /* 5078 */ "SETP_GT_NP\0"
-  /* 5089 */ "SETP_LT_NP\0"
-  /* 5100 */ "SETP_GE_U_NP\0"
-  /* 5113 */ "SETP_LE_U_NP\0"
-  /* 5126 */ "SETP_GT_U_NP\0"
-  /* 5139 */ "SETP_LT_U_NP\0"
-  /* 5152 */ "G_CTPOP\0"
-  /* 5160 */ "PATCHABLE_OP\0"
-  /* 5173 */ "FAULTING_OP\0"
-  /* 5185 */ "ADD_PP\0"
-  /* 5192 */ "ADDI_PP\0"
-  /* 5200 */ "ADJCALLSTACKUP\0"
-  /* 5215 */ "PREALLOCATED_SETUP\0"
-  /* 5234 */ "G_FLDEXP\0"
-  /* 5243 */ "G_STRICT_FLDEXP\0"
-  /* 5259 */ "G_FEXP\0"
-  /* 5266 */ "G_FFREXP\0"
-  /* 5275 */ "CVT_D0_S0_R0_P\0"
-  /* 5290 */ "CVT_D1_S0_R0_P\0"
-  /* 5305 */ "CVT_D2_S0_R0_P\0"
-  /* 5320 */ "CVT_D3_S0_R0_P\0"
-  /* 5335 */ "CVT_D0_S1_R0_P\0"
-  /* 5350 */ "CVT_D1_S1_R0_P\0"
-  /* 5365 */ "CVT_D2_S1_R0_P\0"
-  /* 5380 */ "CVT_D3_S1_R0_P\0"
-  /* 5395 */ "CVT_D1_S2_R0_P\0"
-  /* 5410 */ "CVT_D3_S2_R0_P\0"
-  /* 5425 */ "CVT_D1_S3_R0_P\0"
-  /* 5440 */ "CVT_D2_S3_R0_P\0"
-  /* 5455 */ "CVT_D3_S3_R0_P\0"
-  /* 5470 */ "CVT_D0_S0_R1_P\0"
-  /* 5485 */ "CVT_D1_S0_R1_P\0"
-  /* 5500 */ "CVT_D0_S1_R1_P\0"
-  /* 5515 */ "CVT_D1_S1_R1_P\0"
-  /* 5530 */ "CVT_D2_S1_R1_P\0"
-  /* 5545 */ "CVT_D3_S1_R1_P\0"
-  /* 5560 */ "CVT_D0_S2_R1_P\0"
-  /* 5575 */ "CVT_D1_S2_R1_P\0"
-  /* 5590 */ "CVT_D0_S3_R1_P\0"
-  /* 5605 */ "CVT_D1_S3_R1_P\0"
-  /* 5620 */ "CVT_S32_F32_P\0"
-  /* 5634 */ "CVT_U32_F32_P\0"
-  /* 5648 */ "RCP_F32_P\0"
-  /* 5658 */ "CVT_F32_S32_P\0"
-  /* 5672 */ "CVT_F32_U32_P\0"
-  /* 5686 */ "CVT_D0_S0_R2_P\0"
-  /* 5701 */ "CVT_D1_S0_R2_P\0"
-  /* 5716 */ "CVT_D2_S0_R2_P\0"
-  /* 5731 */ "CVT_D3_S0_R2_P\0"
-  /* 5746 */ "CVT_D0_S1_R2_P\0"
-  /* 5761 */ "CVT_D1_S1_R2_P\0"
-  /* 5776 */ "CVT_D2_S1_R2_P\0"
-  /* 5791 */ "CVT_D3_S1_R2_P\0"
-  /* 5806 */ "CVT_D0_S2_R2_P\0"
-  /* 5821 */ "CVT_D1_S2_R2_P\0"
-  /* 5836 */ "CVT_D0_S3_R2_P\0"
-  /* 5851 */ "CVT_D1_S3_R2_P\0"
-  /* 5866 */ "CVT_D0_S0_R3_P\0"
-  /* 5881 */ "CVT_D1_S0_R3_P\0"
-  /* 5896 */ "CVT_D2_S0_R3_P\0"
-  /* 5911 */ "CVT_D3_S0_R3_P\0"
-  /* 5926 */ "CVT_D0_S1_R3_P\0"
-  /* 5941 */ "CVT_D1_S1_R3_P\0"
-  /* 5956 */ "CVT_D2_S1_R3_P\0"
-  /* 5971 */ "CVT_D3_S1_R3_P\0"
-  /* 5986 */ "CVT_D0_S2_R3_P\0"
-  /* 6001 */ "CVT_D1_S2_R3_P\0"
-  /* 6016 */ "CVT_D0_S3_R3_P\0"
-  /* 6031 */ "CVT_D1_S3_R3_P\0"
-  /* 6046 */ "SRA_P\0"
-  /* 6052 */ "FSUB_P\0"
-  /* 6059 */ "FADD_P\0"
-  /* 6066 */ "AND_P\0"
-  /* 6072 */ "SRAI_P\0"
-  /* 6079 */ "SUBI_P\0"
-  /* 6086 */ "ADDI_P\0"
-  /* 6093 */ "ANDI_P\0"
-  /* 6100 */ "SHLI_P\0"
-  /* 6107 */ "MULI_P\0"
-  /* 6114 */ "ANDNI_P\0"
-  /* 6122 */ "SHRI_P\0"
-  /* 6129 */ "XORI_P\0"
-  /* 6136 */ "LD_GLOBAL_P\0"
-  /* 6148 */ "SHL_P\0"
-  /* 6154 */ "FMUL_P\0"
-  /* 6161 */ "MADLO_P\0"
-  /* 6169 */ "SHR_P\0"
-  /* 6175 */ "XOR_P\0"
-  /* 6181 */ "MUL_HI_S_P\0"
-  /* 6192 */ "MIN_S_P\0"
-  /* 6200 */ "MAX_S_P\0"
-  /* 6208 */ "MUL_HI_U_P\0"
-  /* 6219 */ "MIN_U_P\0"
-  /* 6227 */ "MAX_U_P\0"
-  /* 6235 */ "MOV_P\0"
-  /* 6241 */ "SETP_EQ\0"
-  /* 6249 */ "G_BR\0"
-  /* 6254 */ "INLINEASM_BR\0"
-  /* 6267 */ "G_BLOCK_ADDR\0"
-  /* 6280 */ "MEMBARRIER\0"
-  /* 6291 */ "G_CONSTANT_FOLD_BARRIER\0"
-  /* 6315 */ "PATCHABLE_FUNCTION_ENTER\0"
-  /* 6340 */ "G_READCYCLECOUNTER\0"
-  /* 6359 */ "G_READ_REGISTER\0"
-  /* 6375 */ "G_WRITE_REGISTER\0"
-  /* 6392 */ "G_ASHR\0"
-  /* 6399 */ "G_FSHR\0"
-  /* 6406 */ "G_LSHR\0"
-  /* 6413 */ "C_SHR\0"
-  /* 6419 */ "G_FFLOOR\0"
-  /* 6428 */ "PSEUDO_PRIVFLOOR\0"
-  /* 6445 */ "PSEUDO_POR\0"
-  /* 6456 */ "G_BUILD_VECTOR\0"
-  /* 6471 */ "G_SHUFFLE_VECTOR\0"
-  /* 6488 */ "PSEUDO_PXOR\0"
-  /* 6500 */ "C_XOR\0"
-  /* 6506 */ "G_VECREDUCE_XOR\0"
-  /* 6522 */ "G_XOR\0"
-  /* 6528 */ "G_ATOMICRMW_XOR\0"
-  /* 6544 */ "C_OR\0"
-  /* 6549 */ "G_VECREDUCE_OR\0"
-  /* 6564 */ "G_OR\0"
-  /* 6569 */ "G_ATOMICRMW_OR\0"
-  /* 6584 */ "G_ROTR\0"
-  /* 6591 */ "G_INTTOPTR\0"
-  /* 6602 */ "G_FABS\0"
-  /* 6609 */ "C_ABS\0"
-  /* 6615 */ "G_ABS\0"
-  /* 6621 */ "G_UNMERGE_VALUES\0"
-  /* 6638 */ "G_MERGE_VALUES\0"
-  /* 6653 */ "G_FCOS\0"
-  /* 6660 */ "G_CONCAT_VECTORS\0"
-  /* 6677 */ "COPY_TO_REGCLASS\0"
-  /* 6694 */ "G_IS_FPCLASS\0"
-  /* 6707 */ "G_ATOMIC_CMPXCHG_WITH_SUCCESS\0"
-  /* 6737 */ "DP4_SS\0"
-  /* 6744 */ "G_INTRINSIC_W_SIDE_EFFECTS\0"
-  /* 6771 */ "G_INTRINSIC_CONVERGENT_W_SIDE_EFFECTS\0"
-  /* 6809 */ "ATOM_ADD_S\0"
-  /* 6820 */ "LD_PRED_S\0"
-  /* 6830 */ "ST_PRED_S\0"
-  /* 6840 */ "ATOM_AND_S\0"
-  /* 6851 */ "ATOM_ADD_F_S\0"
-  /* 6864 */ "ATOM_EXCH_S\0"
-  /* 6876 */ "MUL_HI_S\0"
-  /* 6885 */ "C_MIN_S\0"
-  /* 6893 */ "ATOM_XOR_S\0"
-  /* 6904 */ "ATOM_OR_S\0"
-  /* 6914 */ "PSEUDO_CAS_S\0"
-  /* 6927 */ "ATOM_MIN_S_S\0"
-  /* 6940 */ "ATOM_MAX_S_S\0"
-  /* 6953 */ "ATOM_MIN_U_S\0"
-  /* 6966 */ "ATOM_MAX_U_S\0"
-  /* 6979 */ "C_MAX_S\0"
-  /* 6987 */ "G_SSUBSAT\0"
-  /* 6997 */ "G_USUBSAT\0"
-  /* 7007 */ "G_SADDSAT\0"
-  /* 7017 */ "G_UADDSAT\0"
-  /* 7027 */ "G_SSHLSAT\0"
-  /* 7037 */ "G_USHLSAT\0"
-  /* 7047 */ "G_SMULFIXSAT\0"
-  /* 7060 */ "G_UMULFIXSAT\0"
-  /* 7073 */ "G_SDIVFIXSAT\0"
-  /* 7086 */ "G_UDIVFIXSAT\0"
-  /* 7099 */ "G_EXTRACT\0"
-  /* 7109 */ "G_SELECT\0"
-  /* 7118 */ "G_BRINDIRECT\0"
-  /* 7131 */ "C_RET\0"
-  /* 7137 */ "PATCHABLE_RET\0"
-  /* 7151 */ "PSEUDO_RET\0"
-  /* 7162 */ "G_MEMSET\0"
-  /* 7171 */ "SETP_GT\0"
-  /* 7179 */ "C_BAR_WAIT\0"
-  /* 7190 */ "BAR_INIT\0"
-  /* 7199 */ "C_EXIT\0"
-  /* 7206 */ "PATCHABLE_FUNCTION_EXIT\0"
-  /* 7230 */ "G_BRJT\0"
-  /* 7237 */ "G_EXTRACT_VECTOR_ELT\0"
-  /* 7258 */ "G_INSERT_VECTOR_ELT\0"
-  /* 7278 */ "SETP_LT\0"
-  /* 7286 */ "G_FCONSTANT\0"
-  /* 7298 */ "G_CONSTANT\0"
-  /* 7309 */ "G_INTRINSIC_CONVERGENT\0"
-  /* 7332 */ "STATEPOINT\0"
-  /* 7343 */ "PATCHPOINT\0"
-  /* 7354 */ "G_PTRTOINT\0"
-  /* 7365 */ "G_FRINT\0"
-  /* 7373 */ "G_INTRINSIC_LRINT\0"
-  /* 7391 */ "G_FNEARBYINT\0"
-  /* 7404 */ "UNBALLOT\0"
-  /* 7413 */ "LD_GLOBAL_SLOT\0"
-  /* 7428 */ "ST_GLOBAL_SLOT\0"
-  /* 7443 */ "C_NOT\0"
-  /* 7449 */ "G_VASTART\0"
-  /* 7459 */ "LIFETIME_START\0"
-  /* 7474 */ "G_INVOKE_REGION_START\0"
-  /* 7496 */ "G_INSERT\0"
-  /* 7505 */ "G_FSQRT\0"
-  /* 7513 */ "G_STRICT_FSQRT\0"
-  /* 7528 */ "PSEUDO_BCAST\0"
-  /* 7541 */ "G_BITCAST\0"
-  /* 7551 */ "G_ADDRSPACE_CAST\0"
-  /* 7568 */ "DBG_VALUE_LIST\0"
-  /* 7583 */ "G_FPEXT\0"
-  /* 7591 */ "G_SEXT\0"
-  /* 7598 */ "G_ASSERT_SEXT\0"
-  /* 7612 */ "CVT_SEXT\0"
-  /* 7621 */ "G_ANYEXT\0"
-  /* 7630 */ "G_ZEXT\0"
-  /* 7637 */ "G_ASSERT_ZEXT\0"
-  /* 7651 */ "SETP_GE_U\0"
-  /* 7661 */ "SETP_LE_U\0"
-  /* 7671 */ "MUL_HI_U\0"
-  /* 7680 */ "C_MIN_U\0"
-  /* 7688 */ "SETP_GT_U\0"
-  /* 7698 */ "SETP_LT_U\0"
-  /* 7708 */ "C_MAX_U\0"
-  /* 7716 */ "BREV\0"
-  /* 7721 */ "G_FDIV\0"
-  /* 7728 */ "G_STRICT_FDIV\0"
-  /* 7742 */ "G_SDIV\0"
-  /* 7749 */ "G_UDIV\0"
-  /* 7756 */ "G_GET_FPENV\0"
-  /* 7768 */ "G_RESET_FPENV\0"
-  /* 7782 */ "G_SET_FPENV\0"
-  /* 7794 */ "C_RECONV\0"
-  /* 7803 */ "PSEUDO_PMOV\0"
-  /* 7815 */ "C_MOV\0"
-  /* 7821 */ "G_FPOW\0"
-  /* 7828 */ "PSEUDO_NARROW\0"
-  /* 7842 */ "C_FMAX\0"
-  /* 7849 */ "G_VECREDUCE_FMAX\0"
-  /* 7866 */ "G_ATOMICRMW_FMAX\0"
-  /* 7883 */ "G_VECREDUCE_SMAX\0"
-  /* 7900 */ "G_SMAX\0"
-  /* 7907 */ "G_VECREDUCE_UMAX\0"
-  /* 7924 */ "G_UMAX\0"
-  /* 7931 */ "G_ATOMICRMW_UMAX\0"
-  /* 7948 */ "G_ATOMICRMW_MAX\0"
-  /* 7964 */ "LD_SHARED_IDX\0"
-  /* 7978 */ "ST_SHARED_IDX\0"
-  /* 7992 */ "LD_GLOBAL_IDX\0"
-  /* 8006 */ "ST_GLOBAL_IDX\0"
-  /* 8020 */ "SHFL_IDX\0"
-  /* 8029 */ "G_FRAME_INDEX\0"
-  /* 8043 */ "G_SBFX\0"
-  /* 8050 */ "G_UBFX\0"
-  /* 8057 */ "G_SMULFIX\0"
-  /* 8067 */ "G_UMULFIX\0"
-  /* 8077 */ "G_SDIVFIX\0"
-  /* 8087 */ "G_UDIVFIX\0"
-  /* 8097 */ "VOTE_ANY\0"
-  /* 8106 */ "G_MEMCPY\0"
-  /* 8115 */ "COPY\0"
-  /* 8120 */ "CLZ\0"
-  /* 8124 */ "G_CTLZ\0"
-  /* 8131 */ "G_CTTZ\0"
-  /* 8138 */ "PACKI_Z\0"
+  /* 4194 */ "VOTE_ALL\0"
+  /* 4203 */ "KILL\0"
+  /* 4208 */ "G_CONSTANT_POOL\0"
+  /* 4224 */ "G_ROTL\0"
+  /* 4231 */ "C_FMUL\0"
+  /* 4238 */ "G_VECREDUCE_FMUL\0"
+  /* 4255 */ "G_FMUL\0"
+  /* 4262 */ "G_VECREDUCE_SEQ_FMUL\0"
+  /* 4283 */ "G_STRICT_FMUL\0"
+  /* 4297 */ "G_VECREDUCE_MUL\0"
+  /* 4313 */ "G_MUL\0"
+  /* 4319 */ "G_FREM\0"
+  /* 4326 */ "G_STRICT_FREM\0"
+  /* 4340 */ "G_SREM\0"
+  /* 4347 */ "G_UREM\0"
+  /* 4354 */ "G_SDIVREM\0"
+  /* 4364 */ "G_UDIVREM\0"
+  /* 4374 */ "PMOV_IMM\0"
+  /* 4383 */ "INLINEASM\0"
+  /* 4393 */ "G_VECREDUCE_FMINIMUM\0"
+  /* 4414 */ "G_FMINIMUM\0"
+  /* 4425 */ "G_VECREDUCE_FMAXIMUM\0"
+  /* 4446 */ "G_FMAXIMUM\0"
+  /* 4457 */ "G_FMINNUM\0"
+  /* 4467 */ "G_FMAXNUM\0"
+  /* 4477 */ "C_ANDN\0"
+  /* 4484 */ "G_INTRINSIC_ROUNDEVEN\0"
+  /* 4506 */ "G_ASSERT_ALIGN\0"
+  /* 4521 */ "G_FCOPYSIGN\0"
+  /* 4533 */ "C_FMIN\0"
+  /* 4540 */ "G_VECREDUCE_FMIN\0"
+  /* 4557 */ "G_ATOMICRMW_FMIN\0"
+  /* 4574 */ "G_VECREDUCE_SMIN\0"
+  /* 4591 */ "G_SMIN\0"
+  /* 4598 */ "G_VECREDUCE_UMIN\0"
+  /* 4615 */ "G_UMIN\0"
+  /* 4622 */ "G_ATOMICRMW_UMIN\0"
+  /* 4639 */ "G_ATOMICRMW_MIN\0"
+  /* 4655 */ "G_FSIN\0"
+  /* 4662 */ "CFI_INSTRUCTION\0"
+  /* 4678 */ "ADJCALLSTACKDOWN\0"
+  /* 4695 */ "SHFL_DOWN\0"
+  /* 4705 */ "G_SSUBO\0"
+  /* 4713 */ "G_USUBO\0"
+  /* 4721 */ "G_SADDO\0"
+  /* 4729 */ "G_UADDO\0"
+  /* 4737 */ "JUMP_TABLE_DEBUG_INFO\0"
+  /* 4759 */ "MADLO\0"
+  /* 4765 */ "G_SMULO\0"
+  /* 4773 */ "G_UMULO\0"
+  /* 4781 */ "C_MUL_LO\0"
+  /* 4790 */ "G_BZERO\0"
+  /* 4798 */ "STACKMAP\0"
+  /* 4807 */ "G_ATOMICRMW_UDEC_WRAP\0"
+  /* 4829 */ "G_ATOMICRMW_UINC_WRAP\0"
+  /* 4851 */ "G_BSWAP\0"
+  /* 4859 */ "G_SITOFP\0"
+  /* 4868 */ "G_UITOFP\0"
+  /* 4877 */ "G_FCMP\0"
+  /* 4884 */ "G_ICMP\0"
+  /* 4891 */ "SETP_GE_F1_NP\0"
+  /* 4905 */ "SETP_LE_F1_NP\0"
+  /* 4919 */ "SETP_NE_F1_NP\0"
+  /* 4933 */ "SETP_EQ_F1_NP\0"
+  /* 4947 */ "SETP_GT_F1_NP\0"
+  /* 4961 */ "SETP_LT_F1_NP\0"
+  /* 4975 */ "SETP_GE_NP\0"
+  /* 4986 */ "SETP_LE_NP\0"
+  /* 4997 */ "SETP_NE_NP\0"
+  /* 5008 */ "SETP_GE_F_NP\0"
+  /* 5021 */ "SETP_LE_F_NP\0"
+  /* 5034 */ "SETP_NE_F_NP\0"
+  /* 5047 */ "SETP_EQ_F_NP\0"
+  /* 5060 */ "SETP_GT_F_NP\0"
+  /* 5073 */ "SETP_LT_F_NP\0"
+  /* 5086 */ "SETP_EQ_NP\0"
+  /* 5097 */ "SETP_GT_NP\0"
+  /* 5108 */ "SETP_LT_NP\0"
+  /* 5119 */ "SETP_GE_U_NP\0"
+  /* 5132 */ "SETP_LE_U_NP\0"
+  /* 5145 */ "SETP_GT_U_NP\0"
+  /* 5158 */ "SETP_LT_U_NP\0"
+  /* 5171 */ "G_CTPOP\0"
+  /* 5179 */ "PATCHABLE_OP\0"
+  /* 5192 */ "FAULTING_OP\0"
+  /* 5204 */ "ADD_PP\0"
+  /* 5211 */ "ADDI_PP\0"
+  /* 5219 */ "ADJCALLSTACKUP\0"
+  /* 5234 */ "PREALLOCATED_SETUP\0"
+  /* 5253 */ "SHFL_UP\0"
+  /* 5261 */ "G_FLDEXP\0"
+  /* 5270 */ "G_STRICT_FLDEXP\0"
+  /* 5286 */ "G_FEXP\0"
+  /* 5293 */ "G_FFREXP\0"
+  /* 5302 */ "CVT_D0_S0_R0_P\0"
+  /* 5317 */ "CVT_D1_S0_R0_P\0"
+  /* 5332 */ "CVT_D2_S0_R0_P\0"
+  /* 5347 */ "CVT_D3_S0_R0_P\0"
+  /* 5362 */ "CVT_D0_S1_R0_P\0"
+  /* 5377 */ "CVT_D1_S1_R0_P\0"
+  /* 5392 */ "CVT_D2_S1_R0_P\0"
+  /* 5407 */ "CVT_D3_S1_R0_P\0"
+  /* 5422 */ "CVT_D1_S2_R0_P\0"
+  /* 5437 */ "CVT_D3_S2_R0_P\0"
+  /* 5452 */ "CVT_D1_S3_R0_P\0"
+  /* 5467 */ "CVT_D2_S3_R0_P\0"
+  /* 5482 */ "CVT_D3_S3_R0_P\0"
+  /* 5497 */ "CVT_D0_S0_R1_P\0"
+  /* 5512 */ "CVT_D1_S0_R1_P\0"
+  /* 5527 */ "CVT_D0_S1_R1_P\0"
+  /* 5542 */ "CVT_D1_S1_R1_P\0"
+  /* 5557 */ "CVT_D2_S1_R1_P\0"
+  /* 5572 */ "CVT_D3_S1_R1_P\0"
+  /* 5587 */ "CVT_D0_S2_R1_P\0"
+  /* 5602 */ "CVT_D1_S2_R1_P\0"
+  /* 5617 */ "CVT_D0_S3_R1_P\0"
+  /* 5632 */ "CVT_D1_S3_R1_P\0"
+  /* 5647 */ "CVT_S32_F32_P\0"
+  /* 5661 */ "CVT_U32_F32_P\0"
+  /* 5675 */ "RCP_F32_P\0"
+  /* 5685 */ "CVT_F32_S32_P\0"
+  /* 5699 */ "CVT_F32_U32_P\0"
+  /* 5713 */ "CVT_D0_S0_R2_P\0"
+  /* 5728 */ "CVT_D1_S0_R2_P\0"
+  /* 5743 */ "CVT_D2_S0_R2_P\0"
+  /* 5758 */ "CVT_D3_S0_R2_P\0"
+  /* 5773 */ "CVT_D0_S1_R2_P\0"
+  /* 5788 */ "CVT_D1_S1_R2_P\0"
+  /* 5803 */ "CVT_D2_S1_R2_P\0"
+  /* 5818 */ "CVT_D3_S1_R2_P\0"
+  /* 5833 */ "CVT_D0_S2_R2_P\0"
+  /* 5848 */ "CVT_D1_S2_R2_P\0"
+  /* 5863 */ "CVT_D0_S3_R2_P\0"
+  /* 5878 */ "CVT_D1_S3_R2_P\0"
+  /* 5893 */ "CVT_D0_S0_R3_P\0"
+  /* 5908 */ "CVT_D1_S0_R3_P\0"
+  /* 5923 */ "CVT_D2_S0_R3_P\0"
+  /* 5938 */ "CVT_D3_S0_R3_P\0"
+  /* 5953 */ "CVT_D0_S1_R3_P\0"
+  /* 5968 */ "CVT_D1_S1_R3_P\0"
+  /* 5983 */ "CVT_D2_S1_R3_P\0"
+  /* 5998 */ "CVT_D3_S1_R3_P\0"
+  /* 6013 */ "CVT_D0_S2_R3_P\0"
+  /* 6028 */ "CVT_D1_S2_R3_P\0"
+  /* 6043 */ "CVT_D0_S3_R3_P\0"
+  /* 6058 */ "CVT_D1_S3_R3_P\0"
+  /* 6073 */ "SRA_P\0"
+  /* 6079 */ "FSUB_P\0"
+  /* 6086 */ "FADD_P\0"
+  /* 6093 */ "AND_P\0"
+  /* 6099 */ "SRAI_P\0"
+  /* 6106 */ "SUBI_P\0"
+  /* 6113 */ "ADDI_P\0"
+  /* 6120 */ "ANDI_P\0"
+  /* 6127 */ "SHLI_P\0"
+  /* 6134 */ "MULI_P\0"
+  /* 6141 */ "ANDNI_P\0"
+  /* 6149 */ "SHRI_P\0"
+  /* 6156 */ "XORI_P\0"
+  /* 6163 */ "LD_GLOBAL_P\0"
+  /* 6175 */ "SHL_P\0"
+  /* 6181 */ "FMUL_P\0"
+  /* 6188 */ "MADLO_P\0"
+  /* 6196 */ "SHR_P\0"
+  /* 6202 */ "XOR_P\0"
+  /* 6208 */ "MUL_HI_S_P\0"
+  /* 6219 */ "MIN_S_P\0"
+  /* 6227 */ "MAX_S_P\0"
+  /* 6235 */ "MUL_HI_U_P\0"
+  /* 6246 */ "MIN_U_P\0"
+  /* 6254 */ "MAX_U_P\0"
+  /* 6262 */ "MOV_P\0"
+  /* 6268 */ "SETP_EQ\0"
+  /* 6276 */ "G_BR\0"
+  /* 6281 */ "INLINEASM_BR\0"
+  /* 6294 */ "G_BLOCK_ADDR\0"
+  /* 6307 */ "MEMBARRIER\0"
+  /* 6318 */ "G_CONSTANT_FOLD_BARRIER\0"
+  /* 6342 */ "PATCHABLE_FUNCTION_ENTER\0"
+  /* 6367 */ "G_READCYCLECOUNTER\0"
+  /* 6386 */ "G_READ_REGISTER\0"
+  /* 6402 */ "G_WRITE_REGISTER\0"
+  /* 6419 */ "G_ASHR\0"
+  /* 6426 */ "G_FSHR\0"
+  /* 6433 */ "G_LSHR\0"
+  /* 6440 */ "C_SHR\0"
+  /* 6446 */ "G_FFLOOR\0"
+  /* 6455 */ "PSEUDO_PRIVFLOOR\0"
+  /* 6472 */ "PSEUDO_POR\0"
+  /* 6483 */ "G_BUILD_VECTOR\0"
+  /* 6498 */ "G_SHUFFLE_VECTOR\0"
+  /* 6515 */ "PSEUDO_PXOR\0"
+  /* 6527 */ "C_XOR\0"
+  /* 6533 */ "G_VECREDUCE_XOR\0"
+  /* 6549 */ "G_XOR\0"
+  /* 6555 */ "G_ATOMICRMW_XOR\0"
+  /* 6571 */ "C_OR\0"
+  /* 6576 */ "G_VECREDUCE_OR\0"
+  /* 6591 */ "G_OR\0"
+  /* 6596 */ "G_ATOMICRMW_OR\0"
+  /* 6611 */ "G_ROTR\0"
+  /* 6618 */ "G_INTTOPTR\0"
+  /* 6629 */ "SHFL_DOWN_R\0"
+  /* 6641 */ "SHFL_UP_R\0"
+  /* 6651 */ "SHFL_IDX_R\0"
+  /* 6662 */ "SHFL_BFLY_R\0"
+  /* 6674 */ "G_FABS\0"
+  /* 6681 */ "C_ABS\0"
+  /* 6687 */ "G_ABS\0"
+  /* 6693 */ "G_UNMERGE_VALUES\0"
+  /* 6710 */ "G_MERGE_VALUES\0"
+  /* 6725 */ "G_FCOS\0"
+  /* 6732 */ "G_CONCAT_VECTORS\0"
+  /* 6749 */ "COPY_TO_REGCLASS\0"
+  /* 6766 */ "G_IS_FPCLASS\0"
+  /* 6779 */ "G_ATOMIC_CMPXCHG_WITH_SUCCESS\0"
+  /* 6809 */ "DP4_SS\0"
+  /* 6816 */ "G_INTRINSIC_W_SIDE_EFFECTS\0"
+  /* 6843 */ "G_INTRINSIC_CONVERGENT_W_SIDE_EFFECTS\0"
+  /* 6881 */ "ATOM_ADD_S\0"
+  /* 6892 */ "LD_PRED_S\0"
+  /* 6902 */ "ST_PRED_S\0"
+  /* 6912 */ "ATOM_AND_S\0"
+  /* 6923 */ "ATOM_ADD_F_S\0"
+  /* 6936 */ "ATOM_EXCH_S\0"
+  /* 6948 */ "MUL_HI_S\0"
+  /* 6957 */ "C_MIN_S\0"
+  /* 6965 */ "ATOM_XOR_S\0"
+  /* 6976 */ "ATOM_OR_S\0"
+  /* 6986 */ "PSEUDO_CAS_S\0"
+  /* 6999 */ "ATOM_MIN_S_S\0"
+  /* 7012 */ "ATOM_MAX_S_S\0"
+  /* 7025 */ "ATOM_MIN_U_S\0"
+  /* 7038 */ "ATOM_MAX_U_S\0"
+  /* 7051 */ "C_MAX_S\0"
+  /* 7059 */ "G_SSUBSAT\0"
+  /* 7069 */ "G_USUBSAT\0"
+  /* 7079 */ "G_SADDSAT\0"
+  /* 7089 */ "G_UADDSAT\0"
+  /* 7099 */ "G_SSHLSAT\0"
+  /* 7109 */ "G_USHLSAT\0"
+  /* 7119 */ "G_SMULFIXSAT\0"
+  /* 7132 */ "G_UMULFIXSAT\0"
+  /* 7145 */ "G_SDIVFIXSAT\0"
+  /* 7158 */ "G_UDIVFIXSAT\0"
+  /* 7171 */ "G_EXTRACT\0"
+  /* 7181 */ "G_SELECT\0"
+  /* 7190 */ "G_BRINDIRECT\0"
+  /* 7203 */ "C_RET\0"
+  /* 7209 */ "PATCHABLE_RET\0"
+  /* 7223 */ "PSEUDO_RET\0"
+  /* 7234 */ "G_MEMSET\0"
+  /* 7243 */ "SETP_GT\0"
+  /* 7251 */ "C_BAR_WAIT\0"
+  /* 7262 */ "BAR_INIT\0"
+  /* 7271 */ "C_EXIT\0"
+  /* 7278 */ "PATCHABLE_FUNCTION_EXIT\0"
+  /* 7302 */ "G_BRJT\0"
+  /* 7309 */ "G_EXTRACT_VECTOR_ELT\0"
+  /* 7330 */ "G_INSERT_VECTOR_ELT\0"
+  /* 7350 */ "SETP_LT\0"
+  /* 7358 */ "G_FCONSTANT\0"
+  /* 7370 */ "G_CONSTANT\0"
+  /* 7381 */ "G_INTRINSIC_CONVERGENT\0"
+  /* 7404 */ "STATEPOINT\0"
+  /* 7415 */ "PATCHPOINT\0"
+  /* 7426 */ "G_PTRTOINT\0"
+  /* 7437 */ "G_FRINT\0"
+  /* 7445 */ "G_INTRINSIC_LRINT\0"
+  /* 7463 */ "G_FNEARBYINT\0"
+  /* 7476 */ "UNBALLOT\0"
+  /* 7485 */ "LD_GLOBAL_SLOT\0"
+  /* 7500 */ "ST_GLOBAL_SLOT\0"
+  /* 7515 */ "C_NOT\0"
+  /* 7521 */ "G_VASTART\0"
+  /* 7531 */ "LIFETIME_START\0"
+  /* 7546 */ "G_INVOKE_REGION_START\0"
+  /* 7568 */ "G_INSERT\0"
+  /* 7577 */ "G_FSQRT\0"
+  /* 7585 */ "G_STRICT_FSQRT\0"
+  /* 7600 */ "PSEUDO_BCAST\0"
+  /* 7613 */ "G_BITCAST\0"
+  /* 7623 */ "G_ADDRSPACE_CAST\0"
+  /* 7640 */ "DBG_VALUE_LIST\0"
+  /* 7655 */ "G_FPEXT\0"
+  /* 7663 */ "G_SEXT\0"
+  /* 7670 */ "G_ASSERT_SEXT\0"
+  /* 7684 */ "CVT_SEXT\0"
+  /* 7693 */ "G_ANYEXT\0"
+  /* 7702 */ "G_ZEXT\0"
+  /* 7709 */ "G_ASSERT_ZEXT\0"
+  /* 7723 */ "SETP_GE_U\0"
+  /* 7733 */ "SETP_LE_U\0"
+  /* 7743 */ "MUL_HI_U\0"
+  /* 7752 */ "C_MIN_U\0"
+  /* 7760 */ "SETP_GT_U\0"
+  /* 7770 */ "SETP_LT_U\0"
+  /* 7780 */ "C_MAX_U\0"
+  /* 7788 */ "BREV\0"
+  /* 7793 */ "G_FDIV\0"
+  /* 7800 */ "G_STRICT_FDIV\0"
+  /* 7814 */ "G_SDIV\0"
+  /* 7821 */ "G_UDIV\0"
+  /* 7828 */ "G_GET_FPENV\0"
+  /* 7840 */ "G_RESET_FPENV\0"
+  /* 7854 */ "G_SET_FPENV\0"
+  /* 7866 */ "C_RECONV\0"
+  /* 7875 */ "PSEUDO_PMOV\0"
+  /* 7887 */ "C_MOV\0"
+  /* 7893 */ "G_FPOW\0"
+  /* 7900 */ "PSEUDO_NARROW\0"
+  /* 7914 */ "C_FMAX\0"
+  /* 7921 */ "G_VECREDUCE_FMAX\0"
+  /* 7938 */ "G_ATOMICRMW_FMAX\0"
+  /* 7955 */ "G_VECREDUCE_SMAX\0"
+  /* 7972 */ "G_SMAX\0"
+  /* 7979 */ "G_VECREDUCE_UMAX\0"
+  /* 7996 */ "G_UMAX\0"
+  /* 8003 */ "G_ATOMICRMW_UMAX\0"
+  /* 8020 */ "G_ATOMICRMW_MAX\0"
+  /* 8036 */ "LD_SHARED_IDX\0"
+  /* 8050 */ "ST_SHARED_IDX\0"
+  /* 8064 */ "LD_GLOBAL_IDX\0"
+  /* 8078 */ "ST_GLOBAL_IDX\0"
+  /* 8092 */ "SHFL_IDX\0"
+  /* 8101 */ "G_FRAME_INDEX\0"
+  /* 8115 */ "G_SBFX\0"
+  /* 8122 */ "G_UBFX\0"
+  /* 8129 */ "G_SMULFIX\0"
+  /* 8139 */ "G_UMULFIX\0"
+  /* 8149 */ "G_SDIVFIX\0"
+  /* 8159 */ "G_UDIVFIX\0"
+  /* 8169 */ "SHFL_BFLY\0"
+  /* 8179 */ "VOTE_ANY\0"
+  /* 8188 */ "G_MEMCPY\0"
+  /* 8197 */ "COPY\0"
+  /* 8202 */ "CLZ\0"
+  /* 8206 */ "G_CTLZ\0"
+  /* 8213 */ "G_CTTZ\0"
+  /* 8220 */ "PACKI_Z\0"
 };
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
 
 extern const unsigned CCVInstrNameIndices[] = {
-    3422U, 4374U, 6254U, 4653U, 4025U, 4006U, 4034U, 4194U, 
-    3065U, 3080U, 2965U, 3107U, 6677U, 2842U, 7568U, 2978U, 
-    3418U, 4015U, 2602U, 8115U, 2723U, 7459U, 2439U, 2545U, 
-    2590U, 4779U, 4182U, 7343U, 2524U, 5215U, 3170U, 7332U, 
-    2762U, 5173U, 5160U, 6315U, 7137U, 7206U, 4102U, 4161U, 
-    4134U, 4051U, 6280U, 4718U, 7598U, 7637U, 4497U, 2268U, 
-    1945U, 4304U, 7742U, 7749U, 4331U, 4338U, 4345U, 4355U, 
-    2417U, 6564U, 6522U, 2963U, 3420U, 8029U, 2852U, 4199U, 
-    7099U, 6621U, 7496U, 6638U, 6456U, 2031U, 6660U, 7354U, 
-    6591U, 7541U, 2902U, 6291U, 2498U, 2005U, 2480U, 7373U, 
-    4475U, 6340U, 2156U, 2100U, 2130U, 2141U, 2081U, 2111U, 
-    2806U, 2790U, 6707U, 3121U, 3138U, 2284U, 1951U, 2423U, 
-    2366U, 6569U, 6528U, 7948U, 4630U, 7931U, 4613U, 2229U, 
-    1922U, 7866U, 4548U, 4810U, 4788U, 2582U, 3340U, 2452U, 
-    7118U, 7474U, 1983U, 6744U, 7309U, 6771U, 7621U, 2023U, 
-    7298U, 7286U, 7449U, 3162U, 7591U, 3094U, 7630U, 4088U, 
-    6406U, 6392U, 4075U, 6399U, 6584U, 4215U, 4865U, 4858U, 
-    7109U, 4710U, 2623U, 4694U, 2566U, 4702U, 2615U, 4686U, 
-    2558U, 4754U, 4746U, 3359U, 3351U, 7017U, 7007U, 6997U, 
-    6987U, 7037U, 7027U, 8057U, 8067U, 7047U, 7060U, 8077U, 
-    8087U, 7073U, 7086U, 2187U, 1901U, 4246U, 1870U, 2074U, 
-    7721U, 4310U, 7821U, 3721U, 5259U, 695U, 9U, 3155U, 
-    678U, 0U, 5234U, 5266U, 3052U, 7583U, 1995U, 3684U, 
-    3707U, 4840U, 4849U, 6602U, 4512U, 6694U, 2911U, 4448U, 
-    4458U, 2672U, 2687U, 4405U, 4437U, 7756U, 7782U, 7768U, 
-    2631U, 2659U, 2644U, 2274U, 3926U, 4582U, 7900U, 4606U, 
-    7924U, 6615U, 2471U, 2461U, 6249U, 7230U, 7258U, 7237U, 
-    6471U, 8131U, 2945U, 8124U, 2927U, 5152U, 4832U, 2829U, 
-    4094U, 6653U, 4646U, 7505U, 6419U, 7365U, 7391U, 7551U, 
-    6267U, 2710U, 2052U, 2867U, 2775U, 2215U, 1908U, 4274U, 
-    7728U, 4317U, 1876U, 7513U, 5243U, 6359U, 6375U, 8106U, 
-    2738U, 2892U, 7162U, 4771U, 2194U, 4253U, 2170U, 4229U, 
-    7849U, 4531U, 4416U, 4384U, 2252U, 4288U, 2401U, 6549U, 
-    6506U, 7883U, 4565U, 7907U, 4589U, 8043U, 8050U, 4669U, 
-    5200U, 7528U, 2320U, 4122U, 3275U, 6914U, 2336U, 7828U, 
-    3391U, 2383U, 7803U, 6445U, 3909U, 6428U, 6488U, 7151U, 
-    2351U, 1043U, 6605U, 2166U, 3399U, 1507U, 6086U, 5192U, 
-    1316U, 6060U, 5185U, 1272U, 2379U, 3413U, 6093U, 4470U, 
-    3446U, 6114U, 6066U, 1308U, 3229U, 6851U, 3187U, 6809U, 
-    3218U, 6840U, 3242U, 6864U, 3301U, 6940U, 3327U, 6966U, 
-    3288U, 6927U, 3314U, 6953U, 3265U, 6904U, 3254U, 6893U, 
-    7406U, 7190U, 2814U, 1891U, 2327U, 7716U, 4117U, 3282U, 
-    6921U, 3693U, 8120U, 551U, 54U, 5275U, 620U, 1802U, 
-    1455U, 1024U, 1764U, 601U, 640U, 365U, 5470U, 703U, 
-    5686U, 868U, 5866U, 106U, 5335U, 1821U, 1783U, 391U, 
-    5500U, 755U, 5746U, 920U, 5926U, 443U, 5560U, 807U, 
-    5806U, 972U, 5986U, 469U, 5590U, 833U, 5836U, 998U, 
-    6016U, 67U, 5290U, 659U, 378U, 5485U, 716U, 5701U, 
-    881U, 5881U, 119U, 5350U, 404U, 5515U, 768U, 5761U, 
-    933U, 5941U, 158U, 5395U, 456U, 5575U, 820U, 5821U, 
-    985U, 6001U, 184U, 5425U, 482U, 5605U, 846U, 5851U, 
-    1011U, 6031U, 80U, 5305U, 729U, 5716U, 894U, 5896U, 
-    132U, 5365U, 417U, 5530U, 781U, 5776U, 946U, 5956U, 
-    197U, 5440U, 93U, 5320U, 742U, 5731U, 907U, 5911U, 
-    145U, 5380U, 430U, 5545U, 794U, 5791U, 959U, 5971U, 
-    171U, 5410U, 210U, 5455U, 569U, 5658U, 581U, 5672U, 
-    495U, 5620U, 7612U, 507U, 5634U, 6609U, 2246U, 3404U, 
-    2395U, 3411U, 4468U, 2879U, 7179U, 1889U, 3367U, 7199U, 
-    2163U, 2574U, 7842U, 4524U, 4222U, 3936U, 6979U, 7708U, 
-    6885U, 7680U, 7815U, 4762U, 3059U, 7443U, 6544U, 3678U, 
-    7794U, 7131U, 4082U, 3434U, 6413U, 3664U, 1895U, 3377U, 
-    3948U, 1939U, 3384U, 6500U, 3671U, 1058U, 1067U, 1967U, 
-    859U, 686U, 6737U, 527U, 46U, 327U, 2165U, 251U, 
-    1596U, 6059U, 1626U, 26U, 239U, 18U, 223U, 7844U, 
-    357U, 4526U, 308U, 4224U, 300U, 1607U, 6154U, 1686U, 
-    38U, 292U, 1903U, 231U, 1585U, 6052U, 1618U, 3938U, 
-    7992U, 1419U, 1730U, 6136U, 7413U, 1381U, 1694U, 1325U, 
-    1660U, 3988U, 3198U, 3960U, 6820U, 2300U, 7964U, 1280U, 
-    1634U, 519U, 4740U, 6161U, 1975U, 6981U, 6200U, 1371U, 
-    7710U, 6227U, 6887U, 6192U, 1361U, 7682U, 6219U, 3716U, 
-    1514U, 6235U, 3441U, 6107U, 6876U, 6181U, 7671U, 6208U, 
-    4764U, 3055U, 6425U, 3674U, 6130U, 6176U, 1354U, 3428U, 
-    8138U, 2390U, 7810U, 4365U, 2069U, 6452U, 6495U, 543U, 
-    5648U, 593U, 559U, 4071U, 6241U, 3022U, 316U, 4914U, 
-    3795U, 5028U, 3530U, 3831U, 5067U, 3572U, 2702U, 2992U, 
-    259U, 4872U, 3759U, 4989U, 3488U, 3729U, 4956U, 3452U, 
-    7651U, 3861U, 5100U, 3608U, 7171U, 3032U, 335U, 4928U, 
-    3807U, 5041U, 3544U, 3841U, 5078U, 3584U, 7688U, 3885U, 
-    5126U, 3636U, 2730U, 3002U, 270U, 4886U, 3771U, 5002U, 
-    3502U, 3739U, 4967U, 3464U, 7661U, 3873U, 5113U, 3622U, 
-    7278U, 3042U, 346U, 4942U, 3819U, 5054U, 3558U, 3851U, 
-    5089U, 3596U, 7698U, 3897U, 5139U, 3650U, 2754U, 3012U, 
-    281U, 4900U, 3783U, 5015U, 3516U, 3749U, 4978U, 3476U, 
-    8020U, 4078U, 3436U, 6100U, 6148U, 6395U, 3666U, 6122U, 
-    6169U, 535U, 560U, 1897U, 3379U, 6072U, 6046U, 2541U, 
-    3950U, 8006U, 1437U, 1747U, 7428U, 1400U, 1712U, 1339U, 
-    1673U, 3997U, 3208U, 3974U, 6830U, 2310U, 7978U, 1294U, 
-    1647U, 1904U, 3386U, 6079U, 6053U, 1264U, 1092U, 1143U, 
-    1537U, 1205U, 1126U, 1164U, 1569U, 1225U, 1491U, 1185U, 
-    1855U, 1245U, 1075U, 1521U, 1109U, 1553U, 1475U, 1840U, 
-    7404U, 3426U, 8097U, 6496U, 3673U, 6129U, 6175U, 1353U, 
+    3422U, 4383U, 6281U, 4662U, 4025U, 4006U, 4034U, 4203U, 
+    3065U, 3080U, 2965U, 3107U, 6749U, 2842U, 7640U, 2978U, 
+    3418U, 4015U, 2602U, 8197U, 2723U, 7531U, 2439U, 2545U, 
+    2590U, 4798U, 4182U, 7415U, 2524U, 5234U, 3170U, 7404U, 
+    2762U, 5192U, 5179U, 6342U, 7209U, 7278U, 4102U, 4161U, 
+    4134U, 4051U, 6307U, 4737U, 7670U, 7709U, 4506U, 2268U, 
+    1945U, 4313U, 7814U, 7821U, 4340U, 4347U, 4354U, 4364U, 
+    2417U, 6591U, 6549U, 2963U, 3420U, 8101U, 2852U, 4208U, 
+    7171U, 6693U, 7568U, 6710U, 6483U, 2031U, 6732U, 7426U, 
+    6618U, 7613U, 2902U, 6318U, 2498U, 2005U, 2480U, 7445U, 
+    4484U, 6367U, 2156U, 2100U, 2130U, 2141U, 2081U, 2111U, 
+    2806U, 2790U, 6779U, 3121U, 3138U, 2284U, 1951U, 2423U, 
+    2366U, 6596U, 6555U, 8020U, 4639U, 8003U, 4622U, 2229U, 
+    1922U, 7938U, 4557U, 4829U, 4807U, 2582U, 3340U, 2452U, 
+    7190U, 7546U, 1983U, 6816U, 7381U, 6843U, 7693U, 2023U, 
+    7370U, 7358U, 7521U, 3162U, 7663U, 3094U, 7702U, 4088U, 
+    6433U, 6419U, 4075U, 6426U, 6611U, 4224U, 4884U, 4877U, 
+    7181U, 4729U, 2623U, 4713U, 2566U, 4721U, 2615U, 4705U, 
+    2558U, 4773U, 4765U, 3359U, 3351U, 7089U, 7079U, 7069U, 
+    7059U, 7109U, 7099U, 8129U, 8139U, 7119U, 7132U, 8149U, 
+    8159U, 7145U, 7158U, 2187U, 1901U, 4255U, 1870U, 2074U, 
+    7793U, 4319U, 7893U, 3721U, 5286U, 695U, 9U, 3155U, 
+    678U, 0U, 5261U, 5293U, 3052U, 7655U, 1995U, 3684U, 
+    3707U, 4859U, 4868U, 6674U, 4521U, 6766U, 2911U, 4457U, 
+    4467U, 2672U, 2687U, 4414U, 4446U, 7828U, 7854U, 7840U, 
+    2631U, 2659U, 2644U, 2274U, 3926U, 4591U, 7972U, 4615U, 
+    7996U, 6687U, 2471U, 2461U, 6276U, 7302U, 7330U, 7309U, 
+    6498U, 8213U, 2945U, 8206U, 2927U, 5171U, 4851U, 2829U, 
+    4094U, 6725U, 4655U, 7577U, 6446U, 7437U, 7463U, 7623U, 
+    6294U, 2710U, 2052U, 2867U, 2775U, 2215U, 1908U, 4283U, 
+    7800U, 4326U, 1876U, 7585U, 5270U, 6386U, 6402U, 8188U, 
+    2738U, 2892U, 7234U, 4790U, 2194U, 4262U, 2170U, 4238U, 
+    7921U, 4540U, 4425U, 4393U, 2252U, 4297U, 2401U, 6576U, 
+    6533U, 7955U, 4574U, 7979U, 4598U, 8115U, 8122U, 4678U, 
+    5219U, 7600U, 2320U, 4122U, 3275U, 6986U, 2336U, 7900U, 
+    3391U, 2383U, 7875U, 6472U, 3909U, 6455U, 6515U, 7223U, 
+    2351U, 1043U, 6677U, 2166U, 3399U, 1507U, 6113U, 5211U, 
+    1316U, 6087U, 5204U, 1272U, 2379U, 3413U, 6120U, 4479U, 
+    3446U, 6141U, 6093U, 1308U, 3229U, 6923U, 3187U, 6881U, 
+    3218U, 6912U, 3242U, 6936U, 3301U, 7012U, 3327U, 7038U, 
+    3288U, 6999U, 3314U, 7025U, 3265U, 6976U, 3254U, 6965U, 
+    7478U, 7262U, 2814U, 1891U, 2327U, 7788U, 4117U, 3282U, 
+    6993U, 3693U, 8202U, 551U, 54U, 5302U, 620U, 1802U, 
+    1455U, 1024U, 1764U, 601U, 640U, 365U, 5497U, 703U, 
+    5713U, 868U, 5893U, 106U, 5362U, 1821U, 1783U, 391U, 
+    5527U, 755U, 5773U, 920U, 5953U, 443U, 5587U, 807U, 
+    5833U, 972U, 6013U, 469U, 5617U, 833U, 5863U, 998U, 
+    6043U, 67U, 5317U, 659U, 378U, 5512U, 716U, 5728U, 
+    881U, 5908U, 119U, 5377U, 404U, 5542U, 768U, 5788U, 
+    933U, 5968U, 158U, 5422U, 456U, 5602U, 820U, 5848U, 
+    985U, 6028U, 184U, 5452U, 482U, 5632U, 846U, 5878U, 
+    1011U, 6058U, 80U, 5332U, 729U, 5743U, 894U, 5923U, 
+    132U, 5392U, 417U, 5557U, 781U, 5803U, 946U, 5983U, 
+    197U, 5467U, 93U, 5347U, 742U, 5758U, 907U, 5938U, 
+    145U, 5407U, 430U, 5572U, 794U, 5818U, 959U, 5998U, 
+    171U, 5437U, 210U, 5482U, 569U, 5685U, 581U, 5699U, 
+    495U, 5647U, 7684U, 507U, 5661U, 6681U, 2246U, 3404U, 
+    2395U, 3411U, 4477U, 2879U, 7251U, 1889U, 3367U, 7271U, 
+    2163U, 2574U, 7914U, 4533U, 4231U, 3936U, 7051U, 7780U, 
+    6957U, 7752U, 7887U, 4781U, 3059U, 7515U, 6571U, 3678U, 
+    7866U, 7203U, 4082U, 3434U, 6440U, 3664U, 1895U, 3377U, 
+    3948U, 1939U, 3384U, 6527U, 3671U, 1058U, 1067U, 1967U, 
+    859U, 686U, 6809U, 527U, 46U, 327U, 2165U, 251U, 
+    1596U, 6086U, 1626U, 26U, 239U, 18U, 223U, 7916U, 
+    357U, 4535U, 308U, 4233U, 300U, 1607U, 6181U, 1686U, 
+    38U, 292U, 1903U, 231U, 1585U, 6079U, 1618U, 3938U, 
+    8064U, 1419U, 1730U, 6163U, 7485U, 1381U, 1694U, 1325U, 
+    1660U, 3988U, 3198U, 3960U, 6892U, 2300U, 8036U, 1280U, 
+    1634U, 519U, 4759U, 6188U, 1975U, 7053U, 6227U, 1371U, 
+    7782U, 6254U, 6959U, 6219U, 1361U, 7754U, 6246U, 3716U, 
+    1514U, 6262U, 3441U, 6134U, 6948U, 6208U, 7743U, 6235U, 
+    4783U, 3055U, 6452U, 3674U, 6157U, 6203U, 1354U, 3428U, 
+    8220U, 2390U, 7882U, 4374U, 2069U, 6479U, 6522U, 543U, 
+    5675U, 593U, 559U, 4071U, 6268U, 3022U, 316U, 4933U, 
+    3795U, 5047U, 3530U, 3831U, 5086U, 3572U, 2702U, 2992U, 
+    259U, 4891U, 3759U, 5008U, 3488U, 3729U, 4975U, 3452U, 
+    7723U, 3861U, 5119U, 3608U, 7243U, 3032U, 335U, 4947U, 
+    3807U, 5060U, 3544U, 3841U, 5097U, 3584U, 7760U, 3885U, 
+    5145U, 3636U, 2730U, 3002U, 270U, 4905U, 3771U, 5021U, 
+    3502U, 3739U, 4986U, 3464U, 7733U, 3873U, 5132U, 3622U, 
+    7350U, 3042U, 346U, 4961U, 3819U, 5073U, 3558U, 3851U, 
+    5108U, 3596U, 7770U, 3897U, 5158U, 3650U, 2754U, 3012U, 
+    281U, 4919U, 3783U, 5034U, 3516U, 3749U, 4997U, 3476U, 
+    8169U, 6662U, 4695U, 6629U, 8092U, 6651U, 5253U, 6641U, 
+    4078U, 3436U, 6127U, 6175U, 6422U, 3666U, 6149U, 6196U, 
+    535U, 560U, 1897U, 3379U, 6099U, 6073U, 2541U, 3950U, 
+    8078U, 1437U, 1747U, 7500U, 1400U, 1712U, 1339U, 1673U, 
+    3997U, 3208U, 3974U, 6902U, 2310U, 8050U, 1294U, 1647U, 
+    1904U, 3386U, 6106U, 6080U, 1264U, 1092U, 1143U, 1537U, 
+    1205U, 1126U, 1164U, 1569U, 1225U, 1491U, 1185U, 1855U, 
+    1245U, 1075U, 1521U, 1109U, 1553U, 1475U, 1840U, 7476U, 
+    3426U, 4194U, 8179U, 6523U, 3673U, 6156U, 6202U, 1353U, 
 };
 
 static inline void InitCCVMCInstrInfo(MCInstrInfo *II) {
-  II->InitMCInstrInfo(CCVDescs.Insts, CCVInstrNameIndices, CCVInstrNameData, nullptr, nullptr, 728);
+  II->InitMCInstrInfo(CCVDescs.Insts, CCVInstrNameIndices, CCVInstrNameData, nullptr, nullptr, 736);
 }
 
 } // end namespace llvm
@@ -2440,7 +2466,7 @@ extern const unsigned CCVInstrNameIndices[];
 extern const char CCVInstrNameData[];
 CCVGenInstrInfo::CCVGenInstrInfo(unsigned CFSetupOpcode, unsigned CFDestroyOpcode, unsigned CatchRetOpcode, unsigned ReturnOpcode)
   : TargetInstrInfo(CFSetupOpcode, CFDestroyOpcode, CatchRetOpcode, ReturnOpcode) {
-  InitMCInstrInfo(CCVDescs.Insts, CCVInstrNameIndices, CCVInstrNameData, nullptr, nullptr, 728);
+  InitMCInstrInfo(CCVDescs.Insts, CCVInstrNameIndices, CCVInstrNameData, nullptr, nullptr, 736);
 }
 } // end namespace llvm
 #endif // GET_INSTRINFO_CTOR_DTOR
@@ -3874,134 +3900,150 @@ static int getOperandType(uint16_t Opcode, uint16_t OpIdx) {
     2275,
     /* SETP_NE_NPI */
     2279,
-    /* SHFL_IDX */
+    /* SHFL_BFLY */
     2283,
-    /* SHL */
+    /* SHFL_BFLY_R */
     2287,
-    /* SHLI */
+    /* SHFL_DOWN */
     2291,
-    /* SHLI_P */
-    2294,
-    /* SHL_P */
-    2298,
-    /* SHR */
+    /* SHFL_DOWN_R */
+    2295,
+    /* SHFL_IDX */
+    2299,
+    /* SHFL_IDX_R */
     2303,
-    /* SHRI */
+    /* SHFL_UP */
     2307,
-    /* SHRI_P */
-    2310,
-    /* SHR_P */
-    2314,
-    /* SIN_F32 */
+    /* SHFL_UP_R */
+    2311,
+    /* SHL */
+    2315,
+    /* SHLI */
     2319,
-    /* SQRT_F32 */
-    2323,
-    /* SRA */
-    2327,
-    /* SRAI */
+    /* SHLI_P */
+    2322,
+    /* SHL_P */
+    2326,
+    /* SHR */
     2331,
-    /* SRAI_P */
-    2334,
-    /* SRA_P */
+    /* SHRI */
+    2335,
+    /* SHRI_P */
     2338,
+    /* SHR_P */
+    2342,
+    /* SIN_F32 */
+    2347,
+    /* SQRT_F32 */
+    2351,
+    /* SRA */
+    2355,
+    /* SRAI */
+    2359,
+    /* SRAI_P */
+    2362,
+    /* SRA_P */
+    2366,
     /* SRD */
-    2343,
+    2371,
     /* ST_GLOBAL */
-    2345,
-    /* ST_GLOBAL_IDX */
-    2348,
-    /* ST_GLOBAL_IDX_W16 */
-    2353,
-    /* ST_GLOBAL_IDX_W8 */
-    2358,
-    /* ST_GLOBAL_SLOT */
-    2363,
-    /* ST_GLOBAL_SLOT_W16 */
-    2368,
-    /* ST_GLOBAL_SLOT_W8 */
     2373,
-    /* ST_GLOBAL_W16 */
-    2378,
-    /* ST_GLOBAL_W8 */
+    /* ST_GLOBAL_IDX */
+    2376,
+    /* ST_GLOBAL_IDX_W16 */
     2381,
-    /* ST_LOCAL */
-    2384,
-    /* ST_PRED_G */
+    /* ST_GLOBAL_IDX_W8 */
     2386,
-    /* ST_PRED_LOCAL */
-    2389,
-    /* ST_PRED_S */
+    /* ST_GLOBAL_SLOT */
     2391,
-    /* ST_SHARED */
-    2394,
-    /* ST_SHARED_IDX */
-    2397,
-    /* ST_SHARED_W16 */
-    2402,
-    /* ST_SHARED_W8 */
-    2405,
-    /* SUB */
-    2408,
-    /* SUBI */
+    /* ST_GLOBAL_SLOT_W16 */
+    2396,
+    /* ST_GLOBAL_SLOT_W8 */
+    2401,
+    /* ST_GLOBAL_W16 */
+    2406,
+    /* ST_GLOBAL_W8 */
+    2409,
+    /* ST_LOCAL */
     2412,
-    /* SUBI_P */
-    2415,
-    /* SUB_P */
+    /* ST_PRED_G */
+    2414,
+    /* ST_PRED_LOCAL */
+    2417,
+    /* ST_PRED_S */
     2419,
-    /* SUB_W16 */
-    2424,
-    /* SZ_GLOBAL_LD_S16 */
-    2428,
-    /* SZ_GLOBAL_LD_S16_W16 */
+    /* ST_SHARED */
+    2422,
+    /* ST_SHARED_IDX */
+    2425,
+    /* ST_SHARED_W16 */
+    2430,
+    /* ST_SHARED_W8 */
     2433,
-    /* SZ_GLOBAL_LD_S8 */
-    2438,
-    /* SZ_GLOBAL_LD_S8_W16 */
+    /* SUB */
+    2436,
+    /* SUBI */
+    2440,
+    /* SUBI_P */
     2443,
+    /* SUB_P */
+    2447,
+    /* SUB_W16 */
+    2452,
+    /* SZ_GLOBAL_LD_S16 */
+    2456,
+    /* SZ_GLOBAL_LD_S16_W16 */
+    2461,
+    /* SZ_GLOBAL_LD_S8 */
+    2466,
+    /* SZ_GLOBAL_LD_S8_W16 */
+    2471,
     /* SZ_GLOBAL_LD_U16 */
-    2448,
+    2476,
     /* SZ_GLOBAL_LD_U16_W16 */
-    2453,
+    2481,
     /* SZ_GLOBAL_LD_U8 */
-    2458,
+    2486,
     /* SZ_GLOBAL_LD_U8_W16 */
-    2463,
+    2491,
     /* SZ_GLOBAL_ST_16 */
-    2468,
+    2496,
     /* SZ_GLOBAL_ST_16_W16 */
-    2473,
+    2501,
     /* SZ_GLOBAL_ST_8 */
-    2478,
+    2506,
     /* SZ_GLOBAL_ST_8_W16 */
-    2483,
+    2511,
     /* SZ_SHARED_LD_S16 */
-    2488,
+    2516,
     /* SZ_SHARED_LD_S8 */
-    2493,
-    /* SZ_SHARED_LD_U16 */
-    2498,
-    /* SZ_SHARED_LD_U8 */
-    2503,
-    /* SZ_SHARED_ST_16 */
-    2508,
-    /* SZ_SHARED_ST_8 */
-    2513,
-    /* UNBALLOT */
-    2518,
-    /* UNPACKI */
     2521,
-    /* VOTE_ANY */
-    2524,
-    /* XOR */
-    2527,
-    /* XORI */
+    /* SZ_SHARED_LD_U16 */
+    2526,
+    /* SZ_SHARED_LD_U8 */
     2531,
+    /* SZ_SHARED_ST_16 */
+    2536,
+    /* SZ_SHARED_ST_8 */
+    2541,
+    /* UNBALLOT */
+    2546,
+    /* UNPACKI */
+    2549,
+    /* VOTE_ALL */
+    2552,
+    /* VOTE_ANY */
+    2555,
+    /* XOR */
+    2558,
+    /* XORI */
+    2562,
     /* XORI_P */
-    2534,
+    2565,
     /* XOR_P */
-    2538,
+    2569,
     /* XOR_W16 */
-    2543,
+    2574,
   };
 
   using namespace OpTypes;
@@ -5315,8 +5357,22 @@ static int getOperandType(uint16_t Opcode, uint16_t OpIdx) {
     PR, GPR, GPR, GPR, 
     /* SETP_NE_NPI */
     PR, GPR, GPR, simm8, 
+    /* SHFL_BFLY */
+    GPR, pqual, GPR, uimm5, 
+    /* SHFL_BFLY_R */
+    GPR, pqual, GPR, GPR, 
+    /* SHFL_DOWN */
+    GPR, pqual, GPR, uimm5, 
+    /* SHFL_DOWN_R */
+    GPR, pqual, GPR, GPR, 
     /* SHFL_IDX */
     GPR, pqual, GPR, uimm5, 
+    /* SHFL_IDX_R */
+    GPR, pqual, GPR, GPR, 
+    /* SHFL_UP */
+    GPR, pqual, GPR, uimm5, 
+    /* SHFL_UP_R */
+    GPR, pqual, GPR, GPR, 
     /* SHL */
     GPR, GPR, GPR, GPR, 
     /* SHLI */
@@ -5431,6 +5487,8 @@ static int getOperandType(uint16_t Opcode, uint16_t OpIdx) {
     PR, pqual, GPR, 
     /* UNPACKI */
     GPR, GPR, uimm3, 
+    /* VOTE_ALL */
+    PR, pqual, psrc, 
     /* VOTE_ANY */
     PR, pqual, psrc, 
     /* XOR */
@@ -6213,73 +6271,81 @@ inline FeatureBitset computeRequiredFeatures(unsigned Opcode) {
     CEFBS_None, // SETP_NE_I = 661
     CEFBS_None, // SETP_NE_NP = 662
     CEFBS_None, // SETP_NE_NPI = 663
-    CEFBS_None, // SHFL_IDX = 664
-    CEFBS_None, // SHL = 665
-    CEFBS_None, // SHLI = 666
-    CEFBS_None, // SHLI_P = 667
-    CEFBS_None, // SHL_P = 668
-    CEFBS_None, // SHR = 669
-    CEFBS_None, // SHRI = 670
-    CEFBS_None, // SHRI_P = 671
-    CEFBS_None, // SHR_P = 672
-    CEFBS_None, // SIN_F32 = 673
-    CEFBS_None, // SQRT_F32 = 674
-    CEFBS_None, // SRA = 675
-    CEFBS_None, // SRAI = 676
-    CEFBS_None, // SRAI_P = 677
-    CEFBS_None, // SRA_P = 678
-    CEFBS_None, // SRD = 679
-    CEFBS_None, // ST_GLOBAL = 680
-    CEFBS_None, // ST_GLOBAL_IDX = 681
-    CEFBS_None, // ST_GLOBAL_IDX_W16 = 682
-    CEFBS_None, // ST_GLOBAL_IDX_W8 = 683
-    CEFBS_None, // ST_GLOBAL_SLOT = 684
-    CEFBS_None, // ST_GLOBAL_SLOT_W16 = 685
-    CEFBS_None, // ST_GLOBAL_SLOT_W8 = 686
-    CEFBS_None, // ST_GLOBAL_W16 = 687
-    CEFBS_None, // ST_GLOBAL_W8 = 688
-    CEFBS_None, // ST_LOCAL = 689
-    CEFBS_None, // ST_PRED_G = 690
-    CEFBS_None, // ST_PRED_LOCAL = 691
-    CEFBS_None, // ST_PRED_S = 692
-    CEFBS_None, // ST_SHARED = 693
-    CEFBS_None, // ST_SHARED_IDX = 694
-    CEFBS_None, // ST_SHARED_W16 = 695
-    CEFBS_None, // ST_SHARED_W8 = 696
-    CEFBS_None, // SUB = 697
-    CEFBS_None, // SUBI = 698
-    CEFBS_None, // SUBI_P = 699
-    CEFBS_None, // SUB_P = 700
-    CEFBS_None, // SUB_W16 = 701
-    CEFBS_None, // SZ_GLOBAL_LD_S16 = 702
-    CEFBS_None, // SZ_GLOBAL_LD_S16_W16 = 703
-    CEFBS_None, // SZ_GLOBAL_LD_S8 = 704
-    CEFBS_None, // SZ_GLOBAL_LD_S8_W16 = 705
-    CEFBS_None, // SZ_GLOBAL_LD_U16 = 706
-    CEFBS_None, // SZ_GLOBAL_LD_U16_W16 = 707
-    CEFBS_None, // SZ_GLOBAL_LD_U8 = 708
-    CEFBS_None, // SZ_GLOBAL_LD_U8_W16 = 709
-    CEFBS_None, // SZ_GLOBAL_ST_16 = 710
-    CEFBS_None, // SZ_GLOBAL_ST_16_W16 = 711
-    CEFBS_None, // SZ_GLOBAL_ST_8 = 712
-    CEFBS_None, // SZ_GLOBAL_ST_8_W16 = 713
-    CEFBS_None, // SZ_SHARED_LD_S16 = 714
-    CEFBS_None, // SZ_SHARED_LD_S8 = 715
-    CEFBS_None, // SZ_SHARED_LD_U16 = 716
-    CEFBS_None, // SZ_SHARED_LD_U8 = 717
-    CEFBS_None, // SZ_SHARED_ST_16 = 718
-    CEFBS_None, // SZ_SHARED_ST_8 = 719
-    CEFBS_None, // UNBALLOT = 720
-    CEFBS_None, // UNPACKI = 721
-    CEFBS_None, // VOTE_ANY = 722
-    CEFBS_None, // XOR = 723
-    CEFBS_None, // XORI = 724
-    CEFBS_None, // XORI_P = 725
-    CEFBS_None, // XOR_P = 726
-    CEFBS_None, // XOR_W16 = 727
+    CEFBS_None, // SHFL_BFLY = 664
+    CEFBS_None, // SHFL_BFLY_R = 665
+    CEFBS_None, // SHFL_DOWN = 666
+    CEFBS_None, // SHFL_DOWN_R = 667
+    CEFBS_None, // SHFL_IDX = 668
+    CEFBS_None, // SHFL_IDX_R = 669
+    CEFBS_None, // SHFL_UP = 670
+    CEFBS_None, // SHFL_UP_R = 671
+    CEFBS_None, // SHL = 672
+    CEFBS_None, // SHLI = 673
+    CEFBS_None, // SHLI_P = 674
+    CEFBS_None, // SHL_P = 675
+    CEFBS_None, // SHR = 676
+    CEFBS_None, // SHRI = 677
+    CEFBS_None, // SHRI_P = 678
+    CEFBS_None, // SHR_P = 679
+    CEFBS_None, // SIN_F32 = 680
+    CEFBS_None, // SQRT_F32 = 681
+    CEFBS_None, // SRA = 682
+    CEFBS_None, // SRAI = 683
+    CEFBS_None, // SRAI_P = 684
+    CEFBS_None, // SRA_P = 685
+    CEFBS_None, // SRD = 686
+    CEFBS_None, // ST_GLOBAL = 687
+    CEFBS_None, // ST_GLOBAL_IDX = 688
+    CEFBS_None, // ST_GLOBAL_IDX_W16 = 689
+    CEFBS_None, // ST_GLOBAL_IDX_W8 = 690
+    CEFBS_None, // ST_GLOBAL_SLOT = 691
+    CEFBS_None, // ST_GLOBAL_SLOT_W16 = 692
+    CEFBS_None, // ST_GLOBAL_SLOT_W8 = 693
+    CEFBS_None, // ST_GLOBAL_W16 = 694
+    CEFBS_None, // ST_GLOBAL_W8 = 695
+    CEFBS_None, // ST_LOCAL = 696
+    CEFBS_None, // ST_PRED_G = 697
+    CEFBS_None, // ST_PRED_LOCAL = 698
+    CEFBS_None, // ST_PRED_S = 699
+    CEFBS_None, // ST_SHARED = 700
+    CEFBS_None, // ST_SHARED_IDX = 701
+    CEFBS_None, // ST_SHARED_W16 = 702
+    CEFBS_None, // ST_SHARED_W8 = 703
+    CEFBS_None, // SUB = 704
+    CEFBS_None, // SUBI = 705
+    CEFBS_None, // SUBI_P = 706
+    CEFBS_None, // SUB_P = 707
+    CEFBS_None, // SUB_W16 = 708
+    CEFBS_None, // SZ_GLOBAL_LD_S16 = 709
+    CEFBS_None, // SZ_GLOBAL_LD_S16_W16 = 710
+    CEFBS_None, // SZ_GLOBAL_LD_S8 = 711
+    CEFBS_None, // SZ_GLOBAL_LD_S8_W16 = 712
+    CEFBS_None, // SZ_GLOBAL_LD_U16 = 713
+    CEFBS_None, // SZ_GLOBAL_LD_U16_W16 = 714
+    CEFBS_None, // SZ_GLOBAL_LD_U8 = 715
+    CEFBS_None, // SZ_GLOBAL_LD_U8_W16 = 716
+    CEFBS_None, // SZ_GLOBAL_ST_16 = 717
+    CEFBS_None, // SZ_GLOBAL_ST_16_W16 = 718
+    CEFBS_None, // SZ_GLOBAL_ST_8 = 719
+    CEFBS_None, // SZ_GLOBAL_ST_8_W16 = 720
+    CEFBS_None, // SZ_SHARED_LD_S16 = 721
+    CEFBS_None, // SZ_SHARED_LD_S8 = 722
+    CEFBS_None, // SZ_SHARED_LD_U16 = 723
+    CEFBS_None, // SZ_SHARED_LD_U8 = 724
+    CEFBS_None, // SZ_SHARED_ST_16 = 725
+    CEFBS_None, // SZ_SHARED_ST_8 = 726
+    CEFBS_None, // UNBALLOT = 727
+    CEFBS_None, // UNPACKI = 728
+    CEFBS_None, // VOTE_ALL = 729
+    CEFBS_None, // VOTE_ANY = 730
+    CEFBS_None, // XOR = 731
+    CEFBS_None, // XORI = 732
+    CEFBS_None, // XORI_P = 733
+    CEFBS_None, // XOR_P = 734
+    CEFBS_None, // XOR_W16 = 735
   };
 
-  assert(Opcode < 728);
+  assert(Opcode < 736);
   return FeatureBitsets[RequiredFeaturesRefs[Opcode]];
 }
 

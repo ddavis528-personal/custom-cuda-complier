@@ -907,21 +907,28 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     3328494U,	// SETP_NE_I
     146969975U,	// SETP_NE_NP
     146969975U,	// SETP_NE_NPI
-    3422702U,	// SHFL_IDX
+    3422702U,	// SHFL_BFLY
+    3422702U,	// SHFL_BFLY_R
+    3455470U,	// SHFL_DOWN
+    3455470U,	// SHFL_DOWN_R
+    3488238U,	// SHFL_IDX
+    3488238U,	// SHFL_IDX_R
+    3521006U,	// SHFL_UP
+    3521006U,	// SHFL_UP_R
     4364037U,	// SHL
     4364037U,	// SHLI
-    3455470U,	// SHLI_P
-    3455470U,	// SHL_P
+    3553774U,	// SHLI_P
+    3553774U,	// SHL_P
     4364131U,	// SHR
     4364131U,	// SHRI
-    3488238U,	// SHRI_P
-    3488238U,	// SHR_P
+    3586542U,	// SHRI_P
+    3586542U,	// SHR_P
     37917411U,	// SIN_F32
     37917439U,	// SQRT_F32
     4363305U,	// SRA
     4363305U,	// SRAI
-    3521006U,	// SRAI_P
-    3521006U,	// SRA_P
+    3619310U,	// SRAI_P
+    3619310U,	// SRA_P
     37918041U,	// SRD
     136866U,	// ST_GLOBAL
     121771682U,	// ST_GLOBAL_IDX
@@ -942,8 +949,8 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     136460U,	// ST_SHARED_W8
     4363310U,	// SUB
     4363310U,	// SUBI
-    3553774U,	// SUBI_P
-    3553774U,	// SUB_P
+    3652078U,	// SUBI_P
+    3652078U,	// SUB_P
     4363310U,	// SUB_W16
     121770889U,	// SZ_GLOBAL_LD_S16
     121770889U,	// SZ_GLOBAL_LD_S16_W16
@@ -963,13 +970,14 @@ std::pair<const char *, uint64_t> CCVInstPrinter::getMnemonic(const MCInst *MI) 
     121770993U,	// SZ_SHARED_LD_U8
     121770816U,	// SZ_SHARED_ST_16
     121770934U,	// SZ_SHARED_ST_8
-    3586542U,	// UNBALLOT
+    3684846U,	// UNBALLOT
     4363740U,	// UNPACKI
-    3619310U,	// VOTE_ANY
+    3717614U,	// VOTE_ALL
+    3750382U,	// VOTE_ANY
     4364155U,	// XOR
     4364155U,	// XORI
-    3652078U,	// XORI_P
-    3652078U,	// XOR_P
+    3783150U,	// XORI_P
+    3783150U,	// XOR_P
     4364155U,	// XOR_W16
   };
 
@@ -1024,7 +1032,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
   }
 
 
-  // Fragment 1 encoded into 7 bits for 112 unique commands.
+  // Fragment 1 encoded into 7 bits for 116 unique commands.
   switch ((Bits >> 15) & 127) {
   default: llvm_unreachable("Invalid command number.");
   case 0:
@@ -1950,8 +1958,8 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     return;
     break;
   case 104:
-    // SHFL_IDX
-    O << " shfl.idx ";
+    // SHFL_BFLY, SHFL_BFLY_R
+    O << " shfl.bfly ";
     printOperand(MI, 0, O);
     O << ", ";
     printOperand(MI, 2, O);
@@ -1960,6 +1968,36 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     return;
     break;
   case 105:
+    // SHFL_DOWN, SHFL_DOWN_R
+    O << " shfl.down ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    O << ", ";
+    printOperand(MI, 3, O);
+    return;
+    break;
+  case 106:
+    // SHFL_IDX, SHFL_IDX_R
+    O << " shfl.idx ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    O << ", ";
+    printOperand(MI, 3, O);
+    return;
+    break;
+  case 107:
+    // SHFL_UP, SHFL_UP_R
+    O << " shfl.up ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    O << ", ";
+    printOperand(MI, 3, O);
+    return;
+    break;
+  case 108:
     // SHLI_P, SHL_P
     O << " shl ";
     printOperand(MI, 0, O);
@@ -1969,7 +2007,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 106:
+  case 109:
     // SHRI_P, SHR_P
     O << " shr ";
     printOperand(MI, 0, O);
@@ -1979,7 +2017,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 107:
+  case 110:
     // SRAI_P, SRA_P
     O << " sra ";
     printOperand(MI, 0, O);
@@ -1989,7 +2027,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 108:
+  case 111:
     // SUBI_P, SUB_P
     O << " sub ";
     printOperand(MI, 0, O);
@@ -1999,7 +2037,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 3, O);
     return;
     break;
-  case 109:
+  case 112:
     // UNBALLOT
     O << " unballot ";
     printOperand(MI, 0, O);
@@ -2007,7 +2045,15 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 110:
+  case 113:
+    // VOTE_ALL
+    O << " vote.all ";
+    printOperand(MI, 0, O);
+    O << ", ";
+    printOperand(MI, 2, O);
+    return;
+    break;
+  case 114:
     // VOTE_ANY
     O << " vote.any ";
     printOperand(MI, 0, O);
@@ -2015,7 +2061,7 @@ void CCVInstPrinter::printInstruction(const MCInst *MI, uint64_t Address, raw_os
     printOperand(MI, 2, O);
     return;
     break;
-  case 111:
+  case 115:
     // XORI_P, XOR_P
     O << " xor ";
     printOperand(MI, 0, O);

@@ -674,7 +674,14 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(220),	// SETP_NE_I
     UINT64_C(252),	// SETP_NE_NP
     UINT64_C(134217980),	// SETP_NE_NPI
+    UINT64_C(240),	// SHFL_BFLY
+    UINT64_C(1264),	// SHFL_BFLY_R
+    UINT64_C(176),	// SHFL_DOWN
+    UINT64_C(1200),	// SHFL_DOWN_R
     UINT64_C(48),	// SHFL_IDX
+    UINT64_C(1072),	// SHFL_IDX_R
+    UINT64_C(112),	// SHFL_UP
+    UINT64_C(1136),	// SHFL_UP_R
     UINT64_C(704),	// SHL
     UINT64_C(716),	// SHLI
     UINT64_C(720),	// SHLI_P
@@ -732,6 +739,7 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
     UINT64_C(1952),	// SZ_SHARED_ST_8
     UINT64_C(624),	// UNBALLOT
     UINT64_C(1420),	// UNPACKI
+    UINT64_C(368),	// VOTE_ALL
     UINT64_C(304),	// VOTE_ANY
     UINT64_C(576),	// XOR
     UINT64_C(588),	// XORI
@@ -851,6 +859,7 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
       Value |= op;
       break;
     }
+    case CCV::VOTE_ALL:
     case CCV::VOTE_ANY: {
       // op: ps
       op = getMachineOpValue(MI, MI.getOperand(2), Fixups, STI);
@@ -1241,7 +1250,10 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
       Value |= op;
       break;
     }
-    case CCV::SHFL_IDX: {
+    case CCV::SHFL_BFLY:
+    case CCV::SHFL_DOWN:
+    case CCV::SHFL_IDX:
+    case CCV::SHFL_UP: {
       // op: rd
       op = getMachineOpValue(MI, MI.getOperand(0), Fixups, STI);
       op &= UINT64_C(15);
@@ -1293,6 +1305,32 @@ uint64_t CCVMCCodeEmitter::getBinaryCodeForInstr(const MCInst &MI,
       op = getMachineOpValue(MI, MI.getOperand(3), Fixups, STI);
       Value |= (op & UINT64_C(768)) << 22;
       Value |= (op & UINT64_C(255)) << 19;
+      break;
+    }
+    case CCV::SHFL_BFLY_R:
+    case CCV::SHFL_DOWN_R:
+    case CCV::SHFL_IDX_R:
+    case CCV::SHFL_UP_R: {
+      // op: rd
+      op = getMachineOpValue(MI, MI.getOperand(0), Fixups, STI);
+      op &= UINT64_C(15);
+      op <<= 11;
+      Value |= op;
+      // op: rs0
+      op = getMachineOpValue(MI, MI.getOperand(2), Fixups, STI);
+      op &= UINT64_C(15);
+      op <<= 15;
+      Value |= op;
+      // op: rs1
+      op = getMachineOpValue(MI, MI.getOperand(3), Fixups, STI);
+      op &= UINT64_C(15);
+      op <<= 19;
+      Value |= op;
+      // op: pq
+      op = getMachineOpValue(MI, MI.getOperand(1), Fixups, STI);
+      op &= UINT64_C(7);
+      op <<= 27;
+      Value |= op;
       break;
     }
     case CCV::ADD_P:
@@ -2343,7 +2381,10 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
       }
       break;
     }
-    case CCV::SHFL_IDX: {
+    case CCV::SHFL_BFLY:
+    case CCV::SHFL_DOWN:
+    case CCV::SHFL_IDX:
+    case CCV::SHFL_UP: {
       switch (OpNum) {
       case 0:
         // op: rd
@@ -2353,6 +2394,26 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
         return 15;
       case 3:
         // op: lane
+        return 19;
+      case 1:
+        // op: pq
+        return 27;
+      }
+      break;
+    }
+    case CCV::SHFL_BFLY_R:
+    case CCV::SHFL_DOWN_R:
+    case CCV::SHFL_IDX_R:
+    case CCV::SHFL_UP_R: {
+      switch (OpNum) {
+      case 0:
+        // op: rd
+        return 11;
+      case 2:
+        // op: rs0
+        return 15;
+      case 3:
+        // op: rs1
         return 19;
       case 1:
         // op: pq
@@ -2969,6 +3030,7 @@ uint32_t CCVMCCodeEmitter::getOperandBitOffset(const MCInst &MI,
       }
       break;
     }
+    case CCV::VOTE_ALL:
     case CCV::VOTE_ANY: {
       switch (OpNum) {
       case 2:

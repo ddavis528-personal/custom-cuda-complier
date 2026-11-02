@@ -1002,12 +1002,33 @@ def MOVI48 : FormatF48<0, (outs GPR:$rd), (ins uimm33:$imm), "f48 $rd, $imm">;
 
 // ---------------------------------------------------------------------------
 // Format G -- warp-collective. unballot added in v1.3 (O-14).
-// ASSIGNED: shfl.idx 0, ballot 8, unballot 9.
+// ASSIGNED: shfl.idx 0, shfl.up 1, shfl.down 2, shfl.bfly 3, vote.any 4,
+// vote.all 5, ballot 8, unballot 9; bit 4 is the index-source bit, so the
+// register-index shuffles are 16-19 (O-85, DA 2026-11-02: the opcode map
+// names "each with an immediate/register index-source bit" but fixes no
+// points). What each computes is §3's "What the collectives compute" (O-85);
+// ccv-sim implements it.
 // ---------------------------------------------------------------------------
 def SHFL_IDX : FormatGshfl<0, (outs GPR:$rd), (ins pqual:$pq, GPR:$rs0, uimm5:$lane),
                            "@$pq shfl.idx $rd, $rs0, $lane">;
+def SHFL_UP  : FormatGshfl<1, (outs GPR:$rd), (ins pqual:$pq, GPR:$rs0, uimm5:$lane),
+                           "@$pq shfl.up $rd, $rs0, $lane">;
+def SHFL_DOWN : FormatGshfl<2, (outs GPR:$rd), (ins pqual:$pq, GPR:$rs0, uimm5:$lane),
+                            "@$pq shfl.down $rd, $rs0, $lane">;
+def SHFL_BFLY : FormatGshfl<3, (outs GPR:$rd), (ins pqual:$pq, GPR:$rs0, uimm5:$lane),
+                            "@$pq shfl.bfly $rd, $rs0, $lane">;
+def SHFL_IDX_R : FormatGshflR<16, (outs GPR:$rd), (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
+                              "@$pq shfl.idx $rd, $rs0, $rs1">;
+def SHFL_UP_R  : FormatGshflR<17, (outs GPR:$rd), (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
+                              "@$pq shfl.up $rd, $rs0, $rs1">;
+def SHFL_DOWN_R : FormatGshflR<18, (outs GPR:$rd), (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
+                               "@$pq shfl.down $rd, $rs0, $rs1">;
+def SHFL_BFLY_R : FormatGshflR<19, (outs GPR:$rd), (ins pqual:$pq, GPR:$rs0, GPR:$rs1),
+                               "@$pq shfl.bfly $rd, $rs0, $rs1">;
 def VOTE_ANY : FormatGvote<4, (outs PR:$pd), (ins pqual:$pq, psrc:$ps),
                            "@$pq vote.any $pd, $ps">;
+def VOTE_ALL : FormatGvote<5, (outs PR:$pd), (ins pqual:$pq, psrc:$ps),
+                           "@$pq vote.all $pd, $ps">;
 def BALLOT   : FormatGballot<8, (outs GPR:$rd), (ins pqual:$pq, psrc:$ps),
                              "@$pq ballot $rd, $ps">;
 def UNBALLOT : FormatGunballot<9, (outs PR:$pd), (ins pqual:$pq, GPR:$rs0),

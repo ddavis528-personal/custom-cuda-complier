@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-11-02-20db9c9
+# Snapshot snapshot-2026-11-02-aba874d
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `20db9c94f94525c8ddf928264f5f3eb231c26db5`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `aba874d39066e55c92410999a591f2782cbb38d5`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -24,7 +24,7 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `20db9c94f94525c8ddf928264f5f3eb231c26db5` |
+| Source | `ccr-ea1c4e17-tem30u` @ `aba874d39066e55c92410999a591f2782cbb38d5` |
 | Built | 2026-11-02 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
@@ -76,8 +76,8 @@ b75b80e31a223cb17ae8a86993cc7275b6b63ae5a9609214ebd633e5cd6e08df  release/bench/
 0529582a0572b0828fefa8b9e57ba448529f16369affe535b1acbb20816662de  release/bench/sweep-decode.txt
 efcff2fa5f840ffa392fc1ade12544d283d6a1d371cd43ef1c2a8fd17b905153  release/bench/sweep-frames.txt
 28c14ebc8397a6ec18b69bcb5ebe93a64c94cd04b97c971dd526f78ff72f423b  release/bench/sweep-tiles.txt
-62ee8023a24cc83833ba8d0338ae176b8dc468341841227a8b6e48cdbaa4bff7  release/bin/ccv-sim
-f945f882b899ad142294ffa422a5311d6aceb502a6d6657aa3aac9d8c9f24af2  release/bin/ccv-sim.txt
+c4b3d31995a5d1ca1899c43d1cd0bc972af845d2f010d02789527d224aa1e0ca  release/bin/ccv-sim
+58d7dc594fcb3f728698159926d066f8d3cffaaead350388132b7803dad44165  release/bin/ccv-sim.txt
 d584ca102a553ee5a3452ebdf1951274a449183b47274927d2da3706fa49a372  release/kernels/coremark-derived-pl-fault/fault.txt
 30e06acedd4174724680d04b4f0d67da8a38062f033a24272a2321544f128573  release/kernels/coremark-derived-pl-fault/kernel.bin
 555dcd5762b707e7c7eff98fca6c1ec165ec1d6a387a3d3c74af908697591912  release/kernels/coremark-derived-pl-fault/kernel.s
@@ -175,5 +175,5 @@ a82d940bbd3d4357bf2fc76a964abaf31469eef73a32ca75dfd78770da81c6b9  release/kernel
 36b6edf6f2233ec101c8b455a53a5ad715de76b787589df79503dc45463aceae  release/kernels/transpose-n512/kernel.s
 689629a023a7726d5915b279dbeae936c651482effec36aae59764502185d6b5  release/kernels/transpose-n512/launch.txt
 a6f888e3b4ec2d27c101ba7bcc3e3a38056d5b03b62f74ddb9ff1b4946439807  release/kernels/transpose-n512/ops.txt
-a865429c23599fea0ef9cd31a9fd1b2a4751476d1c4090e739ce90ba38efa152  release/verify.log
+54ab8935213e4aa3b8ff43e386726952ee167476908dadbb6f77696233e4f62d  release/verify.log
 ```

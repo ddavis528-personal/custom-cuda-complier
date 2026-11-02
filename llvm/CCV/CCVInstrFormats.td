@@ -431,6 +431,22 @@ class FormatGshfl<bits<5> opc, dag outs, dag ins, string asm>
   let Inst{31-30} = 0;           // reserved: shuffles write a GPR, not a predicate
 }
 
+// The register-index shuffles (O-85): the index register's number at [22:19],
+// [23] reserved zero; c is the low 5 bits of each lane's element of it. [22:19]
+// is invariant 8's rs1, so the index register is rs1.
+class FormatGshflR<bits<5> opc, dag outs, dag ins, string asm>
+    : CCVInst32<0b1100, outs, ins, asm> {
+  bits<4> rd; bits<4> rs0; bits<4> rs1; bits<3> pq;
+  let Inst{10-6}  = opc;
+  let Inst{14-11} = rd;
+  let Inst{18-15} = rs0;
+  let Inst{22-19} = rs1;
+  let Inst{23}    = 0;           // reserved zero (O-85)
+  let Inst{26-24} = 0;           // reserved (PTX clamp/segment operand)
+  let Inst{29-27} = pq;
+  let Inst{31-30} = 0;
+}
+
 // vote.any / vote.all: predicate source at [21:19], predicate dest at [31:30].
 class FormatGvote<bits<5> opc, dag outs, dag ins, string asm>
     : CCVInst32<0b1100, outs, ins, asm> {

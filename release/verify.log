@@ -1,12 +1,12 @@
   gen-register-info    ok (735 lines)
-  gen-instr-info       ok (6343 lines)
-  gen-emitter          ok (3008 lines)
-  gen-disassembler     ok (1754 lines)
-  gen-asm-writer       ok (2187 lines)
+  gen-instr-info       ok (6409 lines)
+  gen-emitter          ok (3070 lines)
+  gen-disassembler     ok (1802 lines)
+  gen-asm-writer       ok (2233 lines)
   gen-dag-isel         ok (2190 lines)
   gen-callingconv      ok (92 lines)
 
-checked 438 instructions
+checked 446 instructions
 
   EXEMPT       CHWIDTH_MULTI: Format I metadata: register mask, no canonical slots
   EXEMPT       PMOV_IMM: Format I metadata: pd at [9:8], excluded by invariant 8 (v1.4)
@@ -220,7 +220,7 @@ checked 438 instructions
   dp4 against a four-MAC reference
   PASS  dp4: 32 lanes correct against a four-MAC reference (1 dp4 instruction(s) emitted)
   every instruction has a production path
-  PASS  457 instructions, all with a production path (isel 90, pass 185, mc 1, declared 181)
+  PASS  465 instructions, all with a production path (isel 90, pass 185, mc 1, declared 189)
   the production-path gate catches its own cases
   PASS  removing the bra.short pattern (with insertBranch also removed) fails the check
   PASS  removing the immediate-compare mapping fails the check
@@ -228,7 +228,7 @@ checked 438 instructions
   PASS  an emit gated on an unreachable trigger is not a production path
   PASS  an ungated emit makes the declaration stale, and it is caught
   documentation structure
-  PASS  37 documents: paths resolve, 209 findings and 84 decisions all defined, no duplicate tracking rows
+  PASS  37 documents: paths resolve, 210 findings and 85 decisions all defined, no duplicate tracking rows
   spec cross-table consistency
   PASS  9 sibling rows agree with their bit maps, 11 48-bit tags agree with §2/§3 prose, 4 obligations agree with §1a, no forward version citations, 12 dp points agree with the machine description, 5 §4 blocks each enumerated
   walkthrough prose vs its own listings
@@ -247,8 +247,8 @@ checked 438 instructions
   PASS  fused-corpus sweep matches the tool
   encode -> decode round trip
 
-  CCV instructions     : 438
-  round trips          : 28032 (64 random operand sets each)
+  CCV instructions     : 446
+  round trips          : 28544 (64 random operand sets each)
   non-CCV opcodes      : 290 (LLVM pseudos and GlobalISel generics, no encoding)
   unbuildable operands : 0
   failures             : 0
@@ -276,6 +276,7 @@ checked 438 instructions
   PASS  ld.pred/st.pred: positional frame, whole-warp words, a clobbered predicate restored
   PASS  ld.pred and st.pred move only the issuing group's lanes (O-62, O-63)
   PASS  pmov #lanemask writes only the issuing group's lanes (RA-19, invariant 10; control writes all 32)
+  PASS  shfl up/down/bfly and the register index, vote, ballot and the diagonal unballot (O-85; controls: wrap, issue mask, lowest lane)
 
   --- narrow FP (CP-6) ---
   PASS  narrow FP in a kernel: E4M3, E5M2, E2M1, FP16 ffma, BF16 ffma.acc, a saturating conversion, compressed and predicated forms
