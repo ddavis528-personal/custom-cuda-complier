@@ -96,6 +96,10 @@ static cl::opt<bool> TestMovRaw(
     "ccv-test-mov-raw", cl::Hidden,
     cl::desc("a mov copies all 32 bits of its source, as before O-82, rather "
              "than its element at the destination's width"));
+static cl::opt<bool> TestPmovAllLanes(
+    "ccv-test-pmov-all-lanes", cl::Hidden,
+    cl::desc("pmov #lanemask writes all 32 lanes, as before RA-19, rather "
+             "than only the issuing group's"));
 static cl::opt<bool> TestAtomNoIndex("ccv-test-atomic-no-index", cl::Hidden,
     cl::desc("address atomics without their index register, as before O-72, "
              "to test that it is caught"));
@@ -256,6 +260,7 @@ int main(int argc, char **argv) {
   nfp::TestAtomNoIndex = TestAtomNoIndex;
   nfp::TestAddrFull = TestAddrFull;
   nfp::TestMovRaw = TestMovRaw;
+  nfp::TestPmovAllLanes = TestPmovAllLanes;
   nfp::TestPrivLane0 = TestPrivLane0;
   nfp::TestPrivContiguous = TestPrivContiguous;
   nfp::TestSizedNoSext = TestSizedNoSext;
