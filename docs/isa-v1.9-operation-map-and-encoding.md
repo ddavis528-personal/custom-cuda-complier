@@ -2024,8 +2024,13 @@ cold, which in a packed-section prologue is where it naturally wants to sit anyw
 | `[47:16]` | **32** | lane mask, one bit per lane |
 
 Writes a constant 32-bit lane mask to a predicate register. Bit *n* of the immediate becomes
-lane *n*'s predicate bit. No width code and no `chwidth` interaction: a predicate is 32 bits
-at every element width.
+lane *n*'s predicate bit, in every lane of the issue mask; a lane outside it keeps its bit
+(invariant 10, O-62, which hold "whatever the instruction"). Under convergence the issue mask
+is all 32 lanes and the whole mask is written, which is where a mask is created: O-33 emits
+`pmov` once, in the entry block. Under divergence a group's `pmov` cannot write another
+group's lanes, which are other threads. *(Clarified 2026-11-02, RA-19: no change, but ccv-sim
+had read this sentence as writing all 32 lanes regardless of the issue mask.)* No width code
+and no `chwidth` interaction: a predicate is 32 bits at every element width.
 
 **This subop has no 32-bit form.** A 32-bit instruction leaves 22 bits after the header, the
 subop and `pd` — not enough for a 32-lane mask, and a truncated mask would be useless. Nor
