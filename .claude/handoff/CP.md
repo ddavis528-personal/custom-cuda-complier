@@ -1,6 +1,6 @@
 # CP handoff (compiler implementation)
 
-Updated 2026-11-01. Keep this current at every task's end; it is what
+Updated 2026-11-02. Keep this current at every task's end; it is what
 survives a compaction. The repo's rules are in its docs and skills; this holds
 CP's.
 
@@ -40,15 +40,17 @@ Daniel before any re-run); make-release if the head is not snapshotted; pings
 on Fridays; report in a few lines.
 
 ## Register bookmarks (revs read through), scratchpad cp-register-bookmarks.json
-CP 149, IS 182, OA 295, AR 260, TI 281, OI 249, DA 98, Conventions 15.
+CP 151, IS 184, OA 295, AR 260, TI 281, OI 249, DA 100, RA 41, Conventions 15.
 Sessions: AR 01FnGhxke3r33MeArLeQJRcD, OA 01TbX2MyX6quhjarDR7J2bMR,
 IS 01989HiTNh4Gx7XMSsdvdE7Z, TI 01J4Yp3xeV6DJtgCtcoqVsAq,
-OI 01DMw4FtFbGoVboMGxWpLBuv (all `session_` + id).
+OI 01DMw4FtFbGoVboMGxWpLBuv, RA 01QPk2jzLmjd3MWXjayVUy9d (RCU architect, DA rev 99;
+tab 9851686b-2b0a) (all `session_` + id).
 Tabs: AR bc521c46-9710, OA 4c6a3151-83eb, IS 60e6f93a-7fdc,
 TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c.
 
 ## State
-- Last snapshot 1ba0f9a (3485e16); the head after it carries roster RH. Before it d9ddd2c
+- Last snapshot ea0b35e (aba874d): RA-19 pmov merge (CP-75), O-85 collectives
+  in .td and ccv-sim (CP-76). Before it d9ddd2c
   (f5fa030): O-84/IS-25 frames at the bottom of the O-83 region, default.
   TI pinned d9ddd2c (core 5fe7177).
 - IS's branch ccr-3868632d-p8esoz: IS now skips equal-tree merges and
@@ -59,4 +61,7 @@ TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c.
 2. TI-49 (2), (3) are OA's to rule; nothing for CP until then.
 3. TI-50 done (CP-74): /home/user/.claude installed by core's
    setup-session-home.py with Daniel's approval; --check rc=0.
-4. Nothing else queued. Recent rows: CP-65..CP-74.
+4. O-85 lowering of CUDA's __shfl_*_sync/__ballot_sync/__any_sync/__all_sync
+   (F-118, F-206) is not built; offered to Daniel. IS to record CP-76's opcode
+   points; TI to take them.
+5. Recent rows: CP-65..CP-76.
