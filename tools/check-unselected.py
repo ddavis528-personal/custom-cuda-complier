@@ -147,11 +147,14 @@ UNREACHABLE = {
                       "§4 point 19 is never selected; F-58"),
 
     # -- todo: no lowering in the backend yet -------------------------------
-    # The intrinsic surface: the warp vote/ballot group, the barrier
+    # The intrinsic surface: the warp vote/ballot group, O-85's shuffle modes
+    # and register-index shuffles (ccv-sim runs them: test/collectives.s), the barrier
     # phase operations, and predicate spill to shared. Each needs a PTX
     # intrinsic mapped in CCVISelLowering, not an encoding. F-118.
     **{n: ("todo", "no PTX intrinsic lowering yet; F-118")
-       for n in """BALLOT UNBALLOT VOTE_ANY
+       for n in """BALLOT UNBALLOT VOTE_ANY VOTE_ALL
+                   SHFL_UP SHFL_DOWN SHFL_BFLY
+                   SHFL_IDX_R SHFL_UP_R SHFL_DOWN_R SHFL_BFLY_R
                    BAR_WAIT_PHASE PMOV LD_PRED_S ST_PRED_S""".split()},
     # Format J's second FP format code is BF16/E5M2, and the backend has no
     # bfloat type, so nothing can produce a contract-flagged bf16 multiply-add
