@@ -1,6 +1,6 @@
 # CP handoff (compiler implementation)
 
-Updated 2026-11-02. Keep this current at every task's end; it is what
+Updated 2026-11-03. Keep this current at every task's end; it is what
 survives a compaction. The repo's rules are in its docs and skills; this holds
 CP's.
 
@@ -32,7 +32,7 @@ CP's.
 
 ## Daily sweep (scheduled task trig_01Hp4MZnx61rMQL7Dd5qjd5z, 02:19 PT)
 Read every tab since the bookmarks and answer rows with CP in Needs; merge
-every remote branch except release; check docs/register/roster.json against
+every remote branch except release and gate-scratch/* (CP-77); check docs/register/roster.json against
 core's (`git -C ../custom-cuda-core show
 origin/claude/custom-cuda-core-infra-6msg93:docs/register/roster.json`);
 run core's latest tools/setup-session-home.py --check (TI-50; on drift ask
@@ -40,8 +40,9 @@ Daniel before any re-run); make-release if the head is not snapshotted; pings
 on Fridays; report in a few lines.
 
 ## Register bookmarks (revs read through), scratchpad cp-register-bookmarks.json
-CP 152, IS 185, OA 310, AR 268, TI 290, OI 252, DA 103, RA 59, Conventions 17. RI (RCU implementation, DA rev 101) has
-tab 8e4547bc-c469, session not yet in the roster.
+CP 152, IS 188, OA 316, AR 268, TI 297, OI 252, DA 104, RA 59, Conventions 17 (swept 2026-11-03).
+RI (RCU implementation, DA rev 101) has tab 8e4547bc-c469, no session yet;
+RA and RI are in the roster (copied from core 2026-11-03).
 Sessions: AR 01FnGhxke3r33MeArLeQJRcD, OA 01TbX2MyX6quhjarDR7J2bMR,
 IS 01989HiTNh4Gx7XMSsdvdE7Z, TI 01J4Yp3xeV6DJtgCtcoqVsAq,
 OI 01DMw4FtFbGoVboMGxWpLBuv, RA 01QPk2jzLmjd3MWXjayVUy9d (RCU architect, DA rev 99;
@@ -50,7 +51,7 @@ Tabs: AR bc521c46-9710, OA 4c6a3151-83eb, IS 60e6f93a-7fdc,
 TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c.
 
 ## State
-- Last snapshot efddc8b (b44859a); the head after it merges IS's 0aafcf5 (Format G
+- Last snapshot 85a1c6b (0799e97), which merges IS's 0aafcf5 (Format G
   opcode points in §3). Earlier: RA-19 pmov merge (CP-75), O-85 (CP-76). Before it d9ddd2c
   (f5fa030): O-84/IS-25 frames at the bottom of the O-83 region, default.
   TI pinned d9ddd2c (core 5fe7177).
@@ -65,6 +66,6 @@ TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c.
 4. O-85 lowering of CUDA's __shfl_*_sync/__ballot_sync/__any_sync/__all_sync
    (F-118, F-206) is not built; offered to Daniel. IS to record CP-76's opcode
    points (done, 0aafcf5); TI to take them.
-   CP-77: the sweep should skip gate-scratch/* (TI rev 289); waits on Daniel's
-   approval to edit the sweep prompt (none exist in the compiler repo).
-5. Recent rows: CP-65..CP-76.
+   CP-77 done: the sweep task skips gate-scratch/* (TI rev 289; Daniel
+   approved 2026-11-02).
+5. Recent rows: CP-65..CP-77.
