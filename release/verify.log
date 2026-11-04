@@ -156,6 +156,8 @@ checked 446 instructions
   PASS  sgemm-128: 2 CTA(s) of 128 threads, four warps, match the reference; 49 opcodes, 5880 issue groups; without its input data each fails
   PASS  cta-reduce-128: 1 CTA(s) of 128 threads, four warps, match the reference; 24 opcodes, 5420 issue groups; without its input data each fails
   PASS  transpose-128: 4 CTA(s) of 128 threads, four warps, match the reference; 36 opcodes, 3904 issue groups; without its input data each fails
+  PASS  vadd16-128: 1 CTA(s) of 128 threads, four warps, match the reference; 14 opcodes, 96 issue groups; without its input data each fails
+  PASS  vadd16_loop-128: 1 CTA(s) of 128 threads, four warps, match the reference; 16 opcodes, 4672 issue groups; without its input data each fails
   PASS  gemv-k128: 8 one-warp CTAs exact; 5784 issue groups; without the loaded inputs each fails
   PASS  gemv-k512: 8 one-warp CTAs exact; 22488 issue groups; without the loaded inputs each fails
   PASS  gemv-k2048: 8 one-warp CTAs exact; 89304 issue groups; without the loaded inputs each fails

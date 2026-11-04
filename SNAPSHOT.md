@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-11-04-108b23d
+# Snapshot snapshot-2026-11-04-45ce995
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `108b23dbc17c357204e03eb88effdd316cb21da0`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `45ce995c923e7267feb71d87f8f9c5edfefcf0df`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -24,7 +24,7 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `108b23dbc17c357204e03eb88effdd316cb21da0` |
+| Source | `ccr-ea1c4e17-tem30u` @ `45ce995c923e7267feb71d87f8f9c5edfefcf0df` |
 | Built | 2026-11-04 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
@@ -77,7 +77,7 @@ b75b80e31a223cb17ae8a86993cc7275b6b63ae5a9609214ebd633e5cd6e08df  release/bench/
 efcff2fa5f840ffa392fc1ade12544d283d6a1d371cd43ef1c2a8fd17b905153  release/bench/sweep-frames.txt
 28c14ebc8397a6ec18b69bcb5ebe93a64c94cd04b97c971dd526f78ff72f423b  release/bench/sweep-tiles.txt
 c4b3d31995a5d1ca1899c43d1cd0bc972af845d2f010d02789527d224aa1e0ca  release/bin/ccv-sim
-9191f73c3acdd34f4c538875370ca88324e87da8a71691fe035bf05ede5d209b  release/bin/ccv-sim.txt
+8f54d380037fa4d2736821372cc3e71136e98d52a750e708e966811521483af1  release/bin/ccv-sim.txt
 d584ca102a553ee5a3452ebdf1951274a449183b47274927d2da3706fa49a372  release/kernels/coremark-derived-pl-fault/fault.txt
 30e06acedd4174724680d04b4f0d67da8a38062f033a24272a2321544f128573  release/kernels/coremark-derived-pl-fault/kernel.bin
 555dcd5762b707e7c7eff98fca6c1ec165ec1d6a387a3d3c74af908697591912  release/kernels/coremark-derived-pl-fault/kernel.s
@@ -175,5 +175,13 @@ a82d940bbd3d4357bf2fc76a964abaf31469eef73a32ca75dfd78770da81c6b9  release/kernel
 36b6edf6f2233ec101c8b455a53a5ad715de76b787589df79503dc45463aceae  release/kernels/transpose-n512/kernel.s
 689629a023a7726d5915b279dbeae936c651482effec36aae59764502185d6b5  release/kernels/transpose-n512/launch.txt
 a6f888e3b4ec2d27c101ba7bcc3e3a38056d5b03b62f74ddb9ff1b4946439807  release/kernels/transpose-n512/ops.txt
-54ab8935213e4aa3b8ff43e386726952ee167476908dadbb6f77696233e4f62d  release/verify.log
+3e5d4bad991bd1069c5bcab9379a434c1b77cecf5e1000ea1d9d0574bbcb7752  release/kernels/vadd16-128/kernel.bin
+6ebfc6577a76d0e1de11d570ea60b98b9a4e10d7828486821f6c6a66f3d5ddb8  release/kernels/vadd16-128/kernel.s
+bf51681046f354fcf7ea53121b8290425858095c0a01c03dbe80f751e7b8c078  release/kernels/vadd16-128/launch.txt
+32cb9ee7557a30f77f925e0d645b20a5a53e975eb68c0a8f238872b4be6ce641  release/kernels/vadd16-128/ops.txt
+f5063fb8c27fa4f816f8d3839b78b7d866f92c8dd9a2eb965f975a8c950969c1  release/kernels/vadd16_loop-128/kernel.bin
+b0f74c77a102dec097e286d8da36425b7e05babbe93a7b6d1c64accd41670ff0  release/kernels/vadd16_loop-128/kernel.s
+0b9c1869e6fee016ebaf5e6d575ca1f85455572aefc58abe6b7a938566750388  release/kernels/vadd16_loop-128/launch.txt
+2fc89097566002c110c5a04fb8106ea56bf839b7a224c287086fb673768983b8  release/kernels/vadd16_loop-128/ops.txt
+78d2b37457dab7c6478837e3513f91b5fe9cf3e8adf0712d4bc9aed2f4d28c9f  release/verify.log
 ```

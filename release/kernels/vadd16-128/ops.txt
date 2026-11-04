@@ -1,0 +1,15 @@
+# vadd16-128: opcodes issued over the launch's 1 CTAs of four warps, by ccv-sim's names; 96 issue groups
+ADD                8
+BRA_PRED           4
+CHWIDTH_MULTI      4
+C_ADD              8
+C_EXIT             4
+C_LD_GLOBAL        4
+C_SHLI             4
+LD_GLOBAL          28
+MADLO              4
+MOVI               4
+SETP_LE_U_NP       4
+SRD                8
+SZ_GLOBAL_LD_U16   8
+SZ_GLOBAL_ST_16    4
