@@ -518,6 +518,21 @@ def transpose128():
     return ctas
 
 
+def vadd16_128(n):
+    """vadd16 and vadd16_loop for AR-24's four-warp width run (TI rev 312):
+    16-bit elements, packed two to a word, little-endian. The sums wrap at 16
+    bits, as (short) in the source does, and are checked exactly."""
+    def pack(s):
+        return [(s[2 * k] & 0xffff) | (s[2 * k + 1] & 0xffff) << 16 for k in range(len(s) // 2)]
+    a = [(i * 7919 + 13) & 0xffff for i in range(n)]
+    b = [(i * 104729 + 101) & 0xffff for i in range(n)]
+    c = pack([(x + y) & 0xffff for x, y in zip(a, b)])
+    L = Launch(T4)
+    L.ptr(32, 3); L.ptr(40, 4); L.ptr(48, 5); L.word(56, n)
+    L.ints(4, pack(a)); L.ints(5, pack(b)); L.watch(3, n // 2)
+    return [(L, {(3 << 16) + 4 * k: v for k, v in enumerate(c)}, None)]
+
+
 # name: (source, extra flags, the argument layout it must have, generator)
 KERNELS128 = {
     "rope-diverged-128": ("test/cuda/fusion/rope.cu", "-Itest/cuda/fusion",
@@ -528,6 +543,9 @@ KERNELS128 = {
     "sgemm-128": ("test/cuda/sgemm.cu", "-DBX=16 -DBY=8", "p32,p40,p48,s56,s60", sgemm128),
     "cta-reduce-128": ("test/cuda/cta-reduce.cu", "", "p32,p40", cta_reduce128),
     "transpose-128": ("test/cuda/transpose32.cu", "", "p32,p40,s48", transpose128),
+    "vadd16-128": ("test/bench/vadd16.cu", "", "p32,p40,p48,s56", lambda: vadd16_128(128)),
+    "vadd16_loop-128": ("test/bench/vadd16_loop.cu", "", "p32,p40,p48,s56",
+                        lambda: vadd16_128(12288)),
 }
 
 
