@@ -1,6 +1,6 @@
 # CP handoff (compiler implementation)
 
-Updated 2026-11-03. Keep this current at every task's end; it is what
+Updated 2026-11-04. Keep this current at every task's end; it is what
 survives a compaction. The repo's rules are in its docs and skills; this holds
 CP's.
 
@@ -40,7 +40,7 @@ Daniel before any re-run); make-release if the head is not snapshotted; pings
 on Fridays; report in a few lines.
 
 ## Register bookmarks (revs read through), scratchpad cp-register-bookmarks.json
-CP 152, IS 188, OA 316, AR 268, TI 297, OI 252, DA 104, RA 59, Conventions 17 (swept 2026-11-03).
+CP 152, IS 189, OA 331, AR 275, TI 305, OI 274, DA 106, RA 63, RI 2, Conventions 17 (swept 2026-11-04).
 RI (RCU implementation, DA rev 101) has tab 8e4547bc-c469, no session yet;
 RA and RI are in the roster (copied from core 2026-11-03).
 Sessions: AR 01FnGhxke3r33MeArLeQJRcD, OA 01TbX2MyX6quhjarDR7J2bMR,
@@ -51,7 +51,7 @@ Tabs: AR bc521c46-9710, OA 4c6a3151-83eb, IS 60e6f93a-7fdc,
 TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c.
 
 ## State
-- Last snapshot 85a1c6b (0799e97), which merges IS's 0aafcf5 (Format G
+- Last snapshot 7ec31c0 (89dc3bf: roster with RA and RI, CP-77 done); 85a1c6b (0799e97) merged IS's 0aafcf5 (Format G
   opcode points in §3). Earlier: RA-19 pmov merge (CP-75), O-85 (CP-76). Before it d9ddd2c
   (f5fa030): O-84/IS-25 frames at the bottom of the O-83 region, default.
   TI pinned d9ddd2c (core 5fe7177).
