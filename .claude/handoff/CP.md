@@ -60,7 +60,7 @@ TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c.
   fast-forwards (CP-69, CP-70).
 
 ## Open work, most urgent first
-1. TI-48 closed (TI rev 269); autoCompactWindow 400000 set here as in core (CP-73).
+1. TI-48 closed (TI rev 269); autoCompactWindow 350000 here (TI-51, Daniel approved in CP's session 2026-11-06; was 400000, CP-73). /home/user/.claude: re-run setup-session-home.py once core's script carries 350000 (approved).
 2. TI-49 (2), (3) are OA's to rule; nothing for CP until then.
 3. TI-50 done (CP-74): /home/user/.claude installed by core's
    setup-session-home.py with Daniel's approval; --check rc=0.
