@@ -1,6 +1,6 @@
 # CP handoff (compiler implementation)
 
-Updated 2026-11-04. Keep this current at every task's end; it is what
+Updated 2026-11-05. Keep this current at every task's end; it is what
 survives a compaction. The repo's rules are in its docs and skills; this holds
 CP's.
 
@@ -40,8 +40,8 @@ Daniel before any re-run); make-release if the head is not snapshotted; pings
 on Fridays; report in a few lines.
 
 ## Register bookmarks (revs read through), scratchpad cp-register-bookmarks.json
-CP 152, IS 189, OA 331, AR 275, TI 305, OI 274, DA 106, RA 63, RI 2, Conventions 17 (swept 2026-11-04).
-RI (RCU implementation, DA rev 101) has tab 8e4547bc-c469, no session yet;
+CP 154, IS 189, OA 346, AR 295, TI 336, OI 290, DA 108, RA 82, RI 15, Conventions 17 (swept 2026-11-05).
+RI (RCU implementation, DA rev 101) has tab 8e4547bc-c469, session_01QPk2jvvXPLs4m8ZQbSk1g6;
 RA and RI are in the roster (copied from core 2026-11-03).
 Sessions: AR 01FnGhxke3r33MeArLeQJRcD, OA 01TbX2MyX6quhjarDR7J2bMR,
 IS 01989HiTNh4Gx7XMSsdvdE7Z, TI 01J4Yp3xeV6DJtgCtcoqVsAq,
@@ -51,7 +51,8 @@ Tabs: AR bc521c46-9710, OA 4c6a3151-83eb, IS 60e6f93a-7fdc,
 TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c.
 
 ## State
-- Last snapshot 7ec31c0 (89dc3bf: roster with RA and RI, CP-77 done); 85a1c6b (0799e97) merged IS's 0aafcf5 (Format G
+- Last snapshot e533ecd (45ce995: vadd16-128 and vadd16_loop-128 exports, CP-79, AR-24 / TI rev 312);
+  b83777e (108b23d); 7ec31c0 (89dc3bf: roster with RA and RI, CP-77 done); 85a1c6b (0799e97) merged IS's 0aafcf5 (Format G
   opcode points in §3). Earlier: RA-19 pmov merge (CP-75), O-85 (CP-76). Before it d9ddd2c
   (f5fa030): O-84/IS-25 frames at the bottom of the O-83 region, default.
   TI pinned d9ddd2c (core 5fe7177).
@@ -59,7 +60,7 @@ TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c.
   fast-forwards (CP-69, CP-70).
 
 ## Open work, most urgent first
-1. TI-48 closed (TI rev 269); autoCompactWindow 400000 set here as in core (CP-73).
+1. TI-48 closed (TI rev 269); autoCompactWindow 350000 here (TI-51, Daniel approved in CP's session 2026-11-06; was 400000, CP-73). /home/user/.claude: re-run setup-session-home.py once core's script carries 350000 (approved).
 2. TI-49 (2), (3) are OA's to rule; nothing for CP until then.
 3. TI-50 done (CP-74): /home/user/.claude installed by core's
    setup-session-home.py with Daniel's approval; --check rc=0.
@@ -68,4 +69,4 @@ TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c.
    points (done, 0aafcf5); TI to take them.
    CP-77 done: the sweep task skips gate-scratch/* (TI rev 289; Daniel
    approved 2026-11-02).
-5. Recent rows: CP-65..CP-77.
+5. Recent rows: CP-65..CP-79 (CP-78: TI rev 308's three items were all done).
