@@ -1,6 +1,6 @@
 # CP handoff (compiler implementation)
 
-Updated 2026-11-08. Keep this current at every task's end; it is what
+Updated 2026-11-09. Keep this current at every task's end; it is what
 survives a compaction. The repo's rules are in its docs and skills; this holds
 CP's.
 
@@ -40,7 +40,7 @@ Daniel before any re-run); make-release if the head is not snapshotted; pings
 on Fridays; report in a few lines.
 
 ## Register bookmarks (revs read through), scratchpad cp-register-bookmarks.json
-CP 157, IS 190, OA 394, AR 332, TI 385, OI 330, DA 115, RA 117, RI 50, Conventions 17 (swept 2026-11-08; Friday 11-06 pings: all 8 ponged ok).
+CP 157, IS 190, OA 409, AR 339, TI 400, OI 336, DA 116, RA 133, RI 66, Conventions 17 (swept 2026-11-09; Friday 11-06 pings: all 8 ponged ok).
 RI (RCU implementation, DA rev 101) has tab 8e4547bc-c469, session_01QPk2jvvXPLs4m8ZQbSk1g6;
 RA and RI are in the roster (copied from core 2026-11-03).
 Sessions: AR 01FnGhxke3r33MeArLeQJRcD, OA 01TbX2MyX6quhjarDR7J2bMR,
@@ -51,7 +51,7 @@ Tabs: AR bc521c46-9710, OA 4c6a3151-83eb, IS 60e6f93a-7fdc,
 TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c.
 
 ## State
-- Last snapshot of f56b225 (11-07 sweep, release 0f28ea8); d721157 (11-06 sweep, release 1e3e3bc); 003e942 (autoCompactWindow 350000, TI-51); before it e533ecd (45ce995: vadd16-128 and vadd16_loop-128 exports, CP-79, AR-24 / TI rev 312);
+- Last snapshot of cc882ed (11-08 sweep, release 8047b34); f56b225 (11-07 sweep, release 0f28ea8); d721157 (11-06 sweep, release 1e3e3bc); 003e942 (autoCompactWindow 350000, TI-51); before it e533ecd (45ce995: vadd16-128 and vadd16_loop-128 exports, CP-79, AR-24 / TI rev 312);
   b83777e (108b23d); 7ec31c0 (89dc3bf: roster with RA and RI, CP-77 done); 85a1c6b (0799e97) merged IS's 0aafcf5 (Format G
   opcode points in §3). Earlier: RA-19 pmov merge (CP-75), O-85 (CP-76). Before it d9ddd2c
   (f5fa030): O-84/IS-25 frames at the bottom of the O-83 region, default.
