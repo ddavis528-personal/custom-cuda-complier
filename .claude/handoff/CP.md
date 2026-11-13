@@ -8,9 +8,13 @@ CP's.
 - Repo /home/user/custom-cuda-complier, branch `ccr-ea1c4e17-tem30u` only.
   custom-cuda-core is read-only to CP. No PRs.
 - Push only after a clean gate. Releases: `./tools/make-release.sh --push`
-  (runs verify.sh, about 25 min; CP alone cuts compiler snapshots). Run it in
-  the background, logging to the scratchpad's release.log with `rc=` appended,
-  and read `grep VERIFY build/release-verify.log`. Never modify the tree while
+  (runs verify.sh, about 25 min; CP alone cuts compiler snapshots). Run it detached
+  (TI rev 418, 2026-11-13; not yet in the DA tab): `setsid nohup sh -c
+  './tools/make-release.sh --push; echo rc=$?' > /tmp/claude-0/cp/release.log
+  2>&1 < /dev/null &`, then a background `while kill -0 <pid>` watcher
+  (keeps the container from idle reclaim; restart it before 2 hours). Never
+  run the gate as the background task itself. When TI's tools/detach.sh and
+  gate-wait.sh reach this repo, use those instead. Then read `grep VERIFY build/release-verify.log`. Never modify the tree while
   a gate runs. Push the branch after the release passes. The remote refuses
   snapshot tags; that is expected ("local only").
 - Merge a peer's branch as soon as its pushed work bears on CP's (DA rev 89),
