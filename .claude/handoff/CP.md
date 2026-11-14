@@ -1,6 +1,6 @@
 # CP handoff (compiler implementation)
 
-Updated 2026-11-13. Keep this current at every task's end; it is what
+Updated 2026-11-14. Keep this current at every task's end; it is what
 survives a compaction. The repo's rules are in its docs and skills; this holds
 CP's.
 
@@ -44,7 +44,7 @@ Daniel before any re-run); make-release if the head is not snapshotted; pings
 on Fridays; report in a few lines.
 
 ## Register bookmarks (revs read through), scratchpad cp-register-bookmarks.json
-CP 157, IS 193, OA 414, AR 348, TI 419, OI 341, DA 119, RA 136, RI 70, MA 46, Conventions 19 (swept 2026-11-13; Friday 11-13 pings in cp-pings.json, checked Saturday). MA (MIU+DCU architect, DA rev 117-118, tab 1f971016-3f72) has no session yet; MI/DI reserved.
+CP 157, IS 193, OA 416, AR 351, TI 429, OI 348, DA 119, RA 145, RI 79, MA 54, Conventions 19 (swept 2026-11-14; Friday 11-13 pings all ponged ok, checked Saturday 11-14). MA (MIU+DCU architect, DA rev 117-118, tab 1f971016-3f72) is session_01QPk2jyUbWA7fW9YpUwqdxk (core roster 2026-11-13, copied 11-14); MI/DI reserved. TI 429 (11-14): core tools now detach and exit 5; the compiler make-release does not detach, nothing to change here.
 RI (RCU implementation, DA rev 101) has tab 8e4547bc-c469, session_01QPk2jvvXPLs4m8ZQbSk1g6;
 RA and RI are in the roster (copied from core 2026-11-03).
 Sessions: AR 01FnGhxke3r33MeArLeQJRcD, OA 01TbX2MyX6quhjarDR7J2bMR,
@@ -52,10 +52,10 @@ IS 01989HiTNh4Gx7XMSsdvdE7Z, TI 01J4Yp3xeV6DJtgCtcoqVsAq,
 OI 01DMw4FtFbGoVboMGxWpLBuv, RA 01QPk2jzLmjd3MWXjayVUy9d (RCU architect, DA rev 99;
 tab 9851686b-2b0a) (all `session_` + id).
 Tabs: AR bc521c46-9710, OA 4c6a3151-83eb, IS 60e6f93a-7fdc,
-TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c, MA 1f971016-3f72.
+TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c, MA 1f971016-3f72, RA 9851686b-2b0a, RI 8e4547bc-c469, DA d5076b00-ef1b.
 
 ## State
-- Last snapshot of afbb240 (11-12 sweep, release 869775c); c09c83e (11-10 sweep, release 3928d2b); c18e887 (11-09 sweep, release b63e379); cc882ed (11-08 sweep, release 8047b34); f56b225 (11-07 sweep, release 0f28ea8); d721157 (11-06 sweep, release 1e3e3bc); 003e942 (autoCompactWindow 350000, TI-51); before it e533ecd (45ce995: vadd16-128 and vadd16_loop-128 exports, CP-79, AR-24 / TI rev 312);
+- Last snapshot of ce94d0a (11-13 sweep, release e624cc7); afbb240 (11-12 sweep, release 869775c); c09c83e (11-10 sweep, release 3928d2b); c18e887 (11-09 sweep, release b63e379); cc882ed (11-08 sweep, release 8047b34); f56b225 (11-07 sweep, release 0f28ea8); d721157 (11-06 sweep, release 1e3e3bc); 003e942 (autoCompactWindow 350000, TI-51); before it e533ecd (45ce995: vadd16-128 and vadd16_loop-128 exports, CP-79, AR-24 / TI rev 312);
   b83777e (108b23d); 7ec31c0 (89dc3bf: roster with RA and RI, CP-77 done); 85a1c6b (0799e97) merged IS's 0aafcf5 (Format G
   opcode points in §3). Earlier: RA-19 pmov merge (CP-75), O-85 (CP-76). Before it d9ddd2c
   (f5fa030): O-84/IS-25 frames at the bottom of the O-83 region, default.
