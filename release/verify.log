@@ -149,6 +149,7 @@ checked 446 instructions
   PASS  coremark-derived: 32 lanes give e714 e714 1fd7 8e3a; 67 opcodes, 661977 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
   PASS  coremark-derived-pl: each lane its own seed, diverging, gives the host's CRCs at that seed; 67 opcodes, 2333082 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
   PASS  coremark-derived-priv: 32 lanes give e714 e714 1fd7 8e3a; 74 opcodes, 661967 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
+  PASS  coremark-derived-pl-priv: each lane its own seed, diverging, gives the host's CRCs at that seed; 74 opcodes, 2333072 issue groups; launch.txt alone reproduces it, data image included; without the image it fails
   PASS  coremark-derived-pl-fault: FAULT F-WIDTH  pc=0x186e  lanes=000000f0  addr=0  cta=0 warp=0, at C_CHWIDTH (issue 7497, mask 0x000000f0); launch.txt alone raises the same; coremark-derived-pl, built as released, does not fault
   PASS  rope-diverged-128: 2 CTA(s) of 128 threads, four warps, match the reference; 32 opcodes, 928 issue groups; without its input data each fails
   PASS  layernorm-128: 2 CTA(s) of 128 threads, four warps, match the reference; 37 opcodes, 2168 issue groups; without its input data each fails

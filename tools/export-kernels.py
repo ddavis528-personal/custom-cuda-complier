@@ -206,13 +206,19 @@ def export_coremark(out, tmp, per_lane=False, priv=False):
     priv: coremark-derived-priv, each thread's block in its O-83 interleaved
     region (-DCCV_PRIV_BASE, __ccv_privbase), so a warp's same-offset access is
     one line (PF-46, DA tab rev 95). Its run needs ccv-sim's defaults
-    -lane-contexts 4096 and -priv-windows 1, and the launch's word 24."""
+    -lane-contexts 4096 and -priv-windows 1, and the launch's word 24.
+
+    per_lane and priv: coremark-derived-pl-priv, both at once, the per-lane
+    seeds' diverging warp with its blocks in the window (AR 358: the perf
+    benches price the -priv forms, the pl variants included)."""
     import importlib.util
     spec = importlib.util.spec_from_file_location(
         "sweep", os.path.join(ROOT, "tools/sweep-coremark.py"))
     sw = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(sw)
-    name, mod, flag = (("coremark-derived-pl", "pl", "-DCCV_SEED_PER_LANE") if per_lane else
+    name, mod, flag = (("coremark-derived-pl-priv", "pp", "-DCCV_SEED_PER_LANE -DCCV_PRIV_BASE")
+                       if per_lane and priv else
+                       ("coremark-derived-pl", "pl", "-DCCV_SEED_PER_LANE") if per_lane else
                        ("coremark-derived-priv", "pv", "-DCCV_PRIV_BASE") if priv else
                        ("coremark-derived", "cm", ""))
     sw.build(tmp, flag, mod)
@@ -834,6 +840,7 @@ def main():
         bad |= export_coremark(out, tmp)
         bad |= export_coremark(out, tmp, per_lane=True)
         bad |= export_coremark(out, tmp, priv=True)
+        bad |= export_coremark(out, tmp, per_lane=True, priv=True)
         bad |= export_coremark_fault(out, tmp)
         bad |= export128(out, tmp)
         bad |= export_l1(out, tmp)

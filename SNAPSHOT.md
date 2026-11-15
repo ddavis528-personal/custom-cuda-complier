@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-11-14-415fd9f
+# Snapshot snapshot-2026-11-15-807056d
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `415fd9f1891656d200f313b806ad25b06b577003`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `807056d4935cf7737caa0a89847d6bede6877e8d`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -24,8 +24,8 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `415fd9f1891656d200f313b806ad25b06b577003` |
-| Built | 2026-11-14 (UTC) |
+| Source | `ccr-ea1c4e17-tem30u` @ `807056d4935cf7737caa0a89847d6bede6877e8d` |
+| Built | 2026-11-15 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
 | LLVM | 18.1.3 |
@@ -77,11 +77,15 @@ b75b80e31a223cb17ae8a86993cc7275b6b63ae5a9609214ebd633e5cd6e08df  release/bench/
 efcff2fa5f840ffa392fc1ade12544d283d6a1d371cd43ef1c2a8fd17b905153  release/bench/sweep-frames.txt
 28c14ebc8397a6ec18b69bcb5ebe93a64c94cd04b97c971dd526f78ff72f423b  release/bench/sweep-tiles.txt
 c4b3d31995a5d1ca1899c43d1cd0bc972af845d2f010d02789527d224aa1e0ca  release/bin/ccv-sim
-bcb80e21007a0c81a251050a32818f624ea78db55da9fd2e7ab7736b4fde0b65  release/bin/ccv-sim.txt
+08f7700f4b1d96463a1e0b30d79ee0def80c162170fdff540a892be4238a4c1f  release/bin/ccv-sim.txt
 d584ca102a553ee5a3452ebdf1951274a449183b47274927d2da3706fa49a372  release/kernels/coremark-derived-pl-fault/fault.txt
 30e06acedd4174724680d04b4f0d67da8a38062f033a24272a2321544f128573  release/kernels/coremark-derived-pl-fault/kernel.bin
 555dcd5762b707e7c7eff98fca6c1ec165ec1d6a387a3d3c74af908697591912  release/kernels/coremark-derived-pl-fault/kernel.s
 d82c8fa0e27f7c45f09e7cef4d4a194b2cdd4c7ed11318557edb50526a40ce18  release/kernels/coremark-derived-pl-fault/launch.txt
+5e48b0329d48dfbe59ee005a1b99db21f74fb0849bae2a3ddab74c0e8cd74704  release/kernels/coremark-derived-pl-priv/kernel.bin
+6fee065d2ea936860d5b706d1b76811fcac48067f847f1d0674fbf43b610fb25  release/kernels/coremark-derived-pl-priv/kernel.s
+923a07b0593200d43fa7a88fdf95d3e113ccc4ba835b6b28f053529cf05aa33e  release/kernels/coremark-derived-pl-priv/launch.txt
+613a8cb52ed2230f9d5c605dc42fbe5d2c5a39d2870098532aa31afdb2919d93  release/kernels/coremark-derived-pl-priv/ops.txt
 5f04b901a375d6472dab92043053326ff48aa790533be2f00912fcc4b22b7ace  release/kernels/coremark-derived-pl/kernel.bin
 dd3ef9dfc451ea300e8e030abaa8e97df9482a91d203d7e0d3c5e09a9955bf49  release/kernels/coremark-derived-pl/kernel.s
 c0efaa07857f9b12af46fc9df40ccfd521ffd78c385bb12fe6a72738c5ccbe4f  release/kernels/coremark-derived-pl/launch.txt
@@ -183,5 +187,5 @@ f5063fb8c27fa4f816f8d3839b78b7d866f92c8dd9a2eb965f975a8c950969c1  release/kernel
 b0f74c77a102dec097e286d8da36425b7e05babbe93a7b6d1c64accd41670ff0  release/kernels/vadd16_loop-128/kernel.s
 0b9c1869e6fee016ebaf5e6d575ca1f85455572aefc58abe6b7a938566750388  release/kernels/vadd16_loop-128/launch.txt
 2fc89097566002c110c5a04fb8106ea56bf839b7a224c287086fb673768983b8  release/kernels/vadd16_loop-128/ops.txt
-78d2b37457dab7c6478837e3513f91b5fe9cf3e8adf0712d4bc9aed2f4d28c9f  release/verify.log
+5bc44df93a37556fb3379b51cb16d8cd707d75e80ef2bc5076767217770db75b  release/verify.log
 ```
