@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-11-17-46131a1
+# Snapshot snapshot-2026-11-17-b9ae2c9
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `46131a1b904bc507c2fca2ef0cf5b1f5c3ddb19d`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `b9ae2c9d5d3b838d5d982d842b558e2d290185ea`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -24,13 +24,13 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `46131a1b904bc507c2fca2ef0cf5b1f5c3ddb19d` |
+| Source | `ccr-ea1c4e17-tem30u` @ `b9ae2c9d5d3b838d5d982d842b558e2d290185ea` |
 | Built | 2026-11-17 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
 | LLVM | 18.1.3 |
 | Platform | x86_64, ldd (Ubuntu GLIBC 2.39-0ubuntu8.9) 2.39 |
-| Kernels not compiled at default parameters | test/cuda/barcount.cu test/cuda/fp4.cu test/cuda/fp8.cu |
+| Kernels not compiled at default parameters | test/cuda/barcount.cu test/cuda/colwalk.cu test/cuda/fp4.cu test/cuda/fp8.cu |
 
 ## Manifest of release/
 
@@ -74,10 +74,45 @@ d9e3e29cdc3a7411b972a4fbef69a2bed68355798daf5f65bbf21a7cc8ae9c02  release/bench/
 718ae7f2f5b7ea13cf7af347850b325d3156c4afa4592a3f0c471ac35d9e9337  release/bench/bench.txt
 b75b80e31a223cb17ae8a86993cc7275b6b63ae5a9609214ebd633e5cd6e08df  release/bench/sweep-coremark.txt
 0529582a0572b0828fefa8b9e57ba448529f16369affe535b1acbb20816662de  release/bench/sweep-decode.txt
-efcff2fa5f840ffa392fc1ade12544d283d6a1d371cd43ef1c2a8fd17b905153  release/bench/sweep-frames.txt
+50d1be2dd11fcbaaeda921a929c52a721654d5ec0c2878111e97d9785b99e271  release/bench/sweep-frames.txt
 28c14ebc8397a6ec18b69bcb5ebe93a64c94cd04b97c971dd526f78ff72f423b  release/bench/sweep-tiles.txt
 c4b3d31995a5d1ca1899c43d1cd0bc972af845d2f010d02789527d224aa1e0ca  release/bin/ccv-sim
-9c1b21ae4746d6556a276ee6e497a47810ad9c7e1ea13e914b56f6a5a7c1ebb7  release/bin/ccv-sim.txt
+2f483bd7f0edaccf8bdb005cf0c00e2e2fff1616f28f74314188df67edf797d3  release/bin/ccv-sim.txt
+ff08d889cd0fbfbe632e96de42a80d48ce0f39b9f7ff009cef2f195374782356  release/kernels/colwalk-p128b/in.bin
+90b0f90c55f34c0186be2b8a258d929c98e2e5cee9fc90ea88be485e0b5ced4b  release/kernels/colwalk-p128b/kernel.bin
+6466c2232c1362723e13fa32a742b737291c670ea0cbdae9f75a9f145a6d3247  release/kernels/colwalk-p128b/kernel.s
+a753878854c5ef2d7daf09b932fb477c2c2ba5a41f973bcbe0b2a3aaf7383a07  release/kernels/colwalk-p128b/launch.txt
+05dcefc233d617d0b245114a521b76da5f2e464ab975959fc30cfa41ad0bd598  release/kernels/colwalk-p128b/ops.txt
+2f5cf2c91f7afaef993fd0e897b2dca79c78a8f31613abf552ba7d82c7a0795e  release/kernels/colwalk-p16k/in.bin
+17306bf7349544675c6f001bf01177a76230806dc845e138447c7aa8b219529f  release/kernels/colwalk-p16k/kernel.bin
+5c60d3b73dd7c1a9009d80ee4320b74422912d732966ee426b8fd3dcf9791281  release/kernels/colwalk-p16k/kernel.s
+49c1f1e0c5965838a4531f9c997a8090d14e0302ba3fbe0a06164c20f6bbc1bf  release/kernels/colwalk-p16k/launch.txt
+46187df50f9486fbbb5d5aaca27ccdb1d31387c8f2762b2ced43442001e8e27c  release/kernels/colwalk-p16k/ops.txt
+1e8907b47eaa5625ce77f35833528c518ba5333ba0452e2ff80c2c5dbddcb352  release/kernels/colwalk-p1k/in.bin
+b48b8e8adcf237210409043dcbb09d1ede60c8d525972daf833c8ea1cb6b6c79  release/kernels/colwalk-p1k/kernel.bin
+eedc0105eccb9756ab21f3febb7c7ac5640742cb1a37346d245d684b59ac12eb  release/kernels/colwalk-p1k/kernel.s
+99f46f6ac652c335b14c07cec588bf12d2c42e05845605e7fe139f43249f5d79  release/kernels/colwalk-p1k/launch.txt
+f506a0872c711c164315d056731fb4f09d430830a7cb7fe85e0749bdecf0ddac  release/kernels/colwalk-p1k/ops.txt
+4543e30ea3a26a9656a0d5fb9a06e9f8a80971ce31d2fba4ec4953983fe68395  release/kernels/colwalk-p2k/in.bin
+ffdddd0022a08c3e5aee919490d3531d74e367b23b08402ed77988be06f060ec  release/kernels/colwalk-p2k/kernel.bin
+d2f779c0e37018c1e24b0311b56e03d3bbaf79d027ab82fc1d1c305ea2c7f463  release/kernels/colwalk-p2k/kernel.s
+0e8419c90123fac2666e66670233f677af1ed1913921a16526baa32aa62bb5d3  release/kernels/colwalk-p2k/launch.txt
+45d8342fa2a5cc6b81a59f3d677dbf8da065ee520c29563f9b0b1877ca99c49f  release/kernels/colwalk-p2k/ops.txt
+b053881397525a06a3d26b03d3e59c27e35dbd3e30cf28a0b4871bdb5f73cdfa  release/kernels/colwalk-p32k/in.bin
+2ed8cdc79f1278663f84e3f4a29003c82466c04b2cec830449840ae8cc3694ad  release/kernels/colwalk-p32k/kernel.bin
+127573097eda96c70fffab1228d781bdcefcd54955a8c348e2836b66772c449b  release/kernels/colwalk-p32k/kernel.s
+4e590cacb5dfcebafd1b4e3724f0985ee06a8c2785350a25549f2bba01f531ce  release/kernels/colwalk-p32k/launch.txt
+16f73a3c2347510fda6f6c5665ee0fc9745ba7255e3805cf8bd984dbfd96c7fd  release/kernels/colwalk-p32k/ops.txt
+6bf19d6138b5dee4c2f11340f8a39555cbaf6bc0654c6ad3646d86a5dc47dc68  release/kernels/colwalk-p4k/in.bin
+1f7370ba76d1ee3987bb9880958d8733a408a8fcee30937c7697b37855183c38  release/kernels/colwalk-p4k/kernel.bin
+533771ff53e7aeb903edf3e8f1ccffae6272b507640818d6ef976b78fb810517  release/kernels/colwalk-p4k/kernel.s
+1babd19e8b17407bc523b2a6a29e26a2a4cf175bac744c3892a346e66511c90a  release/kernels/colwalk-p4k/launch.txt
+064fee8d337059069aba5b5e983b3cb2874ed3bf59d2bd55457f73bcbdbaa562  release/kernels/colwalk-p4k/ops.txt
+ce9d4724dd0dc1c56c1628b42878d192dd725e068ee58fde5d0c2af2cb227dad  release/kernels/colwalk-p8k/in.bin
+9a6d0d3aeb91309dd7fe2dbc65eed9b8f1d08122808a57b0255f8d045f91b4da  release/kernels/colwalk-p8k/kernel.bin
+dc54c5b8436d953101cc0d116e49ee0c113d437a483fde103a9a7e6ae22fc4c4  release/kernels/colwalk-p8k/kernel.s
+a0721ba7a50680888a6d2b1dcd39c5bc17011e422593f0d7404068af83095bbe  release/kernels/colwalk-p8k/launch.txt
+1b2d61497c982a08ccdffefe11484220280e66da452231eab0fe6b2761337656  release/kernels/colwalk-p8k/ops.txt
 d584ca102a553ee5a3452ebdf1951274a449183b47274927d2da3706fa49a372  release/kernels/coremark-derived-pl-fault/fault.txt
 30e06acedd4174724680d04b4f0d67da8a38062f033a24272a2321544f128573  release/kernels/coremark-derived-pl-fault/kernel.bin
 555dcd5762b707e7c7eff98fca6c1ec165ec1d6a387a3d3c74af908697591912  release/kernels/coremark-derived-pl-fault/kernel.s
@@ -187,5 +222,5 @@ f5063fb8c27fa4f816f8d3839b78b7d866f92c8dd9a2eb965f975a8c950969c1  release/kernel
 b0f74c77a102dec097e286d8da36425b7e05babbe93a7b6d1c64accd41670ff0  release/kernels/vadd16_loop-128/kernel.s
 0b9c1869e6fee016ebaf5e6d575ca1f85455572aefc58abe6b7a938566750388  release/kernels/vadd16_loop-128/launch.txt
 2fc89097566002c110c5a04fb8106ea56bf839b7a224c287086fb673768983b8  release/kernels/vadd16_loop-128/ops.txt
-d8f4f6264f2835ee6bdb4287d5f04c66b5ea8ec4278b6448aed60f28ac90866a  release/verify.log
+c2ddcea6f98ae8608ec1da75c923dbb3a00f61967ac859fe4692878c22c76421  release/verify.log
 ```

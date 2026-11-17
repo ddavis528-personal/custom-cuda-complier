@@ -833,6 +833,101 @@ def export_l1(out, tmp):
     return bad
 
 
+# --- colwalk-pP: MIU/DCU Phase 1's stride kernel (AR 373 (2), DA rev 125) ------
+# One CTA of four warps sums a column of 64 rows at row pitch P, twice
+# (test/cuda/colwalk.cu). P = 1 to 32 KiB puts every row of a warp in one bank
+# today, and from 16 KiB in one set; colwalk-p128b, a 128-byte pitch, is the
+# sequential control. The input is in.bin, loaded as the L1 kernels' are, and
+# the 128 sums are checked bit for bit: the inputs are multiples of 1/8, so
+# every sum is exact in fp32. The control runs the CTA without in.bin.
+COLWALK = {f"colwalk-p{k}k": f"-DPITCH_KIB={k}" for k in (1, 2, 4, 8, 16, 32)}
+COLWALK["colwalk-p128b"] = "-DPITCH_BYTES=128"
+COLWALK_PASSES = 2
+
+
+def export_colwalk(out, tmp):
+    bad = 0
+    T, ROWS = T4, 64
+    for name, flags in COLWALK.items():
+        P = int(flags.split("=")[1]) * (1024 if "KIB" in flags else 1)
+        src_path = "test/cuda/colwalk.cu"
+        dis, image = build128(name, tmp, (src_path, flags, "p32,p40,s48", None))
+        # 64 rows of P bytes; under a 512-byte pitch the last row's 128 threads
+        # reach past 64 * P, so the input covers them.
+        n = max(ROWS * P, (ROWS - 1) * P + 4 * T) // 4
+        a = [q8(i, 19, 3) for i in range(n)]
+        want = fbits([COLWALK_PASSES * sum(a[r * P // 4 + t] for r in range(ROWS)) for t in range(T)])
+        at = WC << 16
+        d = os.path.join(out, name)
+        os.makedirs(d, exist_ok=True)
+        open(f"{d}/kernel.s", "w").write(
+            f"# {name}: {src_path} {flags}, compiled; ccv-as source,\n"
+            "# reassembled byte for byte by tools/ccv-dis.py --check. Load at ccv-sim's\n"
+            "# -code-base; entry at offset 0.\n" + dis)
+        open(f"{d}/kernel.bin", "wb").write(image)
+        with open(f"{d}/in.bin", "wb") as f:
+            fbits(a).tofile(f)
+        L = Launch(T)
+        L.ptr(32, WC); L.ptr(40, WA); L.word(48, COLWALK_PASSES)
+
+        def go(with_load, oracle):
+            args = [SIM, f"{d}/kernel.bin", "-threads", str(T), "-cta", "-ctaid", "0",
+                    "-max-steps", "200000000", "-dump", f"{at:#x},{4 * T},{tmp}/dump.bin"]
+            if oracle:
+                args += ["-oracle", oracle]
+            if with_load:
+                args += ["-load", f"{WA << 16:#x}={d}/in.bin"]
+            for addr, v in L.pokes:
+                args += ["-poke", f"{addr:#x}={v}"]
+            if subprocess.run(args, capture_output=True, text=True).returncode:
+                return None
+            got = array.array("f")
+            with open(f"{tmp}/dump.bin", "rb") as f:
+                got.fromfile(f, T)
+            return got
+
+        ops, issued, wrong = collections.Counter(), 0, []
+        got = go(True, f"{tmp}/cw.jsonl")
+        if got is None:
+            wrong.append("the CTA did not run")
+        else:
+            for w in range(T // 32):
+                for line in open(f"{tmp}/cw.jsonl" if w == 0 else f"{tmp}/cw.{w}.jsonl"):
+                    if line.startswith('{"seq"'):
+                        issued += 1
+                        ops[json.loads(line)["op"]] += 1
+            bad_at = next((t for t in range(T) if got[t] != want[t]), None)
+            if bad_at is not None:
+                wrong.append(f"[{at + 4 * bad_at:#x}] = {got[bad_at]}, want {want[bad_at]}")
+        got0 = go(False, None)
+        if got0 is not None and all(got0[t] == want[t] for t in range(T)):
+            wrong.append("control: the CTA without in.bin still matched")
+        with open(f"{d}/launch.txt", "w") as f:
+            f.write(f"# {name}: {src_path} {flags}: one CTA of four warps; thread tid sums\n"
+                    f"# in[r * {P} B + tid * 4] over rows 0-63, {COLWALK_PASSES} passes, into out[tid]\n"
+                    "# (AR 373 (2)). ccv-sim kernel.bin -threads 128 -cta -ctaid 0, the 'load'\n"
+                    "# line as -load=<addr>=<file> (little-endian words, in this directory), then\n"
+                    "# the pokes; the four warps' records are oracle.jsonl and oracle.<w>.jsonl.\n"
+                    f"# out is at {at:#x}, 128 words. Results are checked bit for bit\n"
+                    "# (export-kernels.py), and without in.bin the CTA fails.\n")
+            f.write(f"threads {T}\nwarps {T // 32}\nctas 1\n" + frame_line())
+            f.write(f"load {WA << 16:#x} in.bin {4 * n}\n")
+            f.write("cta 0\n")
+            f.writelines(f"-poke {addr:#x}={v}\n" for addr, v in L.pokes)
+        with open(f"{d}/ops.txt", "w") as f:
+            f.write(f"# {name}: opcodes issued by the launch's one CTA of four warps, "
+                    f"by ccv-sim's names; {issued} issue groups\n")
+            f.writelines(f"{o:<18} {c}\n" for o, c in sorted(ops.items()))
+        if wrong:
+            bad = 1
+            print(f"  FAIL  {name}: {len(wrong)} wrong; {wrong[0]}")
+        else:
+            print(f"  PASS  {name}: one CTA of {T} threads, pitch {P} B, {4 * n} B of input, "
+                  f"matches the reference bit for bit; {len(ops)} opcodes, {issued} issue "
+                  "groups; without in.bin it fails")
+    return bad
+
+
 def main():
     out = sys.argv[1]
     bad = 0
@@ -844,6 +939,7 @@ def main():
         bad |= export_coremark_fault(out, tmp)
         bad |= export128(out, tmp)
         bad |= export_l1(out, tmp)
+        bad |= export_colwalk(out, tmp)
         for name, fn in KERNELS.items():
             src, image = build(name, tmp)
             threads, ctas = fn()

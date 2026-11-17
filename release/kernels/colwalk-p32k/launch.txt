@@ -1,0 +1,21 @@
+# colwalk-p32k: test/cuda/colwalk.cu -DPITCH_KIB=32: one CTA of four warps; thread tid sums
+# in[r * 32768 B + tid * 4] over rows 0-63, 2 passes, into out[tid]
+# (AR 373 (2)). ccv-sim kernel.bin -threads 128 -cta -ctaid 0, the 'load'
+# line as -load=<addr>=<file> (little-endian words, in this directory), then
+# the pokes; the four warps' records are oracle.jsonl and oracle.<w>.jsonl.
+# out is at 0xa00000, 128 words. Results are checked bit for bit
+# (export-kernels.py), and without in.bin the CTA fails.
+threads 128
+warps 4
+ctas 1
+# F: the kernel's frame bytes at the bottom of each thread's O-83 region (IS-25).
+frame 0
+load 0x200000 in.bin 2097152
+cta 0
+-poke 0x20000=128
+-poke 0x20018=256
+-poke 0x20020=160
+-poke 0x20024=0
+-poke 0x20028=32
+-poke 0x2002c=0
+-poke 0x20030=2

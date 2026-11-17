@@ -1,0 +1,20 @@
+# colwalk-p2k: opcodes issued by the launch's one CTA of four warps, by ccv-sim's names; 1924 issue groups
+ADD                328
+ADDI               128
+ADDI48             132
+BRA_PRED           76
+C_ADDI             72
+C_BRA              4
+C_EXIT             4
+C_FADD             512
+C_MOV              8
+C_SHLI             4
+LD_GLOBAL          12
+LD_GLOBAL_SLOT     512
+MOVI               20
+MOVI48             28
+SETP_EQ_NP         8
+SETP_LT_NPI        4
+SETP_LT_U_NPI      64
+SRD                4
+ST_GLOBAL_SLOT     4

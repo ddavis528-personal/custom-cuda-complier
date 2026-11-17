@@ -140,7 +140,7 @@ checked 446 instructions
   PASS  IS-25: with 2048 bytes of frame at the region's bottom, size 63488 runs with the frame intact, 63504 gives null and as a constant does not compile (control: a floor of 0 overwrites the frame)
   PASS  CoreMark-derived in the region, frames too (IS-25): 32 lanes give the host's e714 e714 1fd7 8e3a, 1.00 lines a load memop (contiguous control: 27.9; frames in O-64's windows: 1.46)
   PASS  frame-escape.cu: its two escapes, to .shared and .global, are warned and its private uses are not (control: off without IS-25)
-  PASS  no corpus kernel hands a frame pointer to another thread (29 CUDA kernels and CoreMark-derived; CP-67)
+  PASS  no corpus kernel hands a frame pointer to another thread (30 CUDA kernels and CoreMark-derived; CP-67)
   byte memory access (F-161, F-164)
   PASS  bytes.cu: signed and unsigned bytes, a string, .shared, the frame, and 32 packed byte stores on 32 lanes (492 issue groups)
   PASS  control -ccv-test-bytes-at-32 is caught: did not run: FAULT F-ALIGN  pc=0x1086  lanes=eeeeeeee  addr=0x30001  cta=0 warp=0
@@ -167,6 +167,13 @@ checked 446 instructions
   PASS  transpose-n128: 16 one-warp CTAs exact; 10928 issue groups; without the loaded inputs each fails
   PASS  transpose-n256: 64 one-warp CTAs exact; 43712 issue groups; without the loaded inputs each fails
   PASS  transpose-n512: 256 one-warp CTAs exact; 174848 issue groups; without the loaded inputs each fails
+  PASS  colwalk-p1k: one CTA of 128 threads, pitch 1024 B, 65536 B of input, matches the reference bit for bit; 19 opcodes, 1916 issue groups; without in.bin it fails
+  PASS  colwalk-p2k: one CTA of 128 threads, pitch 2048 B, 131072 B of input, matches the reference bit for bit; 19 opcodes, 1924 issue groups; without in.bin it fails
+  PASS  colwalk-p4k: one CTA of 128 threads, pitch 4096 B, 262144 B of input, matches the reference bit for bit; 19 opcodes, 1928 issue groups; without in.bin it fails
+  PASS  colwalk-p8k: one CTA of 128 threads, pitch 8192 B, 524288 B of input, matches the reference bit for bit; 18 opcodes, 1936 issue groups; without in.bin it fails
+  PASS  colwalk-p16k: one CTA of 128 threads, pitch 16384 B, 1048576 B of input, matches the reference bit for bit; 18 opcodes, 1936 issue groups; without in.bin it fails
+  PASS  colwalk-p32k: one CTA of 128 threads, pitch 32768 B, 2097152 B of input, matches the reference bit for bit; 18 opcodes, 1936 issue groups; without in.bin it fails
+  PASS  colwalk-p128b: one CTA of 128 threads, pitch 128 B, 8576 B of input, matches the reference bit for bit; 18 opcodes, 1904 issue groups; without in.bin it fails
   PASS  rope: 2 CTAs of 32 threads match the reference; 32 opcodes, 354 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
   PASS  rope-diverged: 2 CTAs of 32 threads match the reference; 32 opcodes, 406 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
   PASS  layernorm: 2 CTAs of 32 threads match the reference; 37 opcodes, 536 issue groups; ccv-as source reassembles to the image; the wrong CTA is caught
