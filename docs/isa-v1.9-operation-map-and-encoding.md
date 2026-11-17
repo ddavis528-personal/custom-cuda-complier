@@ -34,7 +34,7 @@ encoding meeting architectural state, now has defined behaviour.
 
 **Invariant 12 is new and invariant 3 is amended.** Every encoding, and every combination of
 an encoding with architectural state, gives a result or a defined fault; nothing is undefined.
-§12 is the fault model: four detection stages, nine causes, precise faults taken at
+§12 is the fault model: four detection stages, nine causes (ten with O-86's `F-MACHINE`), precise faults taken at
 retirement, a sticky per-context record, and containment between contexts per O-38. It is
 `fault-model-spec.md` as adopted, with four corrections made since that document was written:
 
@@ -230,6 +230,16 @@ register-index form, which lanes a vote or ballot reads and writes, and which la
 `unballot` takes. §3 now defines them, PTX-aligned. Participating lanes are the issue mask and
 the guard; only they are written. One encoding field is defined: the register-index shuffle names
 its index register at `[22:19]`, `[23]` reserved zero. No format tag or bit map otherwise
+changes.
+
+### Machine errors become a fault cause (O-86; AR 369, AR 370)
+
+Adopted by DA on 2026-11-17. SECDED ECC on the core's SRAM arrays (TI 474) detects
+uncorrectable errors, which no cause in §12 could report. §12 adds `F-MACHINE`, its first cause
+the instruction stream does not determine: an Execute cause, lowest in priority, precise where
+the error lies in one context's data. An uncorrectable error no single context owns ends every
+context on the core, the one exception to §12.7's containment, and each context's record shows
+`F-MACHINE`. Corrected errors and the recovered clean-line case are never faults. No encoding
 changes.
 
 ### Still open
@@ -3543,6 +3553,31 @@ path back to OOE. No encoding changes: the field stays 6 bits, its top values re
 
 ---
 
+**O-86 — Machine errors: `F-MACHINE` and the core-wide exception — decided in 1.9.** AR 369 and
+AR 370, from TI 474 (6) and TI 475 (4) (DA: SECDED on every SRAM; its error events go to an
+architectural fault system that AR defines). Daniel answered AR 369's four questions in AR's
+session on 2026-11-17 (DA tab rev 124, recorded by AR): "1) yes, 2) only if we keep track of how many times this has happened to the same line - we don't want to get stuck in a forever recovery loop if there is really a bad bit, 3) yes, 4) yes". The questions, in order:
+(1) an uncorrectable error no single context owns ends the whole core; (2) a double-bit error in
+a clean L1 line is recovered by invalidating and refetching it; (3) the ISA adds `F-MACHINE`;
+(4) the host learns of machine errors by polling, as the core has no interrupt. IS's view (IS
+rev 196) supplied the §12.7 exception and host-only logging, which AR 370 and DA rev 124 took.
+§12 had nine causes, all decided by the instruction stream and architectural state, and no way
+to report a hardware error. Adopted (§12.1, §12.3, §12.5, §12.6, §12.7, §12.8): `F-MACHINE`, an
+Execute cause, lowest priority, raised precisely for an uncorrectable error in data an access of
+one context read or merged; an uncorrectable error no single context owns terminates every
+context on the core, writing `F-MACHINE` into each record not already written, with its other
+fields not applicable; correction, recovery, counts, logs and error injection are invisible to
+contexts and reachable only by the host. In v1 the precise form has no source: SPM's arrays are
+register files without ECC (DA rev 124, AR 371) and a dirty L1 line's error is core-wide (AR
+370), so every v1 `F-MACHINE` is core-wide; the precise form is defined so that a future array
+holding one context's data can use it. The cause's code is the schema owner's (TI). Cost: one
+cause code and a record write per context, no encoding. What lost: poison propagation, which
+would let a context run on to the point of use (out of scope, like RF and flop parity, PF-48);
+and recovering the clean-line case without a bound, since a real bad bit could loop forever
+(Daniel's (2)).
+
+---
+
 **O-85 — Warp-collective semantics defined — decided in 1.9.** RA-20, from RA's RCU build. DA's
 words: "Let's adopt your recommendation for RA-20" (2026-11-02). Format G's layouts gave every
 field's position but not what a shuffle, vote, ballot or unballot computes across lanes: the
@@ -5428,6 +5463,11 @@ assigned a result today becomes behaviour someone depends on. So encodings that 
 fault. A *well-formed* instruction meeting a mismatched operand keeps invariant 3's
 deterministic result wherever that result is safe and forecloses nothing.
 
+**Machine errors are the one cause outside the instruction stream (O-86).** An uncorrectable
+hardware error is not predictable from the program or its state, so whether `F-MACHINE` occurs is
+not defined; what happens when it does is. It is delivered as §12.6 delivers every fault, with
+the core-wide case of §12.7.
+
 ### 12.2 Detection stages
 
 | Stage | Detected from | Granularity | Gated by predicate? |
@@ -5468,6 +5508,7 @@ raises an execute-stage fault, whatever its operand values.
 | `F-SHARED` | Execute | `.shared` access outside the CTA's allocation |
 | `F-RO` | Execute | Store or atomic any byte of which lies in read-only memory: the launch block and `.const` (§5.2, O-51) |
 | `F-BARRIER` | Dispatch | Barrier ID (`bar.arrive`, `bar.wait`, `bar.init`, `bar.wait.phase`) at or above the CTA's allocated barrier count (O-59) |
+| `F-MACHINE` | Execute, or none | An uncorrectable hardware error (O-86): precise, in data a lane's load, store merge or atomic read; or core-wide, owned by no single context (§12.7) |
 
 **`F-ILLEGAL` covers every encoding that names no operation.** Reserved opcode points (Format K
 29–31, §4 integer 26–31, `dp` 60–63, Format D `01110`–`01111`, the local forms `10000`–`10011` in D′, Format E `00101`+, Format M 10–15 and 26–31, M′ other than 16–17, any tag at a length it
@@ -5485,6 +5526,14 @@ register's width (codes `10`/`11` at every width in the FP block; `01` at 32 and
 nothing there, and O-34 names `01` at 32 bits as TF32's home if it is ever wanted, so faulting
 keeps it open. Distinct from a format *mismatch*: a defined code against differently formatted
 data keeps its deterministic result (§4).
+
+**`F-MACHINE` is the one cause the instruction stream does not decide** (O-86). A corrected
+error is never a fault (§12.8). The precise form is raised for an uncorrectable error in data
+that one lane's access of one context read or merged: it obeys §12.2's execute rule, so only a
+lane in issue mask ∩ predicate can raise it, and §12.4's, so one on a squashed speculative
+access is discarded as a fault. The core-wide form is detected outside any instruction, in data
+no single context owns, such as a writeback's or a fill's; §12.7 says what it ends. In v1 every
+`F-MACHINE` is core-wide: no array that holds one context's data has a precise path (O-86).
 
 **`F-RO` resolves an earlier review finding**: the walkthrough's second listing stored into the
 launch block. Under this model that store faults rather than silently corrupting a region other
@@ -5506,9 +5555,11 @@ lane.
 ### 12.5 Priority
 
 **Within one lane**, earlier stages win:
-`F-FETCH` > `F-ILLEGAL` > `F-WIDTH` / `F-FORMAT` / `F-BARRIER` > `F-ALIGN` > `F-ADDR` / `F-SHARED` > `F-RO`.
+`F-FETCH` > `F-ILLEGAL` > `F-WIDTH` / `F-FORMAT` / `F-BARRIER` > `F-ALIGN` > `F-ADDR` / `F-SHARED` > `F-RO` > `F-MACHINE`.
 `F-ALIGN` precedes the address checks because it is decidable from the address alone; `F-RO`
-follows `F-ADDR` because read-only-ness is a property of a mapping.
+follows `F-ADDR` because read-only-ness is a property of a mapping. `F-MACHINE` is last because
+only an access that passed every other check reads data (O-86); across lanes, a program's own
+fault is therefore reported in preference to a machine error.
 
 **Across lanes of one instruction**, the record reports the highest-priority cause among the
 faulting lanes and the address of the lowest-numbered lane raising it.
@@ -5534,6 +5585,9 @@ faults do not overwrite it.
 | Address | Execute-stage memory causes: the address of the lowest lane raising the reported cause, as generated, in full — including any bits above 48 that made it non-canonical (`F-ADDR`) |
 | CTA ID, warp ID | The faulting warp's location |
 
+A core-wide `F-MACHINE` (§12.7) has no instruction: its record holds the cause, and its other
+fields are marked not applicable, in a way the driver interface defines (O-86).
+
 The record is visible only to the context's owning host process. Whether it lives in MMIO
 registers or a host-visible memory region is the driver interface's choice; its content,
 containment and stickiness are architectural.
@@ -5553,12 +5607,26 @@ rather than assumed.
    partition, predicate state and barrier-table entries are cleared before reallocation, the
    obligation O-38 already places on widening, applied to the whole partition.
 
+**The one exception: a core-wide machine error (O-86).** An uncorrectable hardware error that no
+single context owns, such as one in a writeback's or a fill's data, terminates every context on
+the core, as §12.6 terminates one. Each such context's record, if no fault has yet written it,
+is written with `F-MACHINE` and its other fields not applicable, so no context ends with an
+empty record and its host can tell a machine error from its own fault. The host learns of it by
+polling, since the core has no interrupt, and resets the core. Item 1 holds for every other
+cause. **Error state is the host's alone**: the counts, error logs and error injection are
+reachable only through the host's privileged driver path, never by a context, since a log
+reveals another context's access locations and injection would let one context fault another.
+
 **Concurrent faults:** which one the record captures is bounded-nondeterministic. It is always
 one that occurred, never a merge and never garbage. A deterministic choice would need a global
 order of fault detection across SMs, which the hardware does not have.
 
 ### 12.8 What is not a fault
 
+- **A corrected hardware error never faults**, nor does a recovered one: a single-bit error is
+  corrected and counted, and an uncorrectable error in a clean L1 line is recovered by
+  refetching the line, a bounded number of times per location (O-86). Neither is visible to a
+  context.
 - **FP exceptions never fault.** Overflow, underflow, invalid and inexact produce the format's
   result: IEEE defaults at 16 and 32 bits, saturation at 8 and 4 bits (O-56). Subnormals are
   kept, never flushed. CCV has no FP status flags.
