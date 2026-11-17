@@ -74,4 +74,5 @@ TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c, MA 1f971016-3f72,
    CP-77 done: the sweep task skips gate-scratch/* (TI rev 289; Daniel
    approved 2026-11-02).
 5. CP-82 (2026-11-15, re:MA 58, AR 357/358): coremark per-thread blocks are in the window in coremark-derived-priv; core benches ran plain coremark-derived. AR 358 ruled the perf benches price -priv (pl included); TI moves bench SOURCE. CP added export coremark-derived-pl-priv (tools/export-kernels.py) for the pl benches; -priv oracles come from the pin via gen-oracle.sh.
-6. Recent rows: CP-65..CP-83 (CP-83: -priv oracles from the pin, pl-priv exported in a9241c2; CP-81: yes to an atom.add.f32 kernel, closed at TI rev 366 (atomf); CP-80: TI-51 answered; CP-78: TI rev 308's three items were all done).
+7. colwalk-pP (AR 373 (2), DA rev 125): test/cuda/colwalk.cu, exported as colwalk-p{1,2,4,8,16,32}k and colwalk-p128b (one CTA of four warps, in.bin loaded, bit-for-bit, no-input control). Row lands with the release; TI adds bench configs and the pin bump (core's gen-oracle has no -load yet).
+6. Recent rows: CP-65..CP-84 (CP-84: colwalk exported; CP-83: -priv oracles from the pin, pl-priv exported in a9241c2; CP-81: yes to an atom.add.f32 kernel, closed at TI rev 366 (atomf); CP-80: TI-51 answered; CP-78: TI rev 308's three items were all done).
