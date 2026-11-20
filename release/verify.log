@@ -248,8 +248,8 @@ checked 446 instructions
   benchmark document vs tools
   PASS  static table matches the tool
   PASS  dynamic table matches the tool
-  PASS  prior-art bits/instr table matches the tool
-  PASS  prior-art instruction-count table matches the tool
+  SKIP  prior-art tables: ptxas not installed, so the SASS column
+        cannot be regenerated. Run tools/fetch-ptxas.sh to check them.
   PASS  O-40 retire-rate table matches the tool
   PASS  work-per-element table matches the tool
   PASS  GEMM sweep table matches the tool

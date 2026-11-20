@@ -63,9 +63,7 @@
       "element_work": 11
     },
     "sass": {
-      "instrs": 17,
-      "bytes": 272,
-      "pad": 7
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
     }
   },
   {
@@ -132,9 +130,7 @@
       "element_work": 12
     },
     "sass": {
-      "instrs": 16,
-      "bytes": 256,
-      "pad": 0
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
     }
   },
   {
@@ -201,9 +197,7 @@
       "element_work": 14
     },
     "sass": {
-      "instrs": 17,
-      "bytes": 272,
-      "pad": 7
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
     }
   },
   {
@@ -270,9 +264,7 @@
       "element_work": 55
     },
     "sass": {
-      "instrs": 20,
-      "bytes": 320,
-      "pad": 4
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
     }
   },
   {
@@ -339,9 +331,7 @@
       "element_work": 58
     },
     "sass": {
-      "instrs": 20,
-      "bytes": 320,
-      "pad": 4
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
     }
   },
   {
@@ -408,9 +398,7 @@
       "element_work": 92
     },
     "sass": {
-      "instrs": 42,
-      "bytes": 672,
-      "pad": 6
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
     }
   },
   {
@@ -477,9 +465,7 @@
       "element_work": 90
     },
     "sass": {
-      "instrs": 39,
-      "bytes": 624,
-      "pad": 1
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
     }
   },
   {
@@ -546,9 +532,7 @@
       "element_work": 44
     },
     "sass": {
-      "instrs": 53,
-      "bytes": 848,
-      "pad": 3
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
     }
   },
   {
@@ -615,9 +599,7 @@
       "element_work": 186
     },
     "sass": {
-      "instrs": 166,
-      "bytes": 2656,
-      "pad": 2
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
     }
   },
   {
@@ -684,9 +666,7 @@
       "element_work": 479
     },
     "sass": {
-      "instrs": 196,
-      "bytes": 3136,
-      "pad": 4
+      "error": "ptxas not installed -- run tools/fetch-ptxas.sh"
     }
   }
 ]

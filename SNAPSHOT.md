@@ -1,7 +1,7 @@
-# Snapshot snapshot-2026-11-17-b9ae2c9
+# Snapshot snapshot-2026-11-20-a1106e6
 
 **A generated, read-only snapshot. Do not edit or merge it.** The source
-is `ccr-ea1c4e17-tem30u` at `b9ae2c9d5d3b838d5d982d842b558e2d290185ea`; this branch is rebuilt from source by
+is `ccr-ea1c4e17-tem30u` at `a1106e62f8cf9c7fe5b35dfee2391ece4089bf2b`; this branch is rebuilt from source by
 `tools/make-release.sh`, and nothing here flows back.
 
 Beyond the source tree at that commit:
@@ -24,12 +24,12 @@ Beyond the source tree at that commit:
 
 | | |
 |---|---|
-| Source | `ccr-ea1c4e17-tem30u` @ `b9ae2c9d5d3b838d5d982d842b558e2d290185ea` |
-| Built | 2026-11-17 (UTC) |
+| Source | `ccr-ea1c4e17-tem30u` @ `a1106e62f8cf9c7fe5b35dfee2391ece4089bf2b` |
+| Built | 2026-11-20 (UTC) |
 | Gate | `tools/verify.sh`: VERIFY: PASS |
 | clang | Ubuntu clang version 18.1.3 (1ubuntu1) |
 | LLVM | 18.1.3 |
-| Platform | x86_64, ldd (Ubuntu GLIBC 2.39-0ubuntu8.9) 2.39 |
+| Platform | x86_64, ldd (Ubuntu GLIBC 2.39-0ubuntu8.12) 2.39 |
 | Kernels not compiled at default parameters | test/cuda/barcount.cu test/cuda/colwalk.cu test/cuda/fp4.cu test/cuda/fp8.cu |
 
 ## Manifest of release/
@@ -70,14 +70,14 @@ e4703fb1c0b5a880ab1554c695dc2dc0f81743a655255af45ad7aa0f2e054526  release/asm/cu
 f33f3380f2176952d8bfe11bf3601cf75bc8344b12c4ca20e071e4a8430ca0a8  release/asm/cuda-transpose32.s
 56f8bc23746061159d146f248d605bdd2f430be318ba29477aa4c946533bc993  release/asm/cuda-vadd-aligned.s
 f540a502bf7063cfb75450053c5163bc8986871d7cb0aa9bc2b8ee8cb9637a3c  release/asm/cuda-vadd.s
-d9e3e29cdc3a7411b972a4fbef69a2bed68355798daf5f65bbf21a7cc8ae9c02  release/bench/bench.json
-718ae7f2f5b7ea13cf7af347850b325d3156c4afa4592a3f0c471ac35d9e9337  release/bench/bench.txt
+013f5838f7143fd3fa6d58f0c0c79cc9a681e4634f5a9299f816e748edd3165a  release/bench/bench.json
+ab481477a2d2d1ae6f47c09c8cbe144533572942fd2c6a691b29b62ccf2c5ee7  release/bench/bench.txt
 b75b80e31a223cb17ae8a86993cc7275b6b63ae5a9609214ebd633e5cd6e08df  release/bench/sweep-coremark.txt
 0529582a0572b0828fefa8b9e57ba448529f16369affe535b1acbb20816662de  release/bench/sweep-decode.txt
 50d1be2dd11fcbaaeda921a929c52a721654d5ec0c2878111e97d9785b99e271  release/bench/sweep-frames.txt
 28c14ebc8397a6ec18b69bcb5ebe93a64c94cd04b97c971dd526f78ff72f423b  release/bench/sweep-tiles.txt
 c4b3d31995a5d1ca1899c43d1cd0bc972af845d2f010d02789527d224aa1e0ca  release/bin/ccv-sim
-2f483bd7f0edaccf8bdb005cf0c00e2e2fff1616f28f74314188df67edf797d3  release/bin/ccv-sim.txt
+abef3a521550eb79efbf629ad5bfeb3ecaf010d29eb924891ab6f55f23ae6e9c  release/bin/ccv-sim.txt
 ff08d889cd0fbfbe632e96de42a80d48ce0f39b9f7ff009cef2f195374782356  release/kernels/colwalk-p128b/in.bin
 90b0f90c55f34c0186be2b8a258d929c98e2e5cee9fc90ea88be485e0b5ced4b  release/kernels/colwalk-p128b/kernel.bin
 6466c2232c1362723e13fa32a742b737291c670ea0cbdae9f75a9f145a6d3247  release/kernels/colwalk-p128b/kernel.s
@@ -222,5 +222,5 @@ f5063fb8c27fa4f816f8d3839b78b7d866f92c8dd9a2eb965f975a8c950969c1  release/kernel
 b0f74c77a102dec097e286d8da36425b7e05babbe93a7b6d1c64accd41670ff0  release/kernels/vadd16_loop-128/kernel.s
 0b9c1869e6fee016ebaf5e6d575ca1f85455572aefc58abe6b7a938566750388  release/kernels/vadd16_loop-128/launch.txt
 2fc89097566002c110c5a04fb8106ea56bf839b7a224c287086fb673768983b8  release/kernels/vadd16_loop-128/ops.txt
-c2ddcea6f98ae8608ec1da75c923dbb3a00f61967ac859fe4692878c22c76421  release/verify.log
+253d54730fe751764ff02112fd5bf28460636ae49bcd6b40159b087cb4af2a56  release/verify.log
 ```
