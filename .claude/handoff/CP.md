@@ -1,6 +1,6 @@
 # CP handoff (compiler implementation)
 
-Updated 2026-11-20. Keep this current at every task's end; it is what
+Updated 2026-11-23. Keep this current at every task's end; it is what
 survives a compaction. The repo's rules are in its docs and skills; this holds
 CP's.
 
@@ -44,7 +44,7 @@ Daniel before any re-run); make-release if the head is not snapshotted; pings
 on Fridays; report in a few lines.
 
 ## Register bookmarks (revs read through), scratchpad cp-register-bookmarks.json
-CP 160, IS 201, OA 460, AR 400, TI 498, OI 395, DA 128, RA 157, RI 91, MA 135, Conventions 20 (swept 2026-11-20). TI-490 (11-20, Daniel per TI; not in the DA tab): RESUMED PASS (CCV_RESUME=1 after gate-wait says killed) counts as the full clean gate; core's tools only, the compiler make-release has no resume. 11-19: the container was replaced, /home/user/.claude and /tmp/claude-0/cp were lost; Daniel approved the session-home re-run in CP's session, --check rc=0. Roster 11-20 adds MI (MIU impl, session_01QPk2jzH1Gd3DcxK4F4pwCC, tab c1311541-4219) and DI (DCU impl, session_01QPk2jz5TVESyWMKVKjqqEA, tab 1ea5d5b3-6e9c). TI 461 (11-16): no task carries a date; best effort in priority order. MA (MIU+DCU architect) is session_01QPk2jyUbWA7fW9YpUwqdxk, tab 1f971016-3f72. Core tools detach and exit 5 (TI 429); the compiler make-release does not.
+CP 160, IS 201, OA 474, AR 414, TI 529, OI 405, DA 131, RA 158, RI 91, MA 173, Conventions 20, MI 38, DI 69 (swept 2026-11-23; Friday 11-20 pings all ponged ok). TI-490 (11-20, Daniel per TI; not in the DA tab): RESUMED PASS (CCV_RESUME=1 after gate-wait says killed) counts as the full clean gate; core's tools only, the compiler make-release has no resume. 11-19: the container was replaced, /home/user/.claude and /tmp/claude-0/cp were lost; Daniel approved the session-home re-run in CP's session, --check rc=0. Roster 11-20 adds MI (MIU impl, session_01QPk2jzH1Gd3DcxK4F4pwCC, tab c1311541-4219) and DI (DCU impl, session_01QPk2jz5TVESyWMKVKjqqEA, tab 1ea5d5b3-6e9c). TI 461 (11-16): no task carries a date; best effort in priority order. MA (MIU+DCU architect) is session_01QPk2jyUbWA7fW9YpUwqdxk, tab 1f971016-3f72. Core tools detach and exit 5 (TI 429); the compiler make-release does not.
 RI (RCU implementation, DA rev 101) has tab 8e4547bc-c469, session_01QPk2jvvXPLs4m8ZQbSk1g6;
 RA and RI are in the roster (copied from core 2026-11-03).
 Sessions: AR 01FnGhxke3r33MeArLeQJRcD, OA 01TbX2MyX6quhjarDR7J2bMR,
@@ -55,7 +55,7 @@ Tabs: AR bc521c46-9710, OA 4c6a3151-83eb, IS 60e6f93a-7fdc,
 TI e8b1d9d9-df9b, OI 384bc26c-cef6, Conventions 55232329-ff5c, MA 1f971016-3f72, RA 9851686b-2b0a, RI 8e4547bc-c469, DA d5076b00-ef1b.
 
 ## State
-- Last snapshot: this commit (11-20 sweep: roster with MI and DI). Before it b9ae2c9 (release a293afe: colwalk, CP-84, closed by TI-480; core pins a293afe7); 46131a1 (11-17 sweep, release f88258a: merged IS's 103976f, ISA v1.9 O-86 F-MACHINE); 807056d (11-15, release a9241c2: coremark-derived-pl-priv export, CP-83; core pins it, TI-450); 415fd9f (11-14 sweep, release 5204942); ce94d0a (11-13 sweep, release e624cc7); afbb240 (11-12 sweep, release 869775c); c09c83e (11-10 sweep, release 3928d2b); c18e887 (11-09 sweep, release b63e379); cc882ed (11-08 sweep, release 8047b34); f56b225 (11-07 sweep, release 0f28ea8); d721157 (11-06 sweep, release 1e3e3bc); 003e942 (autoCompactWindow 350000, TI-51); before it e533ecd (45ce995: vadd16-128 and vadd16_loop-128 exports, CP-79, AR-24 / TI rev 312);
+- Last snapshot: this commit (11-23: chwidth's hex comments corrected to 0xEFCDAB89, from OI-200). Before it a1106e6 (11-20, release 58282dc: roster with MI and DI; new container needed apt llvm-18-dev libzstd-dev and a cmake build first); b9ae2c9 (release a293afe: colwalk, CP-84, closed by TI-480; core pins a293afe7); 46131a1 (11-17 sweep, release f88258a: merged IS's 103976f, ISA v1.9 O-86 F-MACHINE); 807056d (11-15, release a9241c2: coremark-derived-pl-priv export, CP-83; core pins it, TI-450); 415fd9f (11-14 sweep, release 5204942); ce94d0a (11-13 sweep, release e624cc7); afbb240 (11-12 sweep, release 869775c); c09c83e (11-10 sweep, release 3928d2b); c18e887 (11-09 sweep, release b63e379); cc882ed (11-08 sweep, release 8047b34); f56b225 (11-07 sweep, release 0f28ea8); d721157 (11-06 sweep, release 1e3e3bc); 003e942 (autoCompactWindow 350000, TI-51); before it e533ecd (45ce995: vadd16-128 and vadd16_loop-128 exports, CP-79, AR-24 / TI rev 312);
   b83777e (108b23d); 7ec31c0 (89dc3bf: roster with RA and RI, CP-77 done); 85a1c6b (0799e97) merged IS's 0aafcf5 (Format G
   opcode points in §3). Earlier: RA-19 pmov merge (CP-75), O-85 (CP-76). Before it d9ddd2c
   (f5fa030): O-84/IS-25 frames at the bottom of the O-83 region, default.

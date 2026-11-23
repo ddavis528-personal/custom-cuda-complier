@@ -10,12 +10,12 @@
 #     occupied that slice. On a GPU the register file is partitioned between
 #     resident warps and reused across kernel launches without clearing, so
 #     handing those bits back is a cross-context read. R2 is loaded with
-#     0xEFBEADC9 while wide and narrowed; if the widening at the end ever
-#     produces 0xEFBExxxx instead of 0x0000xxxx, the machine is leaking.
+#     0xEFCDAB89 while wide and narrowed; if the widening at the end ever
+#     produces 0xEFCDxxxx instead of 0x0000xxxx, the machine is leaking.
 #
 # Data window 0x30000. Inputs at +0/+2 as 16-bit; results at +16 and +32.
         MOVI48     R0, 3             # .global window 3 -> byte address 0x30000
-        MOVI48     R2, 4023233417    # 0xEFBEADC9 into R2 while it is still 32-bit
+        MOVI48     R2, 4023233417    # 0xEFCDAB89 into R2 while it is still 32-bit
         C_CHWIDTH  R2, 1             # R2 is now 16-bit: the top half is now
                                      # outside the register
         C_CHWIDTH  R3, 1
