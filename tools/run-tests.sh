@@ -94,14 +94,14 @@ run_chwidth() {
     echo "  FAIL  16-bit add/store gave $narrow, want 48882 (0xBEF2)"; return 1
   fi
   echo "  PASS  16-bit load, add and store (transfer size follows chwidth)"
-  # R2 held 0xEFBEADC9 before being narrowed. Widening must clear the exposed
+  # R2 held 0xEFCDAB89 before being narrowed. Widening must clear the exposed
   # bits: anything but 0x0000BEF2 here means the machine hands back whatever
   # last occupied that slice of the register file -- another warp's data, or
   # the previous kernel's. This is the security property, not a nicety (O-38).
   if [ "$wide" != "48882" ]; then
     echo "  FAIL  widened register read $wide, want 48882 (0x0000BEF2)."
     if [ "$wide" = "4023238386" ]; then
-      echo "        Got 0xEFBEBEF2 -- the stale top half survived the width"
+      echo "        Got 0xEFCDBEF2 -- the stale top half survived the width"
       echo "        change. That is a cross-context register-file leak (O-38)."
     fi
     return 1
